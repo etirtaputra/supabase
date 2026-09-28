@@ -14,6 +14,7 @@ import type { PurchaseOrder, Supplier, PriceQuote, POCost } from '@/types/databa
 import { ENUMS } from '@/constants/enums';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { fmtIdr } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
 
 const ALL_COST_CATS = ENUMS.po_cost_category as readonly string[];
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSuccess, onError }: Props) {
+  const { t, tf } = useT();
   const [poSearch,    setPoSearch]    = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
@@ -343,7 +345,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
         <div className="mb-4 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs">
           <span className="text-emerald-300 font-semibold">Draft restored</span>
           <span className="text-slate-400">Your unsubmitted batch from last time was brought back.</span>
-          <button onClick={discardDraft} className="ml-auto text-slate-500 hover:text-red-300 font-semibold transition-colors whitespace-nowrap">Discard draft</button>
+          <button onClick={discardDraft} className="ml-auto text-slate-500 hover:text-red-300 font-semibold transition-colors whitespace-nowrap">{t('Discard draft')}</button>
         </div>
       )}
     <div className="xl:grid xl:grid-cols-[1fr_1fr] xl:gap-8 xl:items-start">
@@ -455,7 +457,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
               onClick={addCostItem}
               className="px-3 py-1.5 bg-slate-700/60 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs font-semibold rounded-lg transition-colors"
             >
-              + Add entry
+              + {t('Add entry')}
             </button>
           </div>
           <p className="text-xs text-slate-500 mb-4">Add one row per cost category. Each entry is split proportionally across the selected POs; a batch can span several days — give an entry its own date when it was paid on a different day (empty = batch date).</p>
@@ -571,7 +573,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                           />
                           {overridden && (
                             <button onClick={() => clearOverride(key)} className="text-[10px] text-slate-500 hover:text-slate-300 whitespace-nowrap">
-                              ↺ auto
+                              ↺ {t('Auto')}
                             </button>
                           )}
                         </div>
@@ -606,8 +608,14 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
           className="w-full py-3.5 bg-rose-500 hover:bg-rose-400 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors text-sm"
         >
           {submitting
-            ? 'Saving…'
-            : `Submit Batch Payment · ${selectedPos.length} PO${selectedPos.length > 1 ? 's' : ''} · ${costItems.filter((i) => parseFloat(i.amountStr) > 0).length} entr${costItems.filter((i) => parseFloat(i.amountStr) > 0).length === 1 ? 'y' : 'ies'} · ${fmtIdr(totalAmount)}`}
+            ? t('Saving…')
+            : tf('Submit batch payment · {pos} · {entries} · {amount}', {
+                pos: selectedPos.length > 1 ? tf('{n} POs', { n: selectedPos.length }) : `${selectedPos.length} PO`,
+                entries: costItems.filter((i) => parseFloat(i.amountStr) > 0).length === 1
+                  ? t('1 entry')
+                  : tf('{n} entries', { n: costItems.filter((i) => parseFloat(i.amountStr) > 0).length }),
+                amount: fmtIdr(totalAmount),
+              })}
         </button>
       )}
       </div>

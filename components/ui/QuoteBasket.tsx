@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { buildQuoteMessage, copyOnly, type QuoteLine } from '@/lib/whatsappQuote';
 import { fmtRupiah } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 
 /**
  * The WhatsApp quote basket: pick products while scrolling, then send them in
@@ -92,6 +93,7 @@ export default function QuoteBasket({
   onClear: () => void;
   flash: (m: string) => void;
 }) {
+  const { t, tf } = useT();
   const [open, setOpen] = useState(false);
   const [withTotal, setWithTotal] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -120,13 +122,13 @@ export default function QuoteBasket({
       <div className="mx-auto max-w-md pointer-events-auto flex items-center gap-2 rounded-2xl bg-emerald-600 shadow-2xl shadow-black/40 px-3 py-2">
         <button onClick={() => setOpen(true)} className="flex-1 text-left min-w-0">
           <span className="block text-white text-sm font-bold truncate">
-            {items.length} item{items.length !== 1 ? 's' : ''} · {fmtRupiah(total)}
+            {items.length === 1 ? tf('{n} item', { n: 1 }) : tf('{n} items', { n: items.length })} · {fmtRupiah(total)}
           </span>
-          <span className="block text-emerald-100/80 text-[11px] truncate">Excl. PPN · tap to review</span>
+          <span className="block text-emerald-100/80 text-[11px] truncate">{t('Excl. PPN · tap to review')}</span>
         </button>
         <button onClick={send} disabled={busy}
           className="flex-shrink-0 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-colors disabled:opacity-50">
-          {busy ? '…' : 'Copy'}
+          {busy ? '…' : t('Copy')}
         </button>
         <button onClick={onClear} title="Clear the list"
           className="flex-shrink-0 w-8 h-8 rounded-xl text-white/70 hover:text-white hover:bg-white/15 transition-colors">×</button>
@@ -181,10 +183,10 @@ export default function QuoteBasket({
           {/* Exactly what will be sent — no surprises after pasting */}
           <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-[11px] text-slate-300 leading-relaxed font-sans">{message}</pre>
           <div className="flex items-center gap-2">
-            <button onClick={onClear} className="text-[11px] text-slate-500 hover:text-white px-2 py-2 transition-colors">Clear all</button>
+            <button onClick={onClear} className="text-[11px] text-slate-500 hover:text-white px-2 py-2 transition-colors">{t('Clear all')}</button>
             <button onClick={send} disabled={busy}
               className="ml-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-colors disabled:opacity-50">
-              {busy ? 'Copying…' : 'Copy quote'}
+              {busy ? t('Copying…') : t('Copy quote')}
             </button>
           </div>
         </div>

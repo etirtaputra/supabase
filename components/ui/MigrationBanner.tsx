@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { useT } from '@/hooks/useT';
 
 // Full, idempotent schema for the project-quote feature. Safe to re-run.
 const MIGRATION_SQL = `CREATE TABLE IF NOT EXISTS "10.0_project_quotes" (
@@ -179,6 +180,7 @@ ALTER TABLE "3.0_components" ADD COLUMN IF NOT EXISTS quote_cost_buffer_pct NUME
  * amber banner with copyable SQL when the database is behind the app.
  */
 export default function MigrationBanner() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [missing, setMissing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -226,11 +228,11 @@ export default function MigrationBanner() {
         <div className="flex gap-2 ml-auto">
           <button onClick={copy}
             className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold transition-colors">
-            {copied ? 'Copied ✓' : 'Copy SQL'}
+            {copied ? <>{t('Copied')} ✓</> : t('Copy SQL')}
           </button>
           <button onClick={() => setShowSql((v) => !v)}
             className="px-3 py-1.5 rounded-lg text-amber-300/70 hover:text-amber-200 text-xs transition-colors">
-            {showSql ? 'Hide' : 'Show'} SQL
+            {showSql ? t('Hide SQL') : t('Show SQL')}
           </button>
         </div>
       </div>

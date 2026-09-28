@@ -33,6 +33,7 @@ import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { isOfferable, visibleBrands, VISIBILITY_COLUMNS } from '@/lib/itemVisibility';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   LETTER_STATUS, DEFAULT_LETTER_FEE, DEFAULT_STATEMENTS, DEFAULT_VALIDITY_NOTE,
   DEFAULT_CLOSING_NOTE, brandsOf, warrantyTextID, previewLetterNumber,
@@ -111,8 +112,7 @@ export default function SupportLettersPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  useEffect(() => { document.title = 'Support Letters — ICAPROC'; }, []);
-  // ?q= deep link (the customer profile's "All →" arrives with the name).
+  usePageTitle();
   // Read straight off the URL so the page needs no Suspense boundary.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('q');
@@ -516,7 +516,7 @@ export default function SupportLettersPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1400px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t('Support Letters · Surat Dukungan')} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" />
         </div>
       </div>
 
@@ -529,7 +529,7 @@ export default function SupportLettersPage() {
             <button onClick={() => openEditor('new')}
               className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              {t('New Letter')}
+              {t('New letter')}
             </button>
           )}
           {/* Search — suggests as you type, from what is already on file */}

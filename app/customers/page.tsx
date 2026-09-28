@@ -21,6 +21,7 @@ import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -309,7 +310,7 @@ function CustomersInner() {
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
-  useEffect(() => { document.title = 'Customers — ICAPROC'; }, []);
+  usePageTitle();
 
   // ── Auth gate ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -814,13 +815,13 @@ function CustomersInner() {
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             three buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Customers · CRM")} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="CRM" />
           <div className="flex items-center gap-2 flex-wrap">
             {canExport && (
               <button onClick={exportCsv}
                 title="Download the filtered customer list as CSV (includes primary contact)"
                 className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
-                ↓ Export CSV
+                ↓ {t('Export CSV')}
               </button>
             )}
             <label className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap cursor-pointer"
@@ -833,7 +834,7 @@ function CustomersInner() {
               onClick={() => openDrawer(null)}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 transition-colors whitespace-nowrap"
             >
-              + New Customer
+              + {t('New customer')}
             </button>
           </div>
         </div>
@@ -893,7 +894,7 @@ function CustomersInner() {
             className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${
               frOpen ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'bg-slate-900/80 border-slate-700 text-slate-400 hover:text-slate-200'
             }`}>
-            ⇅ Replace
+            ⇅ {t('Replace')}
           </button>
           <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none" title="Select every customer currently shown">
             <input type="checkbox"
@@ -928,7 +929,7 @@ function CustomersInner() {
               </button>
             ))}
             {bulkBusy && <span className="text-[11px] text-slate-500 animate-pulse">applying…</span>}
-            <button onClick={() => setSelected(new Set())} className="ml-auto text-[11px] text-slate-500 hover:text-slate-300">Clear ×</button>
+            <button onClick={() => setSelected(new Set())} className="ml-auto text-[11px] text-slate-500 hover:text-slate-300">{t('Clear')} ×</button>
           </div>
         )}
 
@@ -1063,29 +1064,31 @@ function CustomersInner() {
                       <span className={`font-mono text-[11px] text-slate-400 ${compact ? 'hidden md:block' : ''}`}>{c.customer_code || '—'}</span>
                       <span className={`min-w-0 ${compact ? 'flex-1' : ''}`}>
                         <span className="flex items-center gap-2 min-w-0">
-                          <span className="text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || '(no name)'}</span>
+                          <span className="text-sm text-slate-100 font-medium truncate">{c.display_name || c.legal_name || t('(no name)')}</span>
                           {/* Individuals are the marked exception — most customers are companies */}
                           {c.customer_type === 'individual' && (
                             <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 text-[10px] font-semibold" title={t("Individual customer — the person is the customer")}>
-                              Individual
+                              {t('Individual')}
                             </span>
                           )}
                           {/* Ranked by transactions → show the number being ranked on */}
                           {sort === 'transactions' && !colSort && (
                             <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 text-[10px] font-semibold tabular-nums"
                               title={txnByCustomer[c.customer_id] ? fmtRupiah(txnByCustomer[c.customer_id].value) : undefined}>
-                              {txnByCustomer[c.customer_id]?.n ?? 0} order{(txnByCustomer[c.customer_id]?.n ?? 0) !== 1 ? 's' : ''}
+                              {(txnByCustomer[c.customer_id]?.n ?? 0) !== 1
+                                ? tf('{n} orders', { n: txnByCustomer[c.customer_id]?.n ?? 0 })
+                                : tf('{n} order', { n: 1 })}
                             </span>
                           )}
                         </span>
                         {primary && !compact && <span className="block text-[11px] text-slate-500 truncate">{primary.name}{primary.email ? ` · ${primary.email}` : ''}</span>}
                       </span>
                       <span className={`text-xs text-slate-400 ${compact ? 'flex-shrink-0' : ''}`}>{c.tier ? <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[11px]">{tierLabel.get(c.tier) ?? c.tier}</span> : <span className="text-slate-600">—</span>}</span>
-                      <span className={`text-xs text-slate-400 truncate ${compact ? 'hidden md:block' : ''}`}>{c.account_manager_id ? (amById.get(c.account_manager_id) ?? '—') : <span className="text-slate-600">Unassigned</span>}</span>
+                      <span className={`text-xs text-slate-400 truncate ${compact ? 'hidden md:block' : ''}`}>{c.account_manager_id ? (amById.get(c.account_manager_id) ?? '—') : <span className="text-slate-600">{t('Unassigned')}</span>}</span>
                       <span className={`flex items-center gap-2 ${compact ? 'flex-shrink-0 md:justify-between' : 'justify-between'}`}>
                         <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${c.is_active ? 'text-emerald-400' : 'text-slate-500'}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${c.is_active ? 'bg-emerald-400' : 'bg-slate-600'}`} />
-                          <span className={compact ? 'hidden md:inline' : ''}>{c.is_active ? 'Active' : 'Inactive'}</span>
+                          <span className={compact ? 'hidden md:inline' : ''}>{c.is_active ? t('Active') : t('Inactive')}</span>
                         </span>
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 md:hidden ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>
@@ -1180,10 +1183,10 @@ function CustomersInner() {
             </div>
             <div className="px-5 py-3 border-t border-slate-800 flex items-center justify-end gap-2">
               <button onClick={() => setImportPreview(null)} disabled={importBusy}
-                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">Cancel</button>
+                className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">{t('Cancel')}</button>
               <button onClick={applyImport} disabled={importBusy}
                 className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50">
-                {importBusy ? 'Importing…' : `Apply ${importPreview.updates.length + importPreview.creates.length} rows`}
+                {importBusy ? t('Importing…') : tf('Apply {n} rows', { n: importPreview.updates.length + importPreview.creates.length })}
               </button>
             </div>
           </div>
@@ -1257,7 +1260,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
         <button onClick={onEdit}
           className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-700/70 text-[11px] font-medium text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors flex-shrink-0">
           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-          Edit
+          {t('Edit')}
         </button>
         <span className="flex-1" />
         <button onClick={onClose} title="Collapse" className="p-1.5 -m-1 text-slate-500 hover:text-white transition-colors flex-shrink-0">
@@ -1511,6 +1514,7 @@ function DupGroupCard({ group, tierLabel, amById, contactsByCustomer, busy, onMe
     + (c.account_manager_id ? 2 : 0) + (contactsByCustomer[c.customer_id]?.length ?? 0);
   const [survivor, setSurvivor] = useState(() =>
     [...group].sort((a, b) => richness(b) - richness(a) || (a.created_at || '').localeCompare(b.created_at || ''))[0].customer_id);
+  const { t, tf } = useT();
   const [armed, setArmed] = useState(false);
   const survivorRow = group.find((c) => c.customer_id === survivor);
 
@@ -1553,7 +1557,7 @@ function DupGroupCard({ group, tierLabel, amById, contactsByCustomer, busy, onMe
           className={`text-[11px] font-bold px-3 py-1.5 rounded-lg transition-colors flex-shrink-0 disabled:opacity-50 ${
             armed ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' : 'bg-slate-800 text-amber-300 hover:bg-slate-700'
           }`}>
-          {busy ? 'Merging…' : armed ? `Confirm — merge ${group.length - 1} into KEEP` : 'Merge…'}
+          {busy ? t('Merging…') : armed ? tf('Confirm — merge {n} into KEEP', { n: group.length - 1 }) : t('Merge…')}
         </button>
       </div>
     </div>
@@ -1736,7 +1740,7 @@ function Drawer({
           <div className="pt-2 border-t border-slate-800">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-semibold uppercase tracking-widest text-slate-400">{t('Contacts')}</h3>
-              <button onClick={onAddContact} className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ Add contact</button>
+              <button onClick={onAddContact} className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ {t('Add contact')}</button>
             </div>
             {contacts.length === 0 ? (
               <p className="text-xs text-slate-600 italic py-2">No contacts yet.</p>
@@ -1755,7 +1759,7 @@ function Drawer({
                         <input type="radio" name="primary-contact" checked={ct.is_primary} onChange={() => onSetPrimary(ct.contact_id)} className="accent-emerald-500" />
                         Primary contact
                       </label>
-                      <button onClick={() => onRemoveContact(ct.contact_id)} className="text-[11px] text-red-400/70 hover:text-red-400 transition-colors">Remove</button>
+                      <button onClick={() => onRemoveContact(ct.contact_id)} className="text-[11px] text-red-400/70 hover:text-red-400 transition-colors">{t('Remove')}</button>
                     </div>
                   </div>
                 ))}
@@ -1766,14 +1770,14 @@ function Drawer({
 
         {/* Footer */}
         <div className="sticky bottom-0 bg-canvas/95 backdrop-blur border-t border-slate-800 px-6 py-4 flex items-center justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-white text-sm transition-colors">{t('Cancel')}</button>
           <button
             onClick={onSave}
             disabled={saving}
             className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {saving && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
-            {isNew ? 'Create customer' : 'Save changes'}
+            {isNew ? t('Create customer') : t('Save changes')}
           </button>
         </div>
       </div>

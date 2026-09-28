@@ -10,6 +10,7 @@ import { Spinner } from '../ui/LoadingSkeleton';
 import QuoteItemsImportModal from './QuoteItemsImportModal';
 import type { BatchLineItemsFormProps } from '../../types/forms';
 import { extractPdf } from '../../lib/extractPdfClient';
+import { useT } from '@/hooks/useT';
 export default function BatchLineItemsForm({
   title,
   storageKey: storageKeyProp,
@@ -30,6 +31,7 @@ export default function BatchLineItemsForm({
   onParentChange,
   fieldDefaultsOnParentChange = {},
 }: BatchLineItemsFormProps) {
+  const { t } = useT();
   const uniqueFormId = useId();
   const formId = customFormId || uniqueFormId;
   const storageKey = `form-draft:${storageKeyProp ?? title}`;
@@ -464,13 +466,13 @@ export default function BatchLineItemsForm({
                   onClick={() => setShowImportModal(true)}
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-all shadow-lg border border-emerald-500/50 active:scale-[0.98]"
                 >
-                  📋 Import Quote Items
+                  {t('Import quote items')}
                 </button>
                 <button
                   onClick={handleStartFresh}
                   className="flex-1 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-all border border-slate-700/50 active:scale-[0.98]"
                 >
-                  Start Fresh
+                  {t('Start fresh')}
                 </button>
               </div>
             )}
@@ -485,7 +487,7 @@ export default function BatchLineItemsForm({
             onClick={() => setShowImportModal(true)}
             className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-slate-700/50 active:scale-[0.98]"
           >
-            📋 Import from Quote
+            {t('Import from quote')}
           </button>
         </div>
       )}
@@ -594,7 +596,7 @@ export default function BatchLineItemsForm({
                 onClick={addItem}
                 className="w-full h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-xl text-sm font-bold shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center"
               >
-                Add Item +
+                {t('Add item')}
               </button>
             </div>
           ) : (
@@ -625,7 +627,7 @@ export default function BatchLineItemsForm({
                 onClick={addItem}
                 className="w-full md:w-auto h-[46px] bg-emerald-600 hover:bg-emerald-500 text-white px-8 rounded-xl text-sm font-bold shadow-lg shadow-emerald-900/20 border border-emerald-500/50 transition-all active:scale-[0.98] flex items-center justify-center"
               >
-                Add Item +
+                {t('Add item')}
               </button>
             </div>
           )}
@@ -644,7 +646,7 @@ export default function BatchLineItemsForm({
               onClick={clearAllItems}
               className="text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 px-3 py-1.5 rounded-lg transition-all font-bold border border-transparent hover:border-red-500/20"
             >
-              🗑️ Clear All
+              {t('Clear all')}
             </button>
           </div>
 
@@ -680,13 +682,13 @@ export default function BatchLineItemsForm({
                           onClick={saveEdit}
                           className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-emerald-500/50"
                         >
-                          ✓ Save
+                          {t('Save')}
                         </button>
                         <button
                           onClick={cancelEdit}
                           className="flex-1 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-slate-700/50"
                         >
-                          Cancel
+                          {t('Cancel')}
                         </button>
                       </div>
                     </div>
@@ -712,13 +714,13 @@ export default function BatchLineItemsForm({
                           onClick={() => editItem(item._id)}
                           className="flex-1 sm:flex-initial text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 px-4 py-2 rounded-xl transition-all text-sm font-bold border border-transparent hover:border-sky-500/20"
                         >
-                          ✏️ Edit
+                          {t('Edit')}
                         </button>
                         <button
                           onClick={() => removeItem(item._id)}
                           className="flex-1 sm:flex-initial text-red-400 hover:text-red-300 hover:bg-red-500/10 px-4 py-2 rounded-xl transition-all text-sm font-bold border border-transparent hover:border-red-500/20"
                         >
-                          🗑️ Remove
+                          {t('Remove')}
                         </button>
                       </div>
                     </div>

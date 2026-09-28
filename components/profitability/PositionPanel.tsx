@@ -15,6 +15,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fmtInt, fmtRupiah, fmtIdr, fmtDay } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
+import { useT } from '@/hooks/useT';
 import { fetchTradePositions, type PositionRow, type PositionTotals } from '@/lib/tradePosition';
 
 type Chip = 'all' | 'open' | 'recovered' | 'up' | 'down' | 'unmarked';
@@ -24,6 +25,7 @@ const toneOf = (n: number | null | undefined) =>
   n == null ? 'text-slate-600' : n > 0 ? 'text-emerald-300' : n < 0 ? 'text-red-400' : 'text-slate-300';
 
 export default function PositionPanel() {
+  const { tf } = useT();
   const supabase = createSupabaseClient();
   const [rows, setRows] = useState<PositionRow[]>([]);
   const [totals, setTotals] = useState<PositionTotals | null>(null);
@@ -187,7 +189,7 @@ export default function PositionPanel() {
                       <svg className={`w-3.5 h-3.5 mt-0.5 text-slate-600 transition-transform flex-shrink-0 ${open ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-2 text-[10px]">
-                      <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">{fmtInt(r.posQty)} held</span>
+                      <span className="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 tabular-nums">{tf('{n} held', { n: fmtInt(r.posQty) })}</span>
                       {r.recovered
                         ? <span className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 font-bold">Recovered</span>
                         : r.avgPosCost != null && <span className="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 font-bold tabular-nums">B/E {fmtIdr(r.avgPosCost)}</span>}

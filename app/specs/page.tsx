@@ -25,11 +25,13 @@ import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtInt } from '@/lib/formatters';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   CATEGORY_SPEC_FIELDS, conformSpecs, specGaps, type Specs,
 } from '@/lib/specSchema';
@@ -54,6 +56,7 @@ const DECLARED = Object.keys(CATEGORY_SPEC_FIELDS);
 type Tab = 'entry' | 'compare';
 
 export default function TechSpecsPage() {
+  const { t, tf } = useT();
   const supabase = useMemo(() => createSupabaseClient(), []);
   const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -69,7 +72,7 @@ export default function TechSpecsPage() {
   const [category, setCategory] = useState<string>(DECLARED[0] ?? '');
   const [search, setSearch] = useState('');
 
-  useEffect(() => { document.title = 'Tech Specs — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/specs')}`); return; }
@@ -197,7 +200,7 @@ export default function TechSpecsPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Tech Specs · Enter and compare" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Enter and compare" />
           <Link href="/items/specs"
             title="The backfill workbench: proposes a value for every blank a calculator needs, from the item's own name"
             className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
@@ -249,8 +252,8 @@ export default function TechSpecsPage() {
                     className={`w-full text-left px-3 py-2 transition-colors ${editingId === c.component_id ? 'bg-emerald-500/10' : 'hover:bg-white/[0.03]'}`}>
                     <p className="text-[12.5px] text-slate-200 truncate">{descOf(c)}</p>
                     <p className="text-[10px] text-slate-500 tabular-nums">
-                      {n} / {fields.length} answered
-                      {n === 0 && <span className="text-amber-400/80"> · nothing entered</span>}
+                      {tf('{count} answered', { count: `${n} / ${fields.length}` })}
+                      {n === 0 && <span className="text-amber-400/80"> · {t('nothing entered')}</span>}
                     </p>
                   </button>
                 );
@@ -275,13 +278,13 @@ export default function TechSpecsPage() {
                     {(['form', 'json'] as const).map((m) => (
                       <button key={m} onClick={() => setMode(m)}
                         className={`px-2.5 py-1.5 text-[12px] font-medium transition-colors ${mode === m ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}>
-                        {m === 'form' ? 'Form' : 'JSON'}
+                        {m === 'form' ? t('Form') : 'JSON'}
                       </button>
                     ))}
                   </div>
                   <button onClick={saveEntry} disabled={saving || !canEdit}
                     className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold disabled:opacity-40">
-                    {saving ? 'Saving…' : 'Save'}
+                    {saving ? t('Saving…') : t('Save')}
                   </button>
                 </div>
 
@@ -341,7 +344,7 @@ export default function TechSpecsPage() {
                   return (
                     <button key={`slot-${i}`} onClick={() => setPickerOpen(true)}
                       className="h-14 rounded-xl border border-dashed border-slate-700 text-slate-500 text-[12px] hover:border-emerald-500/50 hover:text-emerald-300 transition-colors">
-                      + Add item
+                      + {t('Add item')}
                     </button>
                   );
                 }
@@ -376,11 +379,11 @@ export default function TechSpecsPage() {
                   <div className="flex items-center gap-2">
                     {picked.length > 0 && (
                       <button onClick={() => setPicked([])}
-                        className="text-[11px] text-slate-500 hover:text-white transition-colors">Clear</button>
+                        className="text-[11px] text-slate-500 hover:text-white transition-colors">{t('Clear')}</button>
                     )}
                     <button onClick={() => setPickerOpen(false)} disabled={picked.length < 2}
                       className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11.5px] font-bold disabled:opacity-30 disabled:hover:bg-emerald-600 transition-colors">
-                      Compare
+                      {t('Compare')}
                     </button>
                   </div>
                 </div>
@@ -407,7 +410,7 @@ export default function TechSpecsPage() {
                             {descOf(c)}
                           </span>
                           <span className="block text-[10px] text-slate-600 tabular-nums">
-                            {answeredCount(c)}/{fields.length} answered
+                            {tf('{count} answered', { count: `${answeredCount(c)}/${fields.length}` })}
                           </span>
                         </span>
                       </button>
@@ -421,7 +424,7 @@ export default function TechSpecsPage() {
             ) : (
               <button onClick={() => setPickerOpen(true)}
                 className="text-[12px] text-slate-400 hover:text-white px-2.5 py-1 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">
-                Change items
+                {t('Change items')}
               </button>
             )}
 

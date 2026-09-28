@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, useCallback, type CSSProperties } from 'r
 import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fetchWarehouses, defaultWarehouse, rollUpOne, type Warehouse } from '@/lib/warehouses';
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
@@ -30,6 +31,7 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
   anchor?: { top: number; bottom: number; left: number; right: number } | null;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const { profile } = useAuth();
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
@@ -233,14 +235,14 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
               {canManage && (
                 mode === null ? (
                   <div className="flex gap-2">
-                    <button onClick={() => setMode('in')} className="flex-1 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-semibold transition-colors">Receive in</button>
-                    <button onClick={() => setMode('adjust')} className="flex-1 px-3 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">Adjust (±)</button>
+                    <button onClick={() => setMode('in')} className="flex-1 px-3 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-semibold transition-colors">{t('Receive in')}</button>
+                    <button onClick={() => setMode('adjust')} className="flex-1 px-3 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">{t('Adjust (±)')}</button>
                   </div>
                 ) : (
                   <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{mode === 'in' ? 'Receive in' : 'Adjust (use − to reduce)'}</p>
-                      <button onClick={() => setMode(null)} className="text-[11px] text-slate-600 hover:text-slate-300 transition-colors">Cancel</button>
+                      <button onClick={() => setMode(null)} className="text-[11px] text-slate-600 hover:text-slate-300 transition-colors">{t('Cancel')}</button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {/* Which warehouse this movement hits — stock is tracked per location */}
@@ -257,7 +259,7 @@ export default function StockModal({ componentId, componentName, unit, anchor, o
                     <button onClick={() => submit()} disabled={busy}
                       className="w-full px-4 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                       {busy && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
-                      Post movement
+                      {t('Post movement')}
                     </button>
                   </div>
                 )

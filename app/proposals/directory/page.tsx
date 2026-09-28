@@ -12,7 +12,9 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllRows } from '@/lib/fetchAllRows';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { useT } from '@/hooks/useT';
 import { PROPOSAL_FIELDS, type ProposalFieldKey, clusterDuplicates } from '@/lib/proposalFields';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Row { customer_name: string; customer_address: string; location: string }
 
@@ -30,7 +32,7 @@ export default function ProposalDirectoryPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
 
-  useEffect(() => { document.title = 'EPC Proposals · Directory — ICAPROC'; }, []);
+  usePageTitle();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,7 +118,7 @@ export default function ProposalDirectoryPage() {
     <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm">
       <div className="sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 flex items-center justify-between flex-wrap gap-3">
-          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC Proposals · Directory" />
+          <BrandMenu wordmarkClass="text-xl font-bold" />
           <Link href="/proposals" className="px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all whitespace-nowrap">← Proposals</Link>
         </div>
       </div>
@@ -191,6 +193,7 @@ function DupClusterCard({ cluster, canMerge, busy, onMerge }: {
   canMerge: boolean; busy: boolean;
   onMerge: (canonical: string, variants: string[]) => void;
 }) {
+  const { tf } = useT();
   const members = useMemo(
     () => [{ value: cluster.canonical, count: cluster.count - cluster.variants.reduce((s, v) => s + v.count, 0) }, ...cluster.variants],
     [cluster]);
@@ -213,7 +216,7 @@ function DupClusterCard({ cluster, canMerge, busy, onMerge }: {
       {canMerge && (
         <button onClick={() => onMerge(canonical, variants)} disabled={busy || !variants.length}
           className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-colors disabled:opacity-50">
-          Merge {variants.length} into “{canonical.length > 30 ? canonical.slice(0, 30) + '…' : canonical}”
+          {tf('Merge {n} into “{name}”', { n: variants.length, name: canonical.length > 30 ? canonical.slice(0, 30) + '…' : canonical })}
         </button>
       )}
     </div>
@@ -225,6 +228,7 @@ function ValueRow({ value, count, unit, canEdit, busy, onRename }: {
   value: string; count: number; unit: string; canEdit: boolean; busy: boolean;
   onRename: (oldVal: string, newVal: string) => void;
 }) {
+  const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   return (
@@ -234,15 +238,15 @@ function ValueRow({ value, count, unit, canEdit, busy, onRename }: {
           <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { onRename(value, draft); setEditing(false); } if (e.key === 'Escape') { setDraft(value); setEditing(false); } }}
             className="flex-1 bg-slate-950 border border-violet-500/40 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none" />
-          <button onClick={() => { onRename(value, draft); setEditing(false); }} disabled={busy} className="text-[11px] text-violet-300 hover:text-violet-200 font-semibold">Save</button>
-          <button onClick={() => { setDraft(value); setEditing(false); }} className="text-[11px] text-slate-500 hover:text-slate-300">Cancel</button>
+          <button onClick={() => { onRename(value, draft); setEditing(false); }} disabled={busy} className="text-[11px] text-violet-300 hover:text-violet-200 font-semibold">{t('Save')}</button>
+          <button onClick={() => { setDraft(value); setEditing(false); }} className="text-[11px] text-slate-500 hover:text-slate-300">{t('Cancel')}</button>
         </>
       ) : (
         <>
           <span className="flex-1 text-xs text-slate-200 truncate">{value}</span>
           <span className="text-[10px] text-slate-600 tabular-nums flex-shrink-0">{count} {unit}{count !== 1 ? 's' : ''}</span>
           {canEdit && (
-            <button onClick={() => setEditing(true)} className="text-[11px] text-slate-500 hover:text-white transition-colors flex-shrink-0">Rename</button>
+            <button onClick={() => setEditing(true)} className="text-[11px] text-slate-500 hover:text-white transition-colors flex-shrink-0">{t('Rename')}</button>
           )}
         </>
       )}

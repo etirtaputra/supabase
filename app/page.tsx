@@ -30,6 +30,7 @@ import { fmtInt } from '@/lib/formatters';
 import { useDashboardLayout } from '@/hooks/useDashboardLayout';
 import { WIDTH_SPAN, quickActionsFor, type DashboardLayout } from '@/constants/dashboardWidgets';
 import WidgetArranger from '@/components/ui/WidgetArranger';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 function thisMonth() { return new Date().toISOString().slice(0, 7); }
 
@@ -99,7 +100,7 @@ export default function Home() {
 
   // Keyed on `lang`, not on `t` — `t` is a new function every render, and
   // the tab title should be rewritten when the language changes, not always.
-  useEffect(() => { document.title = `${t('Dashboard')} — ICAPROC`; }, [lang]);   // eslint-disable-line react-hooks/exhaustive-deps
+  usePageTitle();
 
   // PO values and payment status are sensitive — sign-in required
   useEffect(() => {

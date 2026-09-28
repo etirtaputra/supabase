@@ -26,6 +26,8 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath, DESTINATIONS } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
+import { useT } from '@/hooks/useT';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   buildUsageReport, byGroup, NAV_SOURCES, MIN_DAYS, MIN_VIEWS,
   type PageViewRow, type NavSource, type Verdict,
@@ -58,6 +60,8 @@ const fmtAgo = (iso: string | null): string => {
 };
 
 export default function UsagePage() {
+  const { t } = useT();
+  usePageTitle();
   const { profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const [win, setWin] = useState<Win>(30);
@@ -113,7 +117,7 @@ export default function UsagePage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Screen Usage · what the team actually opens" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="What the team actually opens" />
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {WINDOWS.map((w) => (
               <button key={w} onClick={() => setWin(w)}
@@ -208,7 +212,7 @@ export default function UsagePage() {
               {showAll ? 'Every destination' : 'Menu entries'}
             </h2>
             <button onClick={() => setShowAll((v) => !v)} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF}`}>
-              {showAll ? 'Menu only' : 'Include search-only pages'}
+              {showAll ? t('Menu only') : t('Include search-only pages')}
             </button>
           </div>
           <div className="overflow-x-auto rounded-xl border border-slate-800">

@@ -18,6 +18,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { useT } from '@/hooks/useT';
 import { copyOnly } from '@/lib/whatsappQuote';
 import type { Component, PriceQuoteLineItem, PriceQuote, PurchaseOrder, PurchaseLineItem, CompetitorPrice, POCost, ComponentLink } from '../../types/database';
 import { computeTUC, computeTUCMap } from '../../lib/computeTUC';
@@ -93,7 +94,7 @@ function ActiveChip({ label, value, onClear }: { label: string; value?: string; 
 /**
  * Copy one field out of a row — our description, or the supplier's model.
  *
- * A SPAN with `role="button"`, not a `<button>`, because the mobile card this
+ * A SPAN with `role="button"`, not a button element, because the mobile card this
  * also sits in IS a button (it opens the line-item modal) and a button inside a
  * button is not valid HTML. The Tiers / Stock chips beside it already take this
  * shape for the same reason.
@@ -372,6 +373,7 @@ interface QuoteComboboxProps {
   onChange: (quoteId: string) => void;
 }
 function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
+  const { tf } = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -430,7 +432,7 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
               <button key={qt.quote_id} onMouseDown={() => select(qt)}
                 className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2 border-b border-white/[0.04] last:border-0 ${String(qt.quote_id) === value ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-300 hover:bg-white/10'}`}
               >
-                <span className="font-semibold flex-1 truncate">{qt.pi_number ?? `Quote #${qt.quote_id}`}</span>
+                <span className="font-semibold flex-1 truncate">{qt.pi_number ?? tf('Quote #{n}', { n: qt.quote_id })}</span>
                 {qt.quote_date && <span className="text-slate-600 text-[10px] flex-shrink-0">{qt.quote_date}</span>}
                 {qt.currency && qt.total_value != null && (
                   <span className="text-slate-600 text-[10px] tabular-nums flex-shrink-0">{qt.currency} {Number(qt.total_value).toLocaleString()}</span>
@@ -838,6 +840,7 @@ function RowMenuItem({ label, hint, icon, onClick, href, external, tone }: {
 }
 
 export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], suppliers = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
+  const { t, tf } = useT();
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [search, setSearch] = useState(initialSearch);
   const [filterBrand, setFilterBrand] = useState('');
@@ -2350,7 +2353,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Import
+            {t('Import')}
           </button>
           {/* Column visibility picker */}
           <div className="relative">
@@ -2366,7 +2369,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
               </svg>
-              Columns
+              {t('Columns')}
             </button>
             {showColPicker && (
               <div className="absolute right-0 top-full mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl shadow-black/50 p-2 min-w-[160px]"
@@ -2395,7 +2398,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Add Supplier
+              {t('Add supplier')}
             </button>
           )}
           {onAdd && (
@@ -2410,7 +2413,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Add Component
+              {t('Add component')}
             </button>
           )}
         </div>
@@ -2600,7 +2603,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                     <svg className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
-                    {isExpanded ? 'Hide' : 'Specs & Datasheet'}
+                    {isExpanded ? t('Hide') : t('Specs & datasheet')}
                   </button>
 
                   {isExpanded && (
@@ -2642,7 +2645,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Add Row
+              {t('Add row')}
             </button>
             <div className="flex gap-2">
               <button
@@ -2650,7 +2653,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 disabled={addSaving}
                 className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button
                 onClick={handleAdd}
@@ -2658,10 +2661,10 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {addSaving
-                  ? <><Spinner className="w-3.5 h-3.5" /> Saving…</>
+                  ? <><Spinner className="w-3.5 h-3.5" /> {t('Saving…')}</>
                   : addRows.filter((r) => r.supplier_model.trim() && r.internal_description.trim()).length > 1
-                    ? `Save ${addRows.filter((r) => r.supplier_model.trim() && r.internal_description.trim()).length} Components`
-                    : 'Save Component'}
+                    ? tf('Save {n} components', { n: addRows.filter((r) => r.supplier_model.trim() && r.internal_description.trim()).length })
+                    : t('Save component')}
               </button>
             </div>
           </div>
@@ -2711,7 +2714,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6-4v12m0 0l4-4m-4 4l-4-4" />
               </svg>
-              Replace
+              {t('Replace')}
             </button>
             {/* The count belongs beside the search that produced it, not on a
                 line of its own — the one thing worth borrowing from Selling
@@ -2781,7 +2784,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Show components used NOWHERE — no supplier quote, PO, sell price, link, EPC proposal or sales document"
             >
-              Unused{filterUnused ? ` (${filtered.length})` : ''}
+              {t('Unused')}{filterUnused ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => setFilterReorder((v) => !v)}
@@ -2792,7 +2795,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Items at their reorder point — live + incoming at or below 90-day demand × measured lead time + safety buffer (the same alert as the Dashboard and /stock)"
             >
-              Reorder{filterReorder ? ` (${filtered.length})` : reorderById.size ? ` ${reorderById.size}` : ''}
+              {t('Reorder')}{filterReorder ? ` (${filtered.length})` : reorderById.size ? ` ${reorderById.size}` : ''}
             </button>
             <button
               onClick={() => { setFilterDuplicates((v) => !v); setFilterUnused(false); setFilterLinked(false); }}
@@ -2803,7 +2806,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Show components with duplicate model numbers"
             >
-              Duplicates{filterDuplicates ? ` (${filtered.length})` : ''}
+              {t('Duplicates')}{filterDuplicates ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => setFilterHasIntel((v) => !v)}
@@ -2814,7 +2817,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Show only components with market intel entries"
             >
-              Has Intel{filterHasIntel ? ` (${filtered.length})` : ''}
+              {t('Has intel')}{filterHasIntel ? ` (${filtered.length})` : ''}
             </button>
             {/* Not a filter — a view switch. It WIDENS the list where every
                 chip beside it narrows one, so it sits apart and states the
@@ -2830,7 +2833,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 ? 'Hide archived items again'
                 : 'Also list items that have been archived — they keep every purchase, stock and quote row, they are only out of the way'}
             >
-              {showArchived ? 'Hiding none' : 'Show archived'}
+              {showArchived ? t('Hiding none') : t('Show archived')}
               {archivedIds.size > 0 && <span className="ml-1 opacity-70 tabular-nums">{archivedIds.size}</span>}
             </button>
             <button
@@ -2842,7 +2845,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Show only items not exposing raw TUC to Project Quotes (Std Cost or Hidden — owner setting on the Inspect panel's TUC card)"
             >
-              Std Cost{filterTucHidden ? ` (${filtered.length})` : ''}
+              {t('Std cost')}{filterTucHidden ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => { setFilterLinked((v) => !v); setFilterUnused(false); setFilterDuplicates(false); }}
@@ -2853,7 +2856,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Show only components linked to comparable items"
             >
-              Linked{filterLinked ? ` (${filtered.length})` : ''}
+              {t('Linked')}{filterLinked ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => setFilterHasSpecs((v) => !v)}
@@ -2864,7 +2867,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Show only components with specifications filled in"
             >
-              Has Specs{filterHasSpecs ? ` (${filtered.length})` : ''}
+              {t('Has specs')}{filterHasSpecs ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => setFilterHasLeadTime((v) => !v)}
@@ -2875,7 +2878,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Show only components with lead time data (at least one fully-received PO)"
             >
-              Lead Time{filterHasLeadTime ? ` (${filtered.length})` : ''}
+              {t('Lead time')}{filterHasLeadTime ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => setFilterHasCashCycle((v) => !v)}
@@ -2886,7 +2889,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Show only components with cash cycle data (reorder interval or capital lock-up)"
             >
-              Cash Cycle{filterHasCashCycle ? ` (${filtered.length})` : ''}
+              {t('Cash cycle')}{filterHasCashCycle ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => setFilterBelowMarket((v) => !v)}
@@ -2897,7 +2900,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               }`}
               title="Selling price below confidence-weighted market average"
             >
-              Below Mkt{filterBelowMarket ? ` (${filtered.length})` : ''}
+              {t('Below mkt')}{filterBelowMarket ? ` (${filtered.length})` : ''}
             </button>
             {marginProfiles.length > 0 && (
               <button
@@ -2909,7 +2912,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 }`}
                 title="Audit: items priced outside their own margin tier's target band (sell price vs TUC)"
               >
-                Off Target{filterOffTarget ? ` (${filtered.length})` : ''}
+                {t('Off target')}{filterOffTarget ? ` (${filtered.length})` : ''}
               </button>
             )}
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -2922,7 +2925,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 }`}
                 title="Show items with gross margin below threshold"
               >
-                Low Margin{filterLowMargin ? ` (${filtered.length})` : ''}
+                {t('Low margin')}{filterLowMargin ? ` (${filtered.length})` : ''}
               </button>
               {filterLowMargin && (
                 <div className="flex items-center gap-1 bg-slate-950 border border-amber-500/40 rounded-lg px-2 py-1">
@@ -2989,12 +2992,12 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                   <div className="flex items-center justify-between gap-3 px-2 py-1">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap">Export columns</p>
                     <div className="flex gap-1.5 text-[10px] font-semibold whitespace-nowrap">
-                      <button onClick={() => setExportCols(EXPORT_FIELDS.map((f) => f.key))} className="text-slate-500 hover:text-emerald-300 transition-colors">All</button>
+                      <button onClick={() => setExportCols(EXPORT_FIELDS.map((f) => f.key))} className="text-slate-500 hover:text-emerald-300 transition-colors">{t('All')}</button>
                       <span className="text-slate-700">·</span>
                       {/* Clearing first is the fast path to "just these three" */}
-                      <button onClick={() => setExportCols([])} className="text-slate-500 hover:text-emerald-300 transition-colors">Clear</button>
+                      <button onClick={() => setExportCols([])} className="text-slate-500 hover:text-emerald-300 transition-colors">{t('Clear')}</button>
                       <span className="text-slate-700">·</span>
-                      <button onClick={() => setExportCols(DEFAULT_EXPORT_COLS)} className="text-slate-500 hover:text-emerald-300 transition-colors">Reset</button>
+                      <button onClick={() => setExportCols(DEFAULT_EXPORT_COLS)} className="text-slate-500 hover:text-emerald-300 transition-colors">{t('Reset')}</button>
                     </div>
                   </div>
                   {Array.from(new Set(EXPORT_FIELDS.map((f) => f.group))).map((group) => (
@@ -3035,14 +3038,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                     disabled={bulkDeleting}
                     className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
                   >
-                    {bulkDeleting ? 'Deleting…' : 'Confirm'}
+                    {bulkDeleting ? t('Deleting…') : t('Confirm')}
                   </button>
                   <button
                     onClick={() => setConfirmBulkDelete(false)}
                     disabled={bulkDeleting}
                     className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
                   >
-                    Cancel
+                    {t('Cancel')}
                   </button>
                 </div>
               ) : (
@@ -3053,7 +3056,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Delete {selectedIds.size}
+                  {tf('Delete {n}', { n: selectedIds.size })}
                 </button>
               )
             )}
@@ -3063,7 +3066,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 disabled={saving}
                 className="px-3 py-1.5 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all disabled:opacity-50"
               >
-                Discard All
+                {t('Discard all')}
               </button>
             )}
             <button
@@ -3072,9 +3075,9 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-lg shadow-emerald-900/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? (
-                <><Spinner className="w-3.5 h-3.5" /> Saving...</>
+                <><Spinner className="w-3.5 h-3.5" /> {t('Saving…')}</>
               ) : (
-                <>Save{dirtyCount > 0 ? ` ${dirtyCount}` : ''} Changes</>
+                <>{dirtyCount > 0 ? tf('Save {n} changes', { n: dirtyCount }) : t('Save changes')}</>
               )}
             </button>
           </div>
@@ -3094,7 +3097,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 : 'Archive the selected items — they leave the list and keep every row that points at them'}
               className="py-1.5 px-2.5 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-950 text-slate-300 hover:text-white hover:border-slate-600 disabled:opacity-40 transition-colors whitespace-nowrap"
             >
-              {archiveBusy ? '…' : showArchived ? 'Restore' : 'Archive'}
+              {archiveBusy ? '…' : showArchived ? t('Restore') : t('Archive')}
             </button>
             <select
               defaultValue=""
@@ -3154,7 +3157,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                   className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors disabled:opacity-50"
                   title="Show Std Cost (TUC + safety buffer) in Project Quotes"
                 >
-                  {bulkCostBusy === 'buffered' ? '…' : 'Std Cost'}
+                  {bulkCostBusy === 'buffered' ? '…' : t('Std cost')}
                 </button>
                 <span className="flex items-center gap-0.5">
                   <input
@@ -3173,7 +3176,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                   className="px-2 py-1.5 rounded-lg text-[11px] font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-colors disabled:opacity-50"
                   title="Keep out of Project Quotes (hidden from the item picker; cost hidden on existing quotes)"
                 >
-                  {bulkCostBusy === 'hidden' ? '…' : 'Hidden'}
+                  {bulkCostBusy === 'hidden' ? '…' : t('Hidden')}
                 </button>
               </span>
             )}
@@ -3181,7 +3184,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               onClick={() => setSelectedIds(new Set())}
               className="ml-auto text-[11px] text-slate-600 hover:text-slate-400 transition-colors"
             >
-              Clear selection
+              {t('Clear selection')}
             </button>
           </div>
         )}
@@ -3213,7 +3216,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             onMouseDown={clearAllFilters}
             className="text-[11px] text-slate-600 hover:text-slate-300 ml-1 transition-colors"
           >
-            Clear all
+            {t('Clear all')}
           </button>
         </div>
       )}
@@ -3257,16 +3260,16 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         from a phone, and neither could be copied at all. */}
                     <div className="flex items-start gap-1">
                       <CopyBtn text={c.internal_description} label="Copy our description" />
-                      <span className="text-sm font-semibold text-white break-words min-w-0">{c.internal_description || '(no description)'}</span>
+                      <span className="text-sm font-semibold text-white break-words min-w-0">{c.internal_description || t('(no description)')}</span>
                     </div>
                     <div className="flex items-start gap-1 mt-0.5">
                       <CopyBtn text={c.supplier_model} label="Copy the supplier model" />
-                      <span className="text-[11px] font-mono text-slate-500 break-words min-w-0">{c.supplier_model || '(no model)'}</span>
+                      <span className="text-[11px] font-mono text-slate-500 break-words min-w-0">{c.supplier_model || t('(no model)')}</span>
                       {isDup && <span className="px-1.5 py-0.5 bg-red-500/15 border border-red-500/25 text-red-400 text-[9px] font-bold rounded flex-shrink-0">dup</span>}
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5 break-words">{[c.brand, categoryLabelOf(c.category), c.unit].filter(Boolean).join(' · ') || '—'}</p>
                     {(qN > 0 || pN > 0) && (
-                      <p className="text-[10px] text-slate-600 mt-1">{qN} quote{qN !== 1 ? 's' : ''} · {pN} PO{pN !== 1 ? 's' : ''}</p>
+                      <p className="text-[10px] text-slate-600 mt-1">{qN === 1 ? tf('{n} quote', { n: qN }) : tf('{n} quotes', { n: qN })} · {pN} PO{pN !== 1 ? 's' : ''}</p>
                     )}
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -3285,7 +3288,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         title="Tier pricing"
                       >
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z" /></svg>
-                        Tiers
+                        {t('Tiers')}
                       </span>
                       <span
                         role="button"
@@ -3295,7 +3298,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         title="Stock"
                       >
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                        Stock
+                        {t('Stock')}
                       </span>
                     </span>
                   </div>
@@ -3334,7 +3337,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                       {visibleCols.description && (
                         <button type="button" onClick={() => toggleSort('internal_description')}
                           className={`uppercase tracking-wider transition-colors ${sortCol === 'internal_description' ? 'text-slate-100' : 'hover:text-slate-200'}`}>
-                          Item{sortCol === 'internal_description' && <span className="ml-1 text-[9px]">{sortDir === 'desc' ? '▼' : '▲'}</span>}
+                          {t('Item')}{sortCol === 'internal_description' && <span className="ml-1 text-[9px]">{sortDir === 'desc' ? '▼' : '▲'}</span>}
                         </button>
                       )}
                       {visibleCols.model && (
@@ -3783,7 +3786,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                         className="flex-shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-semibold text-amber-300/90 bg-amber-500/10 border border-amber-500/25 rounded hover:bg-amber-500/20 hover:text-amber-200 transition-colors disabled:opacity-40 disabled:hover:bg-amber-500/10"
                                         title={`Corrects the source quote line (${lq.pi_number ?? 'quote'}) — the fix applies everywhere this price is used`}
                                       >
-                                        {lqDraft?.componentId === c.component_id && lqDraft.saving ? 'Fixing…' : 'Fix'}
+                                        {lqDraft?.componentId === c.component_id && lqDraft.saving ? t('Fixing…') : t('Fix')}
                                       </button>
                                       <span className="text-[10px] text-slate-600 truncate min-w-0" title={`Quoted on ${lq.pi_number ?? 'a supplier quote'}`}>quoted · {lq.pi_number ?? ''}</span>
                                     </div>
@@ -4059,7 +4062,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             className="px-2.5 py-1 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-all"
                             title="Collapse row"
                           >
-                            Done
+                            {t('Done')}
                           </button>
                         ) : (
                           <button
@@ -4095,14 +4098,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               className="px-2 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
                               title="Confirm delete"
                             >
-                              {deleting ? '…' : 'Yes'}
+                              {deleting ? '…' : t('Yes')}
                             </button>
                             <button
                               onClick={() => setConfirmDeleteId(null)}
                               disabled={deleting}
                               className="px-2 py-1 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
                             >
-                              No
+                              {t('No')}
                             </button>
                           </div>
                         ) : null}
@@ -4282,7 +4285,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               disabled={saving}
               className="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition-all disabled:opacity-50"
             >
-              Discard All
+              {t('Discard all')}
             </button>
             <button
               onClick={handleSaveAll}
@@ -4290,9 +4293,9 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               className="flex items-center gap-2 px-5 py-2 text-sm font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-lg shadow-emerald-900/20 transition-all disabled:opacity-50"
             >
               {saving ? (
-                <><Spinner className="w-4 h-4" /> Saving...</>
+                <><Spinner className="w-4 h-4" /> {t('Saving…')}</>
               ) : (
-                'Save All Changes'
+                t('Save all changes')
               )}
             </button>
           </div>
@@ -4451,12 +4454,12 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                 <button
                                   onClick={() => setLineItemDraft((prev) => { const n = { ...prev }; delete n[item.quote_line_id]; return n; })}
                                   className="px-2 py-1 text-[10px] text-slate-400 bg-slate-800 border border-slate-700 rounded hover:bg-slate-700 transition-all"
-                                >Discard</button>
+                                >{t('Discard')}</button>
                                 <button
                                   disabled={lineItemSaving}
                                   onClick={() => handleSaveLineItemDraft(item, draft)}
                                   className="px-2 py-1 text-[10px] font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded transition-all disabled:opacity-50"
-                                >Save</button>
+                                >{t('Save')}</button>
                               </>
                             )}
                             {onDeleteLineItem && (
@@ -4471,7 +4474,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               <button
                                 onClick={() => setLineItemEditId(null)}
                                 className="px-2 py-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-all"
-                              >Done</button>
+                              >{t('Done')}</button>
                             )}
                           </div>
                         </div>
@@ -4520,12 +4523,12 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         onChange={(e) => setNewLineItem((p) => p && { ...p, supplier_description: e.target.value })}
                         className="w-full px-2 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500" />
                       <div className="flex gap-1.5 justify-end">
-                        <button onClick={() => setNewLineItem(null)} className="px-3 py-1.5 text-xs text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">Cancel</button>
+                        <button onClick={() => setNewLineItem(null)} className="px-3 py-1.5 text-xs text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">{t('Cancel')}</button>
                         <button
                           disabled={lineItemSaving || !newLineItem.quote_id || !newLineItem.quantity || !newLineItem.unit_price}
                           onClick={() => handleAddNewLineItem(lineItemModalId)}
                           className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                        >{lineItemSaving ? 'Saving…' : 'Add'}</button>
+                        >{lineItemSaving ? t('Saving…') : t('Add')}</button>
                       </div>
                     </div>
                   ) : (
@@ -4533,7 +4536,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                       onClick={() => setNewLineItem({ quote_id: '', quantity: '', unit_price: '', currency: 'USD', supplier_description: '' })}
                       className="w-full py-2.5 text-xs text-slate-500 hover:text-blue-300 border border-dashed border-slate-800 hover:border-blue-500/40 rounded-xl transition-all"
                     >
-                      + Add to a quote
+                      + {t('Add to a quote')}
                     </button>
                   )}
 
@@ -4572,7 +4575,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
 
                 {/* Panel footer */}
                 <div className="px-6 py-3 border-t border-slate-800 flex justify-end">
-                  <button onClick={() => setLineItemModalId(null)} className="px-4 py-2 text-sm font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">Close</button>
+                  <button onClick={() => setLineItemModalId(null)} className="px-4 py-2 text-sm font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">{t('Close')}</button>
                 </div>
               </div>
             </>
@@ -4752,17 +4755,17 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                   }}
                   className={`px-4 py-2 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all ${importStep === 'upload' ? 'invisible' : ''}`}
                 >
-                  ← Back
+                  ← {t('Back')}
                 </button>
                 <div className="flex gap-2">
-                  <button onClick={() => { setImportStep(null); setImportRows([]); setImportMapping({}); }} className="px-4 py-2 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">Cancel</button>
+                  <button onClick={() => { setImportStep(null); setImportRows([]); setImportMapping({}); }} className="px-4 py-2 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">{t('Cancel')}</button>
                   {importStep === 'map' && (
                     <button
                       onClick={() => setImportStep('preview')}
                       disabled={!Object.values(importMapping).some(v => v === 'supplier_model')}
                       className="px-4 py-2 text-xs font-bold text-white bg-violet-600 hover:bg-violet-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      Preview →
+                      {t('Preview')} →
                     </button>
                   )}
                   {importStep === 'preview' && (
@@ -4771,7 +4774,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                       disabled={importProcessing || importPreview.filter(r => r.action !== 'skip').length === 0}
                       className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {importProcessing ? <><Spinner className="w-3.5 h-3.5" /> Importing…</> : `Import ${importPreview.filter(r => r.action !== 'skip').length} row(s)`}
+                      {importProcessing ? <><Spinner className="w-3.5 h-3.5" /> {t('Importing…')}</> : tf('Import {n} row(s)', { n: importPreview.filter(r => r.action !== 'skip').length })}
                     </button>
                   )}
                 </div>
@@ -5177,7 +5180,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-slate-700 text-slate-500 hover:border-violet-500/50 hover:text-violet-300 transition-colors text-xs font-semibold"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                            Add Equivalent / Comparable Link
+                            {t('Add equivalent / comparable link')}
                           </button>
                         )}
 
@@ -5329,13 +5332,13 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                 disabled={!addLinkTargets.length || addLinkSaving}
                                 className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
                               >
-                                {addLinkSaving ? 'Saving…' : `Link ${addLinkTargets.length || ''} item${addLinkTargets.length !== 1 ? 's' : ''}`.replace('  ', ' ')}
+                                {addLinkSaving ? t('Saving…') : addLinkTargets.length ? addLinkTargets.length === 1 ? tf('Link {n} item', { n: 1 }) : tf('Link {n} items', { n: addLinkTargets.length }) : t('Link items')}
                               </button>
                               <button
                                 onClick={() => { setShowAddLink(false); setAddLinkSearch(''); setAddLinkTargets([]); }}
                                 className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
                               >
-                                Cancel
+                                {t('Cancel')}
                               </button>
                             </div>
                           </div>
@@ -5398,12 +5401,12 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                       <button
                                         onClick={async () => { await onDeleteComponentLink?.(link.link_id); setConfirmDeleteLinkId(null); }}
                                         className="text-red-400 hover:text-red-300 font-semibold"
-                                      >Yes</button>
-                                      <button onClick={() => setConfirmDeleteLinkId(null)} className="text-slate-500 hover:text-slate-300">No</button>
+                                      >{t('Yes')}</button>
+                                      <button onClick={() => setConfirmDeleteLinkId(null)} className="text-slate-500 hover:text-slate-300">{t('No')}</button>
                                     </span>
                                   ) : (
                                     <button onClick={() => setConfirmDeleteLinkId(link.link_id)} className="text-slate-600 hover:text-red-400 transition-colors text-[11px]">
-                                      × Remove
+                                      × {t('Remove')}
                                     </button>
                                   )}
                                 </div>
@@ -5597,7 +5600,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                   </div>
                                 </div>
                                 <div className="flex gap-2 justify-end">
-                                  <button onClick={() => { setEditingIntelId(null); setIntelEditDraft({}); }} className="px-3 py-1.5 text-xs text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">Cancel</button>
+                                  <button onClick={() => { setEditingIntelId(null); setIntelEditDraft({}); }} className="px-3 py-1.5 text-xs text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all">{t('Cancel')}</button>
                                   <button
                                     disabled={intelSaving || !onUpdateCompetitorPrice}
                                     onClick={async () => {
@@ -5610,7 +5613,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                       } finally { setIntelSaving(false); }
                                     }}
                                     className="px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-lg transition-all disabled:opacity-40"
-                                  >{intelSaving ? 'Saving…' : 'Save'}</button>
+                                  >{intelSaving ? t('Saving…') : t('Save')}</button>
                                 </div>
                               </div>
                             );
@@ -5657,8 +5660,8 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                                 finally { setIntelSaving(false); }
                                               }}
                                               className="px-1.5 py-1 text-[10px] font-bold text-white bg-red-600 hover:bg-red-500 rounded transition-all disabled:opacity-50"
-                                            >{intelSaving ? '…' : 'Yes'}</button>
-                                            <button onClick={() => setConfirmDeleteIntelId(null)} className="px-1.5 py-1 text-[10px] text-slate-400 bg-slate-800 rounded hover:bg-slate-700 transition-all">No</button>
+                                            >{intelSaving ? '…' : t('Yes')}</button>
+                                            <button onClick={() => setConfirmDeleteIntelId(null)} className="px-1.5 py-1 text-[10px] text-slate-400 bg-slate-800 rounded hover:bg-slate-700 transition-all">{t('No')}</button>
                                           </div>
                                         ) : (
                                           <button
@@ -5776,7 +5779,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
 
                 {/* Footer */}
                 <div className="px-6 py-3 border-t border-slate-800 flex-shrink-0">
-                  <button onClick={() => setInspectId(null)} className="w-full py-2 text-xs font-semibold text-slate-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">Close</button>
+                  <button onClick={() => setInspectId(null)} className="w-full py-2 text-xs font-semibold text-slate-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all">{t('Close')}</button>
                 </div>
               </div>
             </>
@@ -5916,14 +5919,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                 onClick={() => setShowFindReplace(false)}
                 className="flex-1 px-4 py-2 text-sm font-semibold text-slate-300 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-colors"
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button
                 onClick={handleReplaceAll}
                 disabled={!frFind || !getFindMatches().length}
                 className="flex-1 px-4 py-2 text-sm font-semibold text-white bg-emerald-600 border border-emerald-500/50 rounded-lg hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Replace All ({getFindMatches().length})
+                {tf('Replace all ({n})', { n: getFindMatches().length })}
               </button>
             </div>
           </div>

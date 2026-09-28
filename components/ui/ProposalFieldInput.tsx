@@ -1,5 +1,6 @@
 'use client';
 import { useState, useMemo, useRef } from 'react';
+import { useT } from '@/hooks/useT';
 import { normField, nearestDuplicate, fieldSimilarity } from '@/lib/proposalFields';
 
 /**
@@ -20,6 +21,7 @@ export default function ProposalFieldInput({ label, value, onChange, suggestions
   suggestions: string[];  // distinct existing values for this field
   placeholder?: string;
 }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ x: number; y: number; w: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +71,7 @@ export default function ProposalFieldInput({ label, value, onChange, suggestions
           className="mt-1 inline-flex items-center gap-1 text-[10px] text-amber-300/90 hover:text-amber-200 transition-colors"
           title="Use the existing spelling instead of creating a near-duplicate"
         >
-          ⚠ Similar exists: <span className="font-semibold underline">{dup}</span> — use it
+          ⚠ {t('Similar exists:')} <span className="font-semibold underline">{dup}</span> — {t('use it')}
         </button>
       )}
       {open && matches.length > 0 && anchor && (

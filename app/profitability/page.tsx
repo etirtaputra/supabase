@@ -25,6 +25,7 @@ import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { useT } from '@/hooks/useT';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
@@ -37,6 +38,7 @@ import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/
 import { useItemScores } from '@/hooks/useItemScores';
 import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
 import { capitalCall, summariseCapital, VERDICT_LABEL, type CapitalVerdict, type CapitalCall } from '@/lib/capital';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 /**
  * Two questions, two tabs. "Profitability" measures the FLOW — what shipped in
@@ -91,6 +93,7 @@ export default function EconomicsPage() {
 }
 
 function EconomicsInner() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -135,7 +138,7 @@ function EconomicsInner() {
   const [defensive, setDefensive] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'gp', dir: -1 });
 
-  useEffect(() => { document.title = 'Profitability — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/profitability')}`); return; }
@@ -419,13 +422,13 @@ function EconomicsInner() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Profitability · Item margin, position & cash cycle" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Item margin, position & cash cycle" />
           <div className="flex items-center gap-1.5 flex-wrap justify-end">
             {/* Period only means something for the flow tab — a position is all-time */}
             {tab === 'flow' && (['90', '365', 'all'] as Period[]).map((p) => (
               <button key={p} onClick={() => setPeriod(p)}
                 className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${period === p ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 font-bold' : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'}`}>
-                {p === 'all' ? 'All time' : `${p}d`}
+                {p === 'all' ? t('All time') : `${p}d`}
               </button>
             ))}
             {isOwner && (
@@ -502,7 +505,7 @@ function EconomicsInner() {
                   <button onClick={() => setDefensive((d) => !d)}
                     title="Slow-market mode: raise the return bar and pull cash back from weaker stock — deploy less, protect more"
                     className={`text-[11px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${defensive ? 'bg-amber-500/15 border-amber-500/50 text-amber-300' : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'}`}>
-                    {defensive ? '🛡 Defensive mode · on' : 'Defensive mode · off'}
+                    {defensive ? `🛡 ${t('Defensive mode · on')}` : t('Defensive mode · off')}
                   </button>
                 </div>
                 <span className="text-xs text-slate-400">Deploy <b className="text-emerald-300 tabular-nums">{capital.summary.deploy}</b></span>

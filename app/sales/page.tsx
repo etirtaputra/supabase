@@ -20,6 +20,7 @@ import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
 import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
 import { useT } from '@/hooks/useT';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string; case_id?: string | null;
@@ -33,7 +34,7 @@ interface DoLite { do_id: string; quote_id: string; do_number: string; status: s
 
 
 export default function SalesListPage() {
-  const { t } = useT();
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -80,7 +81,7 @@ export default function SalesListPage() {
       ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' }
       : { key, dir: ['payment', 'total', 'updated'].includes(key) ? 'desc' : 'asc' }));
 
-  useEffect(() => { document.title = 'Sales Orders — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/sales')}`); return; }
@@ -256,7 +257,7 @@ export default function SalesListPage() {
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t('Sales Orders · DQ → PQ → SO')} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="DQ → PQ → SO" />
           {profile?.role === 'owner' && (
             <button onClick={() => router.push('/sales/library')}
               title={t('Owner-only: curated custom line texts that feed the item picker')}
@@ -281,7 +282,7 @@ export default function SalesListPage() {
             <button onClick={() => router.push('/sales/new')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              {t('New Quote')}
+              {t('New quote')}
             </button>
             {/* Straight to a Sales Order — same editor, but Confirm Order is
                 the primary action: no quotation dance for a customer who
@@ -290,7 +291,7 @@ export default function SalesListPage() {
               title={t('Create a Sales Order directly — fill the customer and items, then Confirm Order in one step')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              {t('New Order')}
+              {t('New order')}
             </button>
             <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label={t('Quote date')} align="left" />
             <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); setColSort(null); }}
@@ -376,7 +377,7 @@ export default function SalesListPage() {
                   title="Deletes the selected drafts only. Live documents (PQ/SO) cannot be deleted — an SO's invoices and delivery orders must be reverted or cancelled first."
                   className={`ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-semibold whitespace-nowrap transition-colors disabled:opacity-50 ${
                     deleteArmed ? 'bg-red-600 border-red-500 text-white' : 'border-red-500/40 text-red-300 hover:bg-red-500/10'}`}>
-                  {deleting ? 'Deleting…' : deleteArmed ? `Confirm — delete ${draftsSelected.length}` : `Delete ${draftsSelected.length}`}
+                  {deleting ? t('Deleting…') : deleteArmed ? tf('Confirm — delete {n}', { n: draftsSelected.length }) : tf('Delete {n}', { n: draftsSelected.length })}
                 </button>
               )}
             </div>

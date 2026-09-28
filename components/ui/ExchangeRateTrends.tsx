@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { ExchangeRateHistory, Supplier } from '../../types/database';
 import { fetchLiveFx, type LiveFxSnapshot } from '@/lib/liveFx';
 import { fmtDayTime } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 
 interface ExchangeRateTrendsProps {
   rates: ExchangeRateHistory[];
@@ -13,6 +14,7 @@ interface ExchangeRateTrendsProps {
 const VIEW_KEY = 'icaproc_fx_view';
 
 export default function ExchangeRateTrends({ rates, suppliers }: ExchangeRateTrendsProps) {
+  const { t } = useT();
   const supplierMap = useMemo(() => new Map(suppliers.map(s => [s.supplier_id, s])), [suppliers]);
 
   // ── Live market rates: auto-fetched (cached ≤1h), auto-refreshed hourly
@@ -148,11 +150,11 @@ export default function ExchangeRateTrends({ rates, suppliers }: ExchangeRateTre
         <div className="flex rounded-lg border border-slate-700 overflow-hidden text-[11px] font-semibold">
           <button onClick={() => pickView('compact')}
             className={`px-3 py-1.5 transition-colors ${view === 'compact' ? 'bg-slate-700 text-white' : 'bg-slate-800/60 text-slate-500 hover:text-slate-300'}`}>
-            Compact
+            {t('Compact')}
           </button>
           <button onClick={() => pickView('detail')}
             className={`px-3 py-1.5 transition-colors ${view === 'detail' ? 'bg-slate-700 text-white' : 'bg-slate-800/60 text-slate-500 hover:text-slate-300'}`}>
-            Detailed
+            {t('Detailed')}
           </button>
         </div>
       </div>

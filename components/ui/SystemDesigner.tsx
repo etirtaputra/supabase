@@ -18,6 +18,7 @@
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '@/hooks/useT';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fmtInt, fmtRupiah } from '@/lib/formatters';
 import { specNumber, specReadiness } from '@/lib/specSchema';
@@ -53,6 +54,7 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
   /** The stored design of a previous run — the wizard reopens on its answers. */
   initial?: SystemDesign | null;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -392,11 +394,11 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
         {step === 0 && (
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
-              {(['on-grid', 'off-grid', 'hybrid'] as SystemType[]).map((t) => (
-                <button key={t} onClick={() => setSystemType(t)}
+              {(['on-grid', 'off-grid', 'hybrid'] as SystemType[]).map((st) => (
+                <button key={st} onClick={() => setSystemType(st)}
                   className={`px-3 py-2.5 rounded-xl border text-sm font-semibold transition-colors ${
-                    systemType === t ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>
-                  {t === 'on-grid' ? 'On-grid (PLN)' : t === 'off-grid' ? 'Off-grid' : 'Hybrid'}
+                    systemType === st ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+                  {st === 'on-grid' ? t('On-grid (PLN)') : st === 'off-grid' ? t('Off-grid') : t('Hybrid')}
                 </button>
               ))}
             </div>
@@ -633,7 +635,7 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
             </div>
             <div className="flex items-center gap-4">
               <button onClick={() => setLoads((ls) => [...ls, blankLoad()])}
-                className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors">+ Add load</button>
+                className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold transition-colors">+ {t('Add load')}</button>
               {loadRows.length > 0 && (
                 <span className="text-[11px] text-slate-500">
                   {fmtInt(loadRows.reduce((s, l) => s + l.watts * l.qty, 0))} W running ·{' '}
@@ -761,17 +763,17 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
           <div className="flex gap-3">
             {step > 0 && (
               <button onClick={() => setStep((s) => s - 1)}
-                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">← Back</button>
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">← {t('Back')}</button>
             )}
             {step < 2 ? (
               <button onClick={() => setStep((s) => s + 1)} disabled={!canNext}
                 className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-40">
-                Next →
+                {t('Next')} →
               </button>
             ) : (
               <button onClick={apply} disabled={!result?.ok}
                 className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-40">
-                {hasExisting ? 'Regenerate lines' : 'Add to quotation'}
+                {hasExisting ? t('Regenerate lines') : t('Add to quotation')}
               </button>
             )}
           </div>

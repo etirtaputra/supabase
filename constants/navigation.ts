@@ -337,6 +337,58 @@ export const canOpenPath = (perms: RolePermissions | null, path: string): boolea
 };
 
 /**
+ * Is this menu entry the page at `pathname` + `search`? One answer for the
+ * menu's highlight, the phone header's page name and the browser tab — before
+ * 2026-09-28 the menu had this rule to itself, and the tab titles and phone
+ * headers were typed by hand per page, so /banks was "Finance" in the menu
+ * and "Banks" on the tab.
+ *
+ * Entries may carry a query (`/purchasing?tab=lookup`); the path must match
+ * (or be a parent of it) and, when the entry names a tab, the tab too. The
+ * bare page opens its first tab, so "no tab in the URL" IS that tab.
+ */
+export const entryMatches = (href: string, pathname: string, search: string): boolean => {
+  if (href === '/') return pathname === '/';
+  const path = href.split('?')[0];
+  if (!(pathname === path || pathname.startsWith(path + '/'))) return false;
+  const q = href.includes('?') ? href.slice(href.indexOf('?') + 1) : '';
+  if (!q) return true;
+  const want = new URLSearchParams(q).get('tab');
+  const have = new URLSearchParams(search.replace(/^\?/, '')).get('tab');
+  return want === have || (!have && want === FIRST_TAB[path]);
+};
+/** The tab a tabbed page opens on when the URL names none. */
+const FIRST_TAB: Record<string, string> = { '/purchasing': 'catalog', '/settings': 'format' };
+
+/**
+ * The label of the entry registered at exactly `href` — for a section's
+ * server-rendered <title> (app/<section>/layout.tsx), which has no URL to
+ * match and must still say the menu's word, not one of its own.
+ */
+export const labelOf = (href: string): string => {
+  const d = DESTINATIONS.find((x) => x.href === href);
+  if (!d) throw new Error(`no menu entry at ${href}`);
+  return d.label;
+};
+
+/**
+ * The page's NAME — the label of the menu entry it is, most specific match
+ * first (`/stock/receive` is "Receive Goods", not "Stock"; `/sales/abc` is
+ * "Sales Orders"). Null for a page that is no destination (login, 403).
+ * Returned in English, like every label here: the caller translates it with
+ * the same t() the menu uses, so the two can never read differently.
+ */
+export const pageLabelFor = (pathname: string, search = ''): string | null => {
+  let best: Destination | null = null; let score = -1;
+  for (const d of DESTINATIONS) {
+    if (!entryMatches(d.href, pathname, search)) continue;
+    const s = d.href.split('?')[0].length * 2 + (d.href.includes('?') ? 1 : 0);
+    if (s > score) { best = d; score = s; }
+  }
+  return best?.label ?? null;
+};
+
+/**
  * Menu order. The two trading flows lead (that is the business), then the
  * money they move, then what it earned, then the separate EPC product line.
  * Admin is appended by the menu itself, below the daily modules.

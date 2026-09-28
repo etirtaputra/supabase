@@ -26,6 +26,7 @@ import type {
 
 import { BALANCE_CATS } from '@/constants/costCategories';
 import DealLink from './DealLink';
+import { useT } from '@/hooks/useT';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function daysBetween(a: string, b: string): number {
@@ -89,6 +90,7 @@ export default function POCashCycle({
   suppliers,
   isLoading,
 }: Props) {
+  const { t, tf } = useT();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const toggleExpand = (id: string) =>
@@ -342,7 +344,7 @@ export default function POCashCycle({
                   {/* Right: cycle stats */}
                   <div className="flex items-center gap-5 shrink-0">
                     <div className="text-right hidden sm:block">
-                      <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Avg cycle</div>
+                      <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">{t('Avg cycle')}</div>
                       <div className={`text-xl font-extrabold ${gapColor(avgCycle)}`}>
                         {avgCycle !== null ? `${avgCycle}d` : '—'}
                       </div>
@@ -351,9 +353,9 @@ export default function POCashCycle({
                       )}
                     </div>
                     <div className="text-right hidden sm:block">
-                      <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Cycles</div>
+                      <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">{t('Cycles')}</div>
                       <div className="text-xl font-extrabold text-slate-300">{cycleCount}</div>
-                      <div className="text-[10px] text-slate-600">{entries.length} POs</div>
+                      <div className="text-[10px] text-slate-600">{tf('{n} POs', { n: entries.length })}</div>
                     </div>
                     <div className={`flex items-center justify-center w-7 h-7 rounded-full border transition-transform duration-200 ${isExpanded ? 'bg-slate-700 border-slate-600 rotate-180' : 'bg-slate-800/60 border-slate-700/60'}`}>
                       <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
@@ -364,15 +366,15 @@ export default function POCashCycle({
                 {/* Mobile stats row */}
                 <div className="flex sm:hidden gap-4 mt-2 text-xs">
                   <div>
-                    <span className="text-slate-500">Avg: </span>
+                    <span className="text-slate-500">{t('Avg')}: </span>
                     <span className={`font-bold ${gapColor(avgCycle)}`}>{avgCycle !== null ? `${avgCycle}d` : '—'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500">Cycles: </span>
+                    <span className="text-slate-500">{t('Cycles')}: </span>
                     <span className="font-bold text-slate-300">{cycleCount}</span>
                   </div>
                   <div>
-                    <span className="text-slate-500">POs: </span>
+                    <span className="text-slate-500">{t('POs')}: </span>
                     <span className="font-bold text-slate-300">{entries.length}</span>
                   </div>
                 </div>

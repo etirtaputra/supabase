@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useT } from '@/hooks/useT';
 import OnlineUsers from './OnlineUsers';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
-import { DESTINATIONS, orderedNavGroups, orderedGroupItems, sectionAllowed, menuDestinationsFor, type NavSection } from '@/constants/navigation';
+import { DESTINATIONS, entryMatches, pageLabelFor, orderedNavGroups, orderedGroupItems, sectionAllowed, menuDestinationsFor, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
@@ -227,8 +227,10 @@ export default function BrandMenu({
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
-  // Pages pass their subtitle in English; translating it HERE means the
-  // language setting reaches all 27 of them without any of them knowing.
+  // Pages pass their subtitle in English — only what the page ADDS about
+  // itself ("Warehouse"), never its own name, which comes from the menu
+  // (pageLabelFor below). Translating it HERE means the language setting
+  // reaches every page without any of them knowing.
   const { t, tf } = useT();
   const { theme, setTheme } = useTheme();
   const { lang, setLang } = useLanguage();
@@ -241,25 +243,16 @@ export default function BrandMenu({
 
   /**
    * Menu entries may carry a query (`/purchasing?tab=lookup`), but `pathname`
-   * never does. Compare the PATH, and — when the entry names a tab — the tab
-   * too, so only the workspace you are actually in lights up. The query is
-   * read at render time rather than through useSearchParams, which would
-   * force a Suspense boundary onto every page that renders the nav.
+   * never does. The query is read at render time rather than through
+   * useSearchParams, which would force a Suspense boundary onto every page
+   * that renders the nav. The matching rule itself is `entryMatches`
+   * (constants/navigation.ts) — shared with the page title, so the entry that
+   * lights up is the name the header and the browser tab show.
    */
-  const pathOf = (href: string) => href.split('?')[0];
-  const isActive = (href: string) => {
-    if (href === '/') return pathname === '/';
-    const path = pathOf(href);
-    const pathHit = pathname === path || pathname.startsWith(path + '/');
-    if (!pathHit) return false;
-    const q = href.includes('?') ? href.slice(href.indexOf('?') + 1) : '';
-    if (!q) return true;
-    const current = typeof window === 'undefined' ? '' : window.location.search.replace(/^\?/, '');
-    const want = new URLSearchParams(q).get('tab');
-    const have = new URLSearchParams(current).get('tab');
-    // The bare page opens its first tab, so "no tab in the URL" IS that tab
-    return want === have || (!have && want === 'catalog');
-  };
+  const search = typeof window === 'undefined' ? '' : window.location.search;
+  const isActive = (href: string) => entryMatches(href, pathname, search);
+  // The page's own name: its menu label, translated the way the menu does.
+  const pageLabel = pageLabelFor(pathname, search);
 
   /**
    * Spotlight lives in the nav bar, so it is impossible for a page to ship
@@ -538,7 +531,14 @@ export default function BrandMenu({
             <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
           </button>
         </div>
-        {subtitle && <p className="text-slate-500 text-[11px] mt-0.5 truncate lg:hidden">{t(subtitle)}</p>}
+        {/* Phones: the page's name, then what the page adds about itself.
+            The name is the MENU label, never typed by the page — one name
+            per page, the same one the menu and the browser tab use. */}
+        {(pageLabel || subtitle) && (
+          <p className="text-slate-500 text-[11px] mt-0.5 truncate lg:hidden">
+            {[pageLabel && t(pageLabel), subtitle && t(subtitle)].filter(Boolean).join(' · ')}
+          </p>
+        )}
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />

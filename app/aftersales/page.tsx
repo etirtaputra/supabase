@@ -35,6 +35,7 @@ import { fmtDay, fmtDayTime, fmtInt, fmtQty } from '@/lib/formatters';
 import { SALES_STATUS, displayDocNumber } from '@/lib/salesStatus';
 import { fmtWarranty, warrantyRun, type WarrantyUnit } from '@/lib/warranty';
 import { getSettings } from '@/lib/settings';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   fetchSerials, lookupSerial, traceSerial, normSerial,
   type SerialRow, type SerialSalesDoc, type SerialDo, type SerialInvoice,
@@ -158,7 +159,7 @@ function AfterSalesPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  useEffect(() => { document.title = 'After Sales — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/aftersales')}`); return; }
@@ -480,7 +481,7 @@ function AfterSalesPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1400px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("After Sales · Service & warranty cases")} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Service & warranty cases" />
         </div>
       </div>
 
@@ -494,7 +495,7 @@ function AfterSalesPage() {
             <button onClick={() => openEditor('new')}
               className="flex items-center gap-1.5 px-3 h-10 rounded-xl border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold whitespace-nowrap transition-colors flex-shrink-0">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-              New Case
+              {t('New case')}
             </button>
           )}
           <div className="relative flex-1 min-w-[180px]">
@@ -518,7 +519,7 @@ function AfterSalesPage() {
                   ? 'One row per service ticket, newest first — start from the serial number'
                   : 'Grouped by status, the way the desk worked before — start from the sales order'}
                 className={`text-[11px] px-2.5 py-1.5 font-semibold transition-colors ${mode === m ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-500 hover:text-slate-300'}`}>
-                {m === 'ticket' ? 'By ticket' : 'By order'}
+                {m === 'ticket' ? t('By ticket') : t('By order')}
               </button>
             ))}
           </div>
@@ -536,7 +537,7 @@ function AfterSalesPage() {
             </p>
             {canEdit && (
               <button onClick={() => openEditor('new')} className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 transition-colors">
-                Log the first case →
+                {t('Log the first case')} →
               </button>
             )}
           </div>
@@ -618,14 +619,14 @@ function AfterSalesPage() {
                       const docLink = 'inline-flex items-center gap-1 font-mono text-[10px] text-slate-400 hover:text-emerald-300 transition-colors';
                       return (
                         <div key={c.case_id} className={`bg-slate-900/50 border transition-all overflow-hidden ${open ? 'border-slate-700' : 'border-slate-800 hover:border-slate-700'} ${compact ? 'rounded-lg' : 'rounded-2xl'}`}>
-                          {/* div, not <button>: the row carries real <a> links inside */}
+                          {/* div, not a button element: the row carries real <a> links inside */}
                           <div role="button" tabIndex={0} aria-expanded={open}
                             onClick={() => setExpandedId(open ? null : c.case_id)}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(open ? null : c.case_id); } }}
                             className={`w-full text-left cursor-pointer hover:bg-slate-900/80 transition-colors ${compact ? 'px-3 py-2' : 'px-4 sm:px-5 py-3.5'}`}>
                             {compact ? (
                               <div className="flex items-center gap-2 min-w-0">
-                                <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[30%]">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
+                                <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[30%]">{custName.get(c.customer_id ?? '') || t('No customer')}</span>
                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
                                 {wty && <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 ${WTY_BADGE[wty.status].cls}`} title={wtyTitle}>{WTY_BADGE[wty.status].label}</span>}
                                 <span className="text-[11px] text-slate-400 truncate">{what}</span>
@@ -647,7 +648,7 @@ function AfterSalesPage() {
                             ) : (
                               <>
                                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <span className="font-semibold text-white truncate">{custName.get(c.customer_id ?? '') || 'No customer'}</span>
+                                  <span className="font-semibold text-white truncate">{custName.get(c.customer_id ?? '') || t('No customer')}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${cat.cls}`}>{cat.label}</span>
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_BADGE[c.status]}`}>{statusLabel(c.status)}</span>
                                   {wty && (
@@ -759,7 +760,7 @@ function AfterSalesPage() {
                               <div className="pt-1.5">
                                 <button onClick={() => openEditor(c)}
                                   className="px-2.5 py-1 rounded-md border border-slate-700/70 text-[11px] font-medium text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 transition-colors">
-                                  {canEdit ? '✎ Open case' : 'View details'}
+                                  {canEdit ? t('Open case') : t('View details')}
                                 </button>
                               </div>
                             </div>
@@ -837,7 +838,7 @@ function AfterSalesPage() {
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                           <span className="font-mono text-emerald-300">{r.serial}</span>
                           <span className="text-slate-300">{r.component_id ? compById.get(r.component_id)?.internal_description ?? '—' : r.product_text || '—'}</span>
-                          <span className="text-slate-500">{custName.get(trace.customerId ?? '') ?? 'no customer'}</span>
+                          <span className="text-slate-500">{custName.get(trace.customerId ?? '') ?? t('No customer')}</span>
                           {trace.order && <span className="text-sky-300 font-mono">{displayDocNumber(trace.order)}</span>}
                           {trace.delivery?.do_number && <span className="text-slate-500 font-mono">{trace.delivery.do_number}</span>}
                           {trace.external && <span className="text-amber-300">{t('not sold by us')}</span>}
@@ -1086,7 +1087,7 @@ function AfterSalesPage() {
                       onKeyDown={(e) => { if (e.key === 'Enter') addNote(); }} />
                     <button onClick={addNote} disabled={!newNote.trim()}
                       className="h-9 px-3 rounded-lg bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition-colors disabled:opacity-40 whitespace-nowrap">
-                      Add
+                      {t('Add')}
                     </button>
                   </div>
                 )}
@@ -1111,7 +1112,7 @@ function AfterSalesPage() {
                   className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
                 <button onClick={save} disabled={busy}
                   className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                  {busy ? 'Saving…' : 'Save case'}
+                  {busy ? t('Saving…') : t('Save case')}
                 </button>
               </div>
             )}

@@ -5,6 +5,7 @@ import { PRINCIPAL_CATS } from '../../constants/costCategories';
 import type { Component, Supplier, PriceQuote, PurchaseOrder, PurchaseLineItem, POCost, PriceQuoteLineItem } from '../../types/database';
 import { fmtRupiah } from '../../lib/formatters';
 import FitText from './FitText';
+import { useT } from '@/hooks/useT';
 import { priceMovement, PRICE_ARROW, PRICE_INK, PRICE_WORD } from '../../lib/priceMovement';
 
 /**
@@ -124,6 +125,7 @@ interface Props {
 }
 
 export default function SpendOverview({ components, suppliers, quotes, pos, poItems, poCosts, quoteItems, isLoading }: Props) {
+  const { t } = useT();
   const [period, setPeriod] = useState<Period>('all');
   const [vendorFilter, setVendorFilter] = useState('');
   const [sortCol, setSortCol] = useState<'committed' | 'qty' | 'poCount' | 'quoteCount'>('committed');
@@ -405,7 +407,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
               onClick={() => setPeriod(p)}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${period === p ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              {p === 'all' ? 'All time' : p}
+              {p === 'all' ? t('All time') : p}
             </button>
           ))}
         </div>

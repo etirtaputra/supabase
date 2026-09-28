@@ -459,7 +459,7 @@ export default function DealLookupTab({
   onReorderQuoteLineItems, onReorderPoLineItems,
   initialSearch,
 }: Props) {
-  const { t } = useT();
+  const { t, tf } = useT();
 
   // ── Drag a line into place ──────────────────────────────────────────────
   // This screen mirrors a document, and the document has an order. Neither
@@ -849,14 +849,14 @@ export default function DealLookupTab({
                 <span className="text-red-300">Delete this whole deal — {g.quotes.length} quote{g.quotes.length !== 1 ? 's' : ''} + {g.pos.length} PO{g.pos.length !== 1 ? 's' : ''}? Cannot be undone.</span>
                 <button type="button" disabled={busyDelete}
                   onClick={async () => { setBusyDelete(true); try { await onDeleteDeal(g.quotes.map((q) => String(q.quote_id)), g.pos.map((p) => String(p.po_id))); } finally { setBusyDelete(false); setConfirmDelete(null); } }}
-                  className="font-bold text-white bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg disabled:opacity-50">{busyDelete ? 'Deleting…' : 'Yes, delete'}</button>
-                <button type="button" onClick={() => setConfirmDelete(null)} className="text-slate-400 hover:text-slate-200 px-1.5 py-1">Cancel</button>
+                  className="font-bold text-white bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg disabled:opacity-50">{busyDelete ? t('Deleting…') : t('Yes, delete')}</button>
+                <button type="button" onClick={() => setConfirmDelete(null)} className="text-slate-400 hover:text-slate-200 px-1.5 py-1">{t('Cancel')}</button>
               </span>
             ) : (
               <button type="button" onClick={() => setConfirmDelete(dealKey)}
                 className="text-[11px] font-semibold text-red-300/80 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/25 hover:border-red-500/40 hover:bg-red-500/10 transition-colors"
                 title="Permanently delete this deal — every quote and PO in it">
-                Delete deal
+                {t('Delete deal')}
               </button>
             )}
           </div>
@@ -1016,14 +1016,14 @@ export default function DealLookupTab({
                               <button onClick={(e) => { e.stopPropagation(); setEditingQuoteReplaces(qKey); }}
                                 className="text-slate-500 hover:text-sky-300 underline underline-offset-2"
                                 title="Mark this quote as replacing an earlier one — the old quote is set to Replaced and linked">
-                                {qRevisionOf ? 'change' : '+ replaces a quote'}
+                                {qRevisionOf ? t('Change') : <>+ {t('Replaces a quote')}</>}
                               </button>
                             )}
                             {onUpdateQuote && qSupersededBy.length === 0 && (
                               <button onClick={(e) => { e.stopPropagation(); setEditingQuoteReplacedBy(qKey); }}
                                 className="text-slate-500 hover:text-amber-300 underline underline-offset-2"
                                 title="Mark this quote as superseded — pick the newer quote that replaces it; this one is set to Replaced and linked">
-                                + replaced by…
+                                + {t('Replaced by…')}
                               </button>
                             )}
                           </>
@@ -1128,7 +1128,7 @@ export default function DealLookupTab({
                                             <CopyText text={comp.internal_description}>{comp.internal_description}</CopyText>
                                           </p>
                                         )}
-                                        {isEditingLine && <button onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }} className="text-[10px] text-sky-400 hover:text-sky-300 transition-colors">change product</button>}
+                                        {isEditingLine && <button onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }} className="text-[10px] text-sky-400 hover:text-sky-300 transition-colors">{t('Change product')}</button>}
                                       </div>
                                     )}
                                   </td>
@@ -1210,7 +1210,7 @@ export default function DealLookupTab({
                           <div className="mt-2">
                             <button onMouseDown={(e) => { e.preventDefault(); setEditingLine({ mode: 'add', type: 'quote', id: 0, rowIdx: -2, targetId: qt.quote_id, currency: qt.currency, componentId: null, showCompSearch: true, qty: '', price: '', saving: false }); }} className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-400 hover:text-sky-300 px-2 py-1 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 rounded-lg transition-colors">
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-                              Add item
+                              {t('Add item')}
                             </button>
                           </div>
                         )}
@@ -1227,8 +1227,7 @@ export default function DealLookupTab({
                 onClick={(e) => { e.stopPropagation(); onCreatePO(String(targetQuote.quote_id)); }}
                 className="mt-2 w-full text-left px-3 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2"
               >
-                <span>📦</span>
-                <span>Create PO from this quote →</span>
+                <span>{t('Create PO from this quote')} →</span>
               </button>
             )}
           </div>
@@ -1471,7 +1470,7 @@ export default function DealLookupTab({
                                   setEditingReceivedId(null);
                                 }}
                                 className="text-emerald-400 hover:text-emerald-300 text-[10px] font-bold"
-                              >Save</button>
+                              >{t('Save')}</button>
                               <button onClick={(e) => { e.stopPropagation(); setEditingReceivedId(null); }} className="text-slate-500 hover:text-slate-300 text-[10px]">✕</button>
                             </div>
                           ) : (
@@ -1751,7 +1750,7 @@ export default function DealLookupTab({
                             <button type="button" onClick={(e) => { e.stopPropagation(); onRevisePo(String(po.po_id)); }}
                               className="text-[11px] font-semibold text-violet-300 hover:text-violet-200 px-2 py-1 rounded-lg border border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/10 transition-colors whitespace-nowrap"
                               title="Load this PO into New Deal — amend it, split lines into a new PO, or supersede it">
-                              Revise →
+                              {t('Revise')} →
                             </button>
                           )}
                           {onDeletePo && poDeletable(po) && (
@@ -1760,14 +1759,14 @@ export default function DealLookupTab({
                                 <span className="text-red-300">Delete {po.po_number || 'this PO'}?</span>
                                 <button type="button" disabled={busyDelete}
                                   onClick={async () => { setBusyDelete(true); try { await onDeletePo(String(po.po_id)); } finally { setBusyDelete(false); setConfirmDelete(null); } }}
-                                  className="font-bold text-white bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg disabled:opacity-50">{busyDelete ? 'Deleting…' : 'Yes, delete'}</button>
-                                <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-slate-400 hover:text-slate-200 px-1.5 py-1">Cancel</button>
+                                  className="font-bold text-white bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg disabled:opacity-50">{busyDelete ? t('Deleting…') : t('Yes, delete')}</button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-slate-400 hover:text-slate-200 px-1.5 py-1">{t('Cancel')}</button>
                               </span>
                             ) : (
                               <button type="button" onClick={(e) => { e.stopPropagation(); setConfirmDelete(`po:${pKey}`); }}
                                 className="text-[11px] font-semibold text-red-300/80 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/25 hover:border-red-500/40 hover:bg-red-500/10 transition-colors whitespace-nowrap"
                                 title="Permanently delete this PO and its line items">
-                                Delete
+                                {t('Delete')}
                               </button>
                             )
                           )}
@@ -1812,7 +1811,7 @@ export default function DealLookupTab({
                               <button
                                 onClick={() => setPendingReceived(null)}
                                 className="flex-1 py-1.5 text-[11px] text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all"
-                              >Cancel</button>
+                              >{t('Cancel')}</button>
                               <button
                                 disabled={!pendingReceived.date || updatingPo === pKey}
                                 onClick={async () => {
@@ -1826,7 +1825,7 @@ export default function DealLookupTab({
                                   } finally { setUpdatingPo(null); }
                                 }}
                                 className="flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40"
-                              >{updatingPo === pKey ? 'Saving…' : 'Confirm'}</button>
+                              >{updatingPo === pKey ? t('Saving…') : t('Confirm')}</button>
                             </div>
                           </div>
                         )}
@@ -1870,7 +1869,7 @@ export default function DealLookupTab({
                           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
-                          {markingPaid === pKey ? 'Saving…' : 'Mark as Fully Paid'}
+                          {markingPaid === pKey ? t('Saving…') : t('Mark as fully paid')}
                         </button>
                         <span className="text-[10px] text-slate-600 tabular-nums">
                           closes {hasForeignTracking ? `${po.currency} ${foreignOut.toFixed(2)}` : fmtIdr(outIdr)} gap
@@ -1940,7 +1939,7 @@ export default function DealLookupTab({
                                             {ltPayment != null && <span className="text-[10px] text-slate-600"><span className="font-semibold text-sky-500/70 tabular-nums">{ltPayment}d</span> 1st pay→rcvd</span>}
                                           </div>
                                         )}
-                                        {isEditingLine && <button onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }} className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors">change product</button>}
+                                        {isEditingLine && <button onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }} className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors">{t('Change product')}</button>}
                                       </div>
                                     )}
                                   </td>
@@ -2022,7 +2021,7 @@ export default function DealLookupTab({
                           <div className="mt-2">
                             <button onMouseDown={(e) => { e.preventDefault(); setEditingLine({ mode: 'add', type: 'po', id: 0, rowIdx: -2, targetId: po.po_id, currency: po.currency, componentId: null, showCompSearch: true, qty: '', price: '', saving: false }); }} className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg transition-colors">
                               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-                              Add item
+                              {t('Add item')}
                             </button>
                           </div>
                         )}
@@ -2053,7 +2052,7 @@ export default function DealLookupTab({
                               onClick={() => acknowledgeMismatch(ackKey)}
                               className="text-[10px] text-slate-500 hover:text-slate-300 border border-slate-700 hover:border-slate-500 px-2 py-0.5 rounded transition-colors flex-shrink-0"
                             >
-                              Dismiss
+                              {t('Dismiss')}
                             </button>
                           </div>
                           <div className="space-y-1.5">
@@ -2251,7 +2250,7 @@ export default function DealLookupTab({
                                       onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }}
                                       className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
                                     >
-                                      change item
+                                      {t('Change item')}
                                     </button>
                                   )}
                                 </div>
@@ -2549,7 +2548,7 @@ export default function DealLookupTab({
                   onMouseDown={(e) => { e.stopPropagation(); onCreatePO(String(tq.quote_id)); }}
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-white/10 text-slate-300 text-[10px] font-semibold rounded leading-none flex-shrink-0 hover:bg-white/15 transition-colors"
                 >
-                  <span>+</span><span>Create PO</span>
+                  <span>+</span><span>{t('Create PO')}</span>
                 </button>
               ) : (
                 <span className="text-[11px] text-slate-600 flex-shrink-0">No PO</span>
@@ -2878,7 +2877,7 @@ export default function DealLookupTab({
                 className={`${BAR_BTN} gap-1.5 pl-2.5 pr-2 ${
                   filterMismatch ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
                   : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/40'}`}>
-                ⚠ Mismatch
+                ⚠ {t('Mismatch')}
                 <span className={`tabular-nums text-xs sm:text-[11px] font-semibold px-1 rounded ${
                   filterMismatch ? 'bg-black/25' : 'text-slate-500'}`}>{mismatchGroupIds.size}</span>
               </button>
@@ -2927,7 +2926,7 @@ export default function DealLookupTab({
               </span>
               <button type="button" onClick={() => setStageFilter('all')}
                 className="ml-auto px-2 py-1 rounded-md border border-sky-500/40 text-sky-200 font-semibold hover:bg-sky-500/15 transition-colors">
-                Show all stages
+                {t('Show all stages')}
               </button>
             </div>
           )}
@@ -2949,7 +2948,7 @@ export default function DealLookupTab({
                   {filtered.length > shown.length && (
                     <button onClick={() => setFlatShowAll(true)}
                       className="mt-2 w-full py-2 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
-                      Show all {filtered.length} — {filtered.length - shown.length} more not shown
+                      {tf('Show all {n} — {m} more not shown', { n: filtered.length, m: filtered.length - shown.length })}
                     </button>
                   )}
                 </>
@@ -2986,7 +2985,7 @@ export default function DealLookupTab({
                     {rows.length > shown.length && (
                       <button onClick={() => setFullSections((prev) => new Set(prev).add(key))}
                         className="mt-2 w-full py-2 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
-                        Show all {rows.length} — {rows.length - shown.length} more not shown
+                        {tf('Show all {n} — {m} more not shown', { n: rows.length, m: rows.length - shown.length })}
                       </button>
                     )}
                   </div>

@@ -7,6 +7,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { useT } from '@/hooks/useT';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string; error?: boolean }
 
@@ -24,6 +26,7 @@ function renderInline(text: string) {
 }
 
 export default function AskPage() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -33,7 +36,7 @@ export default function AskPage() {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { document.title = 'Ask — ICAPROC'; }, []);
+  usePageTitle();
 
   // Answers draw on buy-side data (suppliers, costs, brands) — buy-side only.
   useEffect(() => {
@@ -101,7 +104,7 @@ export default function AskPage() {
       {/* ── Header (house style) ── */}
       <div className="flex-none sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between flex-wrap gap-4">
-          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="Ask · AI assistant" />
+          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="AI assistant" />
           {/* Account + Sign out live in the ICAPROC menu — headers stay clean. */}
         </div>
       </div>
@@ -183,7 +186,7 @@ export default function AskPage() {
               disabled={loading || !query.trim()}
               className="mb-0.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
             >
-              Send
+              {t('Send')}
             </button>
           </div>
           <p className="text-[10px] text-slate-600 text-center mt-2">

@@ -25,6 +25,7 @@ import type { PurchaseOrder, PurchaseLineItem, POCost } from '@/types/database';
 import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import DealLink from '@/components/ui/DealLink';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const numOf = (v: unknown): number => { if (v === '' || v == null) return 0; const n = Number(String(v).replace(/[, ]/g, '')); return isNaN(n) ? 0 : n; };
 const today = () => new Date().toISOString().slice(0, 10);
@@ -48,7 +49,7 @@ function ReceivePage() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
-  const { t } = useT();
+  const { t, tf } = useT();
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
   const { data, loading: dataLoading } = useSupabaseData();
 
@@ -72,7 +73,7 @@ function ReceivePage() {
   const [posted, setPosted] = useState<string | null>(null); // GRN number after posting
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3000); };
 
-  useEffect(() => { document.title = 'Stock · Receive Goods — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/stock/receive')}`); return; }
@@ -273,8 +274,9 @@ function ReceivePage() {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             </Link>
             <div className="min-w-0">
-              <h1 className="text-lg md:text-xl font-extrabold text-white truncate">Receive against PO</h1>
-              <p className="text-[11px] text-slate-500">Goods receipt → stock in at landed cost</p>
+              {/* The menu's name for this page (lib/wording.ts: one name per page) */}
+              <h1 className="text-lg md:text-xl font-extrabold text-white truncate">{t('Receive Goods')}</h1>
+              <p className="text-[11px] text-slate-500">{t('Against a PO — goods receipt → stock in at landed cost')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -287,7 +289,7 @@ function ReceivePage() {
             {selected && (
               <button onClick={() => { setPoId(''); router.replace('/stock/receive'); }}
                 className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold whitespace-nowrap transition-colors">
-                Change PO
+                {t('Change PO')}
               </button>
             )}
           </div>
@@ -332,7 +334,7 @@ function ReceivePage() {
                         <div className="md:hidden px-4 py-3">
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-sky-300 font-semibold truncate">{po.po_number || k}</span>
-                            <span className={`tabular-nums text-[11px] font-semibold ${out > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{fmtInt(out)} left</span>
+                            <span className={`tabular-nums text-[11px] font-semibold ${out > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{tf('{n} left', { n: fmtInt(out) })}</span>
                           </div>
                           <p className="text-[11px] text-slate-500 truncate mt-0.5">{supplierOfPo(po) || '—'} · {fmtDay(po.po_date)} · {po.status ?? ''}</p>
                         </div>
@@ -487,7 +489,7 @@ function ReceivePage() {
                 <button onClick={post} disabled={busy || receiveNowTotal <= 0}
                   className="px-5 py-2.5 rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-xs font-bold transition-colors disabled:opacity-40 flex items-center gap-2">
                   {busy && <span className="w-3.5 h-3.5 border-2 border-sky-500/30 border-t-sky-400 rounded-full animate-spin" />}
-                  Post goods receipt
+                  {t('Post goods receipt')}
                 </button>
               </div>
             </div>

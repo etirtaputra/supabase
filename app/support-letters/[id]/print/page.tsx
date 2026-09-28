@@ -18,12 +18,14 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import { useSettings } from '@/hooks/useSettings';
 import { fmtDateID, statementLines, type SupportLetter, type SupportLetterItem } from '@/lib/supportLetters';
+import { useT } from '@/hooks/useT';
 
 /** CSS pixels per millimetre at the 96dpi the print pipeline assumes. */
 const MM = 96 / 25.4;
 const HEAD_SPACE_KEY = 'icaproc.suratDukungan.headSpaceMm';
 
 export default function SupportLetterPrintPage() {
+  const { t } = useT();
   const { id } = useParams<{ id: string }>();
   const supabase = createSupabaseClient();
   const router = useRouter();
@@ -172,7 +174,7 @@ export default function SupportLetterPrintPage() {
       `}</style>
 
       <div className="toolbar no-print">
-        <button className="print-btn ghost" onClick={() => router.push('/support-letters')}>← Back</button>
+        <button className="print-btn ghost" onClick={() => router.push('/support-letters')}>← {t('Back')}</button>
         <label title="Blank band left at the top for paper that already carries the printed letterhead">
           Top space
           <select value={headSpace} onChange={(e) => setHeadSpace(Number(e.target.value))}>
@@ -189,7 +191,7 @@ export default function SupportLetterPrintPage() {
             : 'Too long even at the smallest size — trim the clauses or the material list'}>
           {fits ? `Fits one page${scale < 1 ? ` · ${Math.round(scale * 100)}%` : ''}` : 'Too long for one page'}
         </span>
-        <button className="print-btn" onClick={() => window.print()}>Print / Save PDF</button>
+        <button className="print-btn" onClick={() => window.print()}>{t('Print / save PDF')}</button>
       </div>
 
       <div className="page">

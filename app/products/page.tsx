@@ -62,6 +62,7 @@ import { inRange, type DateRange } from '@/lib/dateRange';
 import { successorMap } from '@/lib/successors';
 import { WARRANTY_UNITS, fmtWarranty, warrantyLabel } from '@/lib/warranty';
 import { useT } from '@/hooks/useT';
+import { usePageTitle } from '@/hooks/usePageTitle';
 // "New" means a NEW PRODUCT — something we have never carried before, whose
 // first-ever goods receipt landed inside the window. It does NOT mean fresh
 // stock of a thing we have always sold (owner, 2026-09-10: *"'New' is only for
@@ -329,7 +330,7 @@ function ProductsInner() {
   const [successors, setSuccessors] = useState<Map<string, string>>(new Map());
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2200); };
 
-  useEffect(() => { document.title = 'Products — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/products')}`); return; }
@@ -783,13 +784,13 @@ function ProductsInner() {
         {/* Phones: wordmark row then actions row — side-by-side squeezes the
             buttons into the wordmark. sm+ keeps the single row. */}
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Products · Sell-side catalog" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Sell-side catalog" />
           <div className="flex items-center gap-2 flex-wrap">
             {canExport && (
               <button onClick={exportCsv}
                 title={t('Download the filtered list as CSV (opens in Excel)')}
                 className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">
-                ↓ Export CSV
+                ↓ {t('Export CSV')}
               </button>
             )}
             {canImport && (
@@ -1278,7 +1279,7 @@ function ProductsInner() {
                 className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">{t('Cancel')}</button>
               <button onClick={applyImport} disabled={importBusy}
                 className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50">
-                {importBusy ? 'Importing…' : `Apply ${importPreview.updates.length + importPreview.creates.length} rows`}
+                {importBusy ? t('Importing…') : tf('Apply {n} rows', { n: importPreview.updates.length + importPreview.creates.length })}
               </button>
             </div>
           </div>

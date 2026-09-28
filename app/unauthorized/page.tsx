@@ -4,8 +4,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { createSupabaseClient } from '@/lib/supabase';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { homeFor } from '@/constants/navigation';
+import { useT } from '@/hooks/useT';
 
 export default function UnauthorizedPage() {
+  const { t } = useT();
   const router = useRouter();
   const { profile } = useAuth();
   const supabase = createSupabaseClient();
@@ -27,19 +29,19 @@ export default function UnauthorizedPage() {
             onClick={() => router.replace(home)}
             className="px-4 py-2 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold rounded-lg transition-colors"
           >
-            Go to my home page
+            {t('Go to my home page')}
           </button>
           <button
             onClick={() => router.back()}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium rounded-lg transition-colors"
           >
-            Go back
+            {t('Go back')}
           </button>
           <button
             onClick={() => supabase.auth.signOut().then(() => router.replace('/login'))}
             className="text-xs text-slate-600 hover:text-slate-400"
           >
-            Sign out
+            {t('Sign out')}
           </button>
         </div>
       </div>

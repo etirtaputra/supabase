@@ -18,6 +18,7 @@
  */
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useT } from '@/hooks/useT';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fmtInt, fmtRupiah } from '@/lib/formatters';
 import { specNumber } from '@/lib/specSchema';
@@ -71,6 +72,7 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
   /** Are there already generated lines on this quote? Then this is a REGENERATE. */
   hasExisting: boolean;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -467,10 +469,10 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
               : 'The lines land on the quotation, where you can edit them like any other line.'}
           </p>
           <div className="flex gap-3">
-            <button onClick={onClose} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">Cancel</button>
+            <button onClick={onClose} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">{t('Cancel')}</button>
             <button onClick={apply} disabled={!result.ok}
               className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors disabled:opacity-40">
-              {hasExisting ? 'Regenerate lines' : 'Add to quotation'}
+              {hasExisting ? t('Regenerate lines') : t('Add to quotation')}
             </button>
           </div>
         </div>

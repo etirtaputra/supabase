@@ -16,6 +16,8 @@ import SpendOverview from '@/components/ui/SpendOverview';
 import CategoryPositioningMap from '@/components/ui/CategoryPositioningMap';
 import CostBreakdown from '@/components/ui/CostBreakdown';
 import { ToastProvider } from '@/hooks/useToast';
+import { useT } from '@/hooks/useT';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 // 'lookup' (Product Cost Lookup) retired 2026-08-01 — its forensic layer lives
 // in Analytics › Items now (components/ui/ProductCostLookup.tsx kept on disk
@@ -68,13 +70,14 @@ function useNow(intervalMs: number) {
 }
 
 export default function DatabaseViewPage() {
+  const { t } = useT();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
   const { data, loading, lastFetched, refetch } = useSupabaseData();
   const [activeTab, setActiveTab] = useState<TabId>('spend');
   const [refreshing, setRefreshing] = useState(false);
   const now = useNow(30_000); // tick every 30s to update "X min ago"
-  useEffect(() => { document.title = 'Spend & Cash — ICAPROC'; }, []);
+  usePageTitle();
 
   // Procurement-sensitive data — sign-in required
   useEffect(() => {
@@ -125,7 +128,7 @@ export default function DatabaseViewPage() {
         {/* ── Sticky header + tab bar ── */}
         <div className="sticky top-0 z-50 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
           <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex items-start justify-between flex-wrap gap-4">
-            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Spend & Cash · Spend · Costs · Positioning" showStatus={false} />
+            <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle="Spend · Costs · Positioning" showStatus={false} />
             {/* Refresh control. No account block here — the ICAPROC menu
                 already shows the signed-in user + Sign out; repeating them
                 next to the clock made the header read as clutter. */}
@@ -152,7 +155,7 @@ export default function DatabaseViewPage() {
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Refresh
+                {t('Refresh')}
               </button>
             </div>
           </header>

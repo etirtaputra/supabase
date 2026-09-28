@@ -222,7 +222,9 @@ export default function QuoteNoteThread({ quoteId, authorEmail }: {
           className="mt-2 text-[11px] font-semibold text-slate-400 hover:text-white transition-colors">
           {showSettled
             ? t('Hide settled')
-            : tf(hiddenSettled === 1 ? 'Show {n} settled note' : 'Show {n} settled notes', { n: hiddenSettled })}
+            : hiddenSettled === 1
+              ? tf('Show {n} settled note', { n: hiddenSettled })
+              : tf('Show {n} settled notes', { n: hiddenSettled })}
         </button>
       )}
     </div>

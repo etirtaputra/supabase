@@ -38,9 +38,10 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr, fmtInt } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import type { Tab, MenuItem } from '@/types/forms';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const MENU_ITEMS: MenuItem[] = [
-  { id: 'catalog', label: 'Items', icon: '🗂️',
+  { id: 'catalog', label: 'Item Editor', icon: '🗂️',
     color: 'text-slate-400 hover:text-sky-300 hover:bg-slate-800/50',
     activeColor: 'bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30' },
   { id: 'quoting', label: 'New Deal', icon: '📝',
@@ -61,7 +62,7 @@ const MENU_ITEMS: MenuItem[] = [
 ];
 
 function MasterInsertPage() {
-  const { t } = useT();
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -71,13 +72,9 @@ function MasterInsertPage() {
   const initialLookupQ = searchParams.get('q') ?? '';
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
-  useEffect(() => {
-    const label = MENU_ITEMS.find((m) => m.id === activeTab)?.label ?? 'Data Entry';
-    document.title = `Purchasing · ${label} — ICAPROC`;
-    // searchParams is a dep on purpose: soft navigations re-apply the route's
-    // static metadata AFTER our effect ran once — re-assert on every URL change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, searchParams]);
+  // The tab's menu name (Deal Lookup, New Deal…) — re-titled on every tab
+  // switch, which moves only the query.
+  usePageTitle(null, [activeTab, searchParams]);
 
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1057,7 +1054,6 @@ function MasterInsertPage() {
     }
   };
 
-  const activeItem = MENU_ITEMS.find((m) => m.id === activeTab);
 
   // PDF-extraction entry point, rendered inside the Step-1 form's title row —
   // mirrors the items form's Upload PDF button so the two headers match.
@@ -1071,7 +1067,7 @@ function MasterInsertPage() {
           </span>
           <button type="button" onClick={() => setPdfData(null)}
             className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
-            Clear
+            {t('Clear')}
           </button>
         </>
       )}
@@ -1128,7 +1124,7 @@ function MasterInsertPage() {
       {/* ── Sticky top header + tab bar ── */}
       <div className="sticky top-0 z-50 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <header className="px-3 sm:px-4 md:px-6 xl:px-8 pt-4 xl:pt-5 pb-2 max-w-[1800px] 2xl:max-w-[2460px] mx-auto flex flex-col sm:flex-row sm:items-end justify-between sm:flex-wrap gap-1">
-          <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" subtitle={`Purchasing${activeItem?.label ? ` · ${activeItem.label}` : ''}`} />
+          <BrandMenu wordmarkClass="text-lg md:text-xl xl:text-2xl font-bold" />
           {/* User badge + sign out — desktop only; mobile signs out via the ICAPROC menu */}
           {/* Account + Sign out live in the ICAPROC menu — headers stay clean. */}
           {/* sm:self-center, not the header's items-end plus a pb nudge: this
@@ -1158,7 +1154,7 @@ function MasterInsertPage() {
                   : 'border-transparent text-slate-500 hover:text-slate-300 font-normal tracking-wide'
               }`}
             >
-              {item.label}
+              {t(item.label)}
             </Link>
           ))}
         </nav>
@@ -1291,7 +1287,7 @@ function MasterInsertPage() {
                               <span className="text-slate-500">{sup?.supplier_name ? ` · ${sup.supplier_name}` : ''}{worth}</span>
                               {' '}— its {data.poItems.filter((pi) => String(pi.po_id) === String(src.po_id)).length} line item{data.poItems.filter((pi) => String(pi.po_id) === String(src.po_id)).length !== 1 ? 's are' : ' is'} loaded below.
                               <button type="button" onClick={() => { setStoredPoSel(''); setPoNumberChanged(false); }}
-                                className="ml-2 text-slate-500 hover:text-slate-300 underline underline-offset-2">clear</button>
+                                className="ml-2 text-slate-500 hover:text-slate-300 underline underline-offset-2">{t('Clear')}</button>
                             </span>
                           </div>
                           {!poNumberChanged ? (
@@ -1304,7 +1300,7 @@ function MasterInsertPage() {
                                 {(['split', 'supersede'] as const).map((m) => (
                                   <button key={m} type="button" onClick={() => setNewPoMode(m)}
                                     className={`px-3 py-1.5 transition-colors ${newPoMode === m ? 'bg-violet-600 text-white' : 'bg-slate-900/60 text-slate-400 hover:text-slate-200'}`}>
-                                    {m === 'split' ? 'Split off' : 'Supersede'}
+                                    {m === 'split' ? t('Split off') : t('Supersede')}
                                   </button>
                                 ))}
                               </div>
@@ -1475,11 +1471,11 @@ function MasterInsertPage() {
                       <button
                         onClick={() => setPaymentMode('single')}
                         className={`px-4 py-2 whitespace-nowrap transition-colors ${paymentMode === 'single' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
-                      >Single PO</button>
+                      >{t('Single PO')}</button>
                       <button
                         onClick={() => setPaymentMode('batch')}
                         className={`px-4 py-2 whitespace-nowrap transition-colors ${paymentMode === 'batch' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800/60 text-slate-400 hover:text-slate-300'}`}
-                      >Multi-PO Batch</button>
+                      >{t('Multi-PO batch')}</button>
                     </div>
                     <p className="text-xs text-slate-500 basis-full sm:basis-auto sm:flex-1 min-w-0">
                       {paymentMode === 'batch'
@@ -1504,7 +1500,7 @@ function MasterInsertPage() {
                         onClick={() => setHideSettledPos(v => !v)}
                         className="text-[11px] text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition-colors"
                       >
-                        {hideSettledPos ? 'Show all' : 'Hide settled'}
+                        {hideSettledPos ? t('Show all') : t('Hide settled')}
                       </button>
                     </div>
                     <BatchLineItemsForm
@@ -1562,7 +1558,7 @@ function MasterInsertPage() {
                               <svg className={`w-2.5 h-2.5 transition-transform ${showCostBreakdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                               </svg>
-                              {selCosts.length} cost entr{selCosts.length !== 1 ? 'ies' : 'y'} logged
+                              {selCosts.length === 1 ? t('1 cost entry logged') : tf('{n} cost entries logged', { n: selCosts.length })}
                             </button>
                             {showCostBreakdown && (
                               <div className="mt-2 rounded-lg overflow-hidden border border-slate-800/60">

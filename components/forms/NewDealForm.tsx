@@ -27,6 +27,7 @@ import RichDropdown from '../ui/RichDropdown';
 import { Spinner } from '../ui/LoadingSkeleton';
 import { fmtInt } from '@/lib/formatters';
 import { evalCell } from '@/lib/formula';
+import { useT } from '@/hooks/useT';
 import type { FieldConfig } from '../../types/forms';
 
 export interface DealLine {
@@ -82,6 +83,7 @@ export default function NewDealForm({
   title, withPo, headerFields, onFieldChange, components, currencies,
   itemsLocked = false, seedLines = null, sourceKey = null, headerAction, onSubmit, loading,
 }: Props) {
+  const { t } = useT();
   const formId = useId();
 
   const buildDefaults = (flds: FieldConfig[]) => {
@@ -348,7 +350,7 @@ export default function NewDealForm({
           <button type="button" onClick={clearDraft}
             className="text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1 rounded-lg border border-slate-700/60 hover:border-slate-600 transition-colors"
             title="Clear the saved draft — header and lines">
-            Clear draft
+            {t('Clear draft')}
           </button>
         )}
       </div>
@@ -480,8 +482,8 @@ export default function NewDealForm({
           className={`w-full sm:w-auto sm:ml-auto font-bold py-2.5 px-6 rounded-xl text-sm shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center gap-2 text-white ${
             withPo ? 'bg-violet-600 hover:bg-violet-500 border border-violet-500/50 shadow-violet-900/20'
                    : 'bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/50 shadow-emerald-900/20'}`}>
-          {loading ? (<><Spinner className="w-4 h-4" /><span>Saving…</span></>)
-            : (<span>{withPo ? 'Save Quote + PO' : 'Save Quote'}</span>)}
+          {loading ? (<><Spinner className="w-4 h-4" /><span>{t('Saving…')}</span></>)
+            : (<span>{withPo ? t('Save quote + PO') : t('Save quote')}</span>)}
         </button>
       </div>
     </form>

@@ -28,6 +28,7 @@ import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import { displayDocNumber } from '@/lib/salesStatus';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   fetchSerials, parseSerialBatch, findExisting, traceSerial, normSerial, SERIAL_STATUS,
   type SerialRow, type SerialSalesDoc, type SerialDo, type SerialInvoice,
@@ -45,7 +46,7 @@ function SerialsPage() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, profile, loading: authLoading } = useAuth();
-  const { t } = useT();
+  const { t, tf } = useT();
   const perms = profile ? ROLE_PERMISSIONS[profile.role] : null;
   const canView = !!perms && canOpenPath(perms, '/serials');
   const canEdit = !!perms && (perms.canManageStock || perms.canEditSalesDocs);
@@ -91,7 +92,7 @@ function SerialsPage() {
   const [bDo, setBDo] = useState('');
   const [bInvoice, setBInvoice] = useState('');
 
-  useEffect(() => { document.title = 'Serial Numbers — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/serials')}`); return; }
@@ -335,7 +336,7 @@ function SerialsPage() {
           Customers. */}
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Serial Numbers · Unit register")} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Unit register" />
           <div className="flex items-center gap-2 flex-wrap">
             <Link href="/aftersales"
               className="hidden sm:block px-3 py-1.5 rounded-xl border border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 text-xs font-semibold whitespace-nowrap transition-colors">
@@ -344,7 +345,7 @@ function SerialsPage() {
             {canEdit && (
               <button onClick={() => { setShowForm((v) => !v); setTimeout(() => scanRef.current?.focus(), 50); }}
                 className="px-3.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-xs font-bold whitespace-nowrap transition-colors">
-                {showForm ? 'Close' : '+ Record units'}
+                {showForm ? t('Close') : <>+ {t('Record units')}</>}
               </button>
             )}
           </div>
@@ -389,7 +390,7 @@ function SerialsPage() {
                   {(['scan', 'paste'] as const).map((m) => (
                     <button key={m} onClick={() => { setEntry(m); if (m === 'scan') setTimeout(() => scanRef.current?.focus(), 30); }}
                       className={`text-[11px] px-2.5 py-1 font-semibold transition-colors ${entry === m ? 'bg-emerald-500/15 text-emerald-300' : 'text-slate-500 hover:text-slate-300'}`}>
-                      {m === 'scan' ? 'Barcode gun' : 'Paste a list'}
+                      {m === 'scan' ? t('Barcode gun') : t('Paste a list')}
                     </button>
                   ))}
                 </div>
@@ -448,7 +449,7 @@ function SerialsPage() {
             <div>
               <button onClick={() => setShowAttachOnEntry((v) => !v)}
                 className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
-                {showAttachOnEntry ? '▾' : '▸'} 3 · Attach to an order now (optional — normally done later, when they ship)
+                {showAttachOnEntry ? '▾' : '▸'} {t('3 · Attach to an order now (optional — normally done later, when they ship)')}
               </button>
               {showAttachOnEntry && (
                 <div className="grid md:grid-cols-4 gap-3 mt-2">
@@ -499,7 +500,7 @@ function SerialsPage() {
               <button onClick={resetForm} className="px-3 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold transition-colors">{t('Clear')}</button>
               <button onClick={saveBatch} disabled={busy || willWrite.length === 0}
                 className="px-4 py-2 rounded-xl bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 text-xs font-bold disabled:opacity-40 transition-colors">
-                {busy ? 'Recording…' : `Record ${willWrite.length || ''} unit${willWrite.length !== 1 ? 's' : ''}`}
+                {busy ? t('Recording…') : willWrite.length === 0 ? t('Record units') : willWrite.length === 1 ? tf('Record {n} unit', { n: 1 }) : tf('Record {n} units', { n: willWrite.length })}
               </button>
             </div>
           </div>
@@ -513,7 +514,7 @@ function SerialsPage() {
           <div className="flex flex-wrap items-center gap-1.5">
             <button onClick={() => setStatusFilter('')}
               className={`text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors ${!statusFilter ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 font-bold' : 'border-slate-700/80 text-slate-500 hover:text-slate-300'}`}>
-              All {serials.length}
+              {t('All')} {serials.length}
             </button>
             {Object.entries(SERIAL_STATUS).map(([k, v]) => (counts.get(k) ? (
               <button key={k} onClick={() => setStatusFilter(statusFilter === k ? '' : k)}
@@ -545,11 +546,11 @@ function SerialsPage() {
             </select>
             <button onClick={attachTicked} disabled={busy || !bQuote}
               className="px-3.5 py-2 rounded-xl bg-violet-500/90 hover:bg-violet-400 text-slate-950 text-xs font-bold disabled:opacity-40 transition-colors">
-              Attach
+              {t('Attach')}
             </button>
             <button onClick={releaseTicked} disabled={busy}
               className="px-3 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/40 text-xs font-semibold transition-colors">
-              Back to stock
+              {t('Back to stock')}
             </button>
             <button onClick={() => setTicked(new Set())} className="text-[11px] text-slate-500 hover:text-white transition-colors">{t('clear')}</button>
           </div>
@@ -633,7 +634,7 @@ function SerialsPage() {
                           {canEdit && (
                             <button onClick={() => removeSerial(r)}
                               className="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-500 hover:text-red-300 hover:border-red-500/40 font-semibold transition-colors">
-                              Remove
+                              {t('Remove')}
                             </button>
                           )}
                         </div>

@@ -28,6 +28,7 @@ import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constan
 import { fmtDay, fmtIdr, fmtNum } from '@/lib/formatters';
 import { computePricing, PRICING_VERDICT_LABEL, type DemandLevel, type PricingVerdict } from '@/lib/pricing';
 import DealLink from './DealLink';
+import { useT } from '@/hooks/useT';
 
 const PRICING_VERDICT_COLOR: Record<PricingVerdict, string> = {
   'below-cost': 'text-rose-300', 'below-floor': 'text-rose-300', uncompetitive: 'text-rose-300',
@@ -238,6 +239,7 @@ export default function PricingIntelligence({
   components, poItems, pos, quoteItems, quotes, poCosts, competitorPrices, isLoading,
   initialComponentId, lockComponent = false,
 }: Props) {
+  const { t } = useT();
   const [query,          setQuery]          = useState('');
   const [selected,       setSelected]       = useState<Component | null>(null);
 
@@ -604,7 +606,7 @@ export default function PricingIntelligence({
                   <>
                     <li className="px-4 pt-3 pb-1.5 flex items-center justify-between">
                       <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Recent Searches</span>
-                      <button onMouseDown={clearHistory} className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">Clear</button>
+                      <button onMouseDown={clearHistory} className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">{t('Clear')}</button>
                     </li>
                     {history.map((h) => {
                       const comp = components.find((c) => c.component_id === h.componentId);
@@ -853,7 +855,7 @@ export default function PricingIntelligence({
                   {simXrStr && parseFloat(simXrStr) > 0 && (
                     <>
                       <span className="text-[11px] text-amber-400 font-semibold">custom rate active</span>
-                      <button onClick={() => setSimXrStr('')} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">reset</button>
+                      <button onClick={() => setSimXrStr('')} className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors">{t('Reset')}</button>
                     </>
                   )}
                   {(!simXrStr || !(parseFloat(simXrStr) > 0)) && (

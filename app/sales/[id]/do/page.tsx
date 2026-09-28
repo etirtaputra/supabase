@@ -18,6 +18,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { salesFileName } from '@/lib/quoteFilename';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
+import { useT } from '@/hooks/useT';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -30,6 +31,7 @@ interface Quote {
 interface Line { item_id: string; is_section: boolean; description: string; note: string; unit: string; quantity: number; sort_order: number; }
 
 export default function DeliveryOrderPrintPage() {
+  const { t } = useT();
   const { id } = useParams<{ id: string }>();
   const supabase = createSupabaseClient();
   const router = useRouter();
@@ -248,7 +250,7 @@ export default function DeliveryOrderPrintPage() {
 
       <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '10px', width: '190px', zIndex: 50 }}>
         <PrintFileNameNotice show={isIOS} fileName={fileName} copied={copied} onCopy={copyName} />
-        <button className="print-btn" onClick={printNow}>Print / Save PDF</button>
+        <button className="print-btn" onClick={printNow}>{t('Print / save PDF')}</button>
       </div>
     </>
   );

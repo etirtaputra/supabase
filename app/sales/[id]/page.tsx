@@ -34,6 +34,7 @@ import { successorMap } from '@/lib/successors';
 import MountingDesigner, { type DesignedLine } from '@/components/ui/MountingDesigner';
 import SystemDesigner from '@/components/ui/SystemDesigner';
 import type { SystemDesign } from '@/lib/systemDesign/types';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -435,11 +436,8 @@ export default function SalesQuotePage() {
   const tierByCode = useMemo(() => new Map(tiers.map((t) => [t.tier_code, t])), [tiers]);
   const activeTiers = useMemo(() => [...tiers].filter((t) => t.is_active !== false).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)), [tiers]);
 
-  // Tab title mirrors the nav label + the document you are on
-  useEffect(() => {
-    const n = editing ? displayDocNumber(editing) : '';
-    document.title = `Sales · ${n || 'New quotation'} — ICAPROC`;
-  }, [editing?.order_number, editing?.quote_number]);
+  // Tab title: the menu's name for this page + the document you are on
+  usePageTitle(editing ? displayDocNumber(editing) || null : null);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
 
   const availableOf = (componentId: string | null) =>
@@ -1123,7 +1121,7 @@ export default function SalesQuotePage() {
   if (notFound) return (
     <div className="min-h-screen bg-chrome flex flex-col items-center justify-center gap-3 text-slate-400">
       <p>{t('Sales quote not found.')}</p>
-      <button onClick={() => router.push('/sales')} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm">← Back to Sales</button>
+      <button onClick={() => router.push('/sales')} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm">← {t('Back to Sales')}</button>
     </div>
   );
   if (!editing) return <CenterSpinner />;
@@ -1179,7 +1177,7 @@ export default function SalesQuotePage() {
              the milestone strip, instead of a bar hiding at the page bottom. ── */}
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 pt-3 sm:pt-4">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t('Sales · Quotation')} mobileNav={false} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Quotation" mobileNav={false} />
         </div>
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 flex items-center gap-2 sm:gap-2.5 overflow-x-auto scrollbar-none">
           {leaveArmed ? (
@@ -2015,7 +2013,7 @@ function PaymentsPanel({ receipts, billTotal, received, canRecord, quoteId, comp
       {canRecord ? (
         <button onClick={() => setShowModal(true)}
           className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all">
-          + {t('Record Payment')}
+          + {t('Record payment')}
         </button>
       ) : (
         <p className="text-[10px] text-slate-600">{t('Payments are recorded by Finance / Owner.')}</p>
@@ -2259,7 +2257,7 @@ function DeliveryOrderModal({ initial, contacts, isEdit, busy, onClose, onSubmit
           <button onClick={() => onSubmit(d)} disabled={busy}
             className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50 flex items-center gap-2">
             {busy && <span className="w-3.5 h-3.5 border-2 border-emerald-500/30 border-t-emerald-400 rounded-full animate-spin" />}
-            {isEdit ? t('Save details') : t('Create Delivery Order')}
+            {isEdit ? t('Save details') : t('Create delivery order')}
           </button>
         </div>
       </div>
@@ -2271,7 +2269,7 @@ function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra
   comps: Comp[]; extras: Extra[]; value: string;
   onText: (t: string) => void; onPick: (c: Comp) => void; onPickExtra: (x: Extra) => void;
 }) {
-  const { t } = useT();
+  const { t, tf } = useT();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const results = useMemo(() => {
@@ -2328,7 +2326,7 @@ function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra
                   {x.description}
                 </span>
                 <span className="block text-[10px] text-slate-500 truncate">
-                  {[x.unit, x.price != null ? `Rp${fmtInt(x.price)}` : '', x.kind === 'prev' && x.count > 1 ? `used ${x.count}×` : ''].filter(Boolean).join(' · ')}
+                  {[x.unit, x.price != null ? `Rp${fmtInt(x.price)}` : '', x.kind === 'prev' && x.count > 1 ? tf('used {n}×', { n: x.count }) : ''].filter(Boolean).join(' · ')}
                 </span>
               </button>
             );

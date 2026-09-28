@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { computeTierChain } from '@/lib/tierPricing';
 import { fmtInt } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 
 /**
  * Per-item tier pricing, opened from the Catalog's Component Editor (Sell Price
@@ -40,6 +41,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
   onClose: () => void;
   onListPriceChange: (v: number | null) => void;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const { profile } = useAuth();
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
@@ -274,7 +276,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                 <div className="border-t border-slate-800 pt-3">
                   <div className="flex items-center justify-between gap-2">
                     <button onClick={() => setManageOpen((v) => !v)} className="text-[11px] text-slate-500 hover:text-slate-300 font-semibold transition-colors">
-                      {manageOpen ? '▾ Hide tier settings' : '▸ Manage tiers (name · % off · floor)'}
+                      {manageOpen ? <>▾ {t('Hide tier settings')}</> : <>▸ {t('Manage tiers (name · % off · floor)')}</>}
                     </button>
                     <a href="/pricing" className="text-[11px] text-emerald-500/80 hover:text-emerald-300 font-semibold transition-colors whitespace-nowrap" title="Tier management, floor audit & overrides">Pricing page →</a>
                   </div>
@@ -292,7 +294,7 @@ export default function TierPricingModal({ componentId, componentName, listPrice
                       <div className="flex items-center justify-between">
                         <button
                           onClick={() => setTiers((ts) => [...ts, { tier_id: `tmp-${Date.now()}`, tier_code: '', name: '', default_discount_pct: 0, margin_floor_pct: 0, sort_order: (ts.length + 1), is_active: true }])}
-                          className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ Add tier</button>
+                          className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ {t('Add tier')}</button>
                         <span className="text-[9px] text-slate-600">columns: markup % on prev tier · margin floor % · active</span>
                       </div>
                     </div>

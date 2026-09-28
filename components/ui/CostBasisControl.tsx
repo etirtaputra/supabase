@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { saveSettings } from '@/lib/settings';
 import { fmtInt } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 
 /**
  * Owner-only control on the Inspect panel's "Actual TUC" card: what does the
@@ -37,6 +38,7 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
   tuc: number | null;                  // raw TUC (IDR) for the live preview
   onChanged?: (patch: { quote_cost_mode?: QuoteCostMode; quote_cost_buffer_pct?: number | null }) => void;
 }) {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const { profile } = useAuth();
   const isOwner = profile?.role === 'owner';
@@ -143,12 +145,12 @@ export default function CostBasisControl({ componentId, mode, bufferPct, tuc, on
               <span className="text-slate-500">global</span>
               <input value={globalDraft} inputMode="decimal" onChange={(e) => setGlobalDraft(e.target.value)} autoFocus
                 className="w-12 px-1.5 py-0.5 rounded-md bg-slate-950 border border-slate-700 focus:border-emerald-500/50 outline-none text-white text-[10px] text-right tabular-nums" />
-              <button onClick={saveGlobal} className="text-emerald-400 hover:text-emerald-300 font-semibold">save</button>
-              <button onClick={() => { setEditingGlobal(false); setGlobalDraft(String(globalPct)); }} className="text-slate-600 hover:text-slate-400">cancel</button>
+              <button onClick={saveGlobal} className="text-emerald-400 hover:text-emerald-300 font-semibold">{t('Save')}</button>
+              <button onClick={() => { setEditingGlobal(false); setGlobalDraft(String(globalPct)); }} className="text-slate-600 hover:text-slate-400">{t('Cancel')}</button>
             </span>
           ) : (
             <button onClick={() => { setGlobalDraft(String(globalPct)); setEditingGlobal(true); }} className="text-slate-600 hover:text-slate-400 underline decoration-dotted" title="Edit the global buffer — the same value as Settings › Defaults › EPC cost buffer (applies to every item without an override)">
-              global {globalPct}%
+              {tf('Global {n}%', { n: globalPct })}
             </button>
           )}
           {basisPreview != null && (

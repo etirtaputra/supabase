@@ -18,6 +18,7 @@ import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { fmtRp } from '@/lib/formatters';
 import { useT } from '@/hooks/useT';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup } from '@/types/quotes';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    'bg-slate-700/60 text-slate-300',
@@ -92,7 +93,7 @@ function similarity(a: Set<string>, b: Set<string>): number {
 const LIB_TABLE = '10.4_description_library';
 
 export default function DescriptionLibraryPage() {
-  const { t } = useT();
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const gate = useQuotesGate(false, '/proposals/library');
   const isOwner = gate.profile?.role === 'owner';
@@ -106,7 +107,7 @@ export default function DescriptionLibraryPage() {
   const [flash, setFlash] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => { document.title = 'EPC Proposals · Description Library — ICAPROC'; }, []);
+  usePageTitle();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -515,7 +516,7 @@ export default function DescriptionLibraryPage() {
               <button onClick={() => openMergeSimilar(e)}
                 className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 hover:text-amber-200 transition-colors"
                 title={`Similar to: ${e.dupSimilar.join(' | ')}\n\nClick to merge these into one spelling.`}>
-                ~{e.dupSimilar.length} similar · merge
+                ~{tf('{n} similar · merge', { n: e.dupSimilar.length })}
               </button>
             )}
             {e.linked.length > 0 && (
@@ -634,7 +635,7 @@ export default function DescriptionLibraryPage() {
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
             </Link>
             <div>
-              <h1 className="text-xl font-bold text-white tracking-tight">Description Library</h1>
+              <h1 className="text-xl font-bold text-white tracking-tight">{t('Description Library')}</h1>
               <p className="text-slate-500 text-[11px] mt-0.5">Every item text used in project quotes — keep one spelling per item</p>
             </div>
           </div>
@@ -644,7 +645,7 @@ export default function DescriptionLibraryPage() {
                 onClick={() => { setError(''); setDel({ keys: [...selected], deleteQuoteItems: false }); }}
                 className="px-3 py-2 rounded-xl bg-red-600/80 hover:bg-red-500 text-white text-xs font-semibold transition-colors"
               >
-                Delete {selected.size}
+                {tf('Delete {n}', { n: selected.size })}
               </button>
             )}
             {selected.size >= 2 && (
@@ -652,21 +653,21 @@ export default function DescriptionLibraryPage() {
                 onClick={() => { setError(''); setMerge({ keys: [...selected], canonical: [...selected][0] }); }}
                 className="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors"
               >
-                Merge {selected.size}
+                {tf('Merge {n}', { n: selected.size })}
               </button>
             )}
             <button
               onClick={() => { setError(''); setDraft({ ...emptyDraft }); }}
               className="px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition-colors"
             >
-              + New
+              + {t('New')}
             </button>
             <button
               onClick={() => { setError(''); setShowFr(true); }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.08] text-slate-300 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg>
-              Replace
+              {t('Replace')}
             </button>
           </div>
         </div>
@@ -796,10 +797,10 @@ export default function DescriptionLibraryPage() {
             {error && <p className="text-[11px] text-red-400 mt-3">{error}</p>}
             <div className="flex gap-3 justify-end mt-5">
               <button onClick={() => setRename(null)} disabled={busy}
-                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
               <button onClick={applyRename} disabled={busy}
                 className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                {busy ? 'Renaming…' : 'Rename'}
+                {busy ? t('Renaming…') : t('Rename')}
               </button>
             </div>
           </div>
@@ -834,10 +835,10 @@ export default function DescriptionLibraryPage() {
             {error && <p className="text-[11px] text-red-400 mb-3">{error}</p>}
             <div className="flex gap-3 justify-end">
               <button onClick={() => setMerge(null)} disabled={busy}
-                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
               <button onClick={applyMerge} disabled={busy}
                 className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                {busy ? 'Merging…' : 'Merge'}
+                {busy ? t('Merging…') : t('Merge')}
               </button>
             </div>
           </div>
@@ -868,10 +869,10 @@ export default function DescriptionLibraryPage() {
             {error && <p className="text-[11px] text-red-400 mb-3">{error}</p>}
             <div className="flex gap-3 justify-end">
               <button onClick={() => setDel(null)} disabled={busy}
-                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
               <button onClick={applyDelete} disabled={busy || (delLibCount === 0 && !(del.deleteQuoteItems && delItemCount > 0))}
                 className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                {busy ? 'Deleting…' : 'Delete'}
+                {busy ? t('Deleting…') : t('Delete')}
               </button>
             </div>
           </div>
@@ -944,10 +945,10 @@ export default function DescriptionLibraryPage() {
             {error && <p className="text-[11px] text-red-400 mt-3">{error}</p>}
             <div className="flex gap-3 justify-end mt-5">
               <button onClick={() => setDraft(null)} disabled={busy}
-                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
               <button onClick={applyCreate} disabled={busy}
                 className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                {busy ? 'Adding…' : 'Add entry'}
+                {busy ? t('Adding…') : t('Add entry')}
               </button>
             </div>
           </div>
@@ -1006,10 +1007,10 @@ export default function DescriptionLibraryPage() {
               {error && <p className="text-[11px] text-red-400">{error}</p>}
               <div className="flex gap-3 justify-end pt-2">
                 <button onClick={() => setShowFr(false)} disabled={busy}
-                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
                 <button onClick={applyReplaceAll} disabled={busy || !frMatches.length}
                   className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                  {busy ? 'Replacing…' : `Replace all (${frMatches.length})`}
+                  {busy ? t('Replacing…') : tf('Replace all ({n})', { n: frMatches.length })}
                 </button>
               </div>
             </div>

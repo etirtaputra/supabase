@@ -19,6 +19,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { fmtInt } from '@/lib/formatters';
 import { downloadCsv } from '@/lib/csv';
 import { formatCategory } from '@/lib/formatCategory';
+import { useT } from '@/hooks/useT';
 import { buildPL, toCsvRows, GRAIN_LABEL, type Grain, type Money } from '@/lib/plStatement';
 import type { SalesFact } from '@/lib/salesFacts';
 
@@ -51,6 +52,7 @@ export default function PLStatementPanel({ facts, nameOf, categoryOf }: {
   nameOf: (componentId: string) => string;
   categoryOf: (componentId: string) => string;
 }) {
+  const { t } = useT();
   const [grain, setGrain] = useState<Grain>('month');
   const [measure, setMeasure] = useState<Measure>('grossProfit');
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -62,7 +64,7 @@ export default function PLStatementPanel({ facts, nameOf, categoryOf }: {
     return n;
   });
 
-  const t = pl.total;
+  const tot = pl.total;
   const money = (n: number) => `Rp ${fmtInt(n)}`;
 
   if (pl.periods.length === 0) {
@@ -109,17 +111,17 @@ export default function PLStatementPanel({ facts, nameOf, categoryOf }: {
             downloadCsv(`icaproc-product-pl-${grain}.csv`, rows[0], rows.slice(1));
           }}
           className="ml-auto px-3 py-1.5 rounded-lg border border-white/[0.06] text-xs font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all">
-          Export CSV
+          {t('Export CSV')}
         </button>
       </div>
 
       {/* ── The four numbers, for the whole span ─────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { l: 'Revenue', v: money(t.revenue), cls: 'text-slate-100' },
-          { l: 'Cost of goods sold', v: t.costKnown ? money(t.cogs) : '—', cls: 'text-slate-300' },
-          { l: 'Gross profit', v: t.costKnown ? money(t.grossProfit) : '—', cls: toneOf(t.costKnown ? t.grossProfit : null) },
-          { l: 'Gross margin', v: t.marginPct == null ? '—' : `${t.marginPct.toFixed(1)}%`, cls: toneOf(t.marginPct) },
+          { l: 'Revenue', v: money(tot.revenue), cls: 'text-slate-100' },
+          { l: 'Cost of goods sold', v: tot.costKnown ? money(tot.cogs) : '—', cls: 'text-slate-300' },
+          { l: 'Gross profit', v: tot.costKnown ? money(tot.grossProfit) : '—', cls: toneOf(tot.costKnown ? tot.grossProfit : null) },
+          { l: 'Gross margin', v: tot.marginPct == null ? '—' : `${tot.marginPct.toFixed(1)}%`, cls: toneOf(tot.marginPct) },
         ].map((s) => (
           <div key={s.l} className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-1">{s.l}</p>
@@ -131,7 +133,7 @@ export default function PLStatementPanel({ facts, nameOf, categoryOf }: {
       {/* The caveat rides ABOVE the table, not in a footnote: a margin computed
           from today's average is a different number from the one the ledger
           would have given, and the owner is about to make a decision on it. */}
-      {t.estimated && (
+      {tot.estimated && (
         <p className="text-[11px] text-amber-400/90 bg-amber-500/[0.06] border border-amber-500/20 rounded-xl px-3 py-2">
           <span className="font-semibold">{Math.round(pl.estimatedCogsShare * 100)}% of the cost of goods here is estimated.</span>{' '}
           Those deliveries carry no cost in the stock ledger, so today&rsquo;s moving-average landed cost stood in —
@@ -217,13 +219,13 @@ export default function PLStatementPanel({ facts, nameOf, categoryOf }: {
                 const { text, tone } = cellText(p, measure);
                 return <td key={p.key} className={`px-3 py-2.5 text-right tabular-nums ${tone}`}>{text}</td>;
               })}
-              <td className="px-3 py-2.5 text-right tabular-nums text-slate-100 border-l border-slate-700">{fmtInt(t.revenue)}</td>
-              <td className="px-3 py-2.5 text-right tabular-nums text-slate-300">{t.costKnown ? fmtInt(t.cogs) : '—'}</td>
-              <td className={`px-3 py-2.5 text-right tabular-nums ${toneOf(t.costKnown ? t.grossProfit : null)}`}>
-                {t.costKnown ? fmtInt(t.grossProfit) : '—'}
+              <td className="px-3 py-2.5 text-right tabular-nums text-slate-100 border-l border-slate-700">{fmtInt(tot.revenue)}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums text-slate-300">{tot.costKnown ? fmtInt(tot.cogs) : '—'}</td>
+              <td className={`px-3 py-2.5 text-right tabular-nums ${toneOf(tot.costKnown ? tot.grossProfit : null)}`}>
+                {tot.costKnown ? fmtInt(tot.grossProfit) : '—'}
               </td>
-              <td className={`px-4 py-2.5 text-right tabular-nums ${toneOf(t.marginPct)}`}>
-                {t.marginPct == null ? '—' : `${t.marginPct.toFixed(1)}%`}
+              <td className={`px-4 py-2.5 text-right tabular-nums ${toneOf(tot.marginPct)}`}>
+                {tot.marginPct == null ? '—' : `${tot.marginPct.toFixed(1)}%`}
               </td>
             </tr>
           </tfoot>

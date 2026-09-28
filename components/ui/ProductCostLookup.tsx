@@ -8,6 +8,7 @@ import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constan
 import { computeTUCMap } from '@/lib/computeTUC';
 import { fmtIdr, fmtNum } from '@/lib/formatters';
 import { priceMovement, PRICE_ARROW, PRICE_TONE } from '@/lib/priceMovement';
+import { useT } from '@/hooks/useT';
 
 const COST_LABELS: Record<string, string> = {
   down_payment: 'Down Payment', balance_payment: 'Balance Payment',
@@ -51,6 +52,7 @@ interface Props {
 export default function ProductCostLookup({
   components, quotes, quoteItems, pos, poItems, poCosts, suppliers, componentLinks, isLoading, initialQuery,
 }: Props) {
+  const { t } = useT();
   const [query, setQuery] = useState(initialQuery ?? '');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -463,7 +465,7 @@ export default function ProductCostLookup({
                     <svg className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
-                    {isOpen ? 'Hide' : 'Show'} full cost breakdown
+                    {isOpen ? t('Hide full cost breakdown') : t('Show full cost breakdown')}
                   </button>
                 )}
               </div>

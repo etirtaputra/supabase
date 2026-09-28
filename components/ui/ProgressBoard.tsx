@@ -27,6 +27,7 @@ import {
   type MilestoneId, type Reached,
 } from '@/lib/poProgress';
 import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 
 /** The board's row IS a purchase order — the progress fields live on the
  *  canonical type, so nothing here has to widen it. */
@@ -81,6 +82,7 @@ const DOT: Record<MilestoneId, string> = {
 export default function ProgressBoard({
   pos, costs, suppliers, canEdit, onToggleMilestone, onUntrack, onAction, onOpenDeal,
 }: Props) {
+  const { t, tf } = useT();
   const [showDone, setShowDone] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -161,7 +163,7 @@ export default function ProgressBoard({
         <button type="button" onClick={() => onOpenDeal(c.po)}
           className="text-left w-full group">
           <p className="text-[13px] font-semibold text-slate-100 leading-snug group-hover:text-sky-300 transition-colors">
-            {c.supplier || 'Unknown supplier'}
+            {c.supplier || t('Unknown supplier')}
           </p>
           <p className="text-[11.5px] text-slate-400 font-mono mt-0.5 break-all">
             {[c.po.pi_number, c.po.po_number].filter(Boolean).join(' · ')}
@@ -203,14 +205,14 @@ export default function ProgressBoard({
             <button type="button" disabled={busy === `${c.po.po_id}-docs_checked_at`}
               onClick={() => toggle(c, 'docs_checked_at', true)}
               className="text-[11px] px-2 py-1 rounded border border-violet-500/40 text-violet-300 hover:bg-violet-500/15 disabled:opacity-50">
-              ✓ Docs
+              ✓ {t('Docs')}
             </button>
           )}
           {canEdit && c.reached.docs_checked && !c.reached.hard_copy && !goodsReceived(c.po) && (
             <button type="button" disabled={busy === `${c.po.po_id}-hard_copy_received_at`}
               onClick={() => toggle(c, 'hard_copy_received_at', true)}
               className="text-[11px] px-2 py-1 rounded border border-fuchsia-500/40 text-fuchsia-300 hover:bg-fuchsia-500/15 disabled:opacity-50">
-              ✓ Hard copy
+              ✓ {t('Hard copy')}
             </button>
           )}
           {next && (
@@ -300,7 +302,7 @@ export default function ProgressBoard({
           <button type="button" onClick={() => setShowDone((v) => !v)}
             className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5">
             <span className={`transition-transform ${showDone ? 'rotate-90' : ''}`}>▸</span>
-            Done ({done.length})
+            {tf('Done ({n})', { n: done.length })}
           </button>
           {showDone && (
             <div className="grid gap-2 mt-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -314,7 +316,7 @@ export default function ProgressBoard({
                     <button type="button" disabled={busy === `${c.po.po_id}-untrack`}
                       onClick={() => untrack(c)}
                       className="mt-2 text-[11px] text-slate-500 hover:text-rose-300 disabled:opacity-50">
-                      Take off board
+                      {t('Take off board')}
                     </button>
                   )}
                 </div>

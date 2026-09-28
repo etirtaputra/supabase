@@ -23,6 +23,7 @@ import { PROJECT_TYPES } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, type ProjectQuote } from '@/types/quotes';
 import { useEpcLobby, type LobbyPeer } from '@/hooks/useEpcLobby';
 import { initials, firstName } from '@/lib/presence';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    'bg-slate-700/60 text-slate-300',
@@ -68,7 +69,8 @@ function nextRevisionNumber(base: string): string {
 }
 
 export default function QuotesListPage() {
-  const { t: tr, tf } = useT();
+  // `tr` too: inside the list's row map a local `t` (the row's totals) shadows `t`.
+  const { t, t: tr, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const gate = useQuotesGate();
@@ -99,7 +101,7 @@ export default function QuotesListPage() {
       : tf('{body} — raised {date}', { body: n.body, date: when });
   }, [noteByQuote, noteCountByQuote, tf]);
 
-  useEffect(() => { document.title = 'EPC Proposals — ICAPROC'; }, []);
+  usePageTitle();
 
   // Live presence: who else is in the EPC area and on which proposal. This page
   // reports itself as "browsing" (no proposalId); editors report their proposal.
@@ -451,7 +453,7 @@ export default function QuotesListPage() {
       {/* Header */}
       <div className="sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
         <div className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between flex-wrap gap-3">
-          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC Proposals" />
+          <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC" />
           {/* min-w-0 so this cluster yields instead of colliding with the nav */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {onlineCount > 1 && <OnlineIndicator online={online} count={onlineCount} />}
@@ -486,7 +488,7 @@ export default function QuotesListPage() {
                 title={`Set a password for ${gate.profile.email}`}
                 className="hidden xl:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all whitespace-nowrap"
               >
-                Set password
+                {t('Set password')}
               </button>
             )}
           <button
@@ -500,7 +502,7 @@ export default function QuotesListPage() {
             ) : (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
             )}
-            <span className="hidden sm:inline">New Proposal</span>
+            <span className="hidden sm:inline">{t('New proposal')}</span>
           </button>
           </div>
         </div>
@@ -551,13 +553,13 @@ export default function QuotesListPage() {
             <svg className="w-12 h-12 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             <p className="text-slate-400 font-medium">No quotes yet</p>
             <button onClick={createNew} className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">
-              Create your first quote
+              {t('Create your first quote')}
             </button>
           </div>
         ) : visibleQuotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-slate-500 gap-2">
             <p className="text-slate-400 font-medium">No proposals match your search</p>
-            <button onClick={() => { setSearch(''); setFilterType(''); }} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">Clear filters</button>
+            <button onClick={() => { setSearch(''); setFilterType(''); }} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">{t('Clear filters')}</button>
           </div>
         ) : (
           <div className="space-y-7">
@@ -763,10 +765,10 @@ export default function QuotesListPage() {
             </div>
             <div className="flex gap-3 justify-end mt-5">
               <button onClick={() => setPwOpen(false)} disabled={pwBusy}
-                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">Cancel</button>
+                className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">{t('Cancel')}</button>
               <button onClick={savePassword} disabled={pwBusy}
                 className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                {pwBusy ? 'Saving…' : 'Save password'}
+                {pwBusy ? t('Saving…') : t('Save password')}
               </button>
             </div>
           </div>
@@ -854,11 +856,11 @@ export default function QuotesListPage() {
             <div className="flex gap-3 justify-end">
               <button onClick={() => setDup(null)} disabled={dupBusy}
                 className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors disabled:opacity-50">
-                Cancel
+                {t('Cancel')}
               </button>
               <button onClick={duplicateQuote} disabled={dupBusy || (dupRefresh && catalogLoading)}
                 className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50">
-                {dupBusy ? 'Duplicating…' : 'Duplicate'}
+                {dupBusy ? t('Duplicating…') : t('Duplicate')}
               </button>
             </div>
           </div>
@@ -872,8 +874,8 @@ export default function QuotesListPage() {
             <h3 className="font-semibold text-white mb-2">Delete quote?</h3>
             <p className="text-slate-400 text-sm mb-5">This will permanently delete the quote and all its sections and items.</p>
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setDeleteId(null)} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">Cancel</button>
-              <button onClick={() => confirmDelete(deleteId)} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors">Delete</button>
+              <button onClick={() => setDeleteId(null)} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">{t('Cancel')}</button>
+              <button onClick={() => confirmDelete(deleteId)} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors">{t('Delete')}</button>
             </div>
           </div>
         </div>

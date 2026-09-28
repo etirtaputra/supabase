@@ -29,6 +29,7 @@ import { fmtDay, fmtInt, fmtIdr, fmtRupiah } from '@/lib/formatters';
 import { fetchInTransit, type InTransitSummary } from '@/lib/inTransit';
 import { fetchLandedVariances, type LandedSummary } from '@/lib/landedCost';
 import FitText from '@/components/ui/FitText';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 /** An order line still waiting on stock — what the shortage is FOR. */
 interface DemandRef { quote_id: string; number: string; customer: string; qty: number; date: string }
@@ -84,7 +85,7 @@ export default function StockPage() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'moved', dir: -1 });
   const [drill, setDrill] = useState<Comp | null>(null);
 
-  useEffect(() => { document.title = 'Stock — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/stock')}`); return; }
@@ -255,7 +256,7 @@ export default function StockPage() {
         {/* Phones: wordmark row then actions row. Side-by-side, two nowrap
             buttons overflowed the row and printed on top of the wordmark. */}
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Stock · Warehouse")} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Warehouse" />
           <div className="flex items-center gap-2 flex-wrap">
           {canManage && (
             <Link href="/stock/receive"
@@ -468,7 +469,7 @@ export default function StockPage() {
               className={`h-11 px-3.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors border ${
                 stockOnly ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-slate-900/80 text-slate-400 border-slate-700/80'
               }`}>
-              In stock only
+              {t('In stock only')}
             </button>
           </div>
         </div>
@@ -476,13 +477,13 @@ export default function StockPage() {
         {/* Table (md+) / cards (mobile) */}
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className="hidden md:grid grid-cols-[1fr_110px_120px_110px_130px_140px_130px] gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
-            <button onClick={() => clickSort('item')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest">Item{arrow('item')}</button>
+            <button onClick={() => clickSort('item')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Item')}{arrow('item')}</button>
             <span>{t('Brand')}</span>
             <span>{t('Category')}</span>
-            <button onClick={() => clickSort('qty')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">On hand{arrow('qty')}</button>
+            <button onClick={() => clickSort('qty')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('On hand')}{arrow('qty')}</button>
             <span className="text-right">{t('Avg cost')}</span>
-            <button onClick={() => clickSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">Value{arrow('value')}</button>
-            <button onClick={() => clickSort('moved')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">Last move{arrow('moved')}</button>
+            <button onClick={() => clickSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Value')}{arrow('value')}</button>
+            <button onClick={() => clickSort('moved')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Last move')}{arrow('moved')}</button>
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(8)].map((_, i) => <div key={i} className="h-11 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
@@ -644,7 +645,7 @@ function TransferModal({ item, warehouses, onClose, onDone }: {
           <button onClick={onClose} className="px-3 py-2 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors">{t('Cancel')}</button>
           <button onClick={submit} disabled={busy || !to}
             className="px-4 py-2 rounded-lg bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-xs font-bold transition-colors disabled:opacity-50">
-            {busy ? 'Moving…' : 'Move stock'}
+            {busy ? t('Moving…') : t('Move stock')}
           </button>
         </div>
       </div>

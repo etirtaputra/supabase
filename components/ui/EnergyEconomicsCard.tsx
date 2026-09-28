@@ -1,5 +1,6 @@
 'use client';
 import { useMemo, useState } from 'react';
+import { useT } from '@/hooks/useT';
 import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS, PLN_TARIFF_OPTIONS, PLN_TARIFF_PERIOD, type EconAssumptions } from '@/lib/energyEconomics';
 
 /**
@@ -110,6 +111,7 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
   hybrid: boolean;
   locked: boolean;
 }) {
+  const { tf } = useT();
   const a = econ ?? {};
   const [showTable, setShowTable] = useState(false);
   const result = useMemo(
@@ -230,7 +232,9 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
                 onClick={() => setShowTable((v) => !v)}
                 className="text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
               >
-                {showTable ? 'Hide' : 'Show'} year-by-year cash flows ({result.years.length - 1} years)
+                {showTable
+                  ? tf('Hide year-by-year cash flows ({n} years)', { n: result.years.length - 1 })
+                  : tf('Show year-by-year cash flows ({n} years)', { n: result.years.length - 1 })}
               </button>
               {showTable && (
                 <div className="mt-2 overflow-x-auto">

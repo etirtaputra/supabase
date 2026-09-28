@@ -53,6 +53,7 @@ import POCashCycle from '@/components/ui/POCashCycle';
 import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem, ComponentLink, CompetitorPrice } from '@/types/database';
 import { successorIdOf } from '@/lib/successors';
 import { fmtWarranty, warrantyLabel } from '@/lib/warranty';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 
 interface Comp {
@@ -105,7 +106,6 @@ export default function ItemHubPage() {
   const canEcon = !!perms && perms.canViewEconomics;
   const canEditSpecs = !!perms && perms.canEdit;
 
-  useEffect(() => { document.title = 'Item — ICAPROC'; }, []);
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent(`/items/${componentId}`)}`); return; }
@@ -118,6 +118,7 @@ export default function ItemHubPage() {
 
   // ── Core data (all roles) ──────────────────────────────────────────────────
   const [comp, setComp] = useState<Comp | null>(null);
+  usePageTitle(comp ? descOf(comp) : null);
   const [balances, setBalances] = useState<Balance[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -339,7 +340,7 @@ export default function ItemHubPage() {
   if (notFound) {
     return (
       <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
-        <Header subtitle="Item" />
+        <Header subtitle="" />
         <main className="max-w-[1200px] mx-auto px-4 py-16 text-center space-y-3">
           <p className="text-slate-400">This item does not exist (or was removed).</p>
           <Link href="/items" className="text-emerald-400 hover:text-emerald-300 text-xs">← Back to Items</Link>
@@ -366,7 +367,7 @@ export default function ItemHubPage() {
 
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
-      <Header subtitle={comp ? descOf(comp) : 'Item'} />
+      <Header subtitle={comp ? descOf(comp) : ''} />
 
       <main className="max-w-[1400px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
         <Link href="/items" className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors">← All items</Link>
@@ -528,7 +529,7 @@ function Header({ subtitle }: { subtitle: string }) {
   return (
     <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
       <div className="max-w-[1400px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3">
-        <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={`Item · ${subtitle}`} />
+        <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={subtitle} />
       </div>
     </div>
   );
@@ -1022,6 +1023,7 @@ function StockTab({ balances, warehouses, movements, physical, reserved, live, u
 function SpecsTab({ comp, canEdit, onSaved }: {
   comp: Comp; canEdit: boolean; onSaved: (specs: Record<string, unknown>) => void;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const specs = (comp.specifications ?? {}) as Record<string, unknown>;
   const readiness = specReadiness(comp.category, specs);
@@ -1072,7 +1074,7 @@ function SpecsTab({ comp, canEdit, onSaved }: {
           {!editing ? (
             <button onClick={startEdit}
               className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">
-              Edit/Add specs (JSON)
+              {t('Edit specs (JSON)')}
             </button>
           ) : null}
         </div>
@@ -1088,10 +1090,10 @@ function SpecsTab({ comp, canEdit, onSaved }: {
           {err && <p className="text-[11px] text-red-400">{err}</p>}
           <div className="flex justify-end gap-2">
             <button onClick={() => setEditing(false)} disabled={saving}
-              className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors">Cancel</button>
+              className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 transition-colors">{t('Cancel')}</button>
             <button onClick={save} disabled={saving}
               className="px-4 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50">
-              {saving ? 'Saving…' : 'Save specs'}
+              {saving ? t('Saving…') : t('Save specs')}
             </button>
           </div>
         </div>

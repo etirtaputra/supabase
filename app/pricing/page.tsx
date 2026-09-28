@@ -28,6 +28,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import CopyButton from '@/components/ui/CopyButton';
+import { useT } from '@/hooks/useT';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
 import { issuesFor, matchesIssues, matchesScope, marginPct,
          compareCells, suggestRange, ISSUE_LABEL, SCOPE_LABEL,
@@ -44,6 +45,7 @@ import { computeTUCMap, getComponentCost, fxFromHistory } from '@/lib/computeTUC
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { resolveCost, isMeasured, BASIS_LABEL, BASIS_NOTE, BASIS_TAG, NO_COST, type ResolvedCost } from '@/lib/costBasis';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Tier {
   tier_id: string; tier_code: string; name: string;
@@ -153,7 +155,7 @@ export default function PricingPage() {
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
 
-  useEffect(() => { document.title = 'Selling Prices — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/pricing')}`); return; }
@@ -567,7 +569,7 @@ export default function PricingPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Selling Prices · Set, tier and audit" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Set, tier and audit" />
           <div className="flex items-center gap-2 flex-wrap">
             <Link href="/purchasing" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
               title="Per-item price entry lives in the Catalog — toolbar → Pricing Mode">
@@ -662,6 +664,7 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
   onDelete: (t: Tier) => void;
   onGoAudit: (tierId: string) => void;
 }) {
+  const { t, tf } = useT();
   const { defaultMarginFloorPct: defaultFloor, defaultTierStepPct } = useSettings();
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ name: '', disc: '', floor: '' });
@@ -688,40 +691,40 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {tiers.map((t, i) => {
-          const customers = custTierCounts.get(t.tier_code) ?? 0;
-          const ovs = overridesByTier.get(t.tier_id) ?? 0;
-          const viols = violationsByTier.get(t.tier_id) ?? 0;
-          const activeIdx = activeOrdered.findIndex((x) => x.tier_id === t.tier_id);
+        {tiers.map((tier, i) => {
+          const customers = custTierCounts.get(tier.tier_code) ?? 0;
+          const ovs = overridesByTier.get(tier.tier_id) ?? 0;
+          const viols = violationsByTier.get(tier.tier_id) ?? 0;
+          const activeIdx = activeOrdered.findIndex((x) => x.tier_id === tier.tier_id);
           const isNetTier = activeIdx === 0;
           const prevTier = activeIdx > 0 ? activeOrdered[activeIdx - 1] : null;
-          const ex = activeIdx >= 0 ? example.get(t.tier_id) : undefined;
+          const ex = activeIdx >= 0 ? example.get(tier.tier_id) : undefined;
           return (
-            <div key={t.tier_id} className={`bg-slate-900/40 border rounded-2xl p-4 space-y-3 transition-colors ${t.is_active ? 'border-slate-800/80' : 'border-slate-800/40 opacity-60'}`}>
+            <div key={tier.tier_id} className={`bg-slate-900/40 border rounded-2xl p-4 space-y-3 transition-colors ${tier.is_active ? 'border-slate-800/80' : 'border-slate-800/40 opacity-60'}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-1.5">
                   <div className="flex flex-col -my-1">
-                    <button onClick={() => onMove(t, -1)} disabled={i === 0} className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move up">▲</button>
-                    <button onClick={() => onMove(t, 1)} disabled={i === tiers.length - 1} className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move down">▼</button>
+                    <button onClick={() => onMove(tier, -1)} disabled={i === 0} className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move up">▲</button>
+                    <button onClick={() => onMove(tier, 1)} disabled={i === tiers.length - 1} className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move down">▼</button>
                   </div>
                   {/* No NET badge here: the Price basis field below already
                       says "Net — as entered per item", and a badge floating
                       after a fixed-width name input reads as detached from the
                       title it is meant to qualify. */}
-                  <input defaultValue={t.name} key={`name-${t.tier_id}-${t.name}`}
-                    onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== t.name) onSave(t, { name: v }); }}
+                  <input defaultValue={tier.name} key={`name-${tier.tier_id}-${tier.name}`}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== tier.name) onSave(tier, { name: v }); }}
                     className="bg-transparent text-white font-bold text-base outline-none border-b border-transparent focus:border-emerald-500/50 min-w-0 w-36 transition-colors" />
                 </div>
                 <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer select-none flex-shrink-0">
-                  <input type="checkbox" checked={t.is_active} onChange={(e) => onSave(t, { is_active: e.target.checked })} className="accent-emerald-500 w-3.5 h-3.5" />
+                  <input type="checkbox" checked={tier.is_active} onChange={(e) => onSave(tier, { is_active: e.target.checked })} className="accent-emerald-500 w-3.5 h-3.5" />
                   Active
                 </label>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <Field label="Code" title="Stored on customer profiles — renaming migrates them">
-                  <input defaultValue={t.tier_code} key={`code-${t.tier_id}-${t.tier_code}`}
-                    onBlur={(e) => { const v = e.target.value.trim().toLowerCase().replace(/\s+/g, '_'); if (v && v !== t.tier_code) onSave(t, { tier_code: v }); }}
+                  <input defaultValue={tier.tier_code} key={`code-${tier.tier_id}-${tier.tier_code}`}
+                    onBlur={(e) => { const v = e.target.value.trim().toLowerCase().replace(/\s+/g, '_'); if (v && v !== tier.tier_code) onSave(tier, { tier_code: v }); }}
                     className={tInp} />
                 </Field>
                 {isNetTier ? (
@@ -731,14 +734,14 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
                 ) : (
                   <Field label={`Markup % on ${prevTier?.name ?? 'prev tier'}`}
                     title={`This tier's price = ${prevTier?.name ?? 'previous tier'} ÷ (1 − markup%), rounded up to Rp 1,000`}>
-                    <input defaultValue={String(t.default_discount_pct)} key={`disc-${t.tier_id}-${t.default_discount_pct}`} inputMode="decimal"
-                      onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== t.default_discount_pct) onSave(t, { default_discount_pct: v }); }}
+                    <input defaultValue={String(tier.default_discount_pct)} key={`disc-${tier.tier_id}-${tier.default_discount_pct}`} inputMode="decimal"
+                      onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== tier.default_discount_pct) onSave(tier, { default_discount_pct: v }); }}
                       className={`${tInp} text-right tabular-nums`} />
                   </Field>
                 )}
                 <Field label="Floor GP %" title="Minimum margin vs landed cost — below it = Floor Audit">
-                  <input defaultValue={String(t.margin_floor_pct)} key={`floor-${t.tier_id}-${t.margin_floor_pct}`} inputMode="decimal"
-                    onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== t.margin_floor_pct) onSave(t, { margin_floor_pct: v }); }}
+                  <input defaultValue={String(tier.margin_floor_pct)} key={`floor-${tier.tier_id}-${tier.margin_floor_pct}`} inputMode="decimal"
+                    onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== tier.margin_floor_pct) onSave(tier, { margin_floor_pct: v }); }}
                     className={`${tInp} text-right tabular-nums`} />
                 </Field>
               </div>
@@ -756,24 +759,24 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
                 <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 tabular-nums">{customers} customer{customers !== 1 ? 's' : ''}</span>
                 <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 tabular-nums">{ovs} override{ovs !== 1 ? 's' : ''}</span>
                 {viols > 0 ? (
-                  <button onClick={() => onGoAudit(t.tier_id)} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 tabular-nums hover:bg-red-500/20 transition-colors" title="Open in Floor Audit">
-                    ⚠ {viols} below floor
+                  <button onClick={() => onGoAudit(tier.tier_id)} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 tabular-nums hover:bg-red-500/20 transition-colors" title="Open in Floor Audit">
+                    ⚠ {tf('{n} below floor', { n: viols })}
                   </button>
                 ) : (
                   <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400/80">floor clear</span>
                 )}
                 <span className="flex-1" />
-                {confirmDelete === t.tier_id ? (
+                {confirmDelete === tier.tier_id ? (
                   <span className="flex items-center gap-1.5">
                     <span className="text-red-300">{ovs > 0 ? `Deletes ${ovs} override${ovs !== 1 ? 's' : ''}.` : ''}{customers > 0 ? ` ${customers} customer${customers !== 1 ? 's' : ''} keep the code (reassign them).` : ''} Sure?</span>
-                    <button onClick={() => { setConfirmDelete(null); onDelete(t); }} className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold transition-colors">Delete</button>
-                    <button onClick={() => setConfirmDelete(null)} className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white transition-colors">Cancel</button>
+                    <button onClick={() => { setConfirmDelete(null); onDelete(tier); }} className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold transition-colors">{t('Delete')}</button>
+                    <button onClick={() => setConfirmDelete(null)} className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white transition-colors">{t('Cancel')}</button>
                   </span>
                 ) : (
-                  <button onClick={() => setConfirmDelete(t.tier_id)} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete tier">Delete</button>
+                  <button onClick={() => setConfirmDelete(tier.tier_id)} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete tier">{t('Delete')}</button>
                 )}
               </div>
-              {saving === t.tier_id && <p className="text-[10px] text-slate-600">Saving…</p>}
+              {saving === tier.tier_id && <p className="text-[10px] text-slate-600">Saving…</p>}
             </div>
           );
         })}
@@ -789,12 +792,12 @@ function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, sa
               </div>
               <div className="flex gap-2">
                 <button onClick={() => { onAdd({ name: draft.name, default_discount_pct: num(draft.disc) ?? 0, margin_floor_pct: num(draft.floor) ?? defaultFloor }); setDraft({ name: '', disc: '', floor: '' }); setAdding(false); }}
-                  className="flex-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors">Add tier</button>
-                <button onClick={() => setAdding(false)} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white border border-slate-700 transition-colors">Cancel</button>
+                  className="flex-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors">{t('Add tier')}</button>
+                <button onClick={() => setAdding(false)} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white border border-slate-700 transition-colors">{t('Cancel')}</button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setAdding(true)} className="text-sm text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ Add tier</button>
+            <button onClick={() => setAdding(true)} className="text-sm text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ {t('Add tier')}</button>
           )}
         </div>
       </div>
@@ -828,6 +831,7 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, itemsQuoted
   onClear: (priceId: string, label?: string) => void;
   onBulkRaise: (list: Violation[]) => void;
 }) {
+  const { t, tf } = useT();
   const [confirmBulk, setConfirmBulk] = useState(false);
   const fixable = violations.filter((v) => v.minPrice != null);
 
@@ -877,13 +881,13 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, itemsQuoted
             <span className="flex items-center gap-2 text-xs">
               <span className="text-slate-400">Write {fixable.length} override{fixable.length !== 1 ? 's' : ''} at the floor minimum?</span>
               <button onClick={() => { setConfirmBulk(false); onBulkRaise(fixable); }} disabled={bulkBusy}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors disabled:opacity-50">{bulkBusy ? 'Raising…' : 'Confirm'}</button>
-              <button onClick={() => setConfirmBulk(false)} className="px-2 py-1.5 text-slate-500 hover:text-white transition-colors">Cancel</button>
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors disabled:opacity-50">{bulkBusy ? t('Raising…') : t('Confirm')}</button>
+              <button onClick={() => setConfirmBulk(false)} className="px-2 py-1.5 text-slate-500 hover:text-white transition-colors">{t('Cancel')}</button>
             </span>
           ) : (
             <button onClick={() => setConfirmBulk(true)} disabled={bulkBusy}
               className="px-3 py-2 rounded-xl bg-emerald-600/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/25 text-xs font-bold transition-colors disabled:opacity-50">
-              ↑ Raise {tierFilter || search ? `these ${fixable.length}` : `all ${fixable.length}`} to floor
+              ↑ {tierFilter || search ? tf('Raise these {n} to floor', { n: fixable.length }) : tf('Raise all {n} to floor', { n: fixable.length })}
             </button>
           )
         )}
@@ -940,7 +944,7 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, itemsQuoted
                       {v.defaultCompliant && v.ov && (
                         <button onClick={() => onClear(v.ov!.price_id, `${descOf(v.comp)} · ${v.tier.name} — override cleared, tier default is compliant`)}
                           title="The override is what breaks the floor — clearing it returns to the compliant tier default"
-                          className="px-2 py-1 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 text-[11px] transition-colors">Clear override</button>
+                          className="px-2 py-1 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 text-[11px] transition-colors">{t('Clear override')}</button>
                       )}
                       {v.minPrice != null && (
                         <button onClick={() => onRaise(v)}
@@ -980,6 +984,7 @@ function OverridesTab({ rows, search, setSearch, onClear, costOf }: {
   onClear: (priceId: string) => void;
   costOf: (cid: string) => number | null;
 }) {
+  const { t } = useT();
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -1038,7 +1043,7 @@ function OverridesTab({ rows, search, setSearch, onClear, costOf }: {
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       <button onClick={() => onClear(o.price_id)} title="Remove the override — back to list − tier %"
-                        className="px-2 py-1 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 text-[11px] transition-colors">Clear</button>
+                        className="px-2 py-1 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 text-[11px] transition-colors">{t('Clear')}</button>
                     </td>
                   </tr>
                 );
@@ -1067,6 +1072,7 @@ function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
   onChanged: () => Promise<void> | void;
   notify: (m: string) => void;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [draft, setDraft] = useState<Record<string, Partial<MarginProfile>>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -1130,7 +1136,7 @@ function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
         </p>
         <button onClick={() => void add()} disabled={adding}
           className="flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-40 transition-colors">
-          {adding ? 'Adding…' : '+ Add profile'}
+          {adding ? t('Adding…') : <>+ {t('Add profile')}</>}
         </button>
       </div>
 
@@ -1181,22 +1187,22 @@ function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
             <div className="flex items-center gap-2 mt-3">
               <button onClick={() => void save(p)} disabled={!dirty(p) || busy === p.id}
                 className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-30 transition-colors">
-                {busy === p.id ? 'Saving…' : 'Save'}
+                {busy === p.id ? t('Saving…') : t('Save')}
               </button>
               {dirty(p) && (
                 <button onClick={() => setDraft((d) => { const n = { ...d }; delete n[p.id]; return n; })}
-                  className="text-[12px] font-semibold text-slate-400 hover:text-white transition-colors">Cancel</button>
+                  className="text-[12px] font-semibold text-slate-400 hover:text-white transition-colors">{t('Cancel')}</button>
               )}
               <span className="ml-auto">
                 {confirmDelete === p.id ? (
                   <span className="flex items-center gap-2">
                     <span className="text-[11px] text-red-400">Remove {p.label}?</span>
-                    <button onClick={() => void remove(p)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">Remove</button>
-                    <button onClick={() => setConfirmDelete(null)} className="text-[11px] text-slate-400 hover:text-white">Keep</button>
+                    <button onClick={() => void remove(p)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">{t('Remove')}</button>
+                    <button onClick={() => setConfirmDelete(null)} className="text-[11px] text-slate-400 hover:text-white">{t('Keep')}</button>
                   </span>
                 ) : (
                   <button onClick={() => setConfirmDelete(p.id)}
-                    className="text-[11px] text-slate-500 hover:text-red-400 transition-colors">Remove</button>
+                    className="text-[11px] text-slate-500 hover:text-red-400 transition-colors">{t('Remove')}</button>
                 )}
               </span>
             </div>
@@ -1293,6 +1299,7 @@ function SetPricingTab({
   /** Logged price changes per component, newest first (21.3). */
   priceLog: Map<string, PriceLog[]>;
 }) {
+  const { t, tf } = useT();
   const [search, setSearch] = useState('');
   const [wanted, setWanted] = useState<Set<PriceIssue>>(new Set());
   // Scope ANDs with the issue chips — see lib/priceGrid.matchesScope.
@@ -1461,11 +1468,11 @@ function SetPricingTab({
             <button type="button" disabled={saving} onClick={() => setDraft({})}
               title="Put every box back to its saved value"
               className="px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 text-[12px] font-semibold disabled:opacity-50 whitespace-nowrap">
-              Undo all
+              {t('Undo all')}
             </button>
             <button type="button" disabled={saving} onClick={() => commit(dirtyCids)}
               className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold disabled:opacity-50 whitespace-nowrap">
-              {saving ? 'Saving…' : `Save all (${dirtyCids.length})`}
+              {saving ? t('Saving…') : tf('Save all ({n})', { n: dirtyCids.length })}
             </button>
           </span>
         )}
@@ -1504,7 +1511,7 @@ function SetPricingTab({
         {(wanted.size > 0 || scope.size > 0 || profileFilter !== '' || catFilter !== '') && (
           <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); setProfileFilter(''); setCatFilter(''); }}
             className="ml-1 text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">
-            Clear
+            {t('Clear')}
           </button>
         )}
       </div>
@@ -1748,7 +1755,7 @@ function SetPricingTab({
                           return next;
                         })}
                         className="text-[11px] px-2 py-1 rounded border border-slate-700 text-slate-500 hover:text-slate-300 hover:border-slate-600">
-                        Follow chain
+                        {t('Follow chain')}
                       </button>
                     ) : dirty ? (
                       <span className="inline-flex items-center gap-1">
@@ -1759,11 +1766,11 @@ function SetPricingTab({
                             return next;
                           })}
                           className="text-[11px] px-2 py-1 rounded border border-slate-700 text-slate-400 hover:text-slate-200 disabled:opacity-50">
-                          Undo
+                          {t('Undo')}
                         </button>
                         <button type="button" disabled={saving} onClick={() => commit([cid])}
                           className="text-[11px] font-bold px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50">
-                          Save
+                          {t('Save')}
                         </button>
                       </span>
                     ) : null}
@@ -1813,7 +1820,7 @@ function SetPricingTab({
                                     : 'Put it back to having no price'}
                                   onClick={() => onSave([{ component_id: cid, tier_id: l.tier_id, value: l.old_price_idr }])}
                                   className={`text-[10.5px] px-1.5 py-0.5 rounded border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 disabled:opacity-50 ${l.changed_by_email ? '' : 'ml-auto'}`}>
-                                  Undo
+                                  {t('Undo')}
                                 </button>
                               )}
                             </div>
@@ -1836,7 +1843,7 @@ function SetPricingTab({
       {rows.length > page && (
         <button type="button" onClick={() => setPage((p) => p + 200)}
           className="w-full py-2 text-[12px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg hover:bg-slate-800/40">
-          Show more ({fmtInt(rows.length - page)} left)
+          {tf('Show more ({n} left)', { n: fmtInt(rows.length - page) })}
         </button>
       )}
     </div>
@@ -1856,6 +1863,7 @@ function SetPricingTab({
 function PriceHistoryTab({ log, compById, tiers }: {
   log: PriceLog[]; compById: Map<string, Comp>; tiers: Tier[];
 }) {
+  const { t, tf } = useT();
   const [q, setQ] = useState('');
   const [only, setOnly] = useState<'' | 'out'>('');
   const [page, setPage] = useState(100);
@@ -1901,7 +1909,7 @@ function PriceHistoryTab({ log, compById, tiers }: {
         <button type="button" onClick={() => { setOnly(only === 'out' ? '' : 'out'); setPage(100); }}
           className={`${BAR_BTN} px-2.5 ${
             only === 'out' ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : BAR_BTN_OFF}`}>
-          Landed outside target <span className="tabular-nums opacity-70">{fmtInt(outCount)}</span>
+          {t('Landed outside target')} <span className="tabular-nums opacity-70">{fmtInt(outCount)}</span>
         </button>
         <span className="text-xs text-slate-500 tabular-nums">{fmtInt(rows.length)} changes</span>
       </div>
@@ -1956,7 +1964,7 @@ function PriceHistoryTab({ log, compById, tiers }: {
       {rows.length > page && (
         <button type="button" onClick={() => setPage((p) => p + 100)}
           className="w-full py-2 text-[12px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg hover:bg-slate-800/40">
-          Show more ({fmtInt(rows.length - page)} left)
+          {tf('Show more ({n} left)', { n: fmtInt(rows.length - page) })}
         </button>
       )}
     </div>

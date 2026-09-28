@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
+import { useT } from '@/hooks/useT';
 
 // Full, idempotent schema for the CRM (Customers) module. Safe to re-run.
 // Keep in sync with migrations/create_crm_customers.sql and the probe below.
@@ -114,6 +115,7 @@ CREATE POLICY "customer contacts write" ON "20.1_customer_contacts"
  * quote-side MigrationBanner.
  */
 export default function CrmMigrationBanner() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [missing, setMissing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -155,11 +157,11 @@ export default function CrmMigrationBanner() {
         <div className="flex gap-2 ml-auto">
           <button onClick={copy}
             className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-semibold transition-colors">
-            {copied ? 'Copied ✓' : 'Copy SQL'}
+            {copied ? <>{t('Copied')} ✓</> : t('Copy SQL')}
           </button>
           <button onClick={() => setShowSql((v) => !v)}
             className="px-3 py-1.5 rounded-lg text-amber-300/70 hover:text-amber-200 text-xs transition-colors">
-            {showSql ? 'Hide' : 'Show'} SQL
+            {showSql ? t('Hide SQL') : t('Show SQL')}
           </button>
         </div>
       </div>

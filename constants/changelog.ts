@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-28T02:50:17Z",
+    title: "Nama halaman dan tulisan tombol kini seragam di semua layar",
+    details: [
+      "Sekitar 370 tombol di 65 layar masih berbahasa Inggris di tampilan Bahasa Indonesia (misalnya “Cancel” di 9 layar, padahal di 10 layar lain sudah “Batal”). Semuanya kini berbahasa Indonesia.",
+      "Satu tindakan, satu kata, di mana pun: Simpan, Batal, Hapus, Tambah, Ubah, Kembali, Tutup, Cetak. “Kosongkan” (mengosongkan isian/filter) kini dibedakan dari “Hapus” (menghapus data) — sebelumnya keduanya sama-sama “Hapus”.",
+      "Nama setiap halaman kini sama dengan namanya di menu — di menu, di judul atas layar HP, dan di tab browser. Contoh: halaman bank kini “Keuangan” di mana-mana, bukan “Banks” di tab dan “Keuangan” di menu. Judul tab browser juga ikut bahasa yang dipilih.",
+      "Huruf besar-kecil tombol diseragamkan (“Catat pembayaran”, bukan campuran “Record Payment” / “Record payment” di layar yang sama).",
+    ],
+  },
+  {
     at: "2026-09-28T00:57:50Z",
     title: "Pilih tampilan: satu klik langsung berlaku di semua halaman",
     details: [

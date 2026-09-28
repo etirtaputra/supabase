@@ -18,8 +18,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import { useT } from '@/hooks/useT';
 import { downloadCsv, parseCsv, readFileText } from '@/lib/csv';
 import { fmtInt, fmtDayTime } from '@/lib/formatters';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   ENTITIES, IMPORT_ORDER, entitySpec, autoMap, applyMap, loadLookups, resolveRows,
   dryRun, commit, attachOrderLines, exportEntity,
@@ -35,6 +37,7 @@ interface Batch {
 type Stage = 'pick' | 'check' | 'done';
 
 export default function DataPage() {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -66,7 +69,7 @@ export default function DataPage() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<CommitResult | null>(null);
 
-  useEffect(() => { document.title = 'Import & Export — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/import-export')}`); return; }
@@ -184,7 +187,7 @@ export default function DataPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Import & Export · bulk data in and out" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Bulk data in and out" />
           <Link href="/settings" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors self-start sm:self-auto">
             Settings →
           </Link>
@@ -198,7 +201,7 @@ export default function DataPage() {
           {([['export', 'Export'], ['import', 'Import']] as ['export' | 'import', string][]).map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)} disabled={k === 'import' && !canImport}
               className={`text-xs font-semibold px-3.5 py-2.5 border-b-2 -mb-px transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${tab === k ? 'border-emerald-400 text-emerald-300' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
-              {label}{k === 'import' && !canImport ? ' (owner only)' : ''}
+              {t(label)}{k === 'import' && !canImport ? ` ${t('(owner only)')}` : ''}
             </button>
           ))}
         </div>
@@ -218,11 +221,11 @@ export default function DataPage() {
                     className="h-9 px-3 rounded-lg bg-slate-900 border border-slate-700 text-white text-xs outline-none focus:border-emerald-500/60" />
                 </label>
                 {(from || to) && (
-                  <button onClick={() => { setFrom(''); setTo(''); }} className="h-9 px-3 text-[11px] text-slate-400 hover:text-white border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">Clear</button>
+                  <button onClick={() => { setFrom(''); setTo(''); }} className="h-9 px-3 text-[11px] text-slate-400 hover:text-white border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">{t('Clear')}</button>
                 )}
                 <button onClick={exportAll} disabled={busy !== null}
                   className="h-9 px-4 ml-auto text-xs font-bold rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 transition-colors disabled:opacity-50">
-                  {busy === 'all' ? 'Exporting…' : 'Export everything'}
+                  {busy === 'all' ? t('Exporting…') : t('Export everything')}
                 </button>
               </div>
               <p className="text-[10px] text-slate-600">
@@ -239,12 +242,12 @@ export default function DataPage() {
                   <div className="flex items-center gap-2 mt-3">
                     <button onClick={() => doExport(e.key)} disabled={busy !== null}
                       className="flex-1 h-9 text-xs font-semibold rounded-lg bg-slate-800/60 border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-50">
-                      {busy === e.key ? 'Exporting…' : 'Export CSV'}
+                      {busy === e.key ? t('Exporting…') : t('Export CSV')}
                     </button>
                     <button onClick={() => downloadTemplate(e.key)}
                       className="h-9 px-3 text-[11px] text-slate-400 hover:text-white border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"
                       title="Empty CSV with just the headers — shape your source data to match">
-                      Template
+                      {t('Template')}
                     </button>
                   </div>
                 </div>
@@ -284,10 +287,10 @@ export default function DataPage() {
                     onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
                 </label>
                 <button onClick={() => downloadTemplate(entity)} className="h-9 px-3 text-[11px] text-slate-400 hover:text-white border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">
-                  Download template
+                  {t('Download template')}
                 </button>
                 {file && <span className="text-[11px] text-slate-400 truncate">{file.name} · {fmtInt(raw.length)} rows</span>}
-                {file && <button onClick={reset} className="text-[11px] text-slate-500 hover:text-red-300 transition-colors">Clear</button>}
+                {file && <button onClick={reset} className="text-[11px] text-slate-500 hover:text-red-300 transition-colors">{t('Clear')}</button>}
               </div>
 
               {/* Column mapping */}
@@ -318,7 +321,7 @@ export default function DataPage() {
                   </div>
                   <button onClick={doDryRun} disabled={running || !raw.length}
                     className="h-9 px-4 text-xs font-bold rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 transition-colors disabled:opacity-50">
-                    {running ? 'Checking…' : 'Check the file'}
+                    {running ? t('Checking…') : t('Check the file')}
                   </button>
                 </div>
               )}
@@ -358,9 +361,9 @@ export default function DataPage() {
                   <div className="flex flex-wrap items-center gap-3">
                     <button onClick={doCommit} disabled={running || plan.create + plan.update === 0}
                       className="h-10 px-5 text-xs font-bold rounded-lg bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition-colors disabled:opacity-40">
-                      {running ? `Importing ${progress.done}/${progress.total}…` : `Import ${fmtInt(plan.create + plan.update)} row${plan.create + plan.update !== 1 ? 's' : ''}`}
+                      {running ? tf('Importing {done}/{total}…', { done: progress.done, total: progress.total }) : plan.create + plan.update !== 1 ? tf('Import {n} rows', { n: fmtInt(plan.create + plan.update) }) : tf('Import {n} row', { n: 1 })}
                     </button>
-                    <button onClick={reset} disabled={running} className="h-10 px-4 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">Cancel</button>
+                    <button onClick={reset} disabled={running} className="h-10 px-4 text-xs text-slate-400 hover:text-white border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">{t('Cancel')}</button>
                     {running && progress.total > 0 && (
                       <div className="flex-1 min-w-[120px] h-1.5 bg-slate-800 rounded-full overflow-hidden">
                         <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
@@ -386,11 +389,11 @@ export default function DataPage() {
                 </div>
                 {result.issues.length > 0 && <IssueList title="Write errors" tone="red" issues={result.issues} />}
                 <div className="flex flex-wrap gap-2">
-                  <button onClick={reset} className="h-9 px-4 text-xs font-semibold rounded-lg bg-slate-800/60 border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors">Import another file</button>
+                  <button onClick={reset} className="h-9 px-4 text-xs font-semibold rounded-lg bg-slate-800/60 border border-slate-700 text-slate-200 hover:bg-slate-800 transition-colors">{t('Import another file')}</button>
                   {IMPORT_ORDER[IMPORT_ORDER.indexOf(entity) + 1] && (
                     <button onClick={() => { reset(); setEntity(IMPORT_ORDER[IMPORT_ORDER.indexOf(entity) + 1]); }}
                       className="h-9 px-4 text-xs font-semibold rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 transition-colors">
-                      Next: {entitySpec(IMPORT_ORDER[IMPORT_ORDER.indexOf(entity) + 1]).label} →
+                      {tf('Next: {name}', { name: entitySpec(IMPORT_ORDER[IMPORT_ORDER.indexOf(entity) + 1]).label })} →
                     </button>
                   )}
                 </div>

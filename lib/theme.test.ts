@@ -122,7 +122,7 @@ test('Settings applies a skin for real, and never through the Save draft', () =>
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   assert.ok(!/previewTheme|endThemePreview/.test(src), 'a preview that ends when you leave the tab is what looked applied and was not');
   assert.ok(!/set\(\s*'defaultTheme'/.test(src), "the skin must not go into the draft — that is what left Save lit");
-  assert.match(src, /onClick=\{\(\) => setMine\(t\.value\)\}/, 'a card click must set THIS device’s skin');
+  assert.match(src, /onClick=\{\(\) => setMine\(th?\.value\)\}/, 'a card click must set THIS device’s skin');
   assert.match(src, /saveSettings\(supabase, \{ defaultTheme: theme \}/, 'the company default saves on the spot');
 });
 

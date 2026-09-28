@@ -13,6 +13,7 @@ import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllComponents } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
+import { useT } from '@/hooks/useT';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -28,6 +29,7 @@ import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { useItemScores, type ItemMetrics } from '@/hooks/useItemScores';
 import { ITEM_SCORE_FACTORS, type ItemScoreResult, type ScoreBand } from '@/lib/itemScore';
 import type { PriceQuote, PriceQuoteLineItem, PurchaseOrder, PurchaseLineItem, POCost, ComponentLink } from '@/types/database';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
@@ -89,6 +91,7 @@ export default function ItemsPage() {
 }
 
 function ItemsInner() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -135,7 +138,7 @@ function ItemsInner() {
     return SORT_LABELS[key] ? { key, dir: DEFAULT_DIR[key] } : { key: 'activity', dir: -1 };
   }, [sortOverride, listDefaults.sort]);
 
-  useEffect(() => { document.title = 'Items — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/items')}`); return; }
@@ -273,7 +276,7 @@ function ItemsInner() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1400px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Items · One page per stock item" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="One page per stock item" />
         </div>
       </div>
 
@@ -308,16 +311,16 @@ function ItemsInner() {
         {/* Desktop table */}
         <div className="hidden md:block bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className="grid gap-3 px-4 py-2.5 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500" style={{ gridTemplateColumns: cols }}>
-            <button onClick={() => toggleSort('name')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest">Item{arrow('name')}</button>
-            <button onClick={() => toggleSort('score')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest" title="Item Score — 0–100, higher is a better item to keep buying (hover a chip for the breakdown)">Score{arrow('score')}</button>
+            <button onClick={() => toggleSort('name')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Item')}{arrow('name')}</button>
+            <button onClick={() => toggleSort('score')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest" title="Item Score — 0–100, higher is a better item to keep buying (hover a chip for the breakdown)">{t('Score')}{arrow('score')}</button>
             <span>Category</span>
-            <button onClick={() => toggleSort('stock')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">On hand{arrow('stock')}</button>
+            <button onClick={() => toggleSort('stock')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('On hand')}{arrow('stock')}</button>
             {canSell && <span className="text-right">Sell price</span>}
             {canBuy && <span className="text-right">Avg cost</span>}
-            {canBuy && <button onClick={() => toggleSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">Value{arrow('value')}</button>}
-            <button onClick={() => toggleSort('volume')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Sales value in the last 90 days — the item's recent trading volume; click to sort high→low">Vol · 90d{arrow('volume')}</button>
-            <button onClick={() => toggleSort('activity')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Distinct supplier quotes + POs + sales quotes">Traded{arrow('activity')}</button>
-            <button onClick={() => toggleSort('moved')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">Last move{arrow('moved')}</button>
+            {canBuy && <button onClick={() => toggleSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Value')}{arrow('value')}</button>}
+            <button onClick={() => toggleSort('volume')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Sales value in the last 90 days — the item's recent trading volume; click to sort high→low">{t('Vol · 90d')}{arrow('volume')}</button>
+            <button onClick={() => toggleSort('activity')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Distinct supplier quotes + POs + sales quotes">{t('Traded')}{arrow('activity')}</button>
+            <button onClick={() => toggleSort('moved')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Last move')}{arrow('moved')}</button>
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(10)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>

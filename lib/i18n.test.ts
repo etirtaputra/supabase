@@ -44,9 +44,11 @@ test('a string with no translation reads as its English, never as a key or a bla
 test('Bahasa Indonesia answers where it has an answer', () => {
   assert.equal(t('On-hand per warehouse, moving-average cost, shortages', 'id'),
     'Stok per gudang, biaya rata-rata bergerak, kekurangan barang');
-  // Was 'Stock · Gudang' until 2026-08-25 — the menus-stay-English rule left
-  // the module's own name untranslated inside its subtitle.
-  assert.equal(t('Stock · Warehouse', 'id'), 'Stok · Gudang');
+  // The page NAME and its descriptor are translated separately since
+  // 2026-09-28 (the name comes from the menu), so the name can never again be
+  // left English inside a subtitle — "Customers · Data pelanggan" was exactly that.
+  assert.equal(t('Stock', 'id'), 'Stok');
+  assert.equal(t('Warehouse', 'id'), 'Gudang');
   assert.ok(translationCount('id') > 50, 'the phrase book has emptied out');
   assert.equal(translationCount('en'), 0, 'English needs no dictionary');
 });
@@ -77,12 +79,17 @@ test('no translation is left as its own English — that is just an untranslated
  */
 const DANGLING = /\b(of|in|for|and|or|to|on|at|by|with|from|the|a|an|is|are|was|were|than|per|into|over|under)$/i;
 
+const WHOLE_ON_A_PREPOSITION = new Set(['Sign in', 'Receive in', 'Defensive mode · on']);
+
 test('a phrase-book entry is a whole thought, not a fragment glued to a value', () => {
   const offenders = Object.keys(ID)
     // A trailing ellipsis is a deliberate prompt ("Replace with…"), not a
     // fragment; and a long sentence may legitimately end on a preposition
     // ("the warehouse these goods are received into"). Short ones may not.
     .filter((en) => !en.trim().endsWith('…'))
+    // A phrasal verb or a state is a whole thought that happens to end on a
+    // preposition — "Sign in" is not "Sign in" + a value.
+    .filter((en) => !WHOLE_ON_A_PREPOSITION.has(en))
     .map((en) => en.trim().replace(/[.,:;—-]+$/, '').trim())
     .filter((en) => en.split(/\s+/).length <= 5 && DANGLING.test(en));
   assert.deepEqual(offenders, [],

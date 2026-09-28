@@ -9,6 +9,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { PriceQuoteLineItem, Component } from '@/types/database';
+import { useT } from '@/hooks/useT';
 
 interface QuoteItemsImportModalProps {
   isOpen: boolean;
@@ -25,6 +26,7 @@ export default function QuoteItemsImportModal({
   onSelect,
   onClose,
 }: QuoteItemsImportModalProps) {
+  const { t, tf } = useT();
   // Use ARRAY instead of Set - simpler and more reliable
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -141,14 +143,14 @@ export default function QuoteItemsImportModal({
               onClick={selectAll}
               className="text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors"
             >
-              Select All
+              {t('Select all')}
             </button>
             <span className="text-slate-600">•</span>
             <button
               onClick={deselectAll}
               className="text-sm text-slate-400 hover:text-slate-300 font-medium transition-colors"
             >
-              Clear
+              {t('Clear')}
             </button>
             <div className="ml-auto text-sm text-slate-400">
               {selectedIds.length} of {quoteItems.length} selected
@@ -247,14 +249,14 @@ export default function QuoteItemsImportModal({
               onClick={onClose}
               className="flex-1 px-4 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors"
             >
-              Cancel
+              {t('Cancel')}
             </button>
             <button
               onClick={handleImport}
               disabled={selectedIds.length === 0}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-all shadow-lg disabled:shadow-none"
             >
-              Add {selectedIds.length > 0 ? `${selectedIds.length} Item${selectedIds.length !== 1 ? 's' : ''}` : 'Items'}
+              {selectedIds.length === 0 ? t('Add items') : selectedIds.length === 1 ? t('Add 1 item') : tf('Add {n} items', { n: selectedIds.length })}
             </button>
           </div>
         </div>

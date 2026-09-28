@@ -338,7 +338,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
                   <>
                     <button onClick={() => markDelivered(d)} disabled={busy}
                       className="px-2 py-1 rounded-lg text-[10px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
-                      {t('Mark Delivered')}
+                      {t('Mark delivered')}
                     </button>
                     <button onClick={() => deleteDo(d)} disabled={busy} className="text-slate-600 hover:text-red-400 transition-colors" title={t('Delete DO')}>×</button>
                   </>
@@ -387,7 +387,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
             <button onClick={() => setShowInv(true)} disabled={busy || invoicedPct >= 100}
               title={invoicedPct >= 100 ? t('The order is fully invoiced') : t('Bill all or part of this order — pick the items and quantities in the next step')}
               className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 border border-emerald-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
-              + {t('New Invoice')}
+              + {t('New invoice')}
             </button>
           )}
           {invoices.length > 0 && <InvoiceRows />}
@@ -405,7 +405,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
               <button onClick={() => setShowDo(true)} disabled={busy || orderedQty - shippedQty <= 0.001}
                 title={orderedQty - shippedQty <= 0.001 ? t('Everything is already on a DO') : t('Ship all or part of this order — pick the items and quantities in the next step')}
                 className="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-orange-300 hover:text-orange-200 hover:bg-orange-500/10 border border-orange-500/25 transition-all disabled:opacity-40 whitespace-nowrap">
-                + {t('New Delivery Order')}
+                + {t('New delivery order')}
               </button>
               {/* Deliveries draw stock from this warehouse when a DO is marked delivered */}
               {warehouses.length > 1 && (
@@ -542,7 +542,7 @@ function InvoiceModal({ items, invoicedQtyByLine, orderTotal, invoicedTotal, ppn
                 lines: items.map((l) => ({ so_item_id: l.item_id, description: l.description, unit: l.unit, qty: num(qtys[l.item_id]), unit_price: l.unit_price })),
               })}
               className="px-5 py-2 rounded-xl bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 text-sm font-semibold transition-colors disabled:opacity-50">
-              {t('Create Invoice')}
+              {t('Create invoice')}
             </button>
           </div>
         </div>
@@ -654,7 +654,7 @@ function DoModal({ items, shippedQtyByLine, contacts, shippingAddress, busy, onC
                 lines: items.map((l) => ({ so_item_id: l.item_id, component_id: l.component_id, description: l.description, unit: l.unit, qty: num(qtys[l.item_id]) })),
               })}
               className="px-5 py-2 rounded-xl bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30 hover:bg-orange-500/25 text-sm font-semibold transition-colors disabled:opacity-50">
-              {t('Create Delivery Order')}
+              {t('Create delivery order')}
             </button>
           </div>
         </div>

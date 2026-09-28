@@ -18,6 +18,7 @@
  * a missing one: the calculator would size from it with full confidence.
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useT } from '@/hooks/useT';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
@@ -31,6 +32,7 @@ import {
   CATEGORY_SPEC_REQUIREMENTS, specReadiness, normalizeSpecs, specNumber, type Specs,
 } from '@/lib/specSchema';
 import { suggestSpecs, suggestionValue, type Suggestions } from '@/lib/systemDesign/specSuggest';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Row {
   component_id: string;
@@ -56,6 +58,7 @@ const KEY_LABEL: Record<string, string> = {
 };
 
 export default function SpecReadinessPage() {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -72,7 +75,7 @@ export default function SpecReadinessPage() {
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3200); };
 
-  useEffect(() => { document.title = 'Spec Readiness — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/items/specs')}`); return; }
@@ -213,11 +216,11 @@ export default function SpecReadinessPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Spec Readiness · what the calculators can size" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="What the calculators can size" />
           {canEdit && dirtyCount > 0 && (
             <button onClick={saveAll} disabled={busy}
               className="px-4 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors disabled:opacity-50">
-              {busy ? 'Saving…' : `Save ${dirtyCount} item${dirtyCount !== 1 ? 's' : ''}`}
+              {busy ? t('Saving…') : dirtyCount === 1 ? t('Save 1 item') : tf('Save {n} items', { n: dirtyCount })}
             </button>
           )}
         </div>
@@ -253,13 +256,13 @@ export default function SpecReadinessPage() {
             className="flex-1 min-w-[200px] h-10 px-3.5 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-sm placeholder:text-slate-500 transition-colors" />
           <button onClick={() => setMissingOnly((v) => !v)}
             className={`h-10 px-3.5 rounded-xl text-xs font-semibold border transition-colors ${missingOnly ? 'bg-amber-500/15 border-amber-500/40 text-amber-300' : 'border-slate-700 text-slate-400'}`}>
-            {missingOnly ? 'Incomplete only' : 'All items'}
+            {missingOnly ? t('Incomplete only') : t('All items')}
           </button>
           {canEdit && visible.length > 0 && (
             <button onClick={acceptAllVisible}
               title="Fill every blank on screen with its proposal — nothing is saved until you press Save"
               className="h-10 px-3.5 rounded-xl text-xs font-semibold border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 transition-colors">
-              Accept all proposals
+              {t('Accept all proposals')}
             </button>
           )}
           <span className="text-xs text-slate-600 tabular-nums">{fmtInt(visible.length)} shown</span>
@@ -351,7 +354,7 @@ export default function SpecReadinessPage() {
                         <button onClick={() => acceptRow(r)}
                           title="Fill this row's blanks with the proposals"
                           className="px-2 py-1 rounded-md text-[10px] font-semibold border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 transition-colors">
-                          Accept {offers}
+                          {tf('Accept {n}', { n: offers })}
                         </button>
                       )}
                     </td>

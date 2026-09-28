@@ -10,6 +10,7 @@ import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols
 import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS } from '@/lib/energyEconomics';
 import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtQtyDoc, fmtNumDoc, fmtDayDoc } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
+import { useT } from '@/hooks/useT';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 
@@ -19,6 +20,8 @@ interface Section extends QuoteSection { items: QuoteItem[] }
 
 export default function PrintPage() {
   const { id } = useParams<{ id: string }>();
+  // Only the on-screen toolbar is translated — the printed document is the customer's.
+  const { t } = useT();
   const supabase = createSupabaseClient();
   // Any signed-in role may print; no session redirects to login
   const gate = useQuotesGate(true);
@@ -537,7 +540,7 @@ export default function PrintPage() {
         </div>
         <PrintFileNameNotice show={isIOS} fileName={fileName} copied={copied} onCopy={copyName} />
         <button className="print-btn" onClick={printNow}>
-          Print / Save PDF
+          {t('Print / save PDF')}
         </button>
       </div>
     </>

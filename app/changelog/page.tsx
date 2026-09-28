@@ -13,12 +13,13 @@ import { useAuth } from '@/hooks/useAuth';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { CHANGELOG } from '@/constants/changelog';
 import { fmtDayTime } from '@/lib/formatters';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function ChangelogPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
-  useEffect(() => { document.title = "What's New — ICAPROC"; }, []);
+  usePageTitle();
   useEffect(() => {
     if (!authLoading && !user) router.replace(`/login?next=${encodeURIComponent('/changelog')}`);
   }, [authLoading, user, router]);
@@ -31,7 +32,7 @@ export default function ChangelogPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[860px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="What's New · The update log" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="The update log" />
         </div>
       </div>
 

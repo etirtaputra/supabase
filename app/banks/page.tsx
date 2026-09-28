@@ -33,6 +33,7 @@ import { ALL_TIME, inRange, isOpenRange, type DateRange } from '@/lib/dateRange'
 import { accountLabel, accountLabelWithCompany, fetchStatement, signedAmount, type BankAccount, type StatementRow } from '@/lib/banks';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Company { company_id: string; legal_name: string }
 
@@ -81,7 +82,7 @@ export default function BanksPage() {
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3000); };
 
-  useEffect(() => { document.title = 'Banks — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/banks')}`); return; }
@@ -213,7 +214,7 @@ export default function BanksPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Banks · Accounts & cash position")} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Accounts & cash position" />
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] text-slate-500 whitespace-nowrap">
               {canSeeSpend ? (
@@ -294,7 +295,7 @@ export default function BanksPage() {
                                   on ? 'bg-emerald-500/[0.08]' : 'hover:bg-slate-800/40'
                                 }`}>
                                 <span className={`text-sm truncate ${on ? 'text-emerald-200 font-semibold' : 'text-slate-100 font-medium'}`}>
-                                  {a.bank_name || 'Bank not set'}
+                                  {a.bank_name || t('Bank not set')}
                                   {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title={t("Default account for supplier payments")}>PAY</span>}
                                   {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title={t("Default account for customer receipts")}>RCV</span>}
                                 </span>
@@ -326,11 +327,11 @@ export default function BanksPage() {
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
                                   <p className="text-sm font-bold text-white truncate">
-                                    {a.bank_name || 'Bank not set'}
+                                    {a.bank_name || t('Bank not set')}
                                     {a.is_default_payment && <span className="ml-1.5 text-[9px] font-bold text-sky-400" title={t("Default account for supplier payments")}>PAY</span>}
                                     {a.is_default_receipt && <span className="ml-1.5 text-[9px] font-bold text-emerald-400" title={t("Default account for customer receipts")}>RCV</span>}
                                   </p>
-                                  <p className="text-xs text-slate-300 font-mono tracking-tight mt-0.5 truncate">{a.account_number || 'no account number'}</p>
+                                  <p className="text-xs text-slate-300 font-mono tracking-tight mt-0.5 truncate">{a.account_number || t('no account number')}</p>
                                 </div>
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 flex-shrink-0">{a.currency}</span>
                               </div>
@@ -372,11 +373,11 @@ export default function BanksPage() {
                       <>
                         <button onClick={() => setEntryOpen(true)}
                           className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors whitespace-nowrap">
-                          + Entry
+                          + {t('Entry')}
                         </button>
                         <button onClick={() => setBalanceOpen(true)}
                           className="text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors whitespace-nowrap">
-                          Set balance
+                          {t('Set balance')}
                         </button>
                       </>
                     )}
@@ -503,6 +504,7 @@ interface Untagged {
 }
 
 function UntaggedPanel({ accounts, companyName, onAssigned }: { accounts: BankAccount[]; companyName: Map<string, string>; onAssigned: () => void }) {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const [rows, setRows] = useState<Untagged[]>([]);
   const [open, setOpen] = useState(false);
@@ -577,10 +579,10 @@ function UntaggedPanel({ accounts, companyName, onAssigned }: { accounts: BankAc
     <div className="bg-slate-900/40 border border-amber-500/25 rounded-2xl overflow-hidden">
       <button onClick={() => setOpen((o) => !o)} className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-white/[0.02] transition-colors">
         <div>
-          <p className="text-sm font-bold text-amber-200">{rows.length} movement{rows.length !== 1 ? 's' : ''} not linked to an account</p>
-          <p className="text-[11px] text-slate-500">Payments and receipts recorded without a bank account — assign them and they appear on that account&apos;s statement.</p>
+          <p className="text-sm font-bold text-amber-200">{rows.length !== 1 ? tf('{n} movements not linked to an account', { n: rows.length }) : tf('{n} movement not linked to an account', { n: rows.length })}</p>
+          <p className="text-[11px] text-slate-500">{t("Payments and receipts recorded without a bank account — assign them and they appear on that account's statement.")}</p>
         </div>
-        <span className="text-slate-500 text-xs">{open ? 'Hide' : 'Show'}</span>
+        <span className="text-slate-500 text-xs">{open ? t('Hide') : t('Show')}</span>
       </button>
       {open && (
         <div className="divide-y divide-slate-800/60 border-t border-slate-800/60 max-h-[420px] overflow-y-auto">
@@ -606,6 +608,7 @@ function UntaggedPanel({ accounts, companyName, onAssigned }: { accounts: BankAc
 // ── Manual entry (transfer, bank charge, interest…) ─────────────────────────
 
 function EntryModal({ account, onClose, onSaved }: { account: BankAccount; onClose: () => void; onSaved: () => void }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [direction, setDirection] = useState<'in' | 'out'>('out');
   const [amount, setAmount] = useState('');
@@ -653,10 +656,10 @@ function EntryModal({ account, onClose, onSaved }: { account: BankAccount; onClo
       </Labeled>
       {err && <p className="text-xs text-rose-400">{err}</p>}
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onClose} className="text-xs text-slate-400 hover:text-white px-3 py-2">Cancel</button>
+        <button onClick={onClose} className="text-xs text-slate-400 hover:text-white px-3 py-2">{t('Cancel')}</button>
         <button onClick={save} disabled={busy}
           className="text-xs font-bold px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors">
-          {busy ? 'Saving…' : 'Record entry'}
+          {busy ? t('Saving…') : t('Record entry')}
         </button>
       </div>
     </Modal>
@@ -668,6 +671,7 @@ function EntryModal({ account, onClose, onSaved }: { account: BankAccount; onClo
 function SetBalanceModal({ account, current, onClose, onSaved }: {
   account: BankAccount; current: number; onClose: () => void; onSaved: () => void;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [target, setTarget] = useState(String(Math.round(current)));
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -714,10 +718,10 @@ function SetBalanceModal({ account, current, onClose, onSaved }: {
       </Labeled>
       {err && <p className="text-xs text-rose-400">{err}</p>}
       <div className="flex justify-end gap-2 pt-1">
-        <button onClick={onClose} className="text-xs text-slate-400 hover:text-white px-3 py-2">Cancel</button>
+        <button onClick={onClose} className="text-xs text-slate-400 hover:text-white px-3 py-2">{t('Cancel')}</button>
         <button onClick={save} disabled={busy}
           className="text-xs font-bold px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors">
-          {busy ? 'Saving…' : 'Correct balance'}
+          {busy ? t('Saving…') : t('Correct balance')}
         </button>
       </div>
     </Modal>

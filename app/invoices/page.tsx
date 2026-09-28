@@ -22,6 +22,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
 import { inRange, type DateRange } from '@/lib/dateRange';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 // One row per REAL invoice (25.0) — an order split across several invoices
 // shows several rows, each with its own payment state.
@@ -60,7 +61,7 @@ export default function InvoicesPage() {
   const [layout, setLayout] = useListLayout('invoices');
   const compact = layout === 'compact';
 
-  useEffect(() => { document.title = 'Invoices — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/invoices')}`); return; }
@@ -146,7 +147,7 @@ export default function InvoicesPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Invoices · Accounts receivable")} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Accounts receivable" />
         </div>
       </div>
 
@@ -223,7 +224,7 @@ export default function InvoicesPage() {
                     </span>
                     <span className="md:text-right">
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${paid ? 'bg-emerald-500/20 text-emerald-300' : rcv > 0 ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
-                        {paid ? 'PAID' : rcv > 0 ? 'PARTIAL' : 'UNPAID'}
+                        {paid ? t('PAID') : rcv > 0 ? t('PARTIAL') : t('UNPAID')}
                       </span>
                       {q.status === 'delivered' && !compact && <span className="block mt-0.5 text-[9px] text-emerald-500/70 uppercase font-semibold md:text-right">{t('Delivered')}</span>}
                     </span>

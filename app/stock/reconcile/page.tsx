@@ -33,6 +33,7 @@ import {
 } from '@/lib/landedCost';
 import { autoPostVerdict, HOLD_LABEL, HOLD_NOTE } from '@/lib/landedAutoPost';
 import { drainTrueUpQueue, drainMessage } from '@/lib/landedAutoPostClient';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Comp { component_id: string; supplier_model: string | null; internal_description: string | null; unit: string | null }
 
@@ -40,7 +41,7 @@ export default function ReconcilePage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
-  const { t } = useT();
+  const { t, tf } = useT();
   const canView = !!profile && ROLE_PERMISSIONS[profile.role].buySide;
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManageStock;
 
@@ -57,7 +58,7 @@ export default function ReconcilePage() {
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 5000); };
 
-  useEffect(() => { document.title = 'Stock · Landed cost — ICAPROC'; }, []);
+  usePageTitle();
 
   // The screen that exists BECAUSE work was left undone should not be the one
   // place that ignores the queue. Drains once per visit, before the list loads,
@@ -174,8 +175,9 @@ export default function ReconcilePage() {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
             </Link>
             <div className="min-w-0">
-              <h1 className="text-lg md:text-xl font-extrabold text-white truncate">Landed cost — true up</h1>
-              <p className="text-[11px] text-slate-500">What the receipt guessed vs what the import actually cost</p>
+              {/* The menu's name for this page (lib/wording.ts: one name per page) */}
+              <h1 className="text-lg md:text-xl font-extrabold text-white truncate">{t('Landed Cost')}</h1>
+              <p className="text-[11px] text-slate-500">{t('True-up: what the receipt guessed vs what the import actually cost')}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -185,7 +187,7 @@ export default function ReconcilePage() {
             </Link>
             <button onClick={load} disabled={loading}
               className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-50 text-xs font-semibold whitespace-nowrap transition-colors">
-              {loading ? 'Reading…' : 'Refresh'}
+              {loading ? t('Reading…') : t('Refresh')}
             </button>
           </div>
         </div>
@@ -234,7 +236,7 @@ export default function ReconcilePage() {
               <button onClick={() => setShowAwaiting((s) => !s)}
                 className={`px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
                   showAwaiting ? 'border-sky-500/40 text-sky-300 bg-sky-500/10' : 'border-slate-700 text-slate-400 hover:text-white'}`}>
-                {showAwaiting ? '✓ ' : ''}Include {summary.awaiting.length} still awaiting final bills
+                {showAwaiting ? '✓ ' : ''}{tf('Include {n} still awaiting final bills', { n: summary.awaiting.length })}
               </button>
             )}
             {summary.uncosted > 0 && (
@@ -277,11 +279,11 @@ export default function ReconcilePage() {
                       <span className="text-sky-300 font-bold">{v.poNumber}</span>
                       {v.status === 'awaiting' && (
                         <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-800 text-slate-400"
-                          title={t("No balance payment recorded yet — more bills are still coming")}>bills open</span>
+                          title={t("No balance payment recorded yet — more bills are still coming")}>{t('bills open')}</span>
                       )}
                       {v.trued && (
                         <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300"
-                          title={t("This PO has been trued up before — what is shown is what has come in since")}>trued before</span>
+                          title={t("This PO has been trued up before — what is shown is what has come in since")}>{t('trued before')}</span>
                       )}
                       {flagged && (
                         // Settled POs true themselves up now, so anything still
@@ -302,9 +304,9 @@ export default function ReconcilePage() {
                       <span className="text-slate-600 text-xs">{isOpen ? '▲' : '▼'}</span>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      received at {fmtIdr(v.bookedValue)} · bills now say {fmtIdr(v.actualValue)}
-                      {v.inventoryDelta !== 0 && <> · <span className="text-emerald-400/80">{fmtIdr(v.inventoryDelta)} still in stock</span></>}
-                      {Math.abs(v.cogsDelta) >= 1000 && <> · <span className="text-slate-500">{fmtIdr(v.cogsDelta)} already sold</span></>}
+                      {tf('received at {booked} · bills now say {actual}', { booked: fmtIdr(v.bookedValue), actual: fmtIdr(v.actualValue) })}
+                      {v.inventoryDelta !== 0 && <> · <span className="text-emerald-400/80">{tf('{amount} still in stock', { amount: fmtIdr(v.inventoryDelta) })}</span></>}
+                      {Math.abs(v.cogsDelta) >= 1000 && <> · <span className="text-slate-500">{tf('{amount} already sold', { amount: fmtIdr(v.cogsDelta) })}</span></>}
                     </p>
                   </button>
 
@@ -382,7 +384,7 @@ export default function ReconcilePage() {
                           ) : (
                             <button onClick={() => post(v)} disabled={busy === v.poId}
                               className="text-xs px-3.5 py-1.5 rounded-xl bg-amber-500/90 hover:bg-amber-400 text-slate-950 font-bold disabled:opacity-50 whitespace-nowrap transition-colors">
-                              {busy === v.poId ? 'Posting…' : `Post true-up · ${fmtIdr(v.inventoryDelta)}`}
+                              {busy === v.poId ? t('Posting…') : tf('Post true-up · {amount}', { amount: fmtIdr(v.inventoryDelta) })}
                             </button>
                           )
                         )}

@@ -19,6 +19,7 @@ import type {
 } from '../../types/database';
 import { ENUMS } from '../../constants/enums';
 import { fmtDay } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 import { CategoryOptionGroups } from '../ui/CategoryOptions';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -141,6 +142,7 @@ interface QuoteRefPickerProps {
 }
 
 function QuoteRefPicker({ quotes, suppliers, value, onChange }: QuoteRefPickerProps) {
+  const { tf } = useT();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -216,7 +218,7 @@ function QuoteRefPicker({ quotes, suppliers, value, onChange }: QuoteRefPickerPr
                   className="w-full text-left px-3 py-2.5 hover:bg-slate-800 transition-colors border-b border-slate-800/50 last:border-0"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-white">{qt.pi_number || `Quote #${qt.quote_id}`}</span>
+                    <span className="text-xs font-semibold text-white">{qt.pi_number || tf('Quote #{id}', { id: qt.quote_id })}</span>
                     <span className="text-[10px] text-slate-500 flex-shrink-0">{qt.quote_date}</span>
                   </div>
                   {sup && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{sup.supplier_name}</div>}
@@ -505,6 +507,7 @@ export default function CompetitorPriceForm({
   components, suppliers = [], poItems, pos, quoteItems, quotes, competitorPrices,
   onSubmit, loading,
 }: CompetitorPriceFormProps) {
+  const { t } = useT();
   const [form, setForm] = useState({ ...BLANK });
   const [linkedComponent, setLinkedComponent] = useState<Component | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -672,7 +675,7 @@ export default function CompetitorPriceForm({
                   className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${sourceMode === 'url' ? 'bg-slate-700 border-slate-600 text-white' : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'}`}
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-                  Website URL
+                  {t('Website URL')}
                 </button>
                 <button
                   type="button"
@@ -680,7 +683,7 @@ export default function CompetitorPriceForm({
                   className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${sourceMode === 'quote' ? 'bg-violet-500/20 border-violet-500/40 text-violet-300' : 'bg-transparent border-transparent text-slate-500 hover:text-slate-300'}`}
                 >
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  Quote / PI
+                  {t('Quote / PI')}
                 </button>
               </div>
               {sourceMode === 'url' ? (
@@ -735,7 +738,7 @@ export default function CompetitorPriceForm({
                   className="px-2.5 py-1.5 text-[11px] font-bold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded-lg transition-all whitespace-nowrap"
                   title="Reset to now"
                 >
-                  Now
+                  {t('Now')}
                 </button>
               </div>
               {errors.observed_at && <span className="text-[11px] text-red-400 mt-0.5 block">{errors.observed_at}</span>}

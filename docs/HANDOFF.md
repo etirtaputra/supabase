@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-28** · head of `main` at that point: `3556534` (see §4, §6)
+**Last updated: 2026-09-28** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -111,10 +111,10 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 822 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 831 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
-npx eslint           # 421 problems at handoff (298 errors); just don't ADD any
+npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
 npm run build        # next build must be green
 ```
 Plus: a `constants/changelog.ts` entry in the same commit — **in Indonesian**,
@@ -126,7 +126,59 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-28 (latest) — a skin click is the real thing; a grey Save stays grey
+### 2026-09-28 (latest) — one name per page, one word per action
+
+Owner: *"make page titles and button wording consistent across screens"*.
+
+**Measured first** (a source scanner, now `lib/wording.ts`): **377 buttons in
+65 files** rendered English on the Indonesian screen — "Cancel" untranslated
+on 9 screens and "Batal" on 10; "Record Payment" and "Record payment" on the
+same screen; **"Clear" and "Delete" were both "Hapus"**. Page names: the phone
+header read "Customers · Data pelanggan", "Invoices · Piutang", "Banks ·
+Rekening & posisi kas" (the page's own name left English), and every browser
+tab was hand-typed English that often disagreed with the menu ("Banks" vs
+"Finance", "Items" vs "Item Hub", "Stock · Landed cost" vs "Landed Cost").
+
+**Rule 1 — a page is called by its MENU name, everywhere.**
+- `entryMatches` + `pageLabelFor(pathname, search)` + `labelOf(href)` in
+  `constants/navigation.ts`: the menu highlight, the phone header and the tab
+  now share one matcher (it used to live privately inside BrandMenu).
+- `hooks/usePageTitle.ts` titles the tab `<menu label, translated> · <detail>
+  — ICAPROC`, follows the language switch, and re-asserts itself with a
+  MutationObserver because Next re-applies the section's static metadata AFTER
+  effects on a soft navigation (Purchasing had worked around exactly that).
+- Section `layout.tsx` titles are `labelOf('/<section>')`, so even the
+  server-rendered title is the menu's word.
+- `subtitle=` on BrandMenu is now only what the page ADDS ("Warehouse"); the
+  header prepends the translated menu label itself.
+- Purchasing's own tab strip said "Items" for the tab the menu calls "Item
+  Editor", and rendered its labels untranslated — both fixed.
+
+**Rule 2 — button words go through the phrase book, one word per action,
+sentence case.** `ACTION_WORDS` in `lib/wording.ts` (Save→Simpan, Cancel→Batal,
+Delete/Remove→Hapus, Clear→**Kosongkan**, Add→Tambah, …) is asserted against
+`lib/i18n.ts`. ~300 new phrase-book entries (section "Buttons, 2026-09-28"),
+plus the page descriptors. Six parallel helpers did the per-file edits from one
+brief; merged and reviewed here (one conflict, "All time", resolved; "Print /
+Save PDF" unified to "Print / save PDF"; "Tambahkan" → "Tambah").
+
+**Guards** (`lib/wording.test.ts`, 9 tests): no button shows unphrased English
+(scanner respects braces/quotes, strips block comments, skips codes/keepers
+and call arguments); action words == phrase book; Clear ≠ Delete; button keys
+sentence case except names (menu-label words, status labels, codes); page-name
+matcher cases; every menu label has Indonesian; no page sets `document.title`
+itself (print pages exempt — their title is the PDF file name); every page with
+BrandMenu calls `usePageTitle`; no subtitle repeats the page name.
+
+**Not covered, on purpose (next candidates):** button `title=`/`aria-label`
+tooltips, input placeholders, headings/labels that are not buttons, and
+`<Link>`s styled as buttons (the scanner reads `<button>` only). Dead code seen
+and left: `components/family-tree/*`, `components/layout/{MobileNav,Sidebar}`
+are imported by nothing — delete with the owner's OK.
+
+Tests 831 · eslint 419 (was 421) · build green.
+
+### 2026-09-28 — a skin click is the real thing; a grey Save stays grey
 
 Owner, the morning after Corporate shipped: *"when i click on corporate dark or
 light, it is not applied in all pages, and somehow there's still showing the
@@ -2859,6 +2911,7 @@ evidence for every one are in §4 under the dated entries.
 | 10 | **Ask ICAPROC partly broken** | `app/api/ask/route.ts:106-107` reads `v_purchase_history_analytics`, which does NOT exist | Small fix: point it at a real view/table; purchase-history questions currently return nothing. |
 | 11 | **Load bank statements** | `41.1_bank_transactions` has nothing for July 2026 | Needed to reconcile supplier payments (and to settle #6). |
 
+| 13 | **Wording, second pass** | Buttons + page names done 2026-09-28 (§4) | Tooltips (`title=`), placeholders, non-button headings, `<Link>` buttons. Extend `lib/wording.ts`'s scanner the same way. |
 | 12 | **Owner tries the Corporate skin** | Shipped 2026-09-27; click-to-apply fixed 2026-09-28 (§4). Terminal is still the default. | Owner: Settings › Tampilan → click Corporate (applies at once). If he likes it, "Make company default" (people who already picked a skin keep theirs). |
 
 Pre-existing, noted in passing and left alone: reopening a delivered DO as a

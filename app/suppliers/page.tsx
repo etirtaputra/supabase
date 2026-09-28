@@ -19,6 +19,7 @@ import { fmtDay, fmtInt, fmtRupiah as fmtIdr } from '@/lib/formatters';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useT } from '@/hooks/useT';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 
 const lookupHref = (n: string) => `/purchasing?tab=lookup&q=${encodeURIComponent(n)}`;
@@ -53,7 +54,7 @@ export default function SuppliersPage() {
   const toggleSort = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: DEFAULT_DIR[key] }));
 
-  useEffect(() => { document.title = 'Suppliers — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/suppliers')}`); return; }
@@ -133,7 +134,7 @@ export default function SuppliersPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Suppliers · Vendors" />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" />
           <span className="text-[11px] text-slate-500 whitespace-nowrap">{t('Vendors are created in Catalog → Supplier Quotes')}</span>
         </div>
       </div>
@@ -181,7 +182,7 @@ export default function SuppliersPage() {
                       <span className="text-left md:text-right tabular-nums text-slate-200">{st && st.purchasedIdr > 0 ? fmtIdr(st.purchasedIdr) : <span className="text-slate-600">—</span>}</span>
                       <span className="flex items-center justify-end gap-2">
                         <span className={`text-right tabular-nums ${st && st.outstandingIdr > 0.5 ? 'text-amber-300 font-semibold' : 'text-emerald-400/70'}`}>
-                          {st && st.outstandingIdr > 0.5 ? fmtIdr(st.outstandingIdr) : '✓ settled'}
+                          {st && st.outstandingIdr > 0.5 ? fmtIdr(st.outstandingIdr) : `✓ ${t('settled')}`}
                         </span>
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>

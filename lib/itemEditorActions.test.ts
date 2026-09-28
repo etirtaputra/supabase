@@ -154,7 +154,8 @@ test('the phone card carries our description and the supplier model, both copyab
     'our own description must be copyable from a phone');
   assert.match(card, /CopyBtn text=\{c\.supplier_model\}/,
     "the supplier's model must be copyable from a phone");
-  assert.match(card, /\{c\.internal_description \|\| '\(no description\)'\}/,
+  // (The placeholder goes through the phrase book since 2026-09-28.)
+  assert.match(card, /\{c\.internal_description \|\| (t\()?'\(no description\)'\)?\}/,
     'the phone card must show our description, not the supplier model alone');
 });
 

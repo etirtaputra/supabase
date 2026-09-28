@@ -25,6 +25,7 @@ import { computeTUCMap, fxRateOf, fxAgeDays, FX_STALE_DAYS, type FxRate, type TU
 import { fmtCcy, fmtDay, fmtIdr, fmtInt } from '@/lib/formatters';
 import { priceMovement, PRICE_ARROW, PRICE_TONE } from '@/lib/priceMovement';
 import DealLink from './DealLink';
+import { useT } from '@/hooks/useT';
 
 const COST_LABELS: Record<string, string> = {
   down_payment: 'Down Payment', balance_payment: 'Balance Payment',
@@ -69,6 +70,7 @@ export default function ItemCostForensics({
   componentId, components, quotes, quoteItems, pos, poItems, poCosts, suppliers, componentLinks,
   tucMap: tucMapIn, fx = {}, showSummary = true, defaultOpen = false, showLead = false,
 }: Props) {
+  const { t } = useT();
   const [open, setOpen] = useState(defaultOpen);
 
   const tucMap = useMemo(
@@ -321,7 +323,7 @@ export default function ItemCostForensics({
         <button onClick={() => setOpen((o) => !o)}
           className="w-full flex items-center justify-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 py-1.5 border border-slate-800 hover:border-slate-700 rounded-lg transition-colors">
           <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-          {open ? 'Hide' : 'Show'} full cost breakdown
+          {open ? t('Hide full cost breakdown') : t('Show full cost breakdown')}
         </button>
       )}
 

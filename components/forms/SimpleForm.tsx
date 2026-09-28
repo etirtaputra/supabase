@@ -8,8 +8,10 @@ import React, { useState, useEffect, useId, useRef } from 'react';
 import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import type { SimpleFormProps } from '../../types/forms';
+import { useT } from '@/hooks/useT';
 
 export default function SimpleForm({ title, fields, onSubmit, loading, onFieldChange, headerAction, storageKey: storageKeyProp }: SimpleFormProps) {
+  const { t } = useT();
   const storageKey = `form-draft:${storageKeyProp ?? title}`;
   const formId = useId();
 
@@ -104,7 +106,7 @@ export default function SimpleForm({ title, fields, onSubmit, loading, onFieldCh
             className="text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1 rounded-lg border border-slate-700/60 hover:border-slate-600 transition-colors"
             title="Clear saved draft"
           >
-            Clear draft
+            {t('Clear draft')}
           </button>
         )}
       </div>

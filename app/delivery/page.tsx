@@ -21,6 +21,7 @@ import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { inRange, type DateRange } from '@/lib/dateRange';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 // One row per Delivery Order (24.0) once DOs exist, plus "awaiting DO" rows
 // for confirmed/invoiced orders with nothing shipped yet.
@@ -38,7 +39,7 @@ export default function DeliveryPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
-  const { t } = useT();
+  const { t, tf } = useT();
   const canView = !!profile && (ROLE_PERMISSIONS[profile.role].canEditSalesDocs || ROLE_PERMISSIONS[profile.role].canManageStock);
 
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -56,7 +57,7 @@ export default function DeliveryPage() {
   const [layout, setLayout] = useListLayout('delivery');
   const compact = layout === 'compact';
 
-  useEffect(() => { document.title = 'Delivery — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/delivery')}`); return; }
@@ -143,7 +144,7 @@ export default function DeliveryPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t("Delivery · Orders out the door")} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle="Orders out the door" />
           <span className="text-[11px] text-slate-500 whitespace-nowrap">
             <span className="text-amber-300 font-bold tabular-nums">{loading ? '—' : pending.length}</span> to deliver
           </span>
@@ -190,22 +191,22 @@ export default function DeliveryPage() {
                         <span className="block text-sm text-slate-100 truncate">{custName(q.customer_id) || <span className="text-slate-600">{t('No customer')}</span>}</span>
                         {q.status === 'preparing' && !compact && (
                           <span className="block text-[10px] text-orange-300/80 truncate">
-                            {[q.delivery_method === 'pickup' ? 'Pick-up' : `Delivery${q.delivery_via ? ` · ${q.delivery_via}` : ''}`, q.delivery_contact].filter(Boolean).join(' · ')}
+                            {[q.delivery_method === 'pickup' ? t('Pick-up') : t('Delivery'), q.delivery_method === 'pickup' ? null : q.delivery_via, q.delivery_contact].filter(Boolean).join(' · ')}
                           </span>
                         )}
                       </span>
                       <span className="text-[11px] text-slate-500 tabular-nums">
-                        {agg ? `${agg.count} line${agg.count !== 1 ? 's' : ''} · ${fmtInt(agg.qty)} pcs` : '—'}
+                        {agg ? (agg.count !== 1 ? tf('{n} lines · {qty} pcs', { n: agg.count, qty: fmtInt(agg.qty) }) : tf('{n} line · {qty} pcs', { n: agg.count, qty: fmtInt(agg.qty) })) : '—'}
                       </span>
                       <span>
                         <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-semibold ${q.status === 'preparing' ? 'bg-orange-500/15 text-orange-300' : q.status === 'invoiced' ? 'bg-amber-500/15 text-amber-300' : 'bg-violet-500/15 text-violet-300'}`}>
-                          {q.status === 'preparing' ? 'Preparing Items' : q.status === 'invoiced' ? 'Invoiced' : 'Confirmed Order'}
+                          {q.status === 'preparing' ? t('Preparing Items') : q.status === 'invoiced' ? t('Invoiced') : t('Confirmed Order')}
                         </span>
                       </span>
                       <span className="md:text-right text-[11px] text-slate-500 tabular-nums">
                         {q.status === 'preparing' && q.delivery_date
-                          ? <>target {fmtDay(q.delivery_date)}{q.delivery_time && !compact ? <span className="block text-[10px] text-slate-600">{q.delivery_time}</span> : null}</>
-                          : <>ordered {fmtDay(q.ordered_at)}</>}
+                          ? <>{tf('target {date}', { date: fmtDay(q.delivery_date) })}{q.delivery_time && !compact ? <span className="block text-[10px] text-slate-600">{q.delivery_time}</span> : null}</>
+                          : <>{tf('ordered {date}', { date: fmtDay(q.ordered_at) })}</>}
                       </span>
                     </button>
                   );
@@ -236,7 +237,7 @@ export default function DeliveryPage() {
                       </span>
                       <span className="text-sm text-slate-100 truncate">{custName(q.customer_id) || <span className="text-slate-600">{t('No customer')}</span>}</span>
                       <span className="text-[11px] text-slate-500 tabular-nums">
-                        {agg ? `${agg.count} line${agg.count !== 1 ? 's' : ''} · ${fmtInt(agg.qty)} pcs` : '—'}
+                        {agg ? (agg.count !== 1 ? tf('{n} lines · {qty} pcs', { n: agg.count, qty: fmtInt(agg.qty) }) : tf('{n} line · {qty} pcs', { n: agg.count, qty: fmtInt(agg.qty) })) : '—'}
                       </span>
                       <span><span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/15 text-emerald-300">{t('Delivered')}</span></span>
                       <span className="md:text-right text-[11px] text-slate-500 tabular-nums flex md:justify-end items-center gap-2">

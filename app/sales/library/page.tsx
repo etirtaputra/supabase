@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { useT } from '@/hooks/useT';
 import { fmtInt } from '@/lib/formatters';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Entry { entry_id: string; description: string; unit: string; default_price: number | null; notes: string; section?: string; updated_at?: string; }
 
@@ -44,7 +45,7 @@ export default function SalesLibraryPage() {
   const [toast, setToast] = useState<string | null>(null);
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2400); };
 
-  useEffect(() => { document.title = 'Sales · Description Library — ICAPROC'; }, []);
+  usePageTitle();
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.replace(`/login?next=${encodeURIComponent('/sales/library')}`); return; }
@@ -163,7 +164,7 @@ export default function SalesLibraryPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1000px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t('Sales · Description Library')} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" />
           <button onClick={() => router.push('/sales')} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">← {t('Back to Sales')}</button>
         </div>
       </div>

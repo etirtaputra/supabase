@@ -49,6 +49,7 @@ import { useTheme } from '@/hooks/useTheme';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 type Tab = 'format' | 'appearance' | 'menu' | 'dashboard' | 'lists' | 'pricing' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
@@ -95,6 +96,7 @@ function Field({ label, hint, children, className = '' }: {
 }
 
 export default function SettingsPage() {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -114,10 +116,9 @@ export default function SettingsPage() {
     const t = new URLSearchParams(window.location.search).get('tab') as Tab | null;
     if (t && TABS.some(([k]) => k === t)) setTab(t);
   }, []);
-  useEffect(() => {
-    const label = TABS.find(([k]) => k === tab)?.[1] ?? '';
-    document.title = `Settings · ${label} — ICAPROC`;
-  }, [tab]);
+  // Named by the menu (Settings · Appearance…); re-titled on a tab switch,
+  // which moves only the query.
+  usePageTitle(null, [tab]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -181,19 +182,19 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
-          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={`Settings · ${TABS.find(([k]) => k === tab)?.[1]}`} />
+          <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" />
           <div className="flex items-center gap-2 flex-wrap">
             {dirtyKeys.length > 0 && (
               <>
                 <span className="text-[11px] text-amber-300">{dirtyKeys.length} unsaved change{dirtyKeys.length !== 1 ? 's' : ''}</span>
                 <button onClick={revert} className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors">
-                  Revert
+                  {t('Revert')}
                 </button>
               </>
             )}
             <button onClick={save} disabled={!dirtyKeys.length || saving || !!formatError}
               className="text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors">
-              {saving ? 'Saving…' : 'Save'}
+              {saving ? t('Saving…') : t('Save')}
             </button>
           </div>
         </div>
@@ -247,6 +248,7 @@ function NumberPanel({
   onNumber: (v: NumberFormat) => void; onCurrency: (v: CurrencyFormat) => void;
   onDateStyle: (v: DateStyle) => void; onDateLocale: (v: DateLocale) => void;
 }) {
+  const { t } = useT();
   const amount = formatNumber(SAMPLE, number, number.decimals);
   const whole = formatNumber(Math.round(SAMPLE), number, 0);
   return (
@@ -268,11 +270,11 @@ function NumberPanel({
           <span className="text-[11px] text-slate-500">Presets:</span>
           <button onClick={() => onNumber({ ...NUMBER_PRESET_EN, decimals: number.decimals })}
             className="text-[11px] px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 transition-colors">
-            English 1,234,567
+            {t('English')} 1,234,567
           </button>
           <button onClick={() => onNumber({ ...NUMBER_PRESET_ID, decimals: number.decimals })}
             className="text-[11px] px-2.5 py-1 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 transition-colors">
-            Indonesian 1.234.567
+            {t('Indonesian')} 1.234.567
           </button>
         </div>
 
@@ -422,6 +424,7 @@ function AppearanceTab({ companyDefault, onMakeDefault }: {
   companyDefault: ThemeName;
   onMakeDefault: (t: ThemeName) => Promise<void>;
 }) {
+  const { t } = useT();
   const { theme: mine, setTheme: setMine } = useTheme();
   const [savingDefault, setSavingDefault] = useState<ThemeName | null>(null);
   return (
@@ -439,21 +442,21 @@ function AppearanceTab({ companyDefault, onMakeDefault }: {
             here or as the company default, so a skin that is no longer offered
             can still be SEEN when it is the one in force. */}
         <div className="grid sm:grid-cols-2 gap-3 max-w-3xl">
-          {THEMES.filter((t) => OFFERED_THEME_VALUES.includes(t.value) || t.value === companyDefault || t.value === mine).map((t) => {
-            const p = t.swatch;
-            const active = mine === t.value;
-            const isDefault = companyDefault === t.value;
+          {THEMES.filter((th) => OFFERED_THEME_VALUES.includes(th.value) || th.value === companyDefault || th.value === mine).map((th) => {
+            const p = th.swatch;
+            const active = mine === th.value;
+            const isDefault = companyDefault === th.value;
             return (
-              <div key={t.value} className={`rounded-xl border transition-colors ${
+              <div key={th.value} className={`rounded-xl border transition-colors ${
                 active ? 'border-emerald-500/50 bg-emerald-500/[0.07]' : 'border-slate-700 hover:border-slate-600 hover:bg-slate-800/40'
               }`}>
-                <button onClick={() => setMine(t.value)} aria-pressed={active}
+                <button onClick={() => setMine(th.value)} aria-pressed={active}
                   className="w-full text-left p-3 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-bold ${active ? 'text-emerald-300' : 'text-slate-200'}`}>{t.label}</span>
+                    <span className={`text-sm font-bold ${active ? 'text-emerald-300' : 'text-slate-200'}`}>{th.label}</span>
                     {active && <span className="text-[10px] font-semibold text-emerald-400">IN USE</span>}
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1 leading-snug min-h-[2.4em]">{t.blurb}</p>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-snug min-h-[2.4em]">{th.blurb}</p>
                   {/* A miniature painted with the skin's REAL values */}
                   <div className="mt-2.5 rounded-lg p-2 space-y-1.5 border border-black/10" style={{ background: p.bg }}>
                     {[0, 1].map((i) => (
@@ -468,10 +471,10 @@ function AppearanceTab({ companyDefault, onMakeDefault }: {
                   {isDefault ? (
                     <span className="text-[10px] font-semibold text-slate-500">Company default</span>
                   ) : (
-                    <button onClick={async () => { setSavingDefault(t.value); await onMakeDefault(t.value); setSavingDefault(null); }}
+                    <button onClick={async () => { setSavingDefault(th.value); await onMakeDefault(th.value); setSavingDefault(null); }}
                       disabled={savingDefault !== null}
                       className="text-[10px] font-semibold text-slate-400 hover:text-white underline-offset-2 hover:underline disabled:opacity-50">
-                      {savingDefault === t.value ? 'Saving…' : 'Make company default'}
+                      {savingDefault === th.value ? t('Saving…') : t('Make company default')}
                     </button>
                   )}
                 </div>
@@ -708,6 +711,7 @@ function DefaultsTab({ draft, set, flash }: {
   set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void;
   flash: (m: string) => void;
 }) {
+  const { t } = useT();
   const supabase = createSupabaseClient();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [companies, setCompanies] = useState<{ company_id: string; legal_name: string }[]>([]);
@@ -838,7 +842,7 @@ function DefaultsTab({ draft, set, flash }: {
           <button onClick={() => set('itemScoreWeights', { ...DEFAULT_ITEM_SCORE_WEIGHTS })}
             disabled={JSON.stringify(draft.itemScoreWeights) === JSON.stringify(DEFAULT_ITEM_SCORE_WEIGHTS)}
             className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
-            Reset to default
+            {t('Reset to default')}
           </button>
         </div>
         <p className="text-[11px] text-slate-500 leading-snug">
@@ -884,6 +888,7 @@ function DefaultsTab({ draft, set, flash }: {
  * constants/dashboardWidgets.ts and is not negotiable from here.
  */
 function DashboardTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  const { t } = useT();
   const hidden = hiddenWidgetKeys(draft.dashboardOrder, draft.dashboardHidden);
   const rows = orderedWidgetKeys(draft.dashboardOrder)
     .map((k) => ({ widget: WIDGET_BY_KEY.get(k)!, shown: !hidden.has(k) }));
@@ -907,7 +912,7 @@ function DashboardTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
           <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Dashboard widgets</p>
           <button onClick={resetAll} disabled={isDefault}
             className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
-            Reset to default
+            {t('Reset to default')}
           </button>
         </div>
         <p className="text-[11px] text-slate-500 leading-snug">
@@ -1104,7 +1109,7 @@ function MenuOrderTab({ draft, set }: { draft: AppSettings; set: <K extends keyo
           <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Menu order</p>
           <button onClick={resetAll} disabled={isDefault}
             className="text-[11px] font-semibold text-slate-400 hover:text-white disabled:text-slate-700 disabled:hover:text-slate-700 transition-colors">
-            Reset to default
+            {t('Reset to default')}
           </button>
         </div>
         <p className="text-[11px] text-slate-500 leading-snug">
@@ -1263,6 +1268,7 @@ function CompanyTab({ draft, set }: { draft: AppSettings; set: <K extends keyof 
 const BANK_CURRENCIES = ['IDR', 'USD', 'EUR', 'CNY', 'SGD'];
 
 function BanksTab({ flash, email }: { flash: (m: string) => void; email: string }) {
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [companies, setCompanies] = useState<{ company_id: string; legal_name: string }[]>([]);
@@ -1456,7 +1462,7 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
             </div>
             <button onClick={() => addAccount(g.companyId)}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors whitespace-nowrap">
-              + Add account
+              + {t('Add account')}
             </button>
           </div>
 
@@ -1494,14 +1500,14 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
                       className={`text-[11px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
                         a.is_default_payment ? 'bg-sky-500/15 border-sky-500/40 text-sky-300' : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
                       }`}>
-                      {a.is_default_payment ? '✓ ' : ''}Default for payments
+                      {a.is_default_payment ? '✓ ' : ''}{t('Default for payments')}
                     </button>
                     <button onClick={() => setDefault(a, 'receipt', !a.is_default_receipt)}
                       title="Preselected when a customer payment is recorded for this company"
                       className={`text-[11px] px-2.5 py-1 rounded-lg border font-semibold transition-colors ${
                         a.is_default_receipt ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'border-slate-700 text-slate-500 hover:text-slate-300 hover:bg-slate-800'
                       }`}>
-                      {a.is_default_receipt ? '✓ ' : ''}Default for receipts
+                      {a.is_default_receipt ? '✓ ' : ''}{t('Default for receipts')}
                     </button>
                   </div>
 
@@ -1553,7 +1559,7 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
                     </select>
                     <button onClick={() => remove(a)} className="text-[11px] text-slate-600 hover:text-rose-400 transition-colors flex-shrink-0"
                       title="Only possible while nothing references the account — otherwise untick Active">
-                      Delete
+                      {t('Delete')}
                     </button>
                   </div>
                 </div>
@@ -1567,13 +1573,14 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
       <div className="bg-slate-900/50 border border-slate-800 rounded-2xl overflow-hidden">
         <button onClick={() => setLibOpen((o) => !o)} className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-white/[0.02] transition-colors">
           <div>
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Bank library</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-300">{t('Bank library')}</p>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              {bankNames.length} bank{bankNames.length !== 1 ? 's' : ''} — what the Bank field suggests, so one bank never
-              becomes three spellings. A name typed on an account joins the list automatically.
+              {bankNames.length !== 1
+                ? tf('{n} banks — what the Bank field suggests, so one bank never becomes three spellings. A name typed on an account joins the list automatically.', { n: bankNames.length })
+                : tf('{n} bank — what the Bank field suggests, so one bank never becomes three spellings. A name typed on an account joins the list automatically.', { n: 1 })}
             </p>
           </div>
-          <span className="text-slate-500 text-xs flex-shrink-0">{libOpen ? 'Hide' : 'Show'}</span>
+          <span className="text-slate-500 text-xs flex-shrink-0">{libOpen ? t('Hide') : t('Show')}</span>
         </button>
         {libOpen && (
           <div className="border-t border-slate-800/60 p-4 space-y-3">
@@ -1583,7 +1590,7 @@ function BanksTab({ flash, email }: { flash: (m: string) => void; email: string 
                 placeholder="Add a bank — e.g. BNI" className={`${inputCls} sm:flex-1`} />
               <button onClick={addBankName} disabled={!newBank.trim()}
                 className="text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors whitespace-nowrap">
-                Add
+                {t('Add')}
               </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -1831,7 +1838,7 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
           </select>
           <button onClick={addAllow} disabled={!newEmail.trim() || adding}
             className="text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors whitespace-nowrap">
-            {adding ? 'Adding…' : 'Grant access'}
+            {adding ? t('Adding…') : t('Grant access')}
           </button>
         </div>
 
@@ -1858,7 +1865,7 @@ function UsersTab({ myId, flash }: { myId: string; flash: (m: string) => void })
                 </select>
                 <button onClick={() => removeAllow(a.email)}
                   className="text-[11px] text-slate-600 hover:text-rose-400 px-2 py-1 transition-colors">
-                  Remove
+                  {t('Remove')}
                 </button>
               </div>
             ))}

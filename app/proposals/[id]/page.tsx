@@ -30,6 +30,8 @@ import type { Component } from '@/types/database';
 import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc } from '@/lib/formatters';
 import { isOfferable } from '@/lib/itemVisibility';
 import { useSettings } from '@/hooks/useSettings';
+import { useT } from '@/hooks/useT';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -254,6 +256,7 @@ function SpecInput({ label, unit, value, onChange, derived, derivedNote }: {
   const typed = typeof value === 'number' && isFinite(value) && value > 0;
   const agrees = typed && Math.abs(value! - d) <= Math.max(0.02, d * 0.005);
   const show = d > 0 && !agrees;
+  const { tf } = useT();
   return (
     <div className="w-40">
       <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{label}</label>
@@ -272,7 +275,7 @@ function SpecInput({ label, unit, value, onChange, derived, derivedNote }: {
           title={`${derivedNote ?? 'From the line items'} — click to use ${d}`}
           className={`mt-1 text-[10px] leading-tight text-left transition-colors ${
             typed ? 'text-amber-300/90 hover:text-amber-200' : 'text-emerald-500/80 hover:text-emerald-400'}`}>
-          {typed ? `⚠ Items say ${d} — use` : `Items: ${d} — use`}
+          {typed ? <>⚠ {tf('Items say {value} — use', { value: d })}</> : tf('Items: {value} — use', { value: d })}
         </button>
       ) : agrees ? (
         <p className="mt-1 text-[10px] leading-tight text-slate-600">✓ matches the items</p>
@@ -351,6 +354,7 @@ function dbToDraft(dbSections: QuoteSection[], dbItems: QuoteItem[]): DraftSecti
 export default function QuoteEditorPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const gate = useQuotesGate();
   const { data: catalog, loading: catalogLoading } = useSupabaseData();
@@ -754,12 +758,8 @@ export default function QuoteEditorPage() {
     loadReferenceData();
   }
 
-  // Browser tab shows which quote is open
-  useEffect(() => {
-    if (!quote) return;
-    const parts = [quote.quote_number || 'Quote', quote.customer_name].filter(Boolean);
-    document.title = `EPC Proposals · ${parts.join(' · ')} — ICAPROC`;
-  }, [quote?.quote_number, quote?.customer_name]);
+  // Browser tab: the menu's name for this page + which proposal is open
+  usePageTitle(quote ? [quote.quote_number, quote.customer_name].filter(Boolean).join(' · ') || null : null);
 
   const compById = useMemo(
     () => new Map(catalog.components.map((c) => [c.component_id, c])),
@@ -1917,8 +1917,8 @@ export default function QuoteEditorPage() {
           <h2 className="text-white font-semibold mb-1">Can&apos;t open this proposal</h2>
           <p className="text-slate-400 text-xs mb-5">{loadError}</p>
           <div className="flex gap-2 justify-center">
-            <button onClick={() => router.push('/proposals')} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">Back to proposals</button>
-            <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">Retry</button>
+            <button onClick={() => router.push('/proposals')} className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 text-sm transition-colors">{t('Back to proposals')}</button>
+            <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">{t('Retry')}</button>
           </div>
         </div>
       </div>
@@ -2038,7 +2038,7 @@ export default function QuoteEditorPage() {
               : locked ? 'SENT quotes can only be edited by an Owner'
               : 'Ctrl+S / Cmd+S'}
             className="order-3 lg:order-5 flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-all disabled:opacity-40">
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('Saving…') : t('Save')}
             <span className="hidden sm:inline text-white/50 text-[9px] font-normal">⌘S</span>
           </button>
 
@@ -2083,7 +2083,7 @@ export default function QuoteEditorPage() {
                 title="Choose which columns appear on the PDF and Excel exports"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 4v16m6-16v16M4 4h16v16H4z" /></svg>
-                Columns
+                {t('Columns')}
               </button>
               {showExportCols && (
                 <>
@@ -2108,7 +2108,7 @@ export default function QuoteEditorPage() {
               title="Preview which catalog-linked items' costs changed (old → new with delta), pick which to update — sell prices stay as quoted"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              Costs
+              {t('Costs')}
             </button>
             <Link href={`/proposals/${id}/print`} target="_blank"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">
@@ -2145,7 +2145,7 @@ export default function QuoteEditorPage() {
                 {quote.updated_at && <> on {fmtDateTime(quote.updated_at)}</>}</>
             )}
             <button onClick={openActivity} className="ml-2 text-slate-500 hover:text-slate-300 transition-colors">
-              View history
+              {t('View history')}
             </button>
           </p>
         )}
@@ -2254,7 +2254,7 @@ export default function QuoteEditorPage() {
                   onMouseDown={(e) => { e.preventDefault(); pickCustomer({ name: dup, address: quote.customer_address }); }}
                   className="mt-1 inline-flex items-center gap-1 text-[10px] text-amber-300/90 hover:text-amber-200 transition-colors"
                   title="A similar customer already exists — reuse that spelling to keep the list clean">
-                  ⚠ Similar exists: <span className="font-semibold underline">{dup}</span> — use it
+                  ⚠ {t('Similar exists:')} <span className="font-semibold underline">{dup}</span> — {t('use it')}
                 </button>
               );
             })()}
@@ -2394,7 +2394,7 @@ export default function QuoteEditorPage() {
                           className="text-[10px] text-sky-200/60 hover:text-emerald-300 transition-colors whitespace-nowrap"
                           title="Re-price every line in this group with this margin (overwrites per-line margins)"
                         >
-                          apply to all
+                          {t('Apply to all')}
                         </button>
                       )}
                     </div>
@@ -2681,11 +2681,11 @@ export default function QuoteEditorPage() {
                                               />
                                               <button onClick={renamePrevItem} disabled={prevEditBusy}
                                                 className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[10px] font-semibold transition-colors disabled:opacity-50">
-                                                {prevEditBusy ? 'Renaming…' : 'Rename'}
+                                                {prevEditBusy ? t('Renaming…') : t('Rename')}
                                               </button>
                                               <button onClick={() => setPrevEdit(null)} disabled={prevEditBusy}
                                                 className="px-2 py-1 text-slate-400 hover:text-white text-[10px] transition-colors">
-                                                Cancel
+                                                {t('Cancel')}
                                               </button>
                                             </div>
                                             {prevEditError && <p className="text-[10px] text-red-400">{prevEditError}</p>}
@@ -2706,7 +2706,7 @@ export default function QuoteEditorPage() {
                                                 {p.description}
                                               </p>
                                               <p className="text-[10px] text-slate-500 truncate">
-                                                {[p.brand, p.date ? `${p.label} · ${p.date}` : p.label, p.count > 1 ? `used ${p.count}×` : null].filter(Boolean).join(' · ')}
+                                                {[p.brand, p.date ? `${p.label} · ${p.date}` : p.label, p.count > 1 ? tf('Used {n}×', { n: p.count }) : null].filter(Boolean).join(' · ')}
                                               </p>
                                               {(() => {
                                                 // Surface hidden catalog links that don't match the description —
@@ -2716,7 +2716,7 @@ export default function QuoteEditorPage() {
                                                 if (p.description.toLowerCase().includes(linked.toLowerCase())) return null;
                                                 return (
                                                   <p className="text-[10px] text-amber-400/90 truncate" title="This past entry carries a catalog link to a DIFFERENT item — picking it copies that link. Unlink after picking (link icon → Unlink) if it's wrong.">
-                                                    ⚠ linked to: {linked}
+                                                    ⚠ {tf('Linked to: {name}', { name: linked })}
                                                   </p>
                                                 );
                                               })()}
@@ -2838,7 +2838,7 @@ export default function QuoteEditorPage() {
                                           title="Wrong item? Unlink — the row keeps its current cost but stops following this catalog component"
                                           className="text-[10px] text-red-400/80 hover:text-red-300 flex-shrink-0 transition-colors"
                                         >
-                                          Unlink
+                                          {t('Unlink')}
                                         </button>
                                       </div>
                                     )}
@@ -2871,7 +2871,7 @@ export default function QuoteEditorPage() {
                                               title={`Raw ${h.kind === 'quote' ? 'supplier quote' : 'TUC'} before buffer — click to use it as the cost (sell price unchanged)`}
                                               className="text-slate-500 tabular-nums flex-shrink-0 hover:text-slate-300 transition-colors"
                                             >
-                                              raw {fmtIdr(h.rawUnitCost)}
+                                              {tf('Raw {amount}', { amount: fmtIdr(h.rawUnitCost) })}
                                             </button>
                                           )}
                                           <button
@@ -3067,13 +3067,13 @@ export default function QuoteEditorPage() {
                   <button onClick={() => addItem(sec.section_id)}
                     className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-violet-400 transition-colors">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                    Add item
+                    {t('Add item')}
                   </button>
                   {mainItems.length > 0 && (
                     <button onClick={() => addItem(sec.section_id, mainItems[mainItems.length - 1].item_id)}
                       className="flex items-center gap-1.5 text-[11px] text-slate-600 hover:text-slate-400 transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                      Add sub-item to last
+                      {t('Add sub-item to last')}
                     </button>
                   )}
                 </div>
@@ -3085,7 +3085,7 @@ export default function QuoteEditorPage() {
                   <button onClick={() => addSection(group.key)}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-slate-700 hover:border-violet-500 text-slate-600 hover:text-violet-400 transition-all text-xs">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
-                    Add sub-section
+                    {t('Add sub-section')}
                   </button>
                 </div>
               </div>
@@ -3172,7 +3172,7 @@ export default function QuoteEditorPage() {
                 onClick={() => setQuoteField('notes', TC_TEMPLATE)}
                 className="text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
               >
-                Insert template
+                {t('Insert template')}
               </button>
             )}
           </div>
@@ -3322,13 +3322,15 @@ export default function QuoteEditorPage() {
                 <div className="ml-auto flex items-center gap-2">
                   <button onClick={() => setCostPreview(null)}
                     className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">
-                    Cancel
+                    {t('Cancel')}
                   </button>
                   <button
                     onClick={applyCostPreview}
                     disabled={costPreview.selected.size === 0}
                     className="px-4 py-1.5 rounded-lg text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40">
-                    Update {costPreview.selected.size} cost{costPreview.selected.size !== 1 ? 's' : ''}
+                    {costPreview.selected.size === 1
+                      ? tf('Update {n} cost', { n: costPreview.selected.size })
+                      : tf('Update {n} costs', { n: costPreview.selected.size })}
                   </button>
                 </div>
               </div>

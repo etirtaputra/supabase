@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
+import { labelOf } from '@/constants/navigation';
 
 export const metadata: Metadata = {
-  title: "Pricing",
+  title: labelOf('/pricing'),
 };
 
 export default function PricingLayout({ children }: { children: React.ReactNode }) {

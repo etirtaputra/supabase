@@ -853,7 +853,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
             className="w-3.5 h-3.5 accent-emerald-500 flex-shrink-0" />
           <span className="text-xs text-slate-200">Show my recent activity when the search is empty</span>
           <button onClick={(e) => { e.preventDefault(); try { localStorage.removeItem(RECENTS_KEY); } catch {} setStored([]); }}
-            className="ml-auto text-[10px] text-slate-500 hover:text-red-300 transition-colors flex-shrink-0">clear history</button>
+            className="ml-auto text-[10px] text-slate-500 hover:text-red-300 transition-colors flex-shrink-0">{tr('Clear history')}</button>
         </label>
         <label className="flex items-center gap-2.5 cursor-pointer">
           <input type="checkbox" checked={prefs.hints}
@@ -1032,7 +1032,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
                 title="My Spotlight — choose which sections this search covers (personal)"
                 className={`ml-auto flex items-center gap-1 transition-colors ${showPrefs ? 'text-emerald-300' : 'hover:text-slate-300'}`}>
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                settings
+                {tr('Settings')}
               </button>
             </div>
           </div>
@@ -1084,7 +1084,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
             title="My Spotlight — choose which sections this search covers (personal)"
             className={`ml-auto flex items-center gap-1 transition-colors ${showPrefs ? 'text-emerald-300' : 'hover:text-slate-300'}`}>
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-            settings
+            {tr('Settings')}
           </button>
         </div>
       </div>
