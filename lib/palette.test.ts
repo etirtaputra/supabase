@@ -55,20 +55,22 @@ test('every colour variable a screen names is defined by every skin', () => {
     `these resolve to nothing, so whatever they colour renders invisible: ${missing.join(', ')}`);
 });
 
-test('the default skin is a real skin, and it is the terminal one', () => {
-  const all = blocks();
+test('the default skin is a real skin, and it is the corporate one', () => {
+  // Corporate since 2026-09-28 (owner: "make Corporate the default"); it was
+  // the terminal skin before, and this test said so.
+  const all = blocks().filter((b) => b.body.includes('--c-slate-900'));
   const def = all.find((b) => b.name === '(default)');
-  const term = all.find((b) => b.name === 'terminal');
+  const term = all.find((b) => b.name === 'corporate');
   assert.ok(def, 'there must be an unattributed :root block — it is what most people see');
-  assert.ok(term, 'and a terminal block for it to agree with');
+  assert.ok(term, 'and a corporate block for it to agree with');
   // Compared against the terminal block rather than a literal colour: this
   // assertion used to hardcode the near-black page (--c-app-bg:10 11 13) and
   // went red the moment the skin legitimately moved to graphite on
   // 2026-08-28. What it is really guarding is that the two AGREE.
   const appBg = (b: string) => /--c-app-bg:([^;}]*)/.exec(b)?.[1];
   assert.equal(appBg(def!.body), appBg(term!.body),
-    'the unattributed default must be the terminal skin, whatever colour that is');
-  assert.ok(def!.body.includes('--font-app:Inter'), 'and it should carry the terminal typeface');
+    'the unattributed default must be the corporate skin, whatever colour that is');
+  assert.ok(def!.body.includes("--font-app:'IBM Plex Sans'"), 'and it should carry the corporate typeface');
 });
 
 // ── The corporate pair (owner, 2026-09-27) ──────────────────────────────────
@@ -116,7 +118,7 @@ test('the corporate skin only ADDS — nothing it defines leaks into another ski
   // `:root[data-theme="corporate-dark"]{font-feature-settings:…}` has the same
   // shape to the scanner.)
   for (const b of blocks().filter((x) => x.body.includes('--c-slate-900'))) {
-    const isCorp = b.name === 'corporate' || b.name === 'corporate-dark';
+    const isCorp = b.name === 'corporate' || b.name === 'corporate-dark' || b.name === '(default)';
     assert.equal(b.body.includes('--c-brand:'), isCorp, `${b.name} ${isCorp ? 'lacks' : 'carries'} the brand token`);
   }
   // …and every rule that re-dresses buttons, labels or corners is scoped to
@@ -124,9 +126,11 @@ test('the corporate skin only ADDS — nothing it defines leaks into another ski
   const rules = THEME_VARS_CSS.split('\n').filter((l) => /c-brand|tracking-wid|IBM Plex/.test(l));
   assert.ok(rules.length > 0, 'the corporate rules have gone — has the scan stopped working?');
   for (const r of rules) {
-    const selectors = r.startsWith(':root[data-theme="corporate') && r.includes('{--c-') ? [] : r.split('{')[0].split(',');
+    // A skin's own variable block (":root{--c-…}") is checked by the brand-token
+    // assertion above; only STYLING rules need a corporate scope here.
+    const selectors = /^:root(\[data-theme="[a-z-]+"\])?\{--c-/.test(r) ? [] : r.split('{')[0].split(',');
     for (const sel of selectors) {
-      assert.match(sel.trim(), /^:root\[data-theme="corporate(-dark)?"\]/, `unscoped corporate rule: ${sel}`);
+      assert.match(sel.trim(), /^:root(\[data-theme="corporate(-dark)?"\]|:not\(\[data-theme\]\))/, `unscoped corporate rule: ${sel}`);
     }
   }
 });
@@ -217,7 +221,7 @@ test('tone colours, small print and the serial face are corporate-only', () => {
   assert.ok(rules.length >= 5, 'the corporate type/tone rules have gone');
   for (const r of rules) {
     for (const sel of r.split('{')[0].split(',')) {
-      assert.match(sel.trim(), /^:root\[data-theme="corporate(-dark)?"\]/, `unscoped: ${sel}`);
+      assert.match(sel.trim(), /^:root(\[data-theme="corporate(-dark)?"\]|:not\(\[data-theme\]\))/, `unscoped: ${sel}`);
     }
   }
   // Breakpoint sizes win: the small-print rule must step aside for them.

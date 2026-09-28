@@ -22,9 +22,10 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   // The default skin's page colour — what a phone paints around the app.
-  // Graphite since 2026-08-28; it must track TERMINAL_SURFACES.canvas in
-  // scripts/generate-palette.js or a phone frames the app in the wrong shade.
-  themeColor: '#1e222a',
+  // Corporate's pale page since 2026-09-28 (it was Terminal's graphite); it
+  // must track CORPORATE_SURFACES.canvas in scripts/generate-palette.js or a
+  // phone frames the app in the wrong shade.
+  themeColor: '#f3f5f8',
 };
 
 /**
@@ -78,7 +79,7 @@ export default function RootLayout({
           /* Form controls and scrollbars are painted by the browser, not by a
              utility class, so they need telling which skin is in play. */
           :root { color-scheme: dark; }
-          :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"], :root[data-theme="corporate"] { color-scheme: light; }
+          :root:not([data-theme]), :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"], :root[data-theme="corporate"] { color-scheme: light; }
           :root[data-theme="terminal"] { color-scheme: dark; }
 
           /* ── The dropdown chevron (owner, 2026-08-26: "too close to the
@@ -106,7 +107,7 @@ export default function RootLayout({
              data-URI cannot interpolate a var(), so the whole url() is the
              variable. */
           :root { --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); }
-          :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"], :root[data-theme="corporate"] {
+          :root:not([data-theme]), :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"], :root[data-theme="corporate"] {
             --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
           }
           select:not([multiple]):not([size]):not(.appearance-none) {

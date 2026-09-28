@@ -257,7 +257,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultMarginFloorPct: 15,
   defaultCustomerTier:   '',
 
-  defaultTheme:          'terminal',
+  defaultTheme:          'corporate',
   defaultPpnPct:         11,
   defaultPoPaymentTerms: '100% in advance',
   defaultCompanyId:      '',
@@ -429,7 +429,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
 
     // The list of skins lives in lib/theme.ts; repeating it here as a
     // literal union is how a new skin silently fails to be selectable.
-    defaultTheme:          pick('defaultTheme',          (v) => (isTheme(v) ? v : 'dark'), d.defaultTheme),
+    defaultTheme:          pick('defaultTheme',          (v) => (isTheme(v) ? v : d.defaultTheme), d.defaultTheme),
     defaultPpnPct:         pick('defaultPpnPct',         (v) => numOr(v, d.defaultPpnPct), d.defaultPpnPct),
     defaultPoPaymentTerms: pick('defaultPoPaymentTerms', (v) => str(v, d.defaultPoPaymentTerms), d.defaultPoPaymentTerms),
     defaultCompanyId:      pick('defaultCompanyId',      (v) => str(v, d.defaultCompanyId), d.defaultCompanyId),

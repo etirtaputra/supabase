@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { THEME_VARS_CSS } from '../constants/palette.ts';
-import { nextTheme, pickOffered, pairOf, isLightTheme, isTheme, LIGHT_THEMES, THEMES, THEME_PAIRS, OFFERED_THEME_VALUES, THEME_BOOT_SCRIPT } from './theme.ts';
+import { nextTheme, pickOffered, pairOf, isLightTheme, isTheme, LIGHT_THEMES, THEMES, THEME_PAIRS, OFFERED_THEME_VALUES, THEME_BOOT_SCRIPT, LEGACY_THEME_MIGRATION, DEFAULT_THEME } from './theme.ts';
 
 test('every skin is classified bright or dark — none is left unanswered', () => {
   for (const th of THEMES) {
@@ -41,14 +41,37 @@ test('the terminal pair flips to each other and stays there', () => {
   assert.equal(nextTheme(nextTheme('terminal')), 'terminal', 'two taps is where you started');
 });
 
-test('a legacy skin leaves for the offered pair on the first tap, and stays', () => {
-  // Someone still on Paper taps once: they get the terminal dark, not `light`.
-  assert.equal(nextTheme('paper'), 'terminal');
-  assert.equal(nextTheme('light'), 'terminal');
-  assert.equal(nextTheme('dim'), 'terminal-light');
-  assert.equal(nextTheme('dark'), 'terminal-light');
+test('a legacy skin leaves for the DEFAULT pair on the first tap, and stays', () => {
+  // Someone still on Paper taps once: they get the default design's dark side
+  // (Corporate since 2026-09-28), not `light`.
+  assert.equal(nextTheme('paper'), 'corporate-dark');
+  assert.equal(nextTheme('light'), 'corporate-dark');
+  assert.equal(nextTheme('dim'), 'corporate');
+  assert.equal(nextTheme('dark'), 'corporate');
   // …and tapping back does not return them to the legacy skin, by design.
-  assert.equal(nextTheme(nextTheme('paper')), 'terminal-light');
+  assert.equal(nextTheme(nextTheme('paper')), 'corporate');
+});
+
+// ── Corporate becomes the default (owner, 2026-09-28) ───────────────────────
+// "make Corporate the default, but color preference (light or dark) follow
+// the user's current preference."
+
+test('every saved older skin moves to Corporate on its own side — dark stays dark, light stays light', () => {
+  for (const th of THEMES) {
+    if (th.value === 'corporate' || th.value === 'corporate-dark') {
+      assert.equal(LEGACY_THEME_MIGRATION[th.value], undefined, `${th.value} is already corporate — nothing to move`);
+      continue;
+    }
+    const to = LEGACY_THEME_MIGRATION[th.value];
+    assert.ok(to === 'corporate' || to === 'corporate-dark', `${th.value} is not moved onto the corporate pair`);
+    assert.equal(isLightTheme(to), isLightTheme(th.value), `${th.value} → ${to} changed brightness`);
+  }
+  assert.equal(DEFAULT_THEME, 'corporate');
+});
+
+test('the move runs once, before first paint, and also moves the cached company default', () => {
+  assert.match(THEME_BOOT_SCRIPT, /icaproc_theme_migrated_v3/);
+  assert.ok(THEME_BOOT_SCRIPT.includes('l.setItem(D,m[d])'), 'the cached company default is not migrated');
 });
 
 // ── The corporate pair (2026-09-27): a second design, flipped within itself ──
@@ -94,9 +117,9 @@ test('picking a side lands on the offered skin of that brightness, in your own p
       if (pair) assert.ok(pair.includes(to), `${th.value} left its own pair for ${to}`);
     }
   }
-  // With no skin to go by, the terminal pair — the default design.
-  assert.equal(pickOffered(false), 'terminal');
-  assert.equal(pickOffered(true), 'terminal-light');
+  // With no skin to go by, the default design — Corporate.
+  assert.equal(pickOffered(false), 'corporate-dark');
+  assert.equal(pickOffered(true), 'corporate');
 });
 
 test('picking the side you are already on is a no-op, from any skin', () => {

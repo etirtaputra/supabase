@@ -29,7 +29,8 @@ export type { ThemeName };
 export const THEME_STORAGE_KEY = 'icaproc_theme';
 /** Cached copy of Settings › Appearance's company default (for the boot script). */
 export const THEME_DEFAULT_KEY = 'icaproc_theme_default';
-export const DEFAULT_THEME: ThemeName = 'terminal';
+// Corporate since 2026-09-28 (owner: "make Corporate the default").
+export const DEFAULT_THEME: ThemeName = 'corporate';
 
 /**
  * The skins Settings › Appearance OFFERS as a house default (owner, 2026-08-28:
@@ -48,19 +49,19 @@ export const DEFAULT_THEME: ThemeName = 'terminal';
  * picker; the menu became a one-tap switch on 2026-08-28 and the duplicate
  * went with it.)
  */
-export const OFFERED_THEME_VALUES: ThemeName[] = ['terminal', 'terminal-light', 'corporate-dark', 'corporate'];
+export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate', 'terminal', 'terminal-light'];
 
 /**
  * The offered skins come in PAIRS — one dark, one light, same design — and the
  * brightness switch moves within the pair you are in. Before the corporate
  * pair (owner, 2026-09-27) there was only one pair and "the offered skin of
  * that brightness" was a single answer; with two, a tap from Corporate must
- * land on Corporate Dark, not on Terminal. Terminal comes first: it is the
- * pair a legacy skin leaves for.
+ * land on Corporate Dark, not on Terminal. The FIRST pair is where a skin
+ * outside every pair lands — Corporate since it became the default.
  */
 export const THEME_PAIRS: [dark: ThemeName, light: ThemeName][] = [
-  ['terminal', 'terminal-light'],
   ['corporate-dark', 'corporate'],
+  ['terminal', 'terminal-light'],
 ];
 
 /**
@@ -100,20 +101,25 @@ export const pairOf = (t: ThemeName): [ThemeName, ThemeName] | null =>
   THEME_PAIRS.find((p) => p.includes(t)) ?? null;
 
 /**
- * What a browser that chose a skin BEFORE the terminal pair existed should
- * see now. The owner's rule: everyone lands on the terminal skin, but whether
- * it is the dark or the light one follows what they already preferred.
+ * Where a browser's SAVED choice goes, once. The owner's rule, stated twice:
+ * 2026-08-21 "everyone lands on the terminal skin, but whether it is the dark
+ * or the light one follows what they already preferred"; 2026-09-28 the same
+ * again for Corporate — "make Corporate the default, but color preference
+ * (light or dark) follow the user's current preference".
  *
- * Applied ONCE, guarded by a marker, because it must not fight the person: if
- * someone deliberately picks Paper from Settings tomorrow, that is a choice,
- * not a stale preference, and re-mapping it every load would make the setting
- * look broken.
+ * So every older skin maps onto the corporate pair BY BRIGHTNESS. The company
+ * default was already Corporate (Settings, 2026-09-28), so a browser that never
+ * chose was already on it; this moves the ones that had tapped the switch.
+ *
+ * Applied ONCE per browser, guarded by a new marker (v3 — a browser that ran
+ * the v2 terminal move runs this one too), because it must not fight the
+ * person: anyone who picks Terminal from Settings afterwards keeps it.
  */
 export const LEGACY_THEME_MIGRATION: Record<string, ThemeName> = {
-  dark: 'terminal', dim: 'terminal',
-  light: 'terminal-light', paper: 'terminal-light',
+  dark: 'corporate-dark', dim: 'corporate-dark', terminal: 'corporate-dark',
+  light: 'corporate', paper: 'corporate', 'terminal-light': 'corporate',
 };
-export const THEME_MIGRATED_KEY = 'icaproc_theme_migrated_v2';
+export const THEME_MIGRATED_KEY = 'icaproc_theme_migrated_v3';
 
 /**
  * Order = the Appearance switcher's order: the two darks, then the two lights.
@@ -133,6 +139,13 @@ export const THEMES: {
     swatch: { bg: '#eaecef', card: '#f8f9fa', ink: '#26272b', accent: '#17937c' } },
   { value: 'paper', label: 'Paper', blurb: 'Warm light — cream, the gentlest for all-day reading',
     swatch: { bg: '#ece6d7', card: '#faf7ef', ink: '#2b2720', accent: '#17937c' } },
+  // The corporate pair (2026-09-27): the Shop's and the printed documents'
+  // navy as the action colour, cool slate neutrals, IBM Plex Sans. Swatches
+  // are the REAL values from CORPORATE_SURFACES / BRAND in the generator.
+  { value: 'corporate', label: 'Corporate', blurb: 'Company navy on white — the colours of our documents and Shop, IBM Plex type, calm labels',
+    swatch: { bg: '#f3f5f8', card: '#ffffff', ink: '#0b1f3a', accent: '#1f5aa8' } },
+  { value: 'corporate-dark', label: 'Corporate Dark', blurb: 'The same corporate look on navy-graphite — for dim rooms, never pure black',
+    swatch: { bg: '#1b2431', card: '#212a39', ink: '#f0f3f7', accent: '#2f6fc4' } },
   // The terminal pair (2026-08-21). Cues from a trading screen: flat panels or
   // plain white cards, hairline separators instead of ringed edges, market
   // green/red rather than the house teal, squarer corners, and Inter with
@@ -145,13 +158,6 @@ export const THEMES: {
     swatch: { bg: '#1e222a', card: '#232730', ink: '#e8eaee', accent: '#0ecb81' } },
   { value: 'terminal-light', label: 'Terminal Light', blurb: 'Trading-desk light — white cards on soft grey, the same figures',
     swatch: { bg: '#f6f7f9', card: '#ffffff', ink: '#0d0e11', accent: '#089981' } },
-  // The corporate pair (2026-09-27): the Shop's and the printed documents'
-  // navy as the action colour, cool slate neutrals, IBM Plex Sans. Swatches
-  // are the REAL values from CORPORATE_SURFACES / BRAND in the generator.
-  { value: 'corporate', label: 'Corporate', blurb: 'Company navy on white — the colours of our documents and Shop, IBM Plex type, calm labels',
-    swatch: { bg: '#f3f5f8', card: '#ffffff', ink: '#0b1f3a', accent: '#1f5aa8' } },
-  { value: 'corporate-dark', label: 'Corporate Dark', blurb: 'The same corporate look on navy-graphite — for dim rooms, never pure black',
-    swatch: { bg: '#1b2431', card: '#212a39', ink: '#f0f3f7', accent: '#2f6fc4' } },
 ];
 
 export const isTheme = (v: unknown): v is ThemeName =>
@@ -168,11 +174,9 @@ export const isTheme = (v: unknown): v is ThemeName =>
  */
 export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light','corporate','corporate-dark'];var l=window.localStorage;var K=${JSON.stringify(
   THEME_STORAGE_KEY,
-)};var t=l.getItem(K);var M=${JSON.stringify(THEME_MIGRATED_KEY)};if(!l.getItem(M)){var m=${JSON.stringify(
+)};var D=${JSON.stringify(THEME_DEFAULT_KEY)};var t=l.getItem(K);var M=${JSON.stringify(THEME_MIGRATED_KEY)};if(!l.getItem(M)){var m=${JSON.stringify(
   LEGACY_THEME_MIGRATION,
-)};if(t&&m[t]){t=m[t];l.setItem(K,t);}l.setItem(M,'1');}if(v.indexOf(t)<0){t=l.getItem(${JSON.stringify(
-  THEME_DEFAULT_KEY,
-)});}if(v.indexOf(t)>=0&&t!==${JSON.stringify(DEFAULT_THEME)}){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
+)};if(t&&m[t]){t=m[t];l.setItem(K,t);}var d=l.getItem(D);if(d&&m[d]){l.setItem(D,m[d]);}l.setItem(M,'1');}if(v.indexOf(t)<0){t=l.getItem(D);}if(v.indexOf(t)>=0&&t!==${JSON.stringify(DEFAULT_THEME)}){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
 
 let current: ThemeName = DEFAULT_THEME;
 const listeners = new Set<(t: ThemeName) => void>();
@@ -234,7 +238,7 @@ export function getTheme(): ThemeName {
 }
 
 /**
- * Migrate a pre-terminal preference, once. The boot script does this before
+ * Move a saved older skin onto the corporate pair, once. The boot script does this before
  * first paint; this is the same rule for any path that reaches storage first
  * (SSR hydration, a tab opened while the script was blocked). Sharing the
  * marker means whichever runs first wins and the other is a no-op.
@@ -245,11 +249,16 @@ function migrateLegacyChoice(): void {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     const mapped = stored ? LEGACY_THEME_MIGRATION[stored] : undefined;
     if (mapped) window.localStorage.setItem(THEME_STORAGE_KEY, mapped);
+    // The cached company default too, so a browser that remembered "terminal"
+    // does not flash it before Settings loads and corrects the cache.
+    const cached = window.localStorage.getItem(THEME_DEFAULT_KEY);
+    const cachedMapped = cached ? LEGACY_THEME_MIGRATION[cached] : undefined;
+    if (cachedMapped) window.localStorage.setItem(THEME_DEFAULT_KEY, cachedMapped);
     window.localStorage.setItem(THEME_MIGRATED_KEY, '1');
   } catch { /* private mode — the default simply applies */ }
 }
 
-/** Resolve the stored preference: personal → company default → terminal. */
+/** Resolve the stored preference: personal → company default → corporate. */
 export function readStoredTheme(): ThemeName {
   if (typeof window === 'undefined') return DEFAULT_THEME;
   try {

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-28** · head of `main` at that point: `2d81ac2` (see §4, §6)
+**Last updated: 2026-09-28** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -111,7 +111,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 838 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 840 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
@@ -126,7 +126,36 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-28 (latest) — Rp once in the header; documents in IBM Plex Sans
+### 2026-09-28 (latest) — Corporate is the default; brightness kept
+
+Owner: *"make Corporate the default, but color preference (light or dark)
+follow the user's current preference."*
+
+The company default (`40.0_settings.defaultTheme`) was ALREADY `corporate` —
+the owner saved it that morning — so browsers that never chose were already
+on it. What remained: browsers holding a personal pick (anyone who ever tapped
+sun/moon), and the code's own fallback.
+
+- `LEGACY_THEME_MIGRATION` (v3 marker, once per browser, in the boot script
+  AND `migrateLegacyChoice`) maps every older skin onto the corporate pair by
+  brightness: terminal/dark/dim → corporate-dark; terminal-light/light/paper →
+  corporate. It also rewrites the CACHED company default, so a stale
+  "terminal" cache cannot flash before Settings loads.
+- `DEFAULT_THEME = 'corporate'`; `THEME_PAIRS` lists corporate first (where a
+  skin outside every pair lands); Settings shows the corporate cards first;
+  `DEFAULT_SETTINGS.defaultTheme = 'corporate'`.
+- Generator: the unattributed `:root` block is now CORPORATE (light), and
+  `CORPORATE_SHELL_CSS` includes `:root:not([data-theme])`; the terminal
+  geometry is scoped to the two explicit terminal attributes. layout.tsx:
+  unattributed = light colour-scheme + dark chevron; `themeColor` #f3f5f8.
+- Verified in Chromium against the real boot script, 8 storage states:
+  Terminal→Corporate Dark, Terminal Light→Corporate, Paper→Corporate, stale
+  terminal cache→Corporate Dark, brand-new→Corporate, and a deliberate
+  Terminal pick AFTER the move is kept.
+
+840 tests.
+
+### 2026-09-28 — Rp once in the header; documents in IBM Plex Sans
 
 Owner: "yes to both, go ahead" — both apply to EVERY skin (content, not dress).
 

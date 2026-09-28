@@ -376,24 +376,24 @@ const fontBlock = (f) => `--font-app:${f.sans};--font-mono-app:${f.mono}`;
  * theme — but they CAN be overridden for one theme from here, which keeps the
  * other four skins byte-identical to what they were.
  */
-// `:root:not([data-theme])` is the default terminal skin — without it the
-// geometry below would apply to every skin EXCEPT the one most people see.
-const T = ':root:not([data-theme])';
+// Terminal was the unattributed default until 2026-09-28; Corporate is now
+// (CORPORATE_SHELL_CSS carries `:root:not([data-theme])`). So the terminal
+// geometry is scoped to the two explicit terminal attributes only.
 const TL = ':root[data-theme="terminal"]';
 const TT = ':root[data-theme="terminal-light"]';
 const TERMINAL_SHELL_CSS = [
   // Corners: the house look is rounded-2xl cards; a terminal is nearly square.
-  `${T} .rounded-2xl,${TL} .rounded-2xl,${TT} .rounded-2xl{border-radius:.5rem}`,
-  `${T} .rounded-xl,${TL} .rounded-xl,${TT} .rounded-xl{border-radius:.375rem}`,
-  `${T} .rounded-lg,${TL} .rounded-lg,${TT} .rounded-lg{border-radius:.25rem}`,
+  `${TL} .rounded-2xl,${TT} .rounded-2xl{border-radius:.5rem}`,
+  `${TL} .rounded-xl,${TT} .rounded-xl{border-radius:.375rem}`,
+  `${TL} .rounded-lg,${TT} .rounded-lg{border-radius:.25rem}`,
   // Panels sit flat: the decorative inner ring goes, the hairline border stays.
   // NB: this is an ATTRIBUTE substring match, so the value is the literal
   // class name as written in the HTML — `ring-white/5`, with no CSS escaping.
   // Escaping it the way a class SELECTOR needs (.ring-white\\/5) makes the
   // rule match a backslash that is not there, and it silently never applies.
-  `${T} [class*="ring-white/5"],${TL} [class*="ring-white/5"],${TT} [class*="ring-white/5"]{--tw-ring-color:transparent}`,
+  `${TL} [class*="ring-white/5"],${TT} [class*="ring-white/5"]{--tw-ring-color:transparent}`,
   // Every figure in the app lines up, not only the ones already marked.
-  `${T},${TL},${TT}{font-feature-settings:"tnum" 1,"cv01" 1;letter-spacing:-0.006em}`,
+  `${TL},${TT}{font-feature-settings:"tnum" 1,"cv01" 1;letter-spacing:-0.006em}`,
   // ...but NOT inside an SVG. `-0.006em` is resolved once, here, against the
   // root's 16px — so it inherits everywhere as the computed length -0.096px.
   // In HTML at 12-16px that is the hair of tightening it was meant to be. In
@@ -402,7 +402,7 @@ const TERMINAL_SHELL_CSS = [
   // tracking per letter: the donut's centre label collapsed into a pile of
   // overlapping glyphs. Measured, not guessed — "Northwind Po…" reported a
   // bounding box 0.576 units wide where ~1.3 was due.
-  `${T} svg text,${TL} svg text,${TT} svg text{letter-spacing:normal}`,
+  `${TL} svg text,${TT} svg text{letter-spacing:normal}`,
   // A light terminal draws its own separators, so shadows would double them.
   ':root[data-theme="terminal-light"] [class*="shadow-black"]{--tw-shadow-color:rgb(13 14 17 / 0.08);--tw-shadow:var(--tw-shadow-colored)}',
   // Sticky headers are translucent-with-blur, which reads as depth on the
@@ -410,7 +410,7 @@ const TERMINAL_SHELL_CSS = [
   // near-black page lets whatever is scrolling underneath ghost through the
   // header. A trading screen's chrome is solid, so make it solid. (Attribute
   // substring match, so the value is the literal class name — no escaping.)
-  `${T} [class*="bg-chrome/80"],${TL} [class*="bg-chrome/80"],${TT} [class*="bg-chrome/80"]{background-color:rgb(var(--c-chrome));backdrop-filter:none}`,
+  `${TL} [class*="bg-chrome/80"],${TT} [class*="bg-chrome/80"]{background-color:rgb(var(--c-chrome));backdrop-filter:none}`,
 ].join('\n');
 
 /**
@@ -418,9 +418,13 @@ const TERMINAL_SHELL_CSS = [
  * the same technique as TERMINAL_SHELL_CSS, and for the same reason: the look
  * lives in ~4,200 class sites that cannot be re-authored per skin.
  */
-const C = ':root[data-theme="corporate"]';
+// The DEFAULT since 2026-09-28 (owner: "make Corporate the default"): an
+// unattributed <html> is Corporate light, so it is a corporate root too.
+const CL = [':root:not([data-theme])', ':root[data-theme="corporate"]'];
 const CD = ':root[data-theme="corporate-dark"]';
-const both = (sel) => `${C} ${sel},${CD} ${sel}`;
+const C = CL.join(',');
+const both = (sel) => [...CL, CD].map((r) => `${r} ${sel}`).join(',');
+const lightOnly = (sel) => CL.map((r) => `${r} ${sel}`).join(',');
 const CORPORATE_SHELL_CSS = [
   // Corners: measured, not square — between the house's pill-soft cards and
   // the terminal's near-square ones.
@@ -478,8 +482,8 @@ const CORPORATE_SHELL_CSS = [
   `${both('.tone-wait[class*="bg-"]')}{background-color:rgb(var(--c-amber-500) / .15);border-color:rgb(var(--c-amber-500) / .3)}`,
   // Light only: cards lift off the page with a hairline shadow, the way a
   // sheet of paper does, instead of relying on the border alone.
-  `${C} [class~="rounded-2xl"][class~="border"]{box-shadow:0 1px 2px rgb(16 24 40 / .05)}`,
-  `${C} [class*="shadow-black"]{--tw-shadow-color:rgb(16 24 40 / .10);--tw-shadow:var(--tw-shadow-colored)}`,
+  `${lightOnly('[class~="rounded-2xl"][class~="border"]')}{box-shadow:0 1px 2px rgb(16 24 40 / .05)}`,
+  `${lightOnly('[class*="shadow-black"]')}{--tw-shadow-color:rgb(16 24 40 / .10);--tw-shadow:var(--tw-shadow-colored)}`,
 ].join('\n');
 
 const varName = (s, step) => step === 'DEFAULT' ? `--c-${s}` : `--c-${s}-${step}`;
@@ -502,7 +506,9 @@ const SHADOW_FIX = ':root[data-theme="light"] [class*="shadow-black"],:root[data
 // block now re-states the house typeface, because :root no longer carries it —
 // without that, choosing Dark would keep the terminal's Inter.
 const css = [
-  `:root{${block(terminal, APP_BG_EXTRA.terminal)};${fontBlock(FONTS.terminal)}}`,
+  // CORPORATE IS THE UNATTRIBUTED DEFAULT (owner, 2026-09-28), as terminal
+  // was before it: the skin that renders before any script has run.
+  `:root{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)}}`,
   `:root[data-theme="terminal"]{${block(terminal, APP_BG_EXTRA.terminal)};${fontBlock(FONTS.terminal)}}`,
   `:root[data-theme="terminal-light"]{${block(terminalLight, APP_BG_EXTRA['terminal-light'])};${fontBlock(FONTS.terminal)}}`,
   `:root[data-theme="dark"]{${block(dark, APP_BG.dark)};${fontBlock(FONTS.house)}}`,

@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-28T07:02:51Z",
+    title: "Corporate kini tampilan bawaan untuk semua orang",
+    details: [
+      "Semua orang kini memakai tampilan Corporate. Pilihan terang atau gelap masing-masing tetap: yang tadinya memakai Terminal (gelap) kini Corporate Dark, yang tadinya Terminal Light kini Corporate (terang).",
+      "Pindahnya hanya sekali. Tombol matahari/bulan di menu ICAPROC tetap bisa mengganti terang/gelap kapan saja, dan Terminal masih tersedia di Pengaturan › Tampilan bagi yang ingin kembali.",
+    ],
+  },
+  {
     at: "2026-09-28T06:31:36Z",
     title: "“Rp” cukup sekali di judul kolom; dokumen cetak memakai huruf IBM Plex",
     details: [
