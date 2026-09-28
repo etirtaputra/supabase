@@ -11,6 +11,8 @@ import type {
 } from '../../types/database';
 import { CATEGORY_LABELS } from '../../constants/categoryUnits';
 import { PRINCIPAL_CATS, BANK_FEE_CATS } from '../../constants/costCategories';
+import { fmtMoneyCell, moneyUnit } from '@/lib/formatters';
+import { useT } from '@/hooks/useT';
 
 interface Props {
   components: Component[];
@@ -86,6 +88,7 @@ type ViewId = 'category' | 'vendor' | 'product';
 export default function CostBreakdown({
   components, pos, poItems, poCosts, suppliers, quotes, isLoading,
 }: Props) {
+  const { t } = useT();
   const [view, setView] = useState<ViewId>('category');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'total' | 'product' | 'bank' | 'landed' | 'tax'>('total');
@@ -354,7 +357,7 @@ export default function CostBreakdown({
                 className="text-right px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] cursor-pointer hover:text-white transition-colors whitespace-nowrap select-none"
                 onClick={() => handleSort('total')}
               >
-                Total (IDR) {sortBy === 'total' && <span className="text-violet-400">{sortDir === 'desc' ? '▼' : '▲'}</span>}
+                {t('Total')} ({moneyUnit()}) {sortBy === 'total' && <span className="text-violet-400">{sortDir === 'desc' ? '▼' : '▲'}</span>}
               </th>
               <th className="px-4 py-3 text-slate-500 font-semibold uppercase tracking-wider text-[10px] min-w-[180px]" />
               {BUCKETS.map((b) => (
@@ -384,7 +387,7 @@ export default function CostBreakdown({
                   </td>
                   {/* Total */}
                   <td className="px-4 py-3 text-right tabular-nums text-slate-200 font-semibold whitespace-nowrap">
-                    {fmtIdr(tot)}
+                    {fmtMoneyCell(tot)}
                   </td>
                   {/* Bar */}
                   <td className="px-4 py-3">

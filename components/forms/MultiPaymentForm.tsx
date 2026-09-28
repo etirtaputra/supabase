@@ -13,7 +13,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import type { PurchaseOrder, Supplier, PriceQuote, POCost } from '@/types/database';
 import { ENUMS } from '@/constants/enums';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
-import { fmtIdr } from '@/lib/formatters';
+import { fmtIdr, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { useT } from '@/hooks/useT';
 import { fetchBankAccounts, fetchAccountCompanies, accountLabelWithCompany, defaultAccountFor, type BankAccount } from '@/lib/banks';
 
@@ -534,9 +534,9 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
               <thead>
                 <tr className="border-b border-slate-700">
                   <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase text-slate-500">PO</th>
-                  <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase text-slate-500">Outstanding</th>
+                  <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase text-slate-500">{t('Outstanding')} ({moneyUnit()})</th>
                   <th className="text-left py-2 pr-4 text-[11px] font-bold uppercase text-slate-500">Share</th>
-                  <th className="text-left py-2 text-[11px] font-bold uppercase text-slate-500">Allocated (IDR)</th>
+                  <th className="text-left py-2 text-[11px] font-bold uppercase text-slate-500">{t('Allocated')} ({moneyUnit()})</th>
                 </tr>
               </thead>
               <tbody>
@@ -558,9 +558,9 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                         </div>
                         {po.pi_number && <div className="text-[11px] font-medium text-slate-300 mt-0.5">{po.pi_number}</div>}
                       </td>
-                      <td className="py-2.5 pr-4 text-xs text-slate-400">
-                        {fmtIdr(poOutstanding[key] ?? 0)}
-                        <span className="block text-[10px] text-slate-600">of {fmtIdr(poIdrValues[key] ?? 0)}</span>
+                      <td className="py-2.5 pr-4 text-xs text-slate-400 tabular-nums">
+                        {fmtMoneyCell(poOutstanding[key] ?? 0)}
+                        <span className="block text-[10px] text-slate-600">of {fmtMoneyCell(poIdrValues[key] ?? 0)}</span>
                       </td>
                       <td className="py-2.5 pr-4 text-xs text-slate-400">{share.toFixed(1)}%</td>
                       <td className="py-2.5">
@@ -585,11 +585,11 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                   <td colSpan={3} className="pt-3 text-xs font-bold text-slate-400">Total allocated</td>
                   <td className="pt-3">
                     <span className={`text-sm font-bold tabular-nums ${Math.abs(delta) <= 1 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {fmtIdr(allocatedTotal)}
+                      {fmtMoneyCell(allocatedTotal)}
                     </span>
                     {Math.abs(delta) > 1 && (
                       <span className="text-xs text-red-400 ml-2">
-                        {delta > 0 ? `${fmtIdr(delta)} unallocated` : `${fmtIdr(Math.abs(delta))} over`}
+                        {delta > 0 ? `${fmtMoneyCell(delta)} unallocated` : `${fmtMoneyCell(Math.abs(delta))} over`}
                       </span>
                     )}
                     {Math.abs(delta) <= 1 && <span className="text-xs text-emerald-600 ml-2">✓ balanced</span>}

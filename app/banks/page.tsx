@@ -31,7 +31,7 @@ import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { ALL_TIME, inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
 import { accountLabel, accountLabelWithCompany, fetchStatement, signedAmount, type BankAccount, type StatementRow } from '@/lib/banks';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -105,6 +105,9 @@ export default function BanksPage() {
   useEffect(() => { if (canView) loadAccounts(); }, [canView, loadAccounts]);
 
   const account = accounts.find((a) => a.bank_account_id === selected) ?? null;
+  // The statement table says its unit once, in the header — the account's own
+  // currency (an IDR account reads "Rp", the configured symbol).
+  const stmtUnit = !account?.currency || account.currency === 'IDR' ? moneyUnit() : account.currency;
 
   const loadStatement = useCallback(async (acc: BankAccount) => {
     setRowsLoading(true);
@@ -427,9 +430,9 @@ export default function BanksPage() {
                           <th className="text-left px-4 py-2 font-semibold">Date</th>
                           <th className="text-left px-3 py-2 font-semibold">Description</th>
                           <th className="text-left px-3 py-2 font-semibold">Reference</th>
-                          <th className="text-right px-3 py-2 font-semibold">In</th>
-                          {canSeeSpend && <th className="text-right px-3 py-2 font-semibold">Out</th>}
-                          {canSeeSpend && <th className="text-right px-4 py-2 font-semibold">Balance</th>}
+                          <th className="text-right px-3 py-2 font-semibold">{t('In')} ({stmtUnit})</th>
+                          {canSeeSpend && <th className="text-right px-3 py-2 font-semibold">{t('Out')} ({stmtUnit})</th>}
+                          {canSeeSpend && <th className="text-right px-4 py-2 font-semibold">{t('Balance')} ({stmtUnit})</th>}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60">
@@ -450,9 +453,9 @@ export default function BanksPage() {
                                 <span className="ml-1.5 text-slate-600">({r.original.currency} {fmtInt(r.original.amount)})</span>
                               )}
                             </td>
-                            <td className={`px-3 text-right tabular-nums text-emerald-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'in' ? fmtInt(r.amount) : ''}</td>
-                            {canSeeSpend && <td className={`px-3 text-right tabular-nums text-sky-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'out' ? fmtInt(r.amount) : ''}</td>}
-                            {canSeeSpend && <td className={`px-4 text-right tabular-nums text-slate-300 ${compact ? 'py-1' : 'py-2'}`}>{fmtInt(view.runningById.get(r.id) ?? 0)}</td>}
+                            <td className={`px-3 text-right tabular-nums text-emerald-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'in' ? fmtMoneyCell(r.amount) : ''}</td>
+                            {canSeeSpend && <td className={`px-3 text-right tabular-nums text-sky-300 ${compact ? 'py-1' : 'py-2'}`}>{r.direction === 'out' ? fmtMoneyCell(r.amount) : ''}</td>}
+                            {canSeeSpend && <td className={`px-4 text-right tabular-nums text-slate-300 ${compact ? 'py-1' : 'py-2'}`}>{fmtMoneyCell(view.runningById.get(r.id) ?? 0)}</td>}
                           </tr>
                         ))}
                       </tbody>

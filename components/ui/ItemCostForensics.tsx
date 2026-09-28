@@ -22,7 +22,7 @@ import type {
 } from '@/types/database';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
 import { computeTUCMap, fxRateOf, fxAgeDays, FX_STALE_DAYS, type FxRate, type TUCResult } from '@/lib/computeTUC';
-import { fmtCcy, fmtDay, fmtIdr, fmtInt } from '@/lib/formatters';
+import { fmtCcy, fmtDay, fmtIdr, fmtInt, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { priceMovement, PRICE_ARROW, PRICE_TONE } from '@/lib/priceMovement';
 import DealLink from './DealLink';
 import { useT } from '@/hooks/useT';
@@ -343,7 +343,7 @@ export default function ItemCostForensics({
                       <th className="px-3 py-2 text-right">Qty</th>
                       <th className="px-3 py-2 text-right">Unit Price</th>
                       <th className="px-3 py-2 text-right">Total</th>
-                      <th className="px-3 py-2 text-right" title="Converted at the newest FX evidence — a rate committed on a live PO beats an older settled one">≈ IDR</th>
+                      <th className="px-3 py-2 text-right" title="Converted at the newest FX evidence — a rate committed on a live PO beats an older settled one">{t('Equiv.')} ({moneyUnit()})</th>
                       <th className="px-3 py-2 text-left">Status</th>
                     </tr>
                   </thead>
@@ -365,7 +365,7 @@ export default function ItemCostForensics({
                           <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap"
                             title={cur === 'IDR' ? undefined
                               : `@ ${fmtInt(rate)} — ${obs ? `${obs.source === 'settled' ? 'settled payment' : obs.label} · ${obs.date}` : 'no purchase history — fallback rate'}`}>
-                            <span className={stale ? 'text-amber-300' : 'text-slate-300'}>{fmtIdr(qi.unit_price * rate)}</span>
+                            <span className={stale ? 'text-amber-300' : 'text-slate-300'}>{fmtMoneyCell(qi.unit_price * rate)}</span>
                             {stale && <span className="block text-[9px] text-amber-500/80">stale FX</span>}
                           </td>
                           <td className="px-3 py-2">
@@ -398,7 +398,7 @@ export default function ItemCostForensics({
                       <th className="px-3 py-2 text-right">Qty</th>
                       <th className="px-3 py-2 text-right">Unit Cost</th>
                       <th className="px-3 py-2 text-right">Line Share</th>
-                      <th className="px-3 py-2 text-right text-amber-400/70">True Unit Cost</th>
+                      <th className="px-3 py-2 text-right text-amber-400/70">{t('True Unit Cost')} ({moneyUnit()})</th>
                       {showLead && <th className="px-3 py-2 text-right" title="PO date → actual goods receipt">Lead</th>}
                       <th className="px-3 py-2 text-left">Status</th>
                     </tr>
@@ -415,7 +415,7 @@ export default function ItemCostForensics({
                         <td className="px-3 py-2 text-right text-slate-400 tabular-nums">{(a.lineShare * 100).toFixed(1)}%</td>
                         {a.hasBalance && a.tuc > 0 ? (
                           <td className="px-3 py-2 text-right bg-amber-500/5">
-                            <p className="text-amber-400 font-bold tabular-nums whitespace-nowrap">{fmtIdr(a.tuc)}</p>
+                            <p className="text-amber-400 font-bold tabular-nums whitespace-nowrap">{fmtMoneyCell(a.tuc)}</p>
                             {a.total > 0 && (a.allocB > 0 || a.allocL > 0) && (
                               <p className="text-[9px] tabular-nums mt-0.5 whitespace-nowrap">
                                 <span className="text-sky-400">{((a.allocP / a.total) * 100).toFixed(0)}%</span>

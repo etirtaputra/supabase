@@ -14,7 +14,7 @@
  * Everything on the list filters and sorts both ways, and the search box
  * suggests as you type (numbers, customers, projects, end users).
  */
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
@@ -30,7 +30,7 @@ import LayoutToggle from '@/components/ui/LayoutToggle';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import { useListLayout } from '@/hooks/useListLayout';
 import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { isOfferable, visibleBrands, VISIBILITY_COLUMNS } from '@/lib/itemVisibility';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -608,7 +608,7 @@ export default function SupportLettersPage() {
                 <Th label={t('Items')} k="items" sort={sort} onSort={toggleSort} right />
                 <Th label={t('Sales')} k="rep" sort={sort} onSort={toggleSort} />
                 <Th label={t('Creator')} k="author" sort={sort} onSort={toggleSort} />
-                <Th label={t('Fee')} k="fee" sort={sort} onSort={toggleSort} />
+                <Th label={<>{t('Fee')} ({moneyUnit()})</>} k="fee" sort={sort} onSort={toggleSort} />
                 <Th label={t('Status')} k="status" sort={sort} onSort={toggleSort} />
                 <th className="px-4 py-2.5 text-right font-semibold">{t('Actions')}</th>
               </tr>
@@ -648,7 +648,7 @@ export default function SupportLettersPage() {
                           className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition-colors ${
                             l.fee_paid_at ? 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25' : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
                           } ${canEdit ? '' : 'cursor-default'}`}>
-                          {l.fee_paid_at ? tf('Paid {date}', { date: fmtDay(l.fee_paid_at) }) : `${t('Unpaid')} · ${fmtRupiah(Number(l.fee_amount))}`}
+                          {l.fee_paid_at ? tf('Paid {date}', { date: fmtDay(l.fee_paid_at) }) : `${t('Unpaid')} · ${fmtMoneyCell(Number(l.fee_amount))}`}
                         </button>
                       ) : <span className="text-slate-700 text-[10px]">—</span>}
                     </td>
@@ -1021,7 +1021,7 @@ export default function SupportLettersPage() {
 
 /** Sortable header cell — click toggles ▲/▼, like every other list. */
 function Th({ label, k, sort, onSort, right, className }: {
-  label: string; k: SortKey; sort: { key: SortKey; dir: 1 | -1 }; onSort: (k: SortKey) => void;
+  label: ReactNode; k: SortKey; sort: { key: SortKey; dir: 1 | -1 }; onSort: (k: SortKey) => void;
   right?: boolean; className?: string;
 }) {
   const active = sort.key === k;

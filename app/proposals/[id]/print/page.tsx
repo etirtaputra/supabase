@@ -13,6 +13,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
+import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
 
 const fmtDate = (d: string) => fmtDayDoc(d);
 
@@ -146,7 +147,7 @@ export default function PrintPage() {
     <>
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Rubik, -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
+        body { font-family: ${DOC_FONT_FAMILY}; line-height: ${DOC_LINE_HEIGHT}; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
         @page { size: A4; margin: 10mm 8mm; }
         @media print {
           .no-print { display: none !important; }

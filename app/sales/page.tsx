@@ -12,7 +12,7 @@ import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import SalesMigrationBanner from '@/components/ui/SalesMigrationBanner';
 import { SALES_STATUS as STATUS, milestoneIndex, displayDocNumber, docNumberCls } from '@/lib/salesStatus';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
@@ -339,10 +339,10 @@ export default function SalesListPage() {
 
         <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
           <div className={`hidden md:grid grid-cols-[175px_1fr_120px_120px_130px_100px] gap-3 border-b border-slate-800 text-[10px] font-semibold uppercase tracking-widest text-slate-500 ${compact ? 'px-3 py-1.5' : 'px-4 py-2.5'}`}>
-            {([['number', 'Number', ''], ['customer', 'Customer', ''], ['status', 'Status', ''], ['payment', 'Payment', ''], ['total', 'Total (excl. PPN)', 'justify-end'], ['updated', 'Updated', 'justify-end']] as [ColKey, string, string][]).map(([k, label, align]) => (
+            {([['number', 'Number', ''], ['customer', 'Customer', ''], ['status', 'Status', ''], ['payment', 'Payment', ''], ['total', 'Total excl. PPN', 'justify-end'], ['updated', 'Updated', 'justify-end']] as [ColKey, string, string][]).map(([k, label, align]) => (
               <button key={k} onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()} — click again to flip`}
                 className={`flex items-center gap-1 uppercase tracking-widest transition-colors ${align} ${colSort?.key === k ? 'text-slate-200' : 'hover:text-slate-300'}`}>
-                {label}
+                {t(label)}{k === 'total' && ` (${moneyUnit()})`}
                 <span className={`text-[8px] ${colSort?.key === k ? 'text-emerald-400' : 'text-transparent'}`}>
                   {colSort?.key === k && colSort.dir === 'desc' ? '▼' : '▲'}
                 </span>
@@ -484,7 +484,7 @@ export default function SalesListPage() {
                         </span>
                       )}
                       <span title={total !== netTotal ? `Rp ${fmtInt(netTotal)} before PPN · Rp ${fmtInt(total)} including PPN ${Number(q.ppn_pct) || 0}%` : undefined}
-                        className={`text-right tabular-nums text-slate-200 ${compact ? 'ml-auto flex-shrink-0 font-semibold text-[13px] md:font-normal md:text-sm' : ''}`}>{fmtInt(netTotal)}</span>
+                        className={`text-right tabular-nums text-slate-200 ${compact ? 'ml-auto flex-shrink-0 font-semibold text-[13px] md:font-normal md:text-sm' : ''}`}><span className="md:hidden">{moneyUnit()} </span>{fmtMoneyCell(netTotal)}</span>
                       <span className={`text-right text-[11px] text-slate-500 tabular-nums flex items-center justify-end gap-2 ${compact ? 'flex-shrink-0' : ''}`}>
                         <span className={compact ? 'hidden md:inline' : ''}>{fmtDay(q.updated_at)}</span>
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>

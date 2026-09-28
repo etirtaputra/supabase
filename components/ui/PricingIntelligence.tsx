@@ -25,7 +25,7 @@ import type {
 } from '@/types/database';
 
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
-import { fmtDay, fmtIdr, fmtNum } from '@/lib/formatters';
+import { fmtDay, fmtIdr, fmtMoneyCell, fmtNum, moneyUnit } from '@/lib/formatters';
 import { computePricing, PRICING_VERDICT_LABEL, type DemandLevel, type PricingVerdict } from '@/lib/pricing';
 import DealLink from './DealLink';
 import { useT } from '@/hooks/useT';
@@ -1086,7 +1086,7 @@ export default function PricingIntelligence({
                 <table className="w-full border-collapse text-xs">
                   <thead className="bg-slate-900/60">
                     <tr>
-                      {['Date', 'PI / Quote #', 'Quoted Price', 'IDR Equiv.', 'vs TUC', 'Qty', 'Status'].map((h) => (
+                      {['Date', 'PI / Quote #', 'Quoted Price', `${t('Equiv.')} (${moneyUnit()})`, 'vs TUC', 'Qty', 'Status'].map((h) => (
                         <th key={h} className="px-4 py-2.5 text-left font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -1121,7 +1121,7 @@ export default function PricingIntelligence({
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             {idrEquiv !== null ? (
-                              <span className="text-slate-400">{fmtIdr(idrEquiv)}</span>
+                              <span className="text-slate-400 tabular-nums">{fmtMoneyCell(idrEquiv)}</span>
                             ) : (
                               <span className="text-slate-600">—</span>
                             )}

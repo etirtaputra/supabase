@@ -13,7 +13,7 @@
  */
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fmtInt, fmtRupiah, fmtIdr, fmtDay } from '@/lib/formatters';
+import { fmtInt, fmtRupiah, fmtIdr, fmtDay, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 import { useT } from '@/hooks/useT';
 import { fetchTradePositions, type PositionRow, type PositionTotals } from '@/lib/tradePosition';
@@ -25,7 +25,7 @@ const toneOf = (n: number | null | undefined) =>
   n == null ? 'text-slate-600' : n > 0 ? 'text-emerald-300' : n < 0 ? 'text-red-400' : 'text-slate-300';
 
 export default function PositionPanel() {
-  const { tf } = useT();
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const [rows, setRows] = useState<PositionRow[]>([]);
   const [totals, setTotals] = useState<PositionTotals | null>(null);
@@ -118,15 +118,15 @@ export default function PositionPanel() {
             <table className="w-full min-w-[1400px]">
               <thead>
                 <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                  <th className="text-left px-3 py-2.5 font-semibold">Item</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">Bought</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">Avg PO</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">Sold</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">Avg INV</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">Position</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-amber-400/80" title="Break-even: below this the trade never recovers">Avg Position Cost</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">Mark</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">P&amp;L</th>
+                  <th className="text-left px-3 py-2.5 font-semibold">{t('Item')}</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">{t('Bought')}</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">{t('Avg PO')} ({moneyUnit()})</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">{t('Sold')}</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">{t('Avg INV')} ({moneyUnit()})</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">{t('Position')}</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-amber-400/80" title="Break-even: below this the trade never recovers">{t('Avg Position Cost')} ({moneyUnit()})</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">{t('Mark')} ({moneyUnit()})</th>
+                  <th className="text-right px-3 py-2.5 font-semibold">{t('P&L')} ({moneyUnit()})</th>
                   <th className="w-6" />
                 </tr>
               </thead>
@@ -142,20 +142,20 @@ export default function PositionPanel() {
                           <p className="text-[10px] text-slate-600 truncate">{[r.brand, r.category].filter(Boolean).join(' · ') || '—'}</p>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{fmtInt(r.poQty)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.avgPoPrice != null ? fmtIdr(r.avgPoPrice) : '—'}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.avgPoPrice != null ? fmtMoneyCell(r.avgPoPrice) : '—'}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.invQty > 0 ? fmtInt(r.invQty) : <span className="text-slate-700">—</span>}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.avgInvPrice != null ? fmtIdr(r.avgInvPrice) : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.avgInvPrice != null ? fmtMoneyCell(r.avgInvPrice) : <span className="text-slate-700">—</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-200 font-semibold">{fmtInt(r.posQty)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs font-bold">
                           {r.recovered
                             ? <span className="text-emerald-300">Recovered</span>
                             : r.avgPosCost != null
-                              ? <span className="text-amber-300">{fmtIdr(r.avgPosCost)}</span>
+                              ? <span className="text-amber-300">{fmtMoneyCell(r.avgPosCost)}</span>
                               : <span className="text-slate-700">—</span>}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.mark != null ? fmtIdr(r.mark) : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.mark != null ? fmtMoneyCell(r.mark) : <span className="text-slate-700">—</span>}</td>
                         <td className={`px-3 py-2 text-right tabular-nums text-xs font-bold ${toneOf(r.pnl)}`}>
-                          {r.pnl != null ? fmtIdr(r.pnl) : '—'}
+                          {r.pnl != null ? fmtMoneyCell(r.pnl) : '—'}
                           {r.roiPct != null && <span className="block text-[10px] font-normal opacity-70">{pctOf(r.roiPct)}</span>}
                         </td>
                         <td className="pr-3 text-slate-600">

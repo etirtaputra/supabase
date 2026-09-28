@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-28** · head of `main` at that point: `9c06953` (see §4, §6)
+**Last updated: 2026-09-28** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -111,7 +111,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 834 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 838 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
@@ -126,7 +126,36 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-28 (latest) — Corporate: readable small print, colour by meaning
+### 2026-09-28 (latest) — Rp once in the header; documents in IBM Plex Sans
+
+Owner: "yes to both, go ahead" — both apply to EVERY skin (content, not dress).
+
+**Money columns.** `moneyUnit()` + `fmtMoneyCell()` in `lib/formatters.ts`:
+the header says "Harga (Rp)", each row carries digits. Where a list's header
+row is hidden on phones, the row keeps `<span className="md:hidden">Rp </span>`.
+Done in pricing (floor audit, overrides, price grid, history), profitability,
+PositionPanel, CostBreakdown, products (tier price columns), items hub, item
+page (FX / tiers / movements), stock, suppliers, banks statement (unit = the
+account's currency), sales list, proposal editor (items + cost refresh),
+support-letter fee, MultiPaymentForm allocation, Deal Lookup's rupiah Total /
+Amount paid. **Kept on purpose:** mixed-currency columns (Deal Lookup "To
+transfer" and line items, PricingIntelligence tiers/competitors,
+ItemCostForensics), tiles, sentences, tooltips, chips. In all-caps headers
+the unit capitalises with them ("(RP)"), the statement convention.
+Guard: `lib/moneyColumns.test.ts` fails a `<td>` formatted with
+fmtRupiah/fmtIdr outside a named, reasoned exemption.
+
+**Documents.** `lib/documentType.ts` is the one home for the print pages'
+face: IBM Plex Sans, Rubik as fallback. Measured first: Plex is 3–5%
+NARROWER than Rubik at 9.5pt; its default line height is +10% (1.31 vs
+1.19em), so the body pins **1.19** — no line moves, no quote gains a page.
+Support letters keep their own 1.34. Test: `lib/documentType.test.ts`.
+(PDF amounts still carry "Rp" per line — not asked; the owner can decide.)
+
+Also: 'Tier' became a KEEPER (the office says "tier"); ~41 header entries.
+838 tests.
+
+### 2026-09-28 — Corporate: readable small print, colour by meaning
 
 Owner asked for "the most legible nicely aligned balance between fonts and
 numbers for corporate use" and colour; approved the proposal ("ok go ahead").

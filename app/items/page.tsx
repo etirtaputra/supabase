@@ -20,7 +20,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { rollUpByComponent, type BalanceRow } from '@/lib/warehouses';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import ItemCostForensics from '@/components/ui/ItemCostForensics';
@@ -55,11 +55,11 @@ const BAND_STYLE: Record<ScoreBand, { chip: string; label: string }> = {
 };
 
 /** Recent sales value (the "volume") with a momentum arrow — Binance-style. */
-function VolCell({ m }: { m?: ItemMetrics }) {
+function VolCell({ m, bare }: { m?: ItemMetrics; bare?: boolean }) {
   if (!m || m.revenue90d <= 0) return <span className="text-slate-700">—</span>;
   return (
     <span className="whitespace-nowrap" title="Sales value in the last 90 days, and demand growth vs the prior 90 days">
-      <span className="text-slate-200">{fmtRupiah(m.revenue90d)}</span>
+      <span className="text-slate-200">{bare ? fmtMoneyCell(m.revenue90d) : fmtRupiah(m.revenue90d)}</span>
       {m.momentumPct != null
         ? <span className={`ml-1 text-[10px] ${m.momentumPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{m.momentumPct >= 0 ? '▲' : '▼'}{Math.abs(Math.round(m.momentumPct))}%</span>
         : m.units90d > 0 ? <span className="ml-1 text-[10px] text-sky-400">new</span> : null}
@@ -315,10 +315,10 @@ function ItemsInner() {
             <button onClick={() => toggleSort('score')} className="text-left hover:text-slate-300 transition-colors uppercase tracking-widest" title="Item Score — 0–100, higher is a better item to keep buying (hover a chip for the breakdown)">{t('Score')}{arrow('score')}</button>
             <span>Category</span>
             <button onClick={() => toggleSort('stock')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('On hand')}{arrow('stock')}</button>
-            {canSell && <span className="text-right">Sell price</span>}
-            {canBuy && <span className="text-right">Avg cost</span>}
-            {canBuy && <button onClick={() => toggleSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Value')}{arrow('value')}</button>}
-            <button onClick={() => toggleSort('volume')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Sales value in the last 90 days — the item's recent trading volume; click to sort high→low">{t('Vol · 90d')}{arrow('volume')}</button>
+            {canSell && <span className="text-right">{t('Sell price')} ({moneyUnit()})</span>}
+            {canBuy && <span className="text-right">{t('Avg cost')} ({moneyUnit()})</span>}
+            {canBuy && <button onClick={() => toggleSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Value')} ({moneyUnit()}){arrow('value')}</button>}
+            <button onClick={() => toggleSort('volume')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Sales value in the last 90 days — the item's recent trading volume; click to sort high→low">{t('Vol · 90d')} ({moneyUnit()}){arrow('volume')}</button>
             <button onClick={() => toggleSort('activity')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest" title="Distinct supplier quotes + POs + sales quotes">{t('Traded')}{arrow('activity')}</button>
             <button onClick={() => toggleSort('moved')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Last move')}{arrow('moved')}</button>
           </div>
@@ -359,10 +359,10 @@ function ItemsInner() {
                       <span className={`text-right tabular-nums font-semibold ${r.qty < 0 ? 'text-red-400' : r.qty === 0 ? 'text-slate-600' : 'text-slate-100'}`}>
                         {fmtInt(r.qty)}{r.c.unit && <span className="text-[10px] text-slate-600 font-normal"> {r.c.unit}</span>}
                       </span>
-                      {canSell && <span className="text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{r.c.selling_price_idr ? fmtRupiah(r.c.selling_price_idr) : <span className="text-slate-700">—</span>}</span>}
-                      {canBuy && <span className="text-right tabular-nums text-xs text-slate-400">{r.avg > 0 ? fmtInt(r.avg) : <span className="text-slate-700">—</span>}</span>}
-                      {canBuy && <span className="text-right tabular-nums text-xs text-slate-200" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtRupiah(r.value) : <span className="text-slate-700">—</span>}</span>}
-                      <span className="text-right tabular-nums text-xs"><VolCell m={metrics.get(r.c.component_id)} /></span>
+                      {canSell && <span className="text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{r.c.selling_price_idr ? fmtMoneyCell(r.c.selling_price_idr) : <span className="text-slate-700">—</span>}</span>}
+                      {canBuy && <span className="text-right tabular-nums text-xs text-slate-400">{r.avg > 0 ? fmtMoneyCell(r.avg) : <span className="text-slate-700">—</span>}</span>}
+                      {canBuy && <span className="text-right tabular-nums text-xs text-slate-200" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtMoneyCell(r.value) : <span className="text-slate-700">—</span>}</span>}
+                      <span className="text-right tabular-nums text-xs"><VolCell m={metrics.get(r.c.component_id)} bare /></span>
                       <span className="text-right tabular-nums text-xs text-slate-500">{r.activity || <span className="text-slate-700">—</span>}</span>
                       <span className="text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastMove ? fmtDay(r.lastMove) : '—'}</span>
                     </button>

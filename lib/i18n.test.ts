@@ -79,7 +79,9 @@ test('no translation is left as its own English — that is just an untranslated
  */
 const DANGLING = /\b(of|in|for|and|or|to|on|at|by|with|from|the|a|an|is|are|was|were|than|per|into|over|under)$/i;
 
-const WHOLE_ON_A_PREPOSITION = new Set(['Sign in', 'Receive in', 'Defensive mode · on']);
+// …and so is a one-word column header: "In" / "Out" on a statement, "Was" /
+// "By" on the price history.
+const WHOLE_ON_A_PREPOSITION = new Set(['Sign in', 'Receive in', 'Defensive mode · on', 'In', 'Was', 'By']);
 
 test('a phrase-book entry is a whole thought, not a fragment glued to a value', () => {
   const offenders = Object.keys(ID)

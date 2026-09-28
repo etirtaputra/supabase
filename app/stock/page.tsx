@@ -25,7 +25,7 @@ import { fetchWarehouses, warehouseLabel, type Warehouse } from '@/lib/warehouse
 import { COMMITTED_STATUSES as COMMITTED } from '@/lib/salesStatus';
 import { fetchDeliveredByQuoteComp } from '@/lib/reservedStock';
 import { fetchReorderAlerts, type ReorderAlert } from '@/lib/reorder';
-import { fmtDay, fmtInt, fmtIdr, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtIdr, fmtRupiah, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { fetchInTransit, type InTransitSummary } from '@/lib/inTransit';
 import { fetchLandedVariances, type LandedSummary } from '@/lib/landedCost';
 import FitText from '@/components/ui/FitText';
@@ -481,8 +481,8 @@ export default function StockPage() {
             <span>{t('Brand')}</span>
             <span>{t('Category')}</span>
             <button onClick={() => clickSort('qty')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('On hand')}{arrow('qty')}</button>
-            <span className="text-right">{t('Avg cost')}</span>
-            <button onClick={() => clickSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Value')}{arrow('value')}</button>
+            <span className="text-right">{t('Avg cost')} ({moneyUnit()})</span>
+            <button onClick={() => clickSort('value')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Value')} ({moneyUnit()}){arrow('value')}</button>
             <button onClick={() => clickSort('moved')} className="text-right hover:text-slate-300 transition-colors uppercase tracking-widest">{t('Last move')}{arrow('moved')}</button>
           </div>
           {loading ? (
@@ -520,8 +520,8 @@ export default function StockPage() {
                     <span className={`text-right tabular-nums font-semibold ${r.qty < 0 ? 'text-red-400' : r.qty === 0 ? 'text-slate-600' : 'text-slate-100'}`}>
                       {fmtInt(r.qty)}{r.c.unit && <span className="text-[10px] text-slate-600 font-normal"> {r.c.unit}</span>}
                     </span>
-                    <span className="text-right tabular-nums text-slate-400">{r.avg > 0 ? fmtInt(r.avg) : '—'}</span>
-                    <span className="text-right tabular-nums text-slate-200 font-medium" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtRupiah(r.value) : '—'}</span>
+                    <span className="text-right tabular-nums text-slate-400">{r.avg > 0 ? fmtMoneyCell(r.avg) : '—'}</span>
+                    <span className="text-right tabular-nums text-slate-200 font-medium" title={r.value !== 0 ? fmtRupiah(r.value) : undefined}>{r.value !== 0 ? fmtMoneyCell(r.value) : '—'}</span>
                     <span className="text-right text-[11px] text-slate-500">
                       {r.last ? (
                         <>

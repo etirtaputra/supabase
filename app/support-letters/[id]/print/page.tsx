@@ -19,6 +19,7 @@ import { canOpenPath } from '@/constants/navigation';
 import { useSettings } from '@/hooks/useSettings';
 import { fmtDateID, statementLines, type SupportLetter, type SupportLetterItem } from '@/lib/supportLetters';
 import { useT } from '@/hooks/useT';
+import { DOC_FONT_FAMILY } from '@/lib/documentType';
 
 /** CSS pixels per millimetre at the 96dpi the print pipeline assumes. */
 const MM = 96 / 25.4;
@@ -122,7 +123,7 @@ export default function SupportLetterPrintPage() {
           on a single sheet. */}
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Rubik, -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1f2937; background: #f1f5f9; -webkit-font-smoothing: antialiased; line-height: 1.34; }
+        body { font-family: ${DOC_FONT_FAMILY}; font-size: 9.5pt; color: #1f2937; background: #f1f5f9; -webkit-font-smoothing: antialiased; line-height: 1.34; }
         @page { size: A4; margin: 12mm 16mm 12mm 16mm; }
         @media print {
           .no-print { display: none !important; }

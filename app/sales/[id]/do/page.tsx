@@ -19,6 +19,7 @@ import { salesFileName } from '@/lib/quoteFilename';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 import { useT } from '@/hooks/useT';
+import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -113,7 +114,7 @@ export default function DeliveryOrderPrintPage() {
     <>
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Rubik, -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
+        body { font-family: ${DOC_FONT_FAMILY}; line-height: ${DOC_LINE_HEIGHT}; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
         @page { size: A4; margin: 10mm 8mm; }
         @media print { .no-print { display: none !important; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .page { max-width: none; padding: 0; } }
         .page { max-width: 210mm; margin: 0 auto; padding: 8mm 0; }

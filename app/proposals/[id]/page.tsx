@@ -27,7 +27,7 @@ import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type Proje
 import { lineAcWatts } from '@/lib/quoteAc';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
-import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc } from '@/lib/formatters';
+import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { isOfferable } from '@/lib/itemVisibility';
 import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
@@ -2538,10 +2538,10 @@ export default function QuoteEditorPage() {
                         <th className="text-left px-2 py-2 w-28">Brand</th>
                         <th className="text-right px-2 py-2 w-20">Qty</th>
                         <th className="text-left px-2 py-2 w-24">Unit</th>
-                        <th className="text-right px-2 py-2 w-32 bg-violet-500/[0.07] text-violet-300/80" title="Internal — never shown on client exports">TUC / Cost 🔒</th>
-                        <th className="text-right px-2 py-2 w-32">Sell / Unit</th>
+                        <th className="text-right px-2 py-2 w-32 bg-violet-500/[0.07] text-violet-300/80" title="Internal — never shown on client exports">{t('TUC / Cost')} ({moneyUnit()}) 🔒</th>
+                        <th className="text-right px-2 py-2 w-32">{t('Sell / Unit')} ({moneyUnit()})</th>
                         <th className="text-right px-2 py-2 w-16 bg-violet-500/[0.07] text-violet-300/80" title="Internal — never shown on client exports">GM %</th>
-                        <th className="text-right px-2 py-2 w-28">Total</th>
+                        <th className="text-right px-2 py-2 w-28">{t('Total')} ({moneyUnit()})</th>
                         <th className="w-8" />
                       </tr>
                     </thead>
@@ -2816,7 +2816,7 @@ export default function QuoteEditorPage() {
                                   className={`w-full bg-transparent outline-none text-right placeholder:text-slate-700 border-b transition-colors focus:border-violet-500 ${drift ? 'text-amber-300 border-amber-500/70 hover:border-amber-400' : 'text-slate-400 border-slate-800 hover:border-slate-600'} ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
                                 {drift && (
                                   <p className="text-right text-[10px] text-amber-400/90 leading-tight" title="Today's recommended cost">
-                                    now {fmtIdr(drift.rec)}
+                                    now {fmtMoneyCell(drift.rec)}
                                   </p>
                                 )}
                                 {costHover?.itemId === item.item_id && (
@@ -2949,7 +2949,7 @@ export default function QuoteEditorPage() {
                                 ) : <span className="text-slate-700">—</span>}
                               </td>
                               <td className="px-2 py-2 text-right text-slate-100 font-semibold whitespace-nowrap tabular-nums">
-                                {total > 0 ? fmtIdr(total) : <span className="text-slate-600 font-normal">—</span>}
+                                {total > 0 ? fmtMoneyCell(total) : <span className="text-slate-600 font-normal">—</span>}
                               </td>
                               <td className="pr-3 py-2">
                                 <div className="flex items-center gap-1.5">
@@ -3263,10 +3263,10 @@ export default function QuoteEditorPage() {
                       </th>
                       <th className="text-left py-2 px-2 font-semibold">Item</th>
                       <th className="text-right py-2 px-2 font-semibold">Qty</th>
-                      <th className="text-right py-2 px-2 font-semibold">Current cost</th>
-                      <th className="text-right py-2 px-2 font-semibold">New cost</th>
-                      <th className="text-right py-2 px-2 font-semibold">Δ / unit</th>
-                      <th className="text-right py-2 pl-2 font-semibold">Δ line</th>
+                      <th className="text-right py-2 px-2 font-semibold">{t('Current cost')} ({moneyUnit()})</th>
+                      <th className="text-right py-2 px-2 font-semibold">{t('New cost')} ({moneyUnit()})</th>
+                      <th className="text-right py-2 px-2 font-semibold">{t('Δ / unit')} ({moneyUnit()})</th>
+                      <th className="text-right py-2 pl-2 font-semibold">{t('Δ line')} ({moneyUnit()})</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3297,14 +3297,14 @@ export default function QuoteEditorPage() {
                             )}
                           </td>
                           <td className="py-2 px-2 text-right text-slate-400 tabular-nums">{r.qty.toLocaleString('en-US')}</td>
-                          <td className="py-2 px-2 text-right text-slate-400 tabular-nums">{r.oldCost != null ? fmtIdr(r.oldCost) : '—'}</td>
-                          <td className="py-2 px-2 text-right text-slate-200 font-semibold tabular-nums">{fmtIdr(r.newCost)}</td>
+                          <td className="py-2 px-2 text-right text-slate-400 tabular-nums">{r.oldCost != null ? fmtMoneyCell(r.oldCost) : '—'}</td>
+                          <td className="py-2 px-2 text-right text-slate-200 font-semibold tabular-nums">{fmtMoneyCell(r.newCost)}</td>
                           <td className={`py-2 px-2 text-right font-semibold tabular-nums ${delta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                            {delta > 0 ? '+' : '−'}{fmtIdr(Math.abs(delta))}
+                            {delta > 0 ? '+' : '−'}{fmtMoneyCell(Math.abs(delta))}
                             {pct != null && <span className="ml-1 text-[10px] font-normal opacity-80">({pct > 0 ? '+' : ''}{pct.toFixed(1)}%)</span>}
                           </td>
                           <td className={`py-2 pl-2 text-right tabular-nums ${lineDelta > 0 ? 'text-red-400/90' : 'text-emerald-400/90'}`}>
-                            {lineDelta > 0 ? '+' : '−'}{fmtIdr(Math.abs(lineDelta))}
+                            {lineDelta > 0 ? '+' : '−'}{fmtMoneyCell(Math.abs(lineDelta))}
                           </td>
                         </tr>
                       );

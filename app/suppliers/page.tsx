@@ -6,7 +6,7 @@
  * payables, every supplier quote and PO (each linking to its Deal Lookup),
  * and the most purchased items. Gated to buy-side roles + owner.
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -15,7 +15,7 @@ import { canOpenPath } from '@/constants/navigation';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import BrandMenu from '@/components/ui/BrandMenu';
 import type { Supplier, PriceQuote, PurchaseOrder, POCost, PurchaseLineItem, Component } from '@/types/database';
-import { fmtDay, fmtInt, fmtRupiah as fmtIdr } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtRupiah as fmtIdr, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useT } from '@/hooks/useT';
@@ -156,8 +156,8 @@ export default function SuppliersPage() {
             <Head label="Supplier" active={sort.key === 'name'} dir={sort.dir} onClick={() => toggleSort('name')} />
             <Head label="Quotes / POs" right active={sort.key === 'activity'} dir={sort.dir} onClick={() => toggleSort('activity')} />
             <span />
-            <Head label="Purchased" right active={sort.key === 'purchased'} dir={sort.dir} onClick={() => toggleSort('purchased')} />
-            <Head label="Outstanding" right active={sort.key === 'outstanding'} dir={sort.dir} onClick={() => toggleSort('outstanding')} />
+            <Head label={<>{t('Purchased')} ({moneyUnit()})</>} right active={sort.key === 'purchased'} dir={sort.dir} onClick={() => toggleSort('purchased')} />
+            <Head label={<>{t('Outstanding')} ({moneyUnit()})</>} right active={sort.key === 'outstanding'} dir={sort.dir} onClick={() => toggleSort('outstanding')} />
           </div>
           {loading ? (
             <div className="p-4 space-y-1.5">{[...Array(6)].map((_, i) => <div key={i} className="h-12 bg-slate-800/40 rounded-xl animate-pulse" />)}</div>
@@ -179,10 +179,10 @@ export default function SuppliersPage() {
                       </span>
                       <span className="text-left md:text-right text-[11px] text-slate-400 tabular-nums">{st?.quotes.length ?? 0} / {st?.pos.length ?? 0} <span className="md:hidden text-slate-600">{t('quotes / POs')}</span></span>
                       <span className="hidden md:block" />
-                      <span className="text-left md:text-right tabular-nums text-slate-200">{st && st.purchasedIdr > 0 ? fmtIdr(st.purchasedIdr) : <span className="text-slate-600">—</span>}</span>
+                      <span className="text-left md:text-right tabular-nums text-slate-200">{st && st.purchasedIdr > 0 ? <><span className="md:hidden">{moneyUnit()} </span>{fmtMoneyCell(st.purchasedIdr)}</> : <span className="text-slate-600">—</span>}</span>
                       <span className="flex items-center justify-end gap-2">
                         <span className={`text-right tabular-nums ${st && st.outstandingIdr > 0.5 ? 'text-amber-300 font-semibold' : 'text-emerald-400/70'}`}>
-                          {st && st.outstandingIdr > 0.5 ? fmtIdr(st.outstandingIdr) : `✓ ${t('settled')}`}
+                          {st && st.outstandingIdr > 0.5 ? <><span className="md:hidden">{moneyUnit()} </span>{fmtMoneyCell(st.outstandingIdr)}</> : `✓ ${t('settled')}`}
                         </span>
                         <svg className={`w-3.5 h-3.5 text-slate-600 transition-transform duration-150 ${open ? 'rotate-180 text-slate-400' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
                       </span>
@@ -217,7 +217,7 @@ function CenterSpinner() {
 
 /** A sortable grid-column header — click to sort, click again to flip. The
  *  arrow shows the state: ▲ ascending, ▼ descending, ↕ available but inactive. */
-function Head({ label, right, active, dir, onClick }: { label: string; right?: boolean; active: boolean; dir: 1 | -1; onClick: () => void }) {
+function Head({ label, right, active, dir, onClick }: { label: ReactNode; right?: boolean; active: boolean; dir: 1 | -1; onClick: () => void }) {
   return (
     <button onClick={onClick}
       className={`inline-flex items-center gap-1 uppercase tracking-widest leading-none transition-colors ${right ? 'justify-self-end' : 'justify-self-start'} ${active ? 'text-sky-300' : 'hover:text-slate-300'}`}>

@@ -54,6 +54,8 @@ export const KEEPERS: readonly string[] = [
   // these would equal its own English and fail the test, so it lives here
   // instead of being a translation that translates nothing.
   'Admin', 'Menu', 'Status', 'Subtotal', 'Total', 'SVC', 'LIB', 'PREV',
+  // The price tier is "tier" in the office's Indonesian too ('Tiers' → 'Tier').
+  'Tier',
 ];
 
 /** Is this string left in English on purpose, rather than simply untranslated? */
@@ -1534,6 +1536,50 @@ export const ID: Record<string, string> = {
   'New invoice': 'Faktur baru',
   'New delivery order': 'Surat jalan baru',
   'Create delivery order': 'Buat surat jalan',
+
+
+  // ── Money columns, 2026-09-28: the unit sits in the header, "Harga (Rp)" ──
+  'Price': 'Harga',
+  'Cost basis': 'Dasar biaya',
+  'GP now': 'Laba kotor kini',
+  'Floor': 'Batas bawah',
+  'Floor min': 'Harga min.',
+  'At risk': 'Berisiko',
+  'Override': 'Penyesuaian',
+  'Tier default': 'Bawaan tier',
+  'vs default': 'vs bawaan',
+  'GP': 'Laba kotor',
+  'When': 'Waktu',
+  'Was': 'Semula',
+  'Became': 'Menjadi',
+  'GP then': 'Laba kotor saat itu',
+  'By': 'Oleh',
+  'Stock value': 'Nilai stok',
+  'Bought': 'Dibeli',
+  'Avg PO': 'Rata-rata PO',
+  'Sold': 'Terjual',
+  'Avg INV': 'Rata-rata INV',
+  'Avg Position Cost': 'Biaya posisi rata-rata',
+  'Mark': 'Harga acuan',
+  'P&L': 'Laba/rugi',
+  'Equiv.': 'Setara',
+  'True Unit Cost': 'Biaya satuan riil',
+  'Unit cost': 'Biaya satuan',
+  'Amount paid': 'Jumlah dibayar',
+  'Avg cost': 'Biaya rata-rata',
+  'Sell price': 'Harga jual',
+  'Purchased': 'Dibeli',
+  'In': 'Masuk',
+  'Out': 'Keluar',
+  'Balance': 'Saldo',
+  'Total excl. PPN': 'Total sebelum PPN',
+  'TUC / Cost': 'TUC / Biaya',
+  'Sell / Unit': 'Jual / satuan',
+  'Current cost': 'Biaya saat ini',
+  'New cost': 'Biaya baru',
+  'Δ / unit': 'Δ / satuan',
+  'Δ line': 'Δ baris',
+  'Allocated': 'Dialokasikan',
 
   // ── Buttons, 2026-09-28 (owner: "make page titles and button wording
   // consistent across screens") ─────────────────────────────────────────

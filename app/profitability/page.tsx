@@ -27,7 +27,7 @@ import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { useT } from '@/hooks/useT';
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtMoneyCell, fmtRupiah, moneyUnit } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
 import { buildSalesFacts } from '@/lib/salesFacts';
@@ -540,14 +540,14 @@ function EconomicsInner() {
                 <table className="w-full min-w-[1050px]">
                   <thead>
                     <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                      <th className="text-left font-semibold px-4 py-2.5">Item</th>
+                      <th className="text-left font-semibold px-4 py-2.5">{t('Item')}</th>
                       <SortTh label="Score" k="score" sort={sort} onClick={toggleSort} hint="0–100" />
                       <SortTh label="Sold" k="soldQty" sort={sort} onClick={toggleSort} />
-                      <SortTh label="Revenue" k="revenue" sort={sort} onClick={toggleSort} />
-                      <SortTh label="GP" k="gp" sort={sort} onClick={toggleSort} />
+                      <SortTh label={`${t('Revenue')} (${moneyUnit()})`} k="revenue" sort={sort} onClick={toggleSort} />
+                      <SortTh label={`${t('GP')} (${moneyUnit()})`} k="gp" sort={sort} onClick={toggleSort} />
                       <SortTh label="GP %" k="margin" sort={sort} onClick={toggleSort} />
                       <th className="text-right font-semibold px-3 py-2.5">On hand</th>
-                      <SortTh label="Stock value" k="stockValue" sort={sort} onClick={toggleSort} />
+                      <SortTh label={`${t('Stock value')} (${moneyUnit()})`} k="stockValue" sort={sort} onClick={toggleSort} />
                       <SortTh label="DIO" k="dio" sort={sort} onClick={toggleSort} hint="days" />
                       <SortTh label="Capital" k="gmroi" sort={sort} onClick={toggleSort} hint="return on cash" />
                       <th className="text-right font-semibold px-3 py-2.5">Last sold</th>
@@ -566,13 +566,13 @@ function EconomicsInner() {
                         </td>
                         <td className="px-3 py-2"><ScoreCell res={scoreMap.get(r.c.component_id)} /></td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300">{r.soldQty ? `${fmtInt(r.soldQty)}${r.c.unit ? ` ${r.c.unit}` : ''}` : <span className="text-slate-700">—</span>}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.revenue ? fmtRupiah(r.revenue) : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.revenue ? fmtMoneyCell(r.revenue) : <span className="text-slate-700">—</span>}</td>
                         <td className={`px-3 py-2 text-right tabular-nums text-sm font-semibold whitespace-nowrap ${r.revenue === 0 ? 'text-slate-700' : r.gp < 0 ? 'text-red-400' : 'text-emerald-300'}`}>
-                          {r.revenue ? `${fmtRupiah(r.gp)}${r.cogsEstimated ? ' ~' : ''}` : '—'}
+                          {r.revenue ? `${fmtMoneyCell(r.gp)}${r.cogsEstimated ? ' ~' : ''}` : '—'}
                         </td>
                         <td className={`px-3 py-2 text-right tabular-nums text-xs ${r.margin == null ? 'text-slate-700' : r.margin < 0 ? 'text-red-400' : 'text-slate-300'}`}>{r.margin != null ? `${r.margin.toFixed(1)}%` : '—'}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300">{r.onHand ? `${fmtInt(r.onHand)}${r.c.unit ? ` ${r.c.unit}` : ''}` : <span className="text-slate-700">0</span>}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.stockValue ? fmtRupiah(r.stockValue) : <span className="text-slate-700">—</span>}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-300 whitespace-nowrap">{r.stockValue ? fmtMoneyCell(r.stockValue) : <span className="text-slate-700">—</span>}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{r.dio != null ? `${Math.round(r.dio)}d` : <span className="text-slate-700">—</span>}</td>
                         <td className="px-3 py-2 text-right whitespace-nowrap"><CapitalCell call={capital.byId.get(r.c.component_id)} gmroi={gmroiOf(r)} /></td>
                         <td className="px-3 py-2 text-right text-[11px] text-slate-500 tabular-nums whitespace-nowrap">{r.lastSold ? fmtDay(r.lastSold) : <span className="text-slate-700">never</span>}</td>

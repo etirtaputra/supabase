@@ -21,7 +21,7 @@ import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
 import { dealBalance, poBalance, remainingLabel, type DealBalance } from '@/lib/dealBalance';
 import { fetchLiveFx } from '@/lib/liveFx';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
-import { fmtIdr, fmtCcy, fmtDate } from '@/lib/formatters';
+import { fmtIdr, fmtCcy, fmtDate, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
 import { useT } from '@/hooks/useT';
 import LayoutToggle from './LayoutToggle';
@@ -2649,7 +2649,12 @@ export default function DealLookupTab({
                 <button onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()} — click again to flip`}
                   className={`inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-widest transition-colors ${
                     colSort?.key === k ? 'text-slate-200' : 'text-slate-400 hover:text-slate-300'}`}>
-                  {label}
+                  {/* Total and Paid are rupiah-converted on every deal, so the
+                      unit is said once here; To transfer stays per-row (each
+                      deal owes in its own currency). */}
+                  {k === 'total' ? <>{t('Total')} ({moneyUnit()})</>
+                    : k === 'paid' ? <>{t('Amount paid')} ({moneyUnit()})</>
+                    : label}
                   <span className={`text-[8px] ${colSort?.key === k ? 'text-emerald-400' : 'text-transparent'}`}>
                     {colSort?.key === k && colSort.dir === 'desc' ? '▼' : '▲'}
                   </span>
@@ -2717,7 +2722,7 @@ export default function DealLookupTab({
                   </span>
                 </td>
                 <td className="py-2 px-3 text-right text-slate-300 tabular-nums whitespace-nowrap">
-                  {g.totalIdr > 0 ? fmtIdr(g.totalIdr) : '—'}
+                  {g.totalIdr > 0 ? fmtMoneyCell(g.totalIdr) : '—'}
                 </td>
                 <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
                   <div className="flex items-center justify-end gap-2">
@@ -2729,7 +2734,7 @@ export default function DealLookupTab({
                         />
                       </div>
                     )}
-                    <span className="text-emerald-300">{g.paidIdr > 0 ? fmtIdr(g.paidIdr) : '—'}</span>
+                    <span className="text-emerald-300">{g.paidIdr > 0 ? fmtMoneyCell(g.paidIdr) : '—'}</span>
                   </div>
                 </td>
                 <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">

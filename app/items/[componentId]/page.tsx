@@ -32,7 +32,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import SpecRenderer from '@/components/ui/SpecRenderer';
 import { PositionDetail } from '@/components/profitability/PositionPanel';
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtDate, fmtInt, fmtIdr, fmtCcy, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtDate, fmtInt, fmtIdr, fmtCcy, fmtRupiah, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { INCOMING_PO_STATUSES, itemArrivals, type ItemArrival, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
 import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
@@ -688,6 +688,7 @@ function FxTab({ rows, pos, suppliers }: {
   pos: PurchaseOrder[];
   suppliers: Supplier[];
 }) {
+  const { t } = useT();
   const poById = useMemo(() => new Map(pos.map((p) => [String(p.po_id), p])), [pos]);
   const supName = useMemo(() => new Map(suppliers.map((s) => [s.supplier_id, s.supplier_name])), [suppliers]);
   // "PO estimate" rows are constructed as quoted × typed rate — detectable
@@ -734,7 +735,7 @@ function FxTab({ rows, pos, suppliers }: {
               <th className="text-left font-semibold px-3 py-2.5">PO</th>
               <th className="text-left font-semibold px-3 py-2.5">Supplier</th>
               <th className="text-right font-semibold px-3 py-2.5">Foreign nominal</th>
-              <th className="text-right font-semibold px-3 py-2.5">Paid (IDR)</th>
+              <th className="text-right font-semibold px-3 py-2.5">{t('Amount paid')} ({moneyUnit()})</th>
               <th className="text-right font-semibold px-3 py-2.5" title="IDR paid ÷ foreign nominal — the rate this deal actually implied">Implied rate</th>
               <th className="text-left font-semibold px-3 py-2.5">Basis</th>
             </tr>
@@ -752,7 +753,7 @@ function FxTab({ rows, pos, suppliers }: {
                   </td>
                   <td className="px-3 py-2.5 text-slate-400 truncate max-w-[180px]">{supName.get(r.supplier_id) || '—'}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-slate-200 whitespace-nowrap">{r.currency} {fmtInt(r.quoted_amount_foreign)}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-200 whitespace-nowrap">{fmtIdr(r.paid_amount_idr)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-slate-200 whitespace-nowrap">{fmtMoneyCell(r.paid_amount_idr)}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-bold text-sky-300">{fmtInt(r.implied_rate)}</td>
                   <td className="px-3 py-2.5">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${est ? 'bg-slate-800 text-slate-400' : 'bg-emerald-500/10 text-emerald-300'}`}
@@ -780,6 +781,7 @@ function SellTab({ comp, activeTiers, chain, avgCost, canFloor, soldLines, custN
   soldLines: { qty: number; value: number; date: string; doc: SalesDoc }[];
   custNames: Map<string, string>; reserved: number;
 }) {
+  const { t } = useT();
   // Customers who buy it — committed orders only, at the prices they pay
   const customers = useMemo(() => {
     const m = new Map<string, { name: string; qty: number; value: number; orders: Set<string>; last: string }>();
@@ -818,8 +820,8 @@ function SellTab({ comp, activeTiers, chain, avgCost, canFloor, soldLines, custN
           <table className="w-full min-w-[560px]">
             <thead>
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <th className="text-left font-semibold px-4 py-2">Tier</th>
-                <th className="text-right font-semibold px-3 py-2">Price</th>
+                <th className="text-left font-semibold px-4 py-2">{t('Tier')}</th>
+                <th className="text-right font-semibold px-3 py-2">{t('Price')} ({moneyUnit()})</th>
                 <th className="text-right font-semibold px-3 py-2">Step</th>
                 <th className="text-right font-semibold px-3 py-2" title="Actual margin over the previous tier after rounding">Actual</th>
                 {canFloor && <th className="text-right font-semibold px-3 py-2" title="Margin vs avg landed cost — the /pricing Floor Audit rule">GP vs cost</th>}
@@ -835,7 +837,7 @@ function SellTab({ comp, activeTiers, chain, avgCost, canFloor, soldLines, custN
                 return (
                   <tr key={t.tier_id} className="hover:bg-slate-800/20 transition-colors">
                     <td className="px-4 py-2 text-xs text-slate-200 font-medium">{t.name}{i === 0 && <span className="ml-1.5 text-[9px] text-slate-500">net</span>}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-100 font-semibold whitespace-nowrap">{p != null ? fmtRupiah(p) : '—'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-100 font-semibold whitespace-nowrap">{p != null ? fmtMoneyCell(p) : '—'}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{i === 0 ? '—' : `+${t.default_discount_pct}%`}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-400">{cp?.actualMarginPct != null ? `${cp.actualMarginPct.toFixed(1)}%` : '—'}</td>
                     {canFloor && (
@@ -924,7 +926,7 @@ function StockTab({ balances, warehouses, movements, physical, reserved, live, u
   balances: Balance[]; warehouses: Warehouse[]; movements: Movement[];
   physical: number; reserved: number; live: number; unit: string | null;
 }) {
-  const { tf } = useT();
+  const { t, tf } = useT();
   const dirCls: Record<string, string> = { in: 'text-emerald-400', out: 'text-red-400', adjust: 'text-amber-400', revalue: 'text-amber-300' };
   const held = balances.filter((b) => (Number(b.qty_on_hand) || 0) !== 0).sort((a, b) => Number(b.qty_on_hand) - Number(a.qty_on_hand));
   return (
@@ -980,7 +982,7 @@ function StockTab({ balances, warehouses, movements, physical, reserved, live, u
                 <th className="text-left font-semibold px-4 py-2">Date</th>
                 <th className="text-left font-semibold px-3 py-2">Dir</th>
                 <th className="text-right font-semibold px-3 py-2">Qty</th>
-                <th className="text-right font-semibold px-3 py-2">Unit cost</th>
+                <th className="text-right font-semibold px-3 py-2">{t('Unit cost')} ({moneyUnit()})</th>
                 <th className="text-left font-semibold px-3 py-2">Warehouse</th>
                 <th className="text-left font-semibold px-3 py-2">Source</th>
                 <th className="text-left font-semibold px-3 py-2">By</th>

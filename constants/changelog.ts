@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-28T06:31:36Z",
+    title: "“Rp” cukup sekali di judul kolom; dokumen cetak memakai huruf IBM Plex",
+    details: [
+      "Di tabel, mata uang kini ditulis sekali di judul kolom — “Harga (Rp)” — dan setiap baris cukup angkanya saja, rata kanan. Berlaku di Harga Jual, Profitabilitas, Stok, Pusat Barang, Pemasok, Keuangan, Pesanan Penjualan, editor Proposal dan lainnya.",
+      "Di HP, tempat judul kolom tidak terlihat, “Rp” tetap tampil di depan angka.",
+      "Tabel yang barisnya berbeda mata uang (misalnya Deal Lookup: CNY, USD, IDR) tetap menulis mata uang di setiap baris, karena tidak ada satu satuan untuk dipindah ke judul.",
+      "Dokumen cetak (Penawaran Harga, Faktur, Surat Jalan, Proposal EPC, Surat Dukungan) kini memakai huruf IBM Plex Sans, sama dengan tampilan Corporate. Diukur dulu: hurufnya 3–5% lebih ramping dan jarak barisnya dikunci sama, jadi dokumen tidak bertambah halaman.",
+    ],
+  },
+  {
     at: "2026-09-28T06:09:32Z",
     title: "Tampilan Corporate: tulisan kecil lebih besar, warna status lebih tenang",
     details: [

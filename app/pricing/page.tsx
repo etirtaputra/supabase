@@ -37,7 +37,7 @@ import {
   fetchMarginProfiles, saveMarginProfile, createMarginProfile, deleteMarginProfile,
   rangeError, byId as marginById, bandOf, assignProfile, type MarginProfile,
 } from '@/lib/marginProfiles';
-import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtInt, fmtMoneyCell, fmtRupiah, moneyUnit } from '@/lib/formatters';
 import { formatCategory } from '@/lib/formatCategory';
 import { useSettings } from '@/hooks/useSettings';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -903,15 +903,15 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, itemsQuoted
           <table className="w-full min-w-[880px]">
             <thead>
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <th className="text-left font-semibold px-4 py-2.5">Item</th>
-                <th className="text-left font-semibold px-3 py-2.5">Tier</th>
-                <th className="text-right font-semibold px-3 py-2.5">Price</th>
-                <th className="text-right font-semibold px-3 py-2.5" title="Landed cost where goods have arrived; a supplier quote where nothing has yet">Cost basis</th>
-                <th className="text-right font-semibold px-3 py-2.5">GP now</th>
-                <th className="text-right font-semibold px-3 py-2.5">Floor</th>
-                <th className="text-right font-semibold px-3 py-2.5">Floor min</th>
-                <th className="text-right font-semibold px-3 py-2.5" title="(floor min − price) × on-hand qty">At risk</th>
-                <th className="text-right font-semibold px-3 py-2.5">Fix</th>
+                <th className="text-left font-semibold px-4 py-2.5">{t('Item')}</th>
+                <th className="text-left font-semibold px-3 py-2.5">{t('Tier')}</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('Price')} ({moneyUnit()})</th>
+                <th className="text-right font-semibold px-3 py-2.5" title="Landed cost where goods have arrived; a supplier quote where nothing has yet">{t('Cost basis')} ({moneyUnit()})</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('GP now')}</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('Floor')}</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('Floor min')} ({moneyUnit()})</th>
+                <th className="text-right font-semibold px-3 py-2.5" title="(floor min − price) × on-hand qty">{t('At risk')} ({moneyUnit()})</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('Fix')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -925,19 +925,19 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, itemsQuoted
                     {v.tier.name}
                     {v.ov && <span className="block text-[9px] text-emerald-500/70">override</span>}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-200 whitespace-nowrap">{fmtRupiah(v.price)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-200 whitespace-nowrap">{fmtMoneyCell(v.price)}</td>
                   {/* A breach measured on a quote is marked where the number
                       is, not only in the banner above — by the time somebody is
                       reading a row they have stopped reading the header. */}
                   <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap" title={v.provisional ? BASIS_NOTE.quote : BASIS_NOTE.landed}>
-                    <span className={v.provisional ? 'text-amber-300/90' : 'text-slate-400'}>{fmtRupiah(v.cost)}</span>
+                    <span className={v.provisional ? 'text-amber-300/90' : 'text-slate-400'}>{fmtMoneyCell(v.cost)}</span>
                     {v.provisional && <span className="ml-1 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide">QUOTE</span>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-sm font-semibold text-red-400 whitespace-nowrap">{v.gp.toFixed(1)}%</td>
                   <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{v.tier.margin_floor_pct}%</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{v.minPrice != null ? fmtRupiah(v.minPrice) : '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{v.minPrice != null ? fmtMoneyCell(v.minPrice) : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap">
-                    {v.leakage > 0 ? <span className="text-red-300">{fmtRupiah(v.leakage)}</span> : <span className="text-slate-700">—</span>}
+                    {v.leakage > 0 ? <span className="text-red-300">{fmtMoneyCell(v.leakage)}</span> : <span className="text-slate-700">—</span>}
                   </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     <span className="inline-flex gap-1.5">
@@ -949,7 +949,7 @@ function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, itemsQuoted
                       {v.minPrice != null && (
                         <button onClick={() => onRaise(v)}
                           title={`Write a ${v.tier.name} override at ${fmtRupiah(v.minPrice)}`}
-                          className="px-2 py-1 rounded-lg bg-emerald-600/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/25 text-[11px] font-semibold transition-colors">↑ {fmtRupiah(v.minPrice)}</button>
+                          className="px-2 py-1 rounded-lg bg-emerald-600/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/25 text-[11px] font-semibold transition-colors">↑ {fmtMoneyCell(v.minPrice)}</button>
                       )}
                     </span>
                   </td>
@@ -1008,13 +1008,13 @@ function OverridesTab({ rows, search, setSearch, onClear, costOf }: {
           <table className="w-full min-w-[780px]">
             <thead>
               <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <th className="text-left font-semibold px-4 py-2.5">Item</th>
-                <th className="text-left font-semibold px-3 py-2.5">Tier</th>
-                <th className="text-right font-semibold px-3 py-2.5">Override</th>
-                <th className="text-right font-semibold px-3 py-2.5">Tier default</th>
-                <th className="text-right font-semibold px-3 py-2.5">vs default</th>
-                <th className="text-right font-semibold px-3 py-2.5">GP</th>
-                <th className="text-left font-semibold px-3 py-2.5">Updated</th>
+                <th className="text-left font-semibold px-4 py-2.5">{t('Item')}</th>
+                <th className="text-left font-semibold px-3 py-2.5">{t('Tier')}</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('Override')} ({moneyUnit()})</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('Tier default')} ({moneyUnit()})</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('vs default')}</th>
+                <th className="text-right font-semibold px-3 py-2.5">{t('GP')}</th>
+                <th className="text-left font-semibold px-3 py-2.5">{t('Updated')}</th>
                 <th className="text-right font-semibold px-3 py-2.5"></th>
               </tr>
             </thead>
@@ -1029,9 +1029,9 @@ function OverridesTab({ rows, search, setSearch, onClear, costOf }: {
                     <td className="px-4 py-2"><p className="text-sm text-slate-100 truncate max-w-[300px]">{descOf(comp)}</p></td>
                     <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{tier.name}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-sm text-emerald-300 font-semibold whitespace-nowrap">
-                      {o.override_price_idr != null ? fmtRupiah(o.override_price_idr) : o.override_discount_pct != null ? `−${o.override_discount_pct}%` : '—'}
+                      {o.override_price_idr != null ? fmtMoneyCell(o.override_price_idr) : o.override_discount_pct != null ? `−${o.override_discount_pct}%` : '—'}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500 whitespace-nowrap">{defPrice != null ? fmtRupiah(defPrice) : '—'}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500 whitespace-nowrap">{defPrice != null ? fmtMoneyCell(defPrice) : '—'}</td>
                     <td className={`px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap ${delta == null ? 'text-slate-700' : delta < 0 ? 'text-amber-300/90' : 'text-emerald-400/80'}`}>
                       {delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`}
                     </td>
@@ -1526,7 +1526,7 @@ function SetPricingTab({
                   fallback. A heading that names one of the two bases would be
                   wrong on every quoted row — and wrong in the flattering
                   direction, which is the kind of wrong that gets believed. */}
-              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="cost" label="Cost basis" align="right" className="whitespace-nowrap" />
+              <SortTh sortCol={sortCol} sortDir={sortDir} onSort={onSort} col="cost" label={`${t('Cost basis')} (${moneyUnit()})`} align="right" className="whitespace-nowrap" />
               {tiers.map((t, i) => (
                 <SortTh key={t.tier_id} sortCol={sortCol} sortDir={sortDir} onSort={onSort} col={`tier:${t.tier_id}`} align="right" className="whitespace-nowrap"
                   label={i === 0 ? `${t.name} · net` : t.name} />
@@ -1586,7 +1586,7 @@ function SetPricingTab({
                   <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap" title={BASIS_NOTE[r.basis.basis]}>
                     {r.cost == null ? <span className="text-slate-600">—</span> : (
                       <span className={r.basis.provisional ? 'text-amber-300/90' : 'text-slate-400'}>
-                        {fmtRupiah(r.cost)}
+                        {fmtMoneyCell(r.cost)}
                         {BASIS_TAG[r.basis.basis] && (
                           <span className={`ml-1 align-middle px-1 py-px rounded text-[9px] font-bold tracking-wide ${
                             r.basis.provisional ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-800 text-slate-500'
@@ -1918,13 +1918,13 @@ function PriceHistoryTab({ log, compById, tiers }: {
         <table className="w-full text-[12.5px]">
           <thead>
             <tr className="bg-slate-800/60 text-[11px] uppercase tracking-wide text-slate-400">
-              <th className="text-left font-semibold px-3 py-2 whitespace-nowrap">When</th>
-              <th className="text-left font-semibold px-3 py-2">Item</th>
-              <th className="text-left font-semibold px-3 py-2">Tier</th>
-              <th className="text-right font-semibold px-3 py-2">Was</th>
-              <th className="text-right font-semibold px-3 py-2">Became</th>
-              <th className="text-right font-semibold px-3 py-2">GP then</th>
-              <th className="text-left font-semibold px-3 py-2">By</th>
+              <th className="text-left font-semibold px-3 py-2 whitespace-nowrap">{t('When')}</th>
+              <th className="text-left font-semibold px-3 py-2">{t('Item')}</th>
+              <th className="text-left font-semibold px-3 py-2">{t('Tier')}</th>
+              <th className="text-right font-semibold px-3 py-2">{t('Was')} ({moneyUnit()})</th>
+              <th className="text-right font-semibold px-3 py-2">{t('Became')} ({moneyUnit()})</th>
+              <th className="text-right font-semibold px-3 py-2">{t('GP then')}</th>
+              <th className="text-left font-semibold px-3 py-2">{t('By')}</th>
             </tr>
           </thead>
           <tbody>
@@ -1937,10 +1937,10 @@ function PriceHistoryTab({ log, compById, tiers }: {
                 </td>
                 <td className="px-3 py-1.5 text-slate-500">{tier ? tier.name : 'Net'}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">
-                  {l.old_price_idr != null ? fmtInt(l.old_price_idr) : <span className="text-slate-600">unpriced</span>}
+                  {l.old_price_idr != null ? fmtMoneyCell(l.old_price_idr) : <span className="text-slate-600">unpriced</span>}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-slate-200">
-                  {l.new_price_idr != null ? fmtInt(l.new_price_idr) : <span className="text-slate-600">cleared</span>}
+                  {l.new_price_idr != null ? fmtMoneyCell(l.new_price_idr) : <span className="text-slate-600">cleared</span>}
                 </td>
                 <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
                   {gp == null ? <span className="text-slate-600">—</span> : (

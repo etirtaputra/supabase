@@ -46,7 +46,7 @@ interface Override { component_id: string; tier_id: string; override_price_idr: 
 interface DocRef { number: string; customer: string; qty: number; date: string; quote_id: string; }
 
 import { formatCategory as humanize } from '@/lib/formatCategory';
-import { fmtDay, fmtDate, fmtInt, fmtRupiah } from '@/lib/formatters';
+import { fmtDay, fmtDate, fmtInt, fmtMoneyCell, fmtRupiah, moneyUnit } from '@/lib/formatters';
 import { INCOMING_PO_STATUSES, itemArrivals, itemArrivalDetails, type ItemArrival, type ArrivalDetail, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
 import { useSettings } from '@/hooks/useSettings';
 import { PRODUCT_COLS, LEGACY_PRODUCT_COLS } from '@/constants/productColumns';
@@ -1010,7 +1010,7 @@ function ProductsInner() {
                     looking like it might not. */}
                 {colShown('tiers') && priceCols.map((pc, i) => (
                   i === 0
-                    ? <Th key={pc.tier?.tier_id ?? 'net'} label={pc.label} right active={sort.key === 'price'} dir={sort.dir}
+                    ? <Th key={pc.tier?.tier_id ?? 'net'} label={`${pc.label} (${moneyUnit()})`} right active={sort.key === 'price'} dir={sort.dir}
                         onClick={() => toggleSort('price')}
                         tip="The price entered on the item — every other tier chains up from it, unless that tier carries an override" />
                     : <th key={pc.tier!.tier_id} className="font-semibold py-2.5 align-top px-3 text-right">
@@ -1025,7 +1025,7 @@ function ProductsInner() {
                             (Owner, 2026-09-10: "that might not be squarely
                             true.") The rule itself still lives on Selling
                             Prices, where it can be seen per item. */}
-                        <span className="uppercase tracking-widest leading-none">{pc.label}</span>
+                        <span className="uppercase tracking-widest leading-none">{pc.label} ({moneyUnit()})</span>
                       </th>
                 ))}
                 {colShown('brand') && <Th label={t('Brand')} active={sort.key === 'brand'} dir={sort.dir} onClick={() => toggleSort('brand')} />}
@@ -1094,7 +1094,7 @@ function ProductsInner() {
                                 on ? 'text-emerald-300 font-semibold'
                                    : i === 0 ? 'text-slate-200 hover:text-emerald-300' : 'text-slate-400 hover:text-emerald-300'
                               }`}>
-                              {on && '✓ '}{fmtRupiah(p)}
+                              {on && '✓ '}{fmtMoneyCell(p)}
                             </button>
                           ) : <span className="block tabular-nums text-sm text-slate-700">—</span>}
                         </td>

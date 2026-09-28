@@ -112,6 +112,21 @@ export const fmtIdr = (n: number): string => {
   return s.useSymbolEverywhere ? applyCurrency(amount, s.currencyInternal) : `${s.currencyCode} ${amount}`;
 };
 
+/**
+ * THE MONEY COLUMN RULE (owner, 2026-09-28: "Rp once, in the column header").
+ *
+ * In a table, the currency is said ONCE — in the header, "Total (Rp)" — and
+ * each row carries digits only, right-aligned and tabular, so the eye runs
+ * down the numbers instead of reading "Rp" twelve times. `moneyUnit()` is the
+ * header's unit (the configured symbol), `fmtMoneyCell` the row's figure.
+ * Outside a table — a tile, a sentence, a tooltip — an amount still carries
+ * its symbol (fmtRupiah). A table whose rows mix currencies (Deal Lookup)
+ * keeps the currency on every row, because there is no one unit to hoist.
+ * lib/formatters.test.ts fails a <td> that formats with fmtRupiah/fmtIdr.
+ */
+export const moneyUnit = (): string => getSettings().currencyInternal.symbol.trim() || 'Rp';
+export const fmtMoneyCell = (n: number): string => fmtInt(n);
+
 /** Rupiah for app screens: "Rp 1,234,567" (symbol, position and spacing configurable). */
 export const fmtRupiah = (n: number): string =>
   applyCurrency(formatNumber(Math.round(n), getSettings().numberInternal, 0), getSettings().currencyInternal);
