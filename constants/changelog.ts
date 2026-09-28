@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-28T13:18:49Z",
+    title: "Harga Jual: laba kotor tiap tier tampil di bawah harganya",
+    details: [
+      "Di tab Set Pricing, setiap tier (Tier-1 · Net, Tier-2, Tier-3) kini menampilkan persentase laba kotornya tepat di bawah harga, dihitung dari dasar biaya di baris yang sama. Angkanya ikut berubah saat harga diketik.",
+      "Abu-abu = aman. Merah dengan ⚠ = tier itu di bawah minimum marginnya sendiri (saat ini Tier-1 13%, Tier-2 14%, Tier-3 15%). Arahkan kursor untuk melihat minimumnya.",
+      "Kolom GP kini hanya menjawab satu hal: apakah harga net masuk target profil margin (kuning = di bawah, hijau = di atas, abu-abu = di dalam target). Sebelumnya kolom ini juga merah bila tier mana pun di bawah minimum, dan itu mudah disalahartikan.",
+    ],
+  },
+  {
     at: "2026-09-28T07:14:35Z",
     title: "Dokumen cetak: “Rp” kini di judul kolom",
     details: [

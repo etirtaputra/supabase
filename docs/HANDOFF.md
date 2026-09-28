@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-28** · head of `main` at that point: `32d9da0` (see §4, §6)
+**Last updated: 2026-09-28** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -111,7 +111,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 841 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 843 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
@@ -126,7 +126,32 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-28 (latest) — Rp in the column header on printed documents too
+### 2026-09-28 (latest) — Set Pricing: each tier's GP under its price
+
+Owner asked how GP is computed, then for GP per tier. GP = (price − cost
+basis) ÷ price (`marginPct`), cost basis = landed → TUC → quote
+(`lib/costBasis.ts`; a QUOTE basis is optimistic — no freight/duty/PIB).
+
+**Corrected out loud:** I first told the owner the GP column's red meant
+"below target". It did not — red was ANY tier below its own floor
+(`below_floor`), amber/green the profile band. BOS-A-PDU-2 at 11.1% was red
+while inside its 10–15% band, because Tier-1's floor is 13%.
+
+Now each tier cell shows its GP under the box (read live from the typed /
+pinned / chained price), red + ⚠ only when below THAT tier's floor
+(`21.0_price_tiers.margin_floor_pct`: 13 / 14 / 15), tooltip names the floor.
+The GP column no longer turns red for floors — only amber/green/grey against
+the profile band. The floor test is one rule: `belowFloor` + `FLOOR_SLACK_PCT`
+in `lib/priceGrid.ts`, used by `issuesFor`, the Floor Audit and the tier line
+(two private copies of `- 0.05` removed; test guards it).
+
+**Raised with the owner, not changed:** Loss Leader's band (10–15%) overlaps
+Tier-1's floor (13%) — a Loss Leader at 10–12.9% is "on target" and "below
+floor" at once.
+
+843 tests.
+
+### 2026-09-28 — Rp in the column header on printed documents too
 
 Owner: *"yes, move Rp to the column header in the PDFs too"*.
 `moneyUnitDoc()` / `fmtMoneyCellDoc()` in `lib/formatters.ts` (document

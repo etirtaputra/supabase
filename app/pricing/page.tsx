@@ -30,7 +30,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import CopyButton from '@/components/ui/CopyButton';
 import { useT } from '@/hooks/useT';
 import { computeTierChain, roundUpToStep } from '@/lib/tierPricing';
-import { issuesFor, matchesIssues, matchesScope, marginPct,
+import { issuesFor, matchesIssues, matchesScope, marginPct, belowFloor,
          compareCells, suggestRange, ISSUE_LABEL, SCOPE_LABEL,
          type PriceIssue, type PriceScope, type SortDir } from '@/lib/priceGrid';
 import {
@@ -318,12 +318,12 @@ export default function PricingPage() {
         const price = e?.price ?? null;
         if (price == null || price <= 0) continue;
         const ov = e?.overridden ? (ovByKey.get(`${c.component_id}:${t.tier_id}`) ?? null) : null;
-        const gp = ((price - cost) / price) * 100;
-        if (gp >= (t.margin_floor_pct || 0) - 0.05) continue;
+        const gp = marginPct(price, cost);
+        if (gp == null || !belowFloor(gp, t.margin_floor_pct)) continue;
         const minPrice = minPriceFor(cost, t.margin_floor_pct || 0);
         // Would the chain default alone (this tier's override cleared) clear the floor?
         const defPrice = ov ? (chainFor(c, t.tier_id).get(t.tier_id)?.price ?? null) : null;
-        const defaultCompliant = !!ov && defPrice != null && defPrice > 0 && ((defPrice - cost) / defPrice) * 100 >= (t.margin_floor_pct || 0);
+        const defaultCompliant = !!ov && defPrice != null && defPrice > 0 && !belowFloor(marginPct(defPrice, cost), t.margin_floor_pct);
         out.push({
           comp: c, tier: t, price, cost, gp, minPrice, onHand,
           // Leakage is money at stake on stock we are HOLDING. An item priced
@@ -1629,6 +1629,27 @@ function SetPricingTab({
                             : pinned ? 'border-violet-500/40 text-violet-200'
                             : stored != null ? 'border-slate-700 text-slate-200'
                             : 'border-transparent text-slate-500 hover:border-slate-700 placeholder-slate-600'}`} />
+                        {/* THIS TIER'S GP (owner, 2026-09-28: "show the GP of
+                            each tier"). Read from what is in the box right now —
+                            typed, pinned or chained — against the row's cost
+                            basis, so it moves as you type like the GP column.
+                            Judged ONLY against this tier's own floor: quiet when
+                            it clears it, red when it does not. The margin-profile
+                            target is the GP column's question, not this one. */}
+                        {(() => {
+                          const tierGp = marginPct(i === 0 ? netNow : computed, r.cost);
+                          if (tierGp == null) return null;
+                          const floor = Number(t.margin_floor_pct) || 0;
+                          const under = belowFloor(tierGp, floor);
+                          return (
+                            <p className={`mt-0.5 pr-1.5 text-[10px] tabular-nums whitespace-nowrap ${under ? 'text-red-400 font-semibold' : 'text-slate-500'}`}
+                              title={under
+                                ? tf('GP {gp}% — below the {floor}% minimum for {tier}', { gp: tierGp.toFixed(1), floor, tier: t.name })
+                                : tf('GP {gp}% at {tier} · minimum {floor}%', { gp: tierGp.toFixed(1), floor, tier: t.name })}>
+                              {under && '⚠ '}{tierGp.toFixed(1)}%
+                            </p>
+                          );
+                        })()}
                         {/* A pinned tier does not follow the net — that is what
                             pinning means. But once the net moves, the pin is
                             usually a leftover rather than a decision, so show
@@ -1717,8 +1738,14 @@ function SetPricingTab({
                   <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap">
                     {gpNow == null ? <span className="text-slate-600">—</span> : (
                       <>
-                        <span className={`${r.issues.has('below_floor') ? 'text-red-400'
-                          : standingNow === 'below' ? 'text-amber-400'
+                        {/* One question per colour (owner, 2026-09-28): this
+                            column says whether the NET sits inside the item's
+                            margin-profile target — amber under, green over.
+                            It used to turn red when ANY tier broke its floor,
+                            which read as "below target" (it was explained to
+                            the owner that way once, wrongly). A floor breach is
+                            now red on the tier that breaks it, under its box. */}
+                        <span className={`${standingNow === 'below' ? 'text-amber-400'
                           : standingNow === 'above' ? 'text-emerald-400' : 'text-slate-300'} ${
                           draft[netKey] !== undefined ? 'font-semibold' : ''}`}>
                           {gpNow.toFixed(1)}%

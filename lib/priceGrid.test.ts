@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { issuesFor, matchesIssues, matchesScope, marginPct, priceForMargin, compareCells,
-         suggestRange, SCOPE_LABEL, ISSUE_LABEL,
+         suggestRange, SCOPE_LABEL, ISSUE_LABEL, belowFloor, FLOOR_SLACK_PCT,
          type PriceIssue, type PriceScope } from './priceGrid.ts';
 import type { MarginProfile } from './marginProfiles.ts';
 
@@ -434,4 +434,30 @@ test('every offered chip has a label, so none renders blank', () => {
   for (const issueKey of Object.keys(ISSUE_LABEL) as PriceIssue[]) {
     assert.ok(ISSUE_LABEL[issueKey]?.trim(), `${issueKey} has no label`);
   }
+});
+
+// ── Per-tier GP on Set Pricing (owner, 2026-09-28) ──────────────────────────
+
+test('below a tier floor: one rule, with the rounding slack, for every place that asks', () => {
+  // The real case that prompted it: BOS-A-PDU-2, net 18.000.000 on a
+  // 16.005.000 quote basis = 11.1%, under Tier-1's 13% floor.
+  const gp = marginPct(18_000_000, 16_005_000);
+  assert.ok(gp != null && Math.abs(gp - 11.083) < 0.01);
+  assert.equal(belowFloor(gp, 13), true);
+  // Its Tier-2 (18.948.000 → 15.5%) clears the 14% floor.
+  assert.equal(belowFloor(marginPct(18_948_000, 16_005_000), 14), false);
+  // A hair under is not a breach; a real miss is.
+  assert.equal(belowFloor(13 - FLOOR_SLACK_PCT / 2, 13), false);
+  assert.equal(belowFloor(12.9, 13), true);
+  // No price or no cost: nothing to judge.
+  assert.equal(belowFloor(null, 13), false);
+  // Floors arrive from Postgres as strings ("13").
+  assert.equal(belowFloor(12, '13'), true);
+});
+
+test('Set Pricing and the Floor Audit ask the shared rule, not their own arithmetic', () => {
+  const src = readFileSync(join(process.cwd(), 'app', 'pricing', 'page.tsx'), 'utf8');
+  assert.ok(!/margin_floor_pct \|\| 0\) - 0\.05/.test(src), 'a private copy of the floor slack is back');
+  assert.ok((src.match(/belowFloor\(/g) ?? []).length >= 3,
+    'the audit, the default-compliance check and the tier GP line should all use belowFloor');
 });

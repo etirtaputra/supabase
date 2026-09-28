@@ -68,6 +68,21 @@ export function marginPct(price: number | null, cost: number | null): number | n
 }
 
 /**
+ * A rounding hair under a floor is not a breach: flagging 12.97% against a
+ * 13% floor trains people to ignore the flag. One slack, shared by the Floor
+ * Audit, the row's "below floor" issue and the per-tier GP line on Set
+ * Pricing (owner, 2026-09-28) — so a tier is never red in one place and fine
+ * in another.
+ */
+export const FLOOR_SLACK_PCT = 0.05;
+
+/** Does a GP% fall below a tier's floor? null GP (no price or no cost) is not judged. */
+export function belowFloor(gp: number | null, floorPct: number | string | null | undefined): boolean {
+  if (gp == null) return false;
+  return gp < (Number(floorPct) || 0) - FLOOR_SLACK_PCT;
+}
+
+/**
  * Every issue this row has. A row can have several: an item priced below its
  * floor is usually below its band too, and the person fixing it wants to see
  * both rather than whichever one happened to be checked first.
@@ -90,11 +105,7 @@ export function issuesFor(row: RowInput): Set<PriceIssue> {
   // Floors are per tier, because each tier sells at its own price.
   for (const t of row.tiers) {
     const price = row.priceByTier.get(t.tier_id) ?? null;
-    const gp = marginPct(price, row.cost);
-    if (gp == null) continue;
-    // The 0.05 slack matches the Floor Audit: a rounding hair under the floor
-    // is not a breach, and flagging it trains people to ignore the flag.
-    if (gp < (Number(t.margin_floor_pct) || 0) - 0.05) out.add('below_floor');
+    if (belowFloor(marginPct(price, row.cost), t.margin_floor_pct)) out.add('below_floor');
   }
 
   // The band is judged on the item's OWN economics — the net price against

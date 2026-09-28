@@ -1581,6 +1581,10 @@ export const ID: Record<string, string> = {
   'Δ line': 'Δ baris',
   'Allocated': 'Dialokasikan',
 
+  // Set Pricing: each tier's GP under its price (2026-09-28)
+  'GP {gp}% — below the {floor}% minimum for {tier}': 'Laba kotor {gp}% — di bawah minimum {floor}% untuk {tier}',
+  'GP {gp}% at {tier} · minimum {floor}%': 'Laba kotor {gp}% di {tier} · minimum {floor}%',
+
   // ── Buttons, 2026-09-28 (owner: "make page titles and button wording
   // consistent across screens") ─────────────────────────────────────────
   // 377 buttons showed English on the Indonesian screen. Action words are
