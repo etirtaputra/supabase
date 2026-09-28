@@ -22,7 +22,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    'bg-slate-700/60 text-slate-300',
-  sent:     'bg-blue-500/20 text-blue-300',
+  sent:     'bg-blue-500/20 text-blue-300 tone-step',
   accepted: 'bg-emerald-500/20 text-emerald-300',
   rejected: 'bg-red-500/20 text-red-400',
 };

@@ -354,9 +354,14 @@ const FONTS = {
     sans: "Inter, 'Inter Tight', system-ui, -apple-system, 'Segoe UI', sans-serif",
     mono: "'JetBrains Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, monospace",
   },
+  // Corporate sets codes and amounts in the TEXT face (owner, 2026-09-28):
+  // Plex Sans already tells I/l/1 and O/0 apart and its figures are tabular,
+  // so a typewriter face buys nothing but a second texture in every table.
+  // Serial numbers — read character by character off a label — keep Plex
+  // Mono through the `serial-no` marker (CORPORATE_SHELL_CSS).
   corporate: {
     sans: "'IBM Plex Sans', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
-    mono: "'IBM Plex Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, monospace",
+    mono: "'IBM Plex Sans', Inter, system-ui, sans-serif",
   },
 };
 const fontBlock = (f) => `--font-app:${f.sans};--font-mono-app:${f.mono}`;
@@ -451,6 +456,26 @@ const CORPORATE_SHELL_CSS = [
   `${both('[class*="focus:ring-emerald"]:focus')}{--tw-ring-color:rgb(var(--c-brand) / .35)}`,
   // Solid chrome: a translucent sticky header ghosts whatever scrolls under it.
   `${both('[class*="bg-chrome/80"]')}{background-color:rgb(var(--c-chrome));backdrop-filter:none}`,
+  // SMALL PRINT, measured (2026-09-28): 10px → 11px and 9px → 10.5px. Against
+  // the Inter these screens were laid out in, Plex at those sizes runs ~6%
+  // wider at the median (p90 8–10%) — the same box, readable. A straight 11px
+  // for the 9px capitals would have been 11–22% wider, so those stop at 10.5.
+  // An element that already states its own size at a breakpoint
+  // (`text-[10px] md:text-xs`) is left alone: this rule would otherwise beat
+  // the breakpoint's size.
+  `${both('.text-\\[10px\\]:not([class*=":text-"])')}{font-size:11px}`,
+  `${both('.text-\\[9px\\]:not([class*=":text-"])')}{font-size:10.5px}`,
+  // Serial numbers keep a typewriter face (see FONTS.corporate).
+  `${both('.serial-no')}{font-family:'IBM Plex Mono','Roboto Mono',ui-monospace,monospace}`,
+  // STATUS COLOUR MEANS SOMETHING. Status maps tag each state with its tone
+  // (tone-step / tone-wait / tone-done / tone-bad / tone-off — lib/salesStatus.ts,
+  // lib/serials.ts, lib/supportLetters.ts and the screen-local maps). A STEP (validated, sent, ordered, in stock)
+  // reads neutral and a WAIT (preparing, partly delivered) reads amber; done
+  // stays green and a problem stays red — their own colours already say so.
+  `${both('.tone-step')}{color:rgb(var(--c-slate-300))}`,
+  `${both('.tone-step[class*="bg-"]')}{background-color:rgb(var(--c-slate-500) / .12);border-color:rgb(var(--c-slate-500) / .25)}`,
+  `${both('.tone-wait')}{color:rgb(var(--c-amber-300))}`,
+  `${both('.tone-wait[class*="bg-"]')}{background-color:rgb(var(--c-amber-500) / .15);border-color:rgb(var(--c-amber-500) / .3)}`,
   // Light only: cards lift off the page with a hairline shadow, the way a
   // sheet of paper does, instead of relying on the border alone.
   `${C} [class~="rounded-2xl"][class~="border"]{box-shadow:0 1px 2px rgb(16 24 40 / .05)}`,

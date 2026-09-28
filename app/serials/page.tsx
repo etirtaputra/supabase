@@ -356,7 +356,7 @@ function SerialsPage() {
         {failed && (
           <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-4 text-sm">
             <span className="text-red-300 font-semibold">{t('Could not read the register.')}</span>
-            <span className="text-red-200/80 text-xs ml-2 font-mono">{failed}</span>
+            <span className="text-red-200/80 text-xs ml-2 font-mono serial-no">{failed}</span>
           </div>
         )}
 
@@ -403,7 +403,7 @@ function SerialsPage() {
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); acceptScan(scanBox); } }}
                     onBlur={() => { if (scanBox.trim()) acceptScan(scanBox); }}
                     placeholder={fComp || fProductText.trim() ? 'Scan a unit — the gun presses Enter for you' : 'Pick the product first'}
-                    className={`${inp} font-mono text-base py-3`} autoComplete="off" />
+                    className={`${inp} font-mono serial-no text-base py-3`} autoComplete="off" />
                   <p className="text-[10px] text-slate-600 mt-1">
                     The box stays focused after every scan. Keep going until the pallet is done, then record them all at once.
                   </p>
@@ -415,7 +415,7 @@ function SerialsPage() {
                         return (
                           <div key={s} className="flex items-center gap-2 px-3 py-1.5 text-xs">
                             <span className="w-8 text-right text-slate-600 tabular-nums">{scanned.length - i}</span>
-                            <span className="font-mono text-slate-200 truncate">{s}</span>
+                            <span className="font-mono serial-no text-slate-200 truncate">{s}</span>
                             {known && (
                               <span className="text-[10px] text-amber-300" title={t("This unit is already in the register — it will be left alone")}>
                                 already registered
@@ -431,7 +431,7 @@ function SerialsPage() {
                 </>
               ) : (
                 <textarea value={fPaste} onChange={(e) => setFPaste(e.target.value)} rows={6}
-                  placeholder={'SN-0001\nSN-0002\nSN-0003'} className={`${inp} font-mono resize-y`} />
+                  placeholder={'SN-0001\nSN-0002\nSN-0003'} className={`${inp} font-mono serial-no resize-y`} />
               )}
             </div>
 
@@ -510,7 +510,7 @@ function SerialsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder={t('Scan or type a serial, or search product, customer, order…')}
-            className={`${inp} flex-1 min-w-[220px] max-w-lg font-mono`} />
+            className={`${inp} flex-1 min-w-[220px] max-w-lg font-mono serial-no`} />
           <div className="flex flex-wrap items-center gap-1.5">
             <button onClick={() => setStatusFilter('')}
               className={`text-[11px] px-2.5 py-1.5 rounded-lg border transition-colors ${!statusFilter ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 font-bold' : 'border-slate-700/80 text-slate-500 hover:text-slate-300'}`}>
@@ -593,7 +593,7 @@ function SerialsPage() {
                           checked={ticked.has(r.serial_id)} onChange={() => toggleTick(r.serial_id)}
                           onClick={(e) => e.stopPropagation()} />
                       ) : <span />}
-                      <button onClick={() => setOpenRow(isOpen ? null : r.serial_id)} className="text-left font-mono text-xs text-emerald-300 truncate">
+                      <button onClick={() => setOpenRow(isOpen ? null : r.serial_id)} className="text-left font-mono serial-no text-xs text-emerald-300 truncate">
                         {r.serial}
                       </button>
                       <button onClick={() => setOpenRow(isOpen ? null : r.serial_id)} className="text-left text-xs text-slate-300 truncate block w-full">

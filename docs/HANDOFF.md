@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-28** · head of `main` at that point: `56d876e` (see §4, §6)
+**Last updated: 2026-09-28** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -111,7 +111,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 831 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 834 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
@@ -126,7 +126,45 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-28 (latest) — one name per page, one word per action
+### 2026-09-28 (latest) — Corporate: readable small print, colour by meaning
+
+Owner asked for "the most legible nicely aligned balance between fonts and
+numbers for corporate use" and colour; approved the proposal ("ok go ahead").
+
+**Typeface, measured** (7 faces, same money table, 13px, real fonts in
+Chromium): IBM Plex Sans is the only one that separates **I/l/1 and O/0** —
+decisive for codes like PIO-013-ISL — and its figures are tabular by default
+(Inter needs tnum switched on). Corporate keeps Plex.
+
+**Small print, measured before changing** (Plex vs the Inter these screens
+were laid out in, 400 real Indonesian labels): Plex 11px vs Inter 10px =
++6% width median (p90 +8%, max +11%); for the 9px uppercase labels, 11px
+would be +11–22%, so 10.5px (+6% median). Rules in `CORPORATE_SHELL_CSS`,
+skipped on elements that state their own breakpoint size (`md:text-xs`).
+Replica check: 0 overflowing elements.
+
+**Codes and amounts in the text face**: corporate `--font-mono-app` is Plex
+Sans; **serial numbers keep Plex Mono** via a `serial-no` marker (9 sites in
+app/serials + app/aftersales).
+
+**Colour by meaning**: status maps now carry a tone marker —
+`tone-off|step|wait|done|bad` — in `lib/salesStatus.ts`, `lib/serials.ts`,
+`lib/supportLetters.ts`, aftersales/proposal maps, Deal Lookup PO/quote
+badges and the two "Partly Delivered" badges. Only the corporate skins style
+it: step → neutral, wait → amber (orange "Preparing" and teal "Partly
+Delivered" become amber). Done/bad keep their green/red. Other skins ignore
+the marker (measured: Terminal Light still shows its 6 hues).
+Not done: the palette hues themselves are untouched, because charts use them
+to tell series apart.
+
+**Not done — needs the owner:** "Rp once in the column header" is a content
+change (every skin), and the PDFs (Price Quote, DO, EPC Proposal, Support
+Letter) keep Rubik — they are customer-facing and already navy #1f5aa8.
+
+Tests in `lib/palette.test.ts` (every status has one tone; tone/small-print/
+serial rules are corporate-scoped; serial markers present). 834 tests.
+
+### 2026-09-28 — one name per page, one word per action
 
 Owner: *"make page titles and button wording consistent across screens"*.
 

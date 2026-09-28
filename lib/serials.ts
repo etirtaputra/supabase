@@ -34,11 +34,11 @@ export const normSerial = (s: string): string => (s ?? '').replace(/[^A-Za-z0-9]
  * the shelf, spoken for, and gone.
  */
 export const SERIAL_STATUS: Record<string, { label: string; cls: string }> = {
-  in_stock:  { label: 'In stock',  cls: 'bg-sky-500/15 text-sky-300' },
-  allocated: { label: 'Allocated', cls: 'bg-violet-500/15 text-violet-300' },
-  delivered: { label: 'Out',       cls: 'bg-emerald-500/15 text-emerald-300' },
-  returned:  { label: 'Returned',  cls: 'bg-amber-500/15 text-amber-300' },
-  scrapped:  { label: 'Scrapped',  cls: 'bg-slate-700/40 text-slate-400' },
+  in_stock:  { label: 'In stock',  cls: 'bg-sky-500/15 text-sky-300 tone-step' },
+  allocated: { label: 'Allocated', cls: 'bg-violet-500/15 text-violet-300 tone-step' },
+  delivered: { label: 'Out',       cls: 'bg-emerald-500/15 text-emerald-300 tone-done' },
+  returned:  { label: 'Returned',  cls: 'bg-amber-500/15 text-amber-300 tone-wait' },
+  scrapped:  { label: 'Scrapped',  cls: 'bg-slate-700/40 text-slate-400 tone-off' },
 };
 
 /** Has this unit left the warehouse? */

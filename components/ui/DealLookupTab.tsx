@@ -56,7 +56,7 @@ const rateNote = (b: { idrRate: number | null; idrSource: string | null }): stri
 
 function quoteColor(status?: string | null): string {
   const map: Record<string, string> = {
-    Open:     'text-sky-400',
+    Open:     'text-sky-400 tone-step',
     Accepted: 'text-emerald-400',
     Replaced: 'text-slate-500',
     Rejected: 'text-red-400',
@@ -68,8 +68,8 @@ function quoteColor(status?: string | null): string {
 function poColor(status?: string | null): string {
   const map: Record<string, string> = {
     Draft:                'text-slate-500',
-    Sent:                 'text-blue-400',
-    Confirmed:            'text-blue-300',
+    Sent:                 'text-blue-400 tone-step',
+    Confirmed:            'text-blue-300 tone-step',
     Replaced:             'text-slate-500',
     'Partially Received': 'text-amber-400',
     'Fully Received':     'text-emerald-400',
@@ -82,7 +82,7 @@ function poColor(status?: string | null): string {
 
 function quoteBadge(status?: string | null) {
   const map: Record<string, string> = {
-    Open:     'bg-sky-500/20 text-sky-300 border border-sky-500/30',
+    Open:     'bg-sky-500/20 text-sky-300 border border-sky-500/30 tone-step',
     Accepted: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
     Replaced: 'bg-slate-600/40 text-slate-400 border border-slate-600/40',
     Rejected: 'bg-red-500/20 text-red-300 border border-red-500/30',
@@ -94,8 +94,8 @@ function quoteBadge(status?: string | null) {
 function poBadge(status?: string | null) {
   const map: Record<string, string> = {
     Draft:                'bg-slate-700 text-slate-300',
-    Sent:                 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
-    Confirmed:            'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+    Sent:                 'bg-blue-500/20 text-blue-300 border border-blue-500/30 tone-step',
+    Confirmed:            'bg-blue-500/20 text-blue-300 border border-blue-500/30 tone-step',
     Replaced:             'bg-slate-600/40 text-slate-400 border border-slate-600/40',
     'Partially Received': 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
     'Fully Received':     'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',

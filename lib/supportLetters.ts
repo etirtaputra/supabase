@@ -16,9 +16,9 @@ import { fmtWarranty, type WarrantyFields } from './warranty';
 export type LetterStatus = 'draft' | 'issued' | 'cancelled';
 
 export const LETTER_STATUS: Record<LetterStatus, { label: string; cls: string }> = {
-  draft:     { label: 'Draft',     cls: 'bg-slate-700/40 text-slate-300' },
-  issued:    { label: 'Issued',    cls: 'bg-emerald-500/15 text-emerald-300' },
-  cancelled: { label: 'Cancelled', cls: 'bg-rose-500/15 text-rose-300' },
+  draft:     { label: 'Draft',     cls: 'bg-slate-700/40 text-slate-300 tone-off' },
+  issued:    { label: 'Issued',    cls: 'bg-emerald-500/15 text-emerald-300 tone-done' },
+  cancelled: { label: 'Cancelled', cls: 'bg-rose-500/15 text-rose-300 tone-bad' },
 };
 
 /** The administration fee charged per letter — prefilled on every new one. */

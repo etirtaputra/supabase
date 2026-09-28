@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-28T06:09:32Z",
+    title: "Tampilan Corporate: tulisan kecil lebih besar, warna status lebih tenang",
+    details: [
+      "Hanya di tampilan Corporate dan Corporate Dark — Terminal tidak berubah.",
+      "Tulisan kecil diperbesar: 10px menjadi 11px, dan label huruf kapital 9px menjadi 10,5px. Diukur lebih dulu: lebarnya hanya bertambah sekitar 6%, jadi tetap muat di kotaknya.",
+      "Nomor dokumen dan angka kini memakai huruf yang sama dengan teks (IBM Plex Sans, angka rata kolom). Nomor seri tetap memakai huruf mesin tik, karena dibaca per karakter dari label.",
+      "Warna status kini punya arti: abu-abu = sekadar tahap (Tervalidasi, Terkirim, Dipesan), kuning = menunggu atau sebagian, hijau = selesai, merah = masalah. Sebelumnya ada sekitar tujuh warna berbeda.",
+    ],
+  },
+  {
     at: "2026-09-28T02:50:17Z",
     title: "Nama halaman dan tulisan tombol kini seragam di semua layar",
     details: [

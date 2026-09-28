@@ -1215,7 +1215,7 @@ export default function SalesQuotePage() {
             />
           )}
           {st !== 'delivered' && dos.some((d) => d.status === 'delivered') ? (
-            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300 tone-wait"
               title={t('Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped')}>
               {t('Partly Delivered')}
             </span>

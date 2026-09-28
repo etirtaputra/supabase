@@ -190,3 +190,42 @@ test('the component preview is refused outside development', () => {
   const nav = readFileSync('constants/navigation.ts', 'utf8');
   assert.ok(!nav.includes("'/preview'"), 'the preview must never be a registered destination');
 });
+
+// ── Corporate: type and status colour (owner, 2026-09-28: "ok go ahead") ────
+
+test('every status says what it MEANS, so the corporate skin can colour by meaning', async () => {
+  const { SALES_STATUS } = await import('./salesStatus.ts');
+  const { SERIAL_STATUS } = await import('./serials.ts');
+  // supportLetters.ts imports without an extension, which node --test cannot
+  // resolve — so its map is read from source rather than imported.
+  const letterSrc = readFileSync('lib/supportLetters.ts', 'utf8');
+  const letterBlock = letterSrc.slice(letterSrc.indexOf('LETTER_STATUS'), letterSrc.indexOf('};', letterSrc.indexOf('LETTER_STATUS')));
+  const LETTER_STATUS = Object.fromEntries([...letterBlock.matchAll(/(\w+):\s*\{[^}]*cls:\s*'([^']*)'/g)].map((m) => [m[1], { cls: m[2] }]));
+  assert.ok(Object.keys(LETTER_STATUS).length >= 3, 'could not read LETTER_STATUS');
+  const untoned: string[] = [];
+  for (const [name, map] of Object.entries({ SALES_STATUS, SERIAL_STATUS, LETTER_STATUS })) {
+    for (const [k, v] of Object.entries(map as Record<string, { cls: string }>)) {
+      const tones = v.cls.split(/\s+/).filter((c) => c.startsWith('tone-'));
+      if (tones.length !== 1 || !/^tone-(off|step|wait|done|bad)$/.test(tones[0])) untoned.push(`${name}.${k}`);
+    }
+  }
+  assert.deepEqual(untoned, [], 'each status needs exactly one tone-off|step|wait|done|bad');
+});
+
+test('tone colours, small print and the serial face are corporate-only', () => {
+  const rules = THEME_VARS_CSS.split('\n').filter((l) => /tone-|serial-no|text-\\\[(9|10)px/.test(l));
+  assert.ok(rules.length >= 5, 'the corporate type/tone rules have gone');
+  for (const r of rules) {
+    for (const sel of r.split('{')[0].split(',')) {
+      assert.match(sel.trim(), /^:root\[data-theme="corporate(-dark)?"\]/, `unscoped: ${sel}`);
+    }
+  }
+  // Breakpoint sizes win: the small-print rule must step aside for them.
+  assert.ok(rules.some((r) => r.includes(':not([class*=":text-"])')));
+});
+
+test('serial numbers are marked where they are read character by character', () => {
+  for (const f of ['app/serials/page.tsx', 'app/aftersales/page.tsx']) {
+    assert.ok(readFileSync(f, 'utf8').includes('serial-no'), `${f} lost its serial-no markers`);
+  }
+});

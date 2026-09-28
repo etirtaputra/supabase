@@ -458,7 +458,7 @@ export default function SalesListPage() {
                       <span className={compact ? 'flex items-center flex-shrink-0' : 'flex flex-col gap-1'}>
                         <span className="flex items-center gap-1.5 flex-wrap">
                           {delStateOf(q) === 'partial' ? (
-                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300"
+                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-teal-500/15 text-teal-300 tone-wait"
                               title={t('Some delivery orders are delivered, the rest still preparing — the order completes when every item has shipped')}>
                               {t('Partly Delivered')}
                             </span>

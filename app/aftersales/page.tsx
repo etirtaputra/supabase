@@ -86,7 +86,7 @@ const STATUS_SECTIONS: { key: string; label: string; accent: string; rule: strin
   { key: 'closed',        label: 'Closed',        accent: 'text-slate-500',   rule: 'bg-slate-700/40' },
 ];
 const STATUS_BADGE: Record<string, string> = {
-  open: 'bg-rose-500/15 text-rose-300', in_progress: 'bg-sky-500/15 text-sky-300',
+  open: 'bg-rose-500/15 text-rose-300', in_progress: 'bg-sky-500/15 text-sky-300 tone-step',
   waiting_parts: 'bg-amber-500/15 text-amber-300', resolved: 'bg-emerald-500/15 text-emerald-300',
   closed: 'bg-slate-700/40 text-slate-400',
 };
@@ -566,7 +566,7 @@ function AfterSalesPage() {
                     className="w-full text-left px-4 py-2.5 hover:bg-white/[0.03] transition-colors lg:grid lg:grid-cols-[165px_90px_150px_1fr_150px_120px_110px_100px] lg:gap-3 lg:items-center">
                     <span className="font-mono text-xs text-emerald-300">{c.case_number}</span>
                     <span className="hidden lg:block text-[11px] text-slate-500 tabular-nums">{fmtDay(c.reported_at)}</span>
-                    <span className="hidden lg:block font-mono text-[11px] text-slate-300 truncate" title={serialShown}>
+                    <span className="hidden lg:block font-mono serial-no text-[11px] text-slate-300 truncate" title={serialShown}>
                       {serialShown || <span className="text-slate-600">—</span>}
                     </span>
                     <span className="text-xs text-slate-300 truncate block lg:inline" title={product}>
@@ -819,7 +819,7 @@ function AfterSalesPage() {
                       }
                     }}
                     placeholder="Read it off the label — dashes and spaces don't matter"
-                    className={`${inputCls} font-mono`} />
+                    className={`${inputCls} font-mono serial-no`} />
                 </label>
                 <Link href={`/serials?q=${encodeURIComponent(serialInput)}`}
                   className="px-3 py-2 rounded-lg border border-slate-700 text-slate-400 hover:text-emerald-300 hover:border-emerald-500/40 text-[11px] font-semibold whitespace-nowrap transition-colors"
@@ -836,7 +836,7 @@ function AfterSalesPage() {
                       <button key={r.serial_id} onClick={() => applySerial(r)} disabled={!canEdit}
                         className="w-full text-left px-3 py-2 rounded-lg bg-emerald-500/[0.07] border border-emerald-500/25 hover:bg-emerald-500/15 transition-colors">
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
-                          <span className="font-mono text-emerald-300">{r.serial}</span>
+                          <span className="font-mono serial-no text-emerald-300">{r.serial}</span>
                           <span className="text-slate-300">{r.component_id ? compById.get(r.component_id)?.internal_description ?? '—' : r.product_text || '—'}</span>
                           <span className="text-slate-500">{custName.get(trace.customerId ?? '') ?? t('No customer')}</span>
                           {trace.order && <span className="text-sky-300 font-mono">{displayDocNumber(trace.order)}</span>}
