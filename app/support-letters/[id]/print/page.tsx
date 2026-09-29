@@ -35,7 +35,10 @@ export default function SupportLetterPrintPage() {
 
   const [letter, setLetter] = useState<SupportLetter | null>(null);
   const [items, setItems] = useState<SupportLetterItem[]>([]);
-  const [companyName, setCompanyName] = useState('');
+  // The ISSUING company's own record (1.0_companies) — its name, and since
+  // 2026-09-29 its address, phone and email, so each of the group's companies
+  // signs with its own details. Settings › Company is only the fallback.
+  const [company, setCompany] = useState<{ legal_name: string; address: string | null; phone: string | null; email: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
 
   // How much of the top to leave blank for pre-printed letterhead paper.
@@ -95,8 +98,8 @@ export default function SupportLetterPrintPage() {
       setLetter(l);
       setItems((iRes.data as SupportLetterItem[]) ?? []);
       if (l?.company_id) {
-        const { data } = await supabase.from('1.0_companies').select('legal_name').eq('company_id', l.company_id).maybeSingle();
-        setCompanyName((data as { legal_name: string } | null)?.legal_name ?? '');
+        const { data } = await supabase.from('1.0_companies').select('legal_name, address, phone, email').eq('company_id', l.company_id).maybeSingle();
+        setCompany((data as { legal_name: string; address: string | null; phone: string | null; email: string | null } | null) ?? null);
       }
       setLoading(false);
     })();
@@ -110,7 +113,11 @@ export default function SupportLetterPrintPage() {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>Menyiapkan dokumen…</div>;
   }
 
-  const issuer = companyName || settings.companyName || 'ICAPROC';
+  const issuer = company?.legal_name || settings.companyName || 'ICAPROC';
+  // Field by field: the issuing company's own value, else the house default.
+  const issuerAddress = company?.address?.trim() || settings.companyAddress;
+  const issuerPhone = company?.phone?.trim() || settings.companyPhone;
+  const issuerEmail = company?.email?.trim() || settings.companyEmail;
   const clauses = statementLines(letter.statements);
 
   return (
@@ -207,11 +214,11 @@ export default function SupportLetterPrintPage() {
         ) : (
           <div className="header">
             <div className="company-name">{issuer}</div>
-            {(settings.companyAddress || settings.companyPhone || settings.companyEmail) && (
+            {(issuerAddress || issuerPhone || issuerEmail) && (
               <div className="company-meta">
-                {settings.companyAddress && <div style={{ whiteSpace: 'pre-line' }}>{settings.companyAddress}</div>}
-                {[settings.companyPhone, settings.companyEmail].filter(Boolean).join(' · ') && (
-                  <div>{[settings.companyPhone, settings.companyEmail].filter(Boolean).join(' · ')}</div>
+                {issuerAddress && <div style={{ whiteSpace: 'pre-line' }}>{issuerAddress}</div>}
+                {[issuerPhone, issuerEmail].filter(Boolean).join(' · ') && (
+                  <div>{[issuerPhone, issuerEmail].filter(Boolean).join(' · ')}</div>
                 )}
               </div>
             )}
@@ -243,8 +250,9 @@ export default function SupportLetterPrintPage() {
           <Row k="Nama" v={letter.signatory_name} />
           <Row k="Jabatan" v={letter.signatory_title} />
           <Row k="Perusahaan" v={issuer} />
-          <Row k="Alamat" v={settings.companyAddress} />
-          <Row k="Telp." v={settings.companyPhone} />
+          <Row k="Alamat" v={issuerAddress} />
+          <Row k="Telp." v={issuerPhone} />
+          {issuerEmail && <Row k="Email" v={issuerEmail} />}
         </div>
 
         <p className="lead">

@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-29T22:48:39Z",
+    title: "Surat Dukungan memakai alamat, telepon dan email perusahaan penerbitnya",
+    details: [
+      "Surat Dukungan kini mengambil Alamat, Telp. dan Email dari perusahaan yang menerbitkannya — sebelumnya dari satu pengaturan umum yang kosong, sehingga tertulis “—”.",
+      "PT Indodaya Surya Lestari: Ruko Komplek Glodok Plaza Blok A No.11, Jl. Pinangsia Raya, 01, Mangga Besar, Taman Sari, Kota Adm. Jakarta Barat, DKI Jakarta, 11180 · 021-54345799 · salessupport2@icasolar.com.",
+      "Baris Email baru muncul di bawah Telp. bila perusahaan punya email. Perusahaan lain yang belum diisi tetap memakai data di Pengaturan › Perusahaan.",
+    ],
+  },
+  {
     at: "2026-09-28T13:18:49Z",
     title: "Harga Jual: laba kotor tiap tier tampil di bawah harganya",
     details: [

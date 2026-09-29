@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-28** · head of `main` at that point: `bb8a891` (see §4, §6)
+**Last updated: 2026-09-29** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -126,7 +126,27 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-28 (latest) — Set Pricing: each tier's GP under its price
+### 2026-09-29 (latest) — support letters sign with their own company's details
+
+Owner (photo of letter 003-ISL-SD-VIII-2026 showing "Alamat: —, Telp.: —"):
+use ISL's address, phone and email. Cause: the print page read the ONE global
+Settings › Company address/phone (empty) although every letter carries its
+issuing `company_id`, whose `1.0_companies` row already had an address.
+
+- `migrations/company_contact_fields.sql` (**applied**): `phone`, `email` on
+  `1.0_companies`.
+- Data (owner-supplied, asked for): PT Indodaya Surya Lestari's row now holds
+  the new address, 021-54345799, salessupport2@icasolar.com.
+- `app/support-letters/[id]/print`: letterhead block + "Yang bertanda tangan"
+  rows read the issuing company field by field, falling back to Settings;
+  an "Email" row appears when there is one.
+
+**Not done (offer made):** the other three companies have an address but no
+phone/email; there is no screen to edit company rows (only via the DB); and
+quotes/DOs still print the GLOBAL Settings contact block, not their issuing
+company's — the same fix would apply there.
+
+### 2026-09-28 — Set Pricing: each tier's GP under its price
 
 Owner asked how GP is computed, then for GP per tier. GP = (price − cost
 basis) ÷ price (`marginPct`), cost basis = landed → TUC → quote
