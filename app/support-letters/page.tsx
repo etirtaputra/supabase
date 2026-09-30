@@ -34,6 +34,7 @@ import { fmtDay, fmtInt, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { isOfferable, visibleBrands, VISIBILITY_COLUMNS } from '@/lib/itemVisibility';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { brandedModel } from '@/lib/brandText';
 import {
   LETTER_STATUS, DEFAULT_LETTER_FEE, DEFAULT_STATEMENTS, DEFAULT_VALIDITY_NOTE,
   DEFAULT_CLOSING_NOTE, brandsOf, warrantyTextID, previewLetterNumber,
@@ -406,7 +407,8 @@ export default function SupportLettersPage() {
       component_id: componentId,
       ...(c ? {
         category_label: c.category ? humanize(c.category) : (c.internal_description ?? ''),
-        type_text: [c.brand, c.supplier_model].filter(Boolean).join(' ') || (c.internal_description ?? ''),
+        // Brand once — many supplier models already start with it (lib/brandText).
+        type_text: brandedModel(c.brand, c.supplier_model) || (c.internal_description ?? ''),
         warranty_text: warrantyTextID(c),
       } : {}),
     });

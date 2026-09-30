@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-29** · head of `main` at that point: `6f6fd28` (see §4, §6)
+**Last updated: 2026-09-30** · head of `main` at that point: see the top of `git log` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -111,7 +111,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 843 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 845 tests at handoff (2026-09-27), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
@@ -126,7 +126,29 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-29 (latest) — support letters sign with their own company's details
+### 2026-09-30 (latest) — support letter: spacing, numbered clauses, brand once
+
+Owner sent printed letter 002-ISL-SD-VIII-2026: the Nama…Email rows (both
+parties) too tight. Rendered the PDF (pymupdf in the scratchpad) and found two
+more real faults while at it:
+
+- **Rows:** `.party-row + .party-row { margin-top: 1.1mm }` — between rows
+  only, so a wrapped address still reads as one entry. The page auto-fits one
+  sheet, so no letter gains a page.
+- **Clause numbers were invisible:** Tailwind's preflight (`ol { list-style:
+  none }`) reaches the print page; the `<ol>` of statements printed as loose
+  indented paragraphs. Now `list-style: decimal outside`.
+- **Brand twice** ("EPEVER EPEVER XTRA3210N…"): the form built
+  `brand + supplier_model` and many models already start with the brand.
+  `lib/brandText.ts`: `brandedModel()` where the text is built (the form),
+  `collapseRepeatedLead()` where it is shown (print) — so letters already
+  saved print clean without rewriting stored data. Tests in
+  `lib/brandText.test.ts`.
+
+Verified on a replica built from the page's own stylesheet plus the list
+reset the app loads: rows 21px apart (were ~16), `list-style: decimal`.
+
+### 2026-09-29 — support letters sign with their own company's details
 
 Owner (photo of letter 003-ISL-SD-VIII-2026 showing "Alamat: —, Telp.: —"):
 use ISL's address, phone and email. Cause: the print page read the ONE global

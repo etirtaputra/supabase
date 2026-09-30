@@ -20,6 +20,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { fmtDateID, statementLines, type SupportLetter, type SupportLetterItem } from '@/lib/supportLetters';
 import { useT } from '@/hooks/useT';
 import { DOC_FONT_FAMILY } from '@/lib/documentType';
+import { collapseRepeatedLead } from '@/lib/brandText';
 
 /** CSS pixels per millimetre at the 96dpi the print pipeline assumes. */
 const MM = 96 / 25.4;
@@ -154,7 +155,12 @@ export default function SupportLetterPrintPage() {
         .to-addr { color: #334155; white-space: pre-line; }
         .lead { margin-bottom: 1.2mm; }
         .party { margin: 0 0 2.6mm 6mm; }
+        /* Breathing room between the Nama / Jabatan / … lines (owner,
+           2026-09-30: "a bit too close together"). Between ROWS only — a
+           wrapped address keeps its own line height, so it still reads as
+           one entry. The page auto-fits one sheet, so this costs no page. */
         .party-row { display: flex; gap: 1.5mm; }
+        .party-row + .party-row { margin-top: 1.1mm; }
         .party-key { width: 30mm; flex-shrink: 0; }
         .party-val { font-weight: 600; color: #0f172a; white-space: pre-line; }
         table { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 1.2mm 0 3mm; page-break-inside: avoid; }
@@ -162,8 +168,11 @@ export default function SupportLetterPrintPage() {
         th { background: #eef3fa; font-weight: 700; font-size: 8.5pt; color: #1f2937; }
         td.no, th.no { width: 11mm; text-align: center; }
         td.wty, th.wty { width: 26mm; white-space: nowrap; }
-        ol { margin: 0 0 2.6mm 6mm; padding-left: 5mm; }
-        ol li { margin-bottom: 0.8mm; text-align: justify; }
+        /* The numbers were INVISIBLE: the app's base stylesheet (Tailwind's
+           reset) sets list-style: none on every list, so the three statements
+           printed as loose paragraphs. A formal letter numbers its clauses. */
+        ol { margin: 0 0 2.6mm 6mm; padding-left: 5mm; list-style: decimal outside; }
+        ol li { margin-bottom: 1.1mm; padding-left: 1mm; text-align: justify; }
         p.body { margin-bottom: 2.4mm; text-align: justify; }
         .sign { margin-top: 4mm; display: flex; justify-content: flex-end; page-break-inside: avoid; }
         .sign-inner { width: 76mm; text-align: center; }
@@ -285,7 +294,7 @@ export default function SupportLetterPrintPage() {
                   <tr key={it.item_id}>
                     <td className="no">{i + 1}</td>
                     <td>{it.category_label}</td>
-                    <td>{it.type_text}</td>
+                    <td>{collapseRepeatedLead(it.type_text)}</td>
                     <td className="wty">{it.warranty_text || '—'}</td>
                   </tr>
                 ))}

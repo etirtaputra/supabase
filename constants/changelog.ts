@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-09-30T01:42:15Z",
+    title: "Surat Dukungan: jarak baris lebih lega, pernyataan bernomor, merek tidak dobel",
+    details: [
+      "Baris Nama, Jabatan, Perusahaan, Alamat, Telp. dan Email — baik untuk perusahaan kita maupun perusahaan yang didukung — kini diberi jarak, tidak lagi rapat. Alamat yang panjang tetap terbaca sebagai satu baris isian.",
+      "Pernyataan “Melalui surat dukungan ini kami menyatakan bahwa:” kini bernomor 1, 2, 3. Nomornya sebenarnya sudah ada, tapi tersembunyi oleh gaya tampilan aplikasi.",
+      "Kolom Tipe tidak lagi menulis merek dua kali (“EPEVER EPEVER XTRA3210N…” menjadi “EPEVER XTRA3210N…”) — berlaku juga untuk surat yang sudah tersimpan.",
+    ],
+  },
+  {
     at: "2026-09-29T22:48:39Z",
     title: "Surat Dukungan memakai alamat, telepon dan email perusahaan penerbitnya",
     details: [
