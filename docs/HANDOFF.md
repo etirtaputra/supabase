@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-30** · head of `main` at that point: `f6032d9` (see §4, §6)
+**Last updated: 2026-09-30** · last change: *Support letter: roomier party rows, numbered clauses, brand said once* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -33,6 +33,13 @@ item/price/spec data eventually feed a public website.
 - No `gh` CLI in this sandbox — use the `mcp__github__*` MCP tools if you need
   the GitHub API. Plain `git` over HTTPS works fine for fetch/push.
 - Head of `main` at handoff: see the **Last updated** line at the top of this file.
+- **One commit per push, carrying the real description.** Vercel labels each
+  deployment with the message of the LAST commit in the push. Until
+  2026-09-30 every change was followed by a separate "HANDOFF: stamp the head
+  SHA" commit, so the owner's deployment list read that line on every row and
+  said nothing about what shipped. Update HANDOFF in the SAME commit as the
+  change and name the change in the Last-updated line — a commit cannot hold
+  its own SHA, and chasing it is what created the noise.
 
 ### Vercel — https://vercel.com/etirtaputras-projects/supabase/deployments
 - Production deploys **automatically from `main`**. Pushing to main IS the release.
