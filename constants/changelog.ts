@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-01T03:00:00Z",
+    title: "Pengaturan › Perusahaan: alamat, kontak, NPWP dan rekening tiap perusahaan",
+    details: [
+      "Di Pengaturan › Perusahaan kini ada daftar perusahaan grup (PT Indodaya Surya Lestari, PT Mandala Bersama Sejahtera, dst.). Tiap perusahaan bisa diisi nama resmi, alamat, telepon, email dan NPWP langsung di aplikasi — tidak perlu lagi diubah lewat Supabase. Tombol “+ Tambah perusahaan” untuk menambah yang baru.",
+      "Tiap perusahaan juga memilih rekening penerima pembayaran (kolom “Account printed on quotes & invoices”). Rekening itu yang tercetak di Penawaran/Faktur dan Proposal EPC sebagai “Pembayaran ditransfer ke”. Selama belum dipilih, tidak ada rekening yang dicetak — aplikasi tidak menebak rekening.",
+      "Penawaran/Faktur, Surat Jalan, Proposal EPC dan Surat Dukungan kini mencetak kop (nama, alamat, telepon, email, NPWP) dari perusahaan penerbit dokumen tersebut. Isian kop di bagian bawah halaman yang sama kini hanya cadangan, dipakai bila data perusahaan masih kosong.",
+    ],
+  },
+  {
     at: "2026-09-30T01:42:15Z",
     title: "Surat Dukungan: jarak baris lebih lega, pernyataan bernomor, merek tidak dobel",
     details: [

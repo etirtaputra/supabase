@@ -21,6 +21,7 @@ import { fmtDateID, statementLines, type SupportLetter, type SupportLetterItem }
 import { useT } from '@/hooks/useT';
 import { DOC_FONT_FAMILY } from '@/lib/documentType';
 import { collapseRepeatedLead } from '@/lib/brandText';
+import { resolveIssuer, COMPANY_COLUMNS, type CompanyRecord } from '@/lib/issuer';
 
 /** CSS pixels per millimetre at the 96dpi the print pipeline assumes. */
 const MM = 96 / 25.4;
@@ -39,7 +40,7 @@ export default function SupportLetterPrintPage() {
   // The ISSUING company's own record (1.0_companies) — its name, and since
   // 2026-09-29 its address, phone and email, so each of the group's companies
   // signs with its own details. Settings › Company is only the fallback.
-  const [company, setCompany] = useState<{ legal_name: string; address: string | null; phone: string | null; email: string | null } | null>(null);
+  const [company, setCompany] = useState<CompanyRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   // How much of the top to leave blank for pre-printed letterhead paper.
@@ -99,8 +100,8 @@ export default function SupportLetterPrintPage() {
       setLetter(l);
       setItems((iRes.data as SupportLetterItem[]) ?? []);
       if (l?.company_id) {
-        const { data } = await supabase.from('1.0_companies').select('legal_name, address, phone, email').eq('company_id', l.company_id).maybeSingle();
-        setCompany((data as { legal_name: string; address: string | null; phone: string | null; email: string | null } | null) ?? null);
+        const { data } = await supabase.from('1.0_companies').select(COMPANY_COLUMNS).eq('company_id', l.company_id).maybeSingle();
+        setCompany((data as CompanyRecord | null) ?? null);
       }
       setLoading(false);
     })();
@@ -114,11 +115,12 @@ export default function SupportLetterPrintPage() {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>Menyiapkan dokumen…</div>;
   }
 
-  const issuer = company?.legal_name || settings.companyName || 'ICAPROC';
-  // Field by field: the issuing company's own value, else the house default.
-  const issuerAddress = company?.address?.trim() || settings.companyAddress;
-  const issuerPhone = company?.phone?.trim() || settings.companyPhone;
-  const issuerEmail = company?.email?.trim() || settings.companyEmail;
+  // Field by field: the issuing company's own value, else Settings › Company.
+  const who = resolveIssuer(company, settings);
+  const issuer = who.name;
+  const issuerAddress = who.address;
+  const issuerPhone = who.phone;
+  const issuerEmail = who.email;
   const clauses = statementLines(letter.statements);
 
   return (

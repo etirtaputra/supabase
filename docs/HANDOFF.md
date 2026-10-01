@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-01** · last change: *Agents track: the VPS, Hermes and Telegram documented in §8* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-01** · last change: *Settings › Company: a per-company editor (address, contact, NPWP, receiving account) that every document prints from* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 845 tests at handoff (2026-09-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 848 tests at handoff (2026-10-01), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
@@ -138,7 +138,41 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-01 (latest) — agents: schema census, boot prompts, VPS firewall (§8)
+### 2026-10-01 (latest) — Settings › Company: one editor for every issuing company
+
+Owner: "no place to easily set up the company info other than editing manually
+in Supabase" + "the bank account to transfer to, including for quotes".
+Measured first: the global Settings company fields were ALL empty, so quotes
+and Surat Jalan printed no address and no bank details at all.
+
+- **`lib/issuer.ts` — `resolveIssuer(company, settings, accounts)`** is now
+  the ONE place a document gets its letterhead: the issuing `1.0_companies`
+  row first (legal_name, address, phone, email, **tax_id**), the old global
+  Settings › Company fields only as a fallback. Used by all four print pages:
+  sales quote/invoice, Surat Jalan (no bank block — a DO asks for no
+  payment), EPC proposal (new company-meta line under the logo + payment
+  block after T&C), support letter. `lib/issuer.test.ts` fails the build if a
+  print page reads `settings.company*` directly again.
+- **Receiving account is never guessed.** `receivingAccountFor()` prints only
+  an active account of the SAME company flagged `is_default_receipt` (the
+  flag receipts already used for preselection — one per company via the
+  existing partial unique index). No flag → no bank block (the fallback text
+  in Settings prints instead, if any). Reason: ISL holds a personal joint
+  account (BCA 0821811111, "Eric Tirtaputra OR Wendy Yusson Abadi") next to
+  two company accounts — "first account" could put it on a customer quote.
+- **Migration `migrations/company_tax_id.sql`** (applied): `tax_id text` on
+  `1.0_companies`.
+- **Settings › Company → `CompaniesEditor`**: a card per company (legal
+  name, address, phone, email, NPWP, "Account printed on quotes & invoices"
+  = a select of that company's active accounts), Save per card, "+ Add
+  company". RLS checked by a rolled-back write as owner: company update
+  rows=1, insert OK, account flag rows=1. Company writes follow
+  `can_write_buy_side()`; flagging an account needs owner (41.0 RLS).
+- State at ship: ISL filled (address/phone/email) but **no receiving account
+  chosen** — §6.0 #14. MBS already had MANDIRI 1150039991999 flagged, so its
+  documents print it at once. ICL / Sumberdaya Cemerlang: address only.
+
+### 2026-10-01 — agents: schema census, boot prompts, VPS firewall (§8)
 
 Agents track, not an app module — the full state is in §8. What shipped:
 - `370632a` — `docs/agents/ICAPROC-SCHEMA_v7_2026-09-19.md` (from v6): §9
@@ -3113,9 +3147,9 @@ evidence for every one are in §4 under the dated entries.
 | 9 | **Cancel the 148 dead Draft POs** | No longer counted as debt (`fb56650`), still clutter Draft + search | Owner OK → set status `Cancelled` (reversible, never delete). |
 | 10 | **Ask ICAPROC partly broken** | `app/api/ask/route.ts:106-107` reads `v_purchase_history_analytics`, which does NOT exist | Small fix: point it at a real view/table; purchase-history questions currently return nothing. |
 | 11 | **Load bank statements** | `41.1_bank_transactions` has nothing for July 2026 | Needed to reconcile supplier payments (and to settle #6). |
-
 | 13 | **Wording, second pass** | Buttons + page names done 2026-09-28 (§4) | Tooltips (`title=`), placeholders, non-button headings, `<Link>` buttons. Extend `lib/wording.ts`'s scanner the same way. |
-| 12 | **Owner tries the Corporate skin** | Shipped 2026-09-27; click-to-apply fixed 2026-09-28 (§4). Terminal is still the default. | Owner: Settings › Tampilan → click Corporate (applies at once). If he likes it, "Make company default" (people who already picked a skin keep theirs). |
+| 12 | ~~Owner tries the Corporate skin~~ | Done: Corporate is the default since 2026-09-29 (light/dark follows each person's choice). | — |
+| 14 | **Company details + receiving account** | Editor shipped 2026-10-01 (§4). ISL has NO receiving account chosen, so its quotes print no bank block. ICL, MBS, Sumberdaya Cemerlang lack phone/email/NPWP. | Owner: Settings › Perusahaan → ISL card → pick BCA 0827211111 or MANDIRI 1150038933893 (NOT the personal joint BCA 0821811111) → Save. Fill the others' contacts the same way. |
 
 Pre-existing, noted in passing and left alone: reopening a delivered DO as a
 sell-side role will fail its reversal insert — the stock-movements grant lets

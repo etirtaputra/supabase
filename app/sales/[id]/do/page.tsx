@@ -20,6 +20,7 @@ import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 import { useT } from '@/hooks/useT';
 import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
+import { resolveIssuer, COMPANY_COLUMNS, type CompanyRecord } from '@/lib/issuer';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -40,7 +41,7 @@ export default function DeliveryOrderPrintPage() {
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
-  const [companyName, setCompanyName] = useState('');
+  const [company, setCompany] = useState<CompanyRecord | null>(null);   // the issuing company (lib/issuer.ts)
   const settings = useSettings();   // letterhead + document formats
   const [customerName, setCustomerName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -57,7 +58,7 @@ export default function DeliveryOrderPrintPage() {
       const [qRes, iRes, coRes] = await Promise.all([
         supabase.from('22.0_sales_quotes').select('*').eq('quote_id', id).single(),
         supabase.from('22.1_sales_quote_items').select('item_id, is_section, description, note, unit, quantity, sort_order').eq('quote_id', id).order('sort_order'),
-        supabase.from('1.0_companies').select('company_id, legal_name'),
+        supabase.from('1.0_companies').select(COMPANY_COLUMNS),
       ]);
       if (!qRes.data) { setLoading(false); return; }
       let q = qRes.data as Quote;
@@ -84,7 +85,7 @@ export default function DeliveryOrderPrintPage() {
         }
       }
       setQuote(q);
-      setCompanyName(((coRes.data ?? []).find((c) => c.company_id === q.company_id)?.legal_name as string) ?? '');
+      setCompany(((coRes.data ?? []) as CompanyRecord[]).find((c) => c.company_id === q.company_id) ?? null);
       if (q.customer_id) {
         const { data: cust } = await supabase.from('20.0_customers').select('display_name, legal_name').eq('customer_id', q.customer_id).single();
         if (cust) setCustomerName((cust.legal_name as string) || (cust.display_name as string) || '');
@@ -103,6 +104,9 @@ export default function DeliveryOrderPrintPage() {
   if (authLoading || !user || loading || !quote) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>Preparing document…</div>;
   }
+
+  // A Surat Jalan carries no bank account — only who sends the goods.
+  const issuer = resolveIssuer(company, settings);
 
   const items = lines.filter((l) => !l.is_section);
   const isPickup = quote.delivery_method === 'pickup';
@@ -154,10 +158,10 @@ export default function DeliveryOrderPrintPage() {
       <div className="page">
         <div className="header">
           <div>
-            <div className="company-name">{companyName || settings.companyName || 'ICAPROC'}</div>
-            {settings.companyAddress && <div className="company-meta" style={{ whiteSpace: 'pre-line' }}>{settings.companyAddress}</div>}
-            {[settings.companyPhone, settings.companyEmail].filter(Boolean).length > 0 && (
-              <div className="company-meta">{[settings.companyPhone, settings.companyEmail].filter(Boolean).join(' · ')}</div>
+            <div className="company-name">{issuer.name}</div>
+            {issuer.address && <div className="company-meta" style={{ whiteSpace: 'pre-line' }}>{issuer.address}</div>}
+            {[issuer.phone, issuer.email].filter(Boolean).length > 0 && (
+              <div className="company-meta">{[issuer.phone, issuer.email].filter(Boolean).join(' · ')}</div>
             )}
           </div>
           <div className="doc-title">

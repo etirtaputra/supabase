@@ -1585,6 +1585,9 @@ export const ID: Record<string, string> = {
   'GP {gp}% — below the {floor}% minimum for {tier}': 'Laba kotor {gp}% — di bawah minimum {floor}% untuk {tier}',
   'GP {gp}% at {tier} · minimum {floor}%': 'Laba kotor {gp}% di {tier} · minimum {floor}%',
 
+  // Settings › Company: the companies editor (2026-10-01)
+  'Add company': 'Tambah perusahaan',
+
   // ── Buttons, 2026-09-28 (owner: "make page titles and button wording
   // consistent across screens") ─────────────────────────────────────────
   // 377 buttons showed English on the Indonesian screen. Action words are

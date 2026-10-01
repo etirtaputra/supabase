@@ -14,6 +14,7 @@ import { useT } from '@/hooks/useT';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
+import { resolveIssuer, COMPANY_COLUMNS, RECEIVING_ACCOUNT_COLUMNS, type CompanyRecord, type ReceivingAccount } from '@/lib/issuer';
 
 const fmtDate = (d: string) => fmtDayDoc(d);
 
@@ -29,7 +30,9 @@ export default function PrintPage() {
 
   const [quote, setQuote] = useState<ProjectQuote | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
-  const [companyName, setCompanyName] = useState('');
+  // The issuing company's record + its accounts (lib/issuer.ts decides what prints).
+  const [company, setCompany] = useState<CompanyRecord | null>(null);
+  const [accounts, setAccounts] = useState<ReceivingAccount[]>([]);
   const settings = useSettings();   // letterhead + document number/date formats
   // component_id → Wp per module, for pv_module components used on this quote
   const [wpMap, setWpMap] = useState<Map<string, number>>(new Map());
@@ -48,17 +51,18 @@ export default function PrintPage() {
 
   useEffect(() => {
     async function load() {
-      const [qRes, secRes, itemRes, compRes] = await Promise.all([
+      const [qRes, secRes, itemRes, compRes, accRes] = await Promise.all([
         supabase.from('10.0_project_quotes').select('*').eq('quote_id', id).single(),
         supabase.from('10.1_quote_sections').select('*').eq('quote_id', id).order('sort_order'),
         supabase.from('10.2_quote_items').select('*').eq('quote_id', id).order('sort_order'),
-        supabase.from('1.0_companies').select('company_id, legal_name'),
+        supabase.from('1.0_companies').select(COMPANY_COLUMNS),
+        supabase.from('41.0_bank_accounts').select(RECEIVING_ACCOUNT_COLUMNS),
       ]);
+      setAccounts((accRes.data as ReceivingAccount[] | null) ?? []);
       if (!qRes.data) return;
       const q = qRes.data as ProjectQuote;
       setQuote(q);
-      const comp = (compRes.data ?? []).find((c) => c.company_id === q.company_id);
-      setCompanyName((comp?.legal_name as string) ?? '');
+      setCompany(((compRes.data ?? []) as CompanyRecord[]).find((c) => c.company_id === q.company_id) ?? null);
       const secs = (secRes.data ?? []) as QuoteSection[];
       const items = (itemRes.data ?? []) as QuoteItem[];
       setSections(secs.map((s) => ({
@@ -125,6 +129,7 @@ export default function PrintPage() {
   const sectionTotal = (sec: Section) =>
     sec.items.filter((i) => !i.parent_item_id)
       .reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.sell_price) || 0), 0);
+  const issuer = resolveIssuer(company, settings, accounts);
   const subtotal = sections.reduce((s, sec) => s + sectionTotal(sec), 0);
   const ppn = subtotal * ppnPct / 100;
   const grandTotal = subtotal + ppn;
@@ -158,6 +163,7 @@ export default function PrintPage() {
 
         .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 6mm; padding-bottom: 3mm; border-bottom: 2.5pt solid #1f5aa8; }
         .company-name { font-size: 16pt; font-weight: 800; color: #1f5aa8; letter-spacing: -0.3px; }
+        .company-meta { font-size: 8pt; color: #64748b; line-height: 1.45; margin-top: 1mm; max-width: 78mm; }
         .doc-title { text-align: right; }
         .doc-label { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: 2.5px; color: #94a3b8; margin-bottom: 1mm; }
         .quote-num { font-size: 12.5pt; font-weight: 700; color: #1f5aa8; }
@@ -229,7 +235,16 @@ export default function PrintPage() {
         {/* Header */}
         <div className="header">
           <div>
-            <div className="company-name">{companyName || settings.companyName || 'ICAPROC'}</div>
+            <div className="company-name">{issuer.name}</div>
+            {(issuer.address || issuer.phone || issuer.email || issuer.taxId) && (
+              <div className="company-meta">
+                {issuer.address && <div style={{ whiteSpace: 'pre-line' }}>{issuer.address}</div>}
+                {[issuer.phone, issuer.email].filter(Boolean).join(' · ') && (
+                  <div>{[issuer.phone, issuer.email].filter(Boolean).join(' · ')}</div>
+                )}
+                {issuer.taxId && <div>NPWP {issuer.taxId}</div>}
+              </div>
+            )}
           </div>
           <div className="doc-title">
             <div className="doc-label">Penawaran Harga</div>
@@ -385,12 +400,21 @@ export default function PrintPage() {
           </div>
         )}
 
+        {/* Where to pay — the issuing company's account marked for receiving
+            in Settings › Company (lib/issuer.ts never guesses one). */}
+        {issuer.bankLines.length > 0 && (
+          <div className="terms">
+            <div className="terms-title">Pembayaran ditransfer ke</div>
+            {issuer.bankLines.map((l, i) => <div key={i} className="terms-line" style={i === 0 ? { fontWeight: 700 } : undefined}>{l}</div>)}
+          </div>
+        )}
+
         {/* Signature footer */}
         <div className="footer">
           <div>
             <div className="sig-label">Hormat kami,</div>
             <div className="sig-line" />
-            <div className="sig-name">{companyName || settings.companyName || '(perusahaan)'}</div>
+            <div className="sig-name">{issuer.name}</div>
           </div>
           <div>
             <div className="sig-label">Disetujui oleh,</div>
@@ -406,7 +430,7 @@ export default function PrintPage() {
           <div className="econ">
             <div className="header">
               <div>
-                <div className="company-name">{companyName || settings.companyName || 'ICAPROC'}</div>
+                <div className="company-name">{issuer.name}</div>
               </div>
               <div className="doc-title">
                 <div className="doc-label">Energy Simulation</div>

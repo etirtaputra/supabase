@@ -44,6 +44,7 @@ import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragR
 import { ITEM_SCORE_FACTORS, DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from '@/lib/itemScore';
 import { PRESET_LABELS, type RangePreset } from '@/lib/dateRange';
 import { accountLabel, type BankAccount } from '@/lib/banks';
+import { COMPANY_COLUMNS, type CompanyRecord } from '@/lib/issuer';
 import { THEMES, OFFERED_THEME_VALUES, type ThemeName } from '@/lib/theme';
 import { useTheme } from '@/hooks/useTheme';
 import Autocomplete from '@/components/ui/Autocomplete';
@@ -1214,44 +1215,181 @@ function TermsTab({ draft, set }: { draft: AppSettings; set: <K extends keyof Ap
   );
 }
 
+// ── Company ─────────────────────────────────────────────────────────────────
+// The group issues documents through several PTs; each quotation, delivery
+// order, EPC proposal and support letter records WHICH one (company_id). This
+// tab edits those companies — name, address, contact, NPWP and the account a
+// customer pays into — because until 2026-10-01 that could only be done in
+// Supabase. What prints is decided by resolveIssuer (lib/issuer.ts): the
+// company's own field first, the fallback block below only for a blank.
+
+type CompanyDraft = {
+  company_id: string | null;           // null = not saved yet
+  legal_name: string; address: string; phone: string; email: string; tax_id: string;
+  receiving: string;                   // bank_account_id marked for receiving, '' = none
+};
+
 function CompanyTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
   const rows: [keyof AppSettings, string, string][] = [
-    ['companyName',    'Company name',   'Falls back to the issuing company on the document when blank.'],
+    ['companyName',    'Company name',   ''],
     ['companyTaxId',   'NPWP / Tax ID',  ''],
     ['companyPhone',   'Phone',          ''],
     ['companyEmail',   'Email',          ''],
   ];
   return (
-    <div className="grid lg:grid-cols-2 gap-4">
-      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-violet-300">Letterhead</p>
-          <p className="text-[11px] text-slate-500 mt-1">Printed at the top of the quotation, invoice and Surat Jalan.</p>
-        </div>
-        {rows.map(([k, label, hint]) => (
-          <Field key={k as string} label={label} hint={hint}>
-            <input className={inputCls} value={String(draft[k] ?? '')} onChange={(e) => set(k, e.target.value as AppSettings[typeof k])} />
+    <div className="space-y-4">
+      <CompaniesEditor />
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-violet-300">Fallback letterhead</p>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Used only where the issuing company above leaves a field blank, or a document has no company.
+            </p>
+          </div>
+          {rows.map(([k, label, hint]) => (
+            <Field key={k as string} label={label} hint={hint}>
+              <input className={inputCls} value={String(draft[k] ?? '')} onChange={(e) => set(k, e.target.value as AppSettings[typeof k])} />
+            </Field>
+          ))}
+          <Field label="Address">
+            <textarea rows={3} className={`${inputCls} resize-y leading-relaxed`} value={draft.companyAddress}
+              onChange={(e) => set('companyAddress', e.target.value)} />
           </Field>
-        ))}
-        <Field label="Address">
-          <textarea rows={3} className={`${inputCls} resize-y leading-relaxed`} value={draft.companyAddress}
-            onChange={(e) => set('companyAddress', e.target.value)} />
-        </Field>
-      </div>
-
-      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-violet-300">Document footer</p>
-          <p className="text-[11px] text-slate-500 mt-1">Printed under the totals — payment instructions and standing terms.</p>
         </div>
-        <Field label="Bank details" hint="Bank, account name and number as they should appear on an invoice.">
-          <textarea rows={4} className={`${inputCls} resize-y leading-relaxed`} value={draft.companyBankDetails}
-            onChange={(e) => set('companyBankDetails', e.target.value)} />
-        </Field>
-        <Field label="Footer note" hint="Standing terms — validity, delivery, anything printed on every document.">
-          <textarea rows={4} className={`${inputCls} resize-y leading-relaxed`} value={draft.documentFooterNote}
-            onChange={(e) => set('documentFooterNote', e.target.value)} />
-        </Field>
+
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-violet-300">Document footer</p>
+            <p className="text-[11px] text-slate-500 mt-1">Printed under the totals — payment instructions and standing terms.</p>
+          </div>
+          <Field label="Bank details (fallback)" hint="Printed only when the issuing company has no account chosen above.">
+            <textarea rows={4} className={`${inputCls} resize-y leading-relaxed`} value={draft.companyBankDetails}
+              onChange={(e) => set('companyBankDetails', e.target.value)} />
+          </Field>
+          <Field label="Footer note" hint="Standing terms — validity, delivery, anything printed on every document.">
+            <textarea rows={4} className={`${inputCls} resize-y leading-relaxed`} value={draft.documentFooterNote}
+              onChange={(e) => set('documentFooterNote', e.target.value)} />
+          </Field>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompaniesEditor() {
+  const { t } = useT();
+  const supabase = createSupabaseClient();
+  const { profile } = useAuth();
+  const email = profile?.email ?? '';
+  const [loaded, setLoaded] = useState<CompanyDraft[]>([]);
+  const [drafts, setDrafts] = useState<CompanyDraft[]>([]);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [note, setNote] = useState<{ i: number; msg: string; ok: boolean } | null>(null);
+
+  const load = useCallback(async () => {
+    const [coRes, accRes] = await Promise.all([
+      supabase.from('1.0_companies').select(COMPANY_COLUMNS).order('legal_name'),
+      supabase.from('41.0_bank_accounts').select('*').order('sort_order'),
+    ]);
+    const accs = ((accRes.data as BankAccount[] | null) ?? []);
+    const list = ((coRes.data as CompanyRecord[] | null) ?? []).map((c): CompanyDraft => ({
+      company_id: c.company_id, legal_name: c.legal_name ?? '', address: c.address ?? '', phone: c.phone ?? '',
+      email: c.email ?? '', tax_id: c.tax_id ?? '',
+      receiving: accs.find((a) => a.company_id === c.company_id && a.is_default_receipt)?.bank_account_id ?? '',
+    }));
+    setAccounts(accs); setLoaded(list); setDrafts(list);
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  // Deferred a tick: the first load is a fetch, not a render-time state change.
+  useEffect(() => { const h = setTimeout(load, 0); return () => clearTimeout(h); }, [load]);
+
+  const edit = (i: number, p: Partial<CompanyDraft>) => setDrafts((d) => d.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const dirty = (i: number) => JSON.stringify(drafts[i]) !== JSON.stringify(loaded[i]);
+
+  const save = async (i: number) => {
+    const d = drafts[i];
+    if (!d.legal_name.trim()) { setNote({ i, msg: 'A company needs its legal name.', ok: false }); return; }
+    setBusy(i); setNote(null);
+    const row = { legal_name: d.legal_name.trim(), address: d.address.trim() || null, phone: d.phone.trim() || null,
+      email: d.email.trim() || null, tax_id: d.tax_id.trim() || null };
+    let id = d.company_id;
+    if (id) {
+      const { data, error } = await supabase.from('1.0_companies').update(row).eq('company_id', id).select('company_id');
+      if (error || !data?.length) { setBusy(null); setNote({ i, msg: `Could not save — ${error?.message ?? 'no permission to change this company'}`, ok: false }); return; }
+    } else {
+      const { data, error } = await supabase.from('1.0_companies').insert(row).select('company_id').single();
+      if (error || !data) { setBusy(null); setNote({ i, msg: `Could not add — ${error?.message ?? 'unknown error'}`, ok: false }); return; }
+      id = (data as { company_id: string }).company_id;
+    }
+    // The receiving account: one per company (a partial unique index says so),
+    // so the old mark comes off before the new one goes on — the same flag the
+    // Banks tab sets and the receipt form preselects.
+    const before = loaded[i]?.receiving ?? '';
+    if (d.company_id && d.receiving !== before) {
+      const mine = accounts.filter((a) => a.company_id === id && a.is_default_receipt).map((a) => a.bank_account_id);
+      if (mine.length) await supabase.from('41.0_bank_accounts').update({ is_default_receipt: false, updated_at: new Date().toISOString(), updated_by_email: email }).in('bank_account_id', mine);
+      if (d.receiving) {
+        const { error } = await supabase.from('41.0_bank_accounts').update({ is_default_receipt: true, updated_at: new Date().toISOString(), updated_by_email: email }).eq('bank_account_id', d.receiving);
+        if (error) { setBusy(null); setNote({ i, msg: `Saved, but the account could not be set — ${error.message}`, ok: false }); await load(); return; }
+      }
+    }
+    setBusy(null);
+    await load();
+    setNote({ i, msg: 'Saved — every document from this company now prints these details.', ok: true });
+  };
+
+  return (
+    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-violet-300">Companies</p>
+          <p className="text-[11px] text-slate-500 mt-1 max-w-3xl">
+            The companies documents are issued from. Whatever is set here prints on that company&apos;s quotations,
+            invoices, delivery orders, EPC proposals and support letters. The account chosen is the one customers are
+            told to pay into — nothing is printed until one is chosen.
+          </p>
+        </div>
+        <button type="button" onClick={() => setDrafts((d) => [...d, { company_id: null, legal_name: '', address: '', phone: '', email: '', tax_id: '', receiving: '' }])}
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
+          + {t('Add company')}
+        </button>
+      </div>
+      <div className="grid xl:grid-cols-2 gap-3">
+        {drafts.map((d, i) => {
+          const own = accounts.filter((a) => d.company_id && a.company_id === d.company_id && a.is_active !== false);
+          return (
+            <div key={d.company_id ?? `new-${i}`} className="rounded-xl border border-slate-800 bg-slate-950/30 p-3 space-y-2.5">
+              <Field label="Legal name">
+                <input className={inputCls} value={d.legal_name} placeholder="PT …" onChange={(e) => edit(i, { legal_name: e.target.value })} />
+              </Field>
+              <Field label="Address">
+                <textarea rows={2} className={`${inputCls} resize-y leading-relaxed`} value={d.address} onChange={(e) => edit(i, { address: e.target.value })} />
+              </Field>
+              <div className="grid sm:grid-cols-3 gap-2">
+                <Field label="Phone"><input className={inputCls} value={d.phone} onChange={(e) => edit(i, { phone: e.target.value })} /></Field>
+                <Field label="Email"><input className={inputCls} value={d.email} onChange={(e) => edit(i, { email: e.target.value })} /></Field>
+                <Field label="NPWP"><input className={inputCls} value={d.tax_id} onChange={(e) => edit(i, { tax_id: e.target.value })} /></Field>
+              </div>
+              <Field label="Account printed on quotes & invoices"
+                hint={!d.company_id ? 'Save the company first, then add its accounts under Settings › Banks.'
+                  : own.length === 0 ? 'This company has no bank account yet — add one under Settings › Banks.' : ''}>
+                <select className={inputCls} value={d.receiving} disabled={!d.company_id || own.length === 0}
+                  onChange={(e) => edit(i, { receiving: e.target.value })}>
+                  <option value="">— none (nothing printed) —</option>
+                  {own.map((a) => <option key={a.bank_account_id} value={a.bank_account_id}>{accountLabel(a)} · a.n. {a.account_name}</option>)}
+                </select>
+              </Field>
+              <div className="flex items-center justify-end gap-2">
+                {note?.i === i && <span className={`text-[11px] ${note.ok ? 'text-emerald-400' : 'text-red-400'}`}>{note.msg}</span>}
+                <button type="button" onClick={() => save(i)} disabled={busy !== null || !dirty(i)}
+                  className="text-xs font-bold px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white transition-colors">
+                  {busy === i ? t('Saving…') : t('Save')}
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

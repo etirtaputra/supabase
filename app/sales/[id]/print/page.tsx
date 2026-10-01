@@ -21,6 +21,7 @@ import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 import { useT } from '@/hooks/useT';
 import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
+import { resolveIssuer, COMPANY_COLUMNS, RECEIVING_ACCOUNT_COLUMNS, type CompanyRecord, type ReceivingAccount } from '@/lib/issuer';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -39,7 +40,10 @@ export default function SalesPrintPage() {
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
-  const [companyName, setCompanyName] = useState('');
+  // The issuing company's own record + its accounts — resolveIssuer
+  // (lib/issuer.ts) decides what prints, Settings › Company fills blanks.
+  const [company, setCompany] = useState<CompanyRecord | null>(null);
+  const [accounts, setAccounts] = useState<ReceivingAccount[]>([]);
   const [customerName, setCustomerName] = useState('');
   const [customerAddr, setCustomerAddr] = useState('');
   const [received, setReceived] = useState(0);
@@ -61,12 +65,14 @@ export default function SalesPrintPage() {
   useEffect(() => {
     if (!user) return;
     async function load() {
-      const [qRes, iRes, coRes, rRes] = await Promise.all([
+      const [qRes, iRes, coRes, rRes, accRes] = await Promise.all([
         supabase.from('22.0_sales_quotes').select('*').eq('quote_id', id).single(),
         supabase.from('22.1_sales_quote_items').select('*').eq('quote_id', id).order('sort_order'),
-        supabase.from('1.0_companies').select('company_id, legal_name'),
+        supabase.from('1.0_companies').select(COMPANY_COLUMNS),
         supabase.from('26.0_customer_receipts').select('amount').eq('quote_id', id),
+        supabase.from('41.0_bank_accounts').select(RECEIVING_ACCOUNT_COLUMNS),
       ]);
+      setAccounts((accRes.data as ReceivingAccount[] | null) ?? []);
       setReceived(rRes.error ? 0 : ((rRes.data ?? []) as { amount: number }[]).reduce((s, r) => s + (Number(r.amount) || 0), 0));
       if (!qRes.data) { setLoading(false); return; }
       let q = qRes.data as Quote;
@@ -89,7 +95,7 @@ export default function SalesPrintPage() {
         }
       }
       setQuote(q);
-      setCompanyName(((coRes.data ?? []).find((c) => c.company_id === q.company_id)?.legal_name as string) ?? '');
+      setCompany(((coRes.data ?? []) as CompanyRecord[]).find((c) => c.company_id === q.company_id) ?? null);
       if (q.customer_id) {
         const { data: cust } = await supabase.from('20.0_customers').select('display_name, legal_name, billing_address').eq('customer_id', q.customer_id).single();
         if (cust) { setCustomerName((cust.legal_name as string) || (cust.display_name as string) || ''); setCustomerAddr((cust.billing_address as string) || ''); }
@@ -109,6 +115,7 @@ export default function SalesPrintPage() {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#666' }}>Preparing document…</div>;
   }
 
+  const issuer = resolveIssuer(company, settings, accounts);
   const ppnPct = Number(quote.ppn_pct) || 11;
   const items = lines.filter((l) => !l.is_section);
   const subtotal = items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.unit_price) || 0), 0);
@@ -181,14 +188,14 @@ export default function SalesPrintPage() {
       <div className="page">
         <div className="header">
           <div>
-            <div className="company-name">{companyName || settings.companyName || 'ICAPROC'}</div>
-            {(settings.companyAddress || settings.companyPhone || settings.companyEmail || settings.companyTaxId) && (
+            <div className="company-name">{issuer.name}</div>
+            {(issuer.address || issuer.phone || issuer.email || issuer.taxId) && (
               <div className="company-meta">
-                {settings.companyAddress && <div style={{ whiteSpace: 'pre-line' }}>{settings.companyAddress}</div>}
-                {[settings.companyPhone, settings.companyEmail].filter(Boolean).join(' · ') && (
-                  <div>{[settings.companyPhone, settings.companyEmail].filter(Boolean).join(' · ')}</div>
+                {issuer.address && <div style={{ whiteSpace: 'pre-line' }}>{issuer.address}</div>}
+                {[issuer.phone, issuer.email].filter(Boolean).join(' · ') && (
+                  <div>{[issuer.phone, issuer.email].filter(Boolean).join(' · ')}</div>
                 )}
-                {settings.companyTaxId && <div>NPWP {settings.companyTaxId}</div>}
+                {issuer.taxId && <div>NPWP {issuer.taxId}</div>}
               </div>
             )}
           </div>
@@ -308,12 +315,14 @@ export default function SalesPrintPage() {
           </div>
         )}
 
-        {(settings.companyBankDetails || settings.documentFooterNote) && (
+        {(issuer.bankLines.length > 0 || settings.documentFooterNote) && (
           <div className="terms">
-            {settings.companyBankDetails && (
+            {issuer.bankLines.length > 0 && (
               <>
-                <div className="terms-title">Pembayaran</div>
-                <div className="terms-line">{settings.companyBankDetails}</div>
+                {/* The issuing company's account marked "for receiving" in
+                    Settings › Company — never a guessed one (lib/issuer.ts). */}
+                <div className="terms-title">Pembayaran ditransfer ke</div>
+                {issuer.bankLines.map((l, i) => <div key={i} className="terms-line" style={i === 0 ? { fontWeight: 700 } : undefined}>{l}</div>)}
               </>
             )}
             {settings.documentFooterNote && <div className="terms-line" style={{ marginTop: '2mm' }}>{settings.documentFooterNote}</div>}
@@ -324,7 +333,7 @@ export default function SalesPrintPage() {
           <div>
             <div className="sig-label">Hormat kami,</div>
             <div className="sig-line" />
-            <div className="sig-name">{companyName || settings.companyName || '(perusahaan)'}</div>
+            <div className="sig-name">{issuer.name}</div>
           </div>
           <div>
             <div className="sig-label">Disetujui oleh,</div>
