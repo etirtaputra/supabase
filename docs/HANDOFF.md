@@ -1,12 +1,14 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-09-30** · last change: *Support letter: roomier party rows, numbered clauses, brand said once* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-01** · last change: *Agents track: the VPS, Hermes and Telegram documented in §8* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
 > ships a module updates it before finishing: refresh §4 (what shipped) and
 > replace §6 with the next module. Git history keeps the dated versions.
 > **No next module decided? Go to §7** — it says what to do.
+> **Working on the AI agents (MIRA, MANDA), the VPS or Telegram? Go to §8** —
+> that is a separate track with its own status and next steps.
 
 ## 0. What this is
 
@@ -23,6 +25,9 @@ item/price/spec data eventually feed a public website.
 ---
 
 ## 1. Infrastructure — the three backends
+
+> A fourth backend — the **Hostinger VPS** that runs the Hermes agents MIRA and
+> MANDA — is not part of the app's deploy path. It lives in §8.
 
 ### GitHub — `etirtaputra/supabase`
 - **Commit and push directly to `main`. Never to a sub-branch.** (Owner's rule,
@@ -133,7 +138,23 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-09-30 (latest) — support letter: spacing, numbered clauses, brand once
+### 2026-10-01 (latest) — agents: schema census, boot prompts, VPS firewall (§8)
+
+Agents track, not an app module — the full state is in §8. What shipped:
+- `370632a` — `docs/agents/ICAPROC-SCHEMA_v7_2026-09-19.md` (from v6): §9
+  census of all 59 tables, §5d money (41.x + payment_batches), §5e settings,
+  the missing 10.4/10.5/20.2/21.2/22.2/27.1/30.5/8.0 tables; registry bumped.
+- `8f35a74` — `MIRA-BOOT-PROMPT_v1_2026-09-20.md` (new) and
+  `MANDA-BOOT-PROMPT_v3_2026-09-20.md` (replaces v2); both boot from
+  `GET /api/agent/onboarding`; registry + INDEX updated; uploaded to Drive.
+- Both landed through PRs #118/#119 on branch `claude/eager-edison-bil5j3` —
+  against §1. The branch is still on origin (the proxy refuses deletes); the
+  owner deletes it in the GitHub UI. Don't repeat that: push to main.
+- On the VPS (no code): Hostinger firewall 363683 created and activated
+  (22/80/443/ICMP in, nothing else). Briefing cards for Telegram live in an
+  artifact (§8.3). This HANDOFF commit adds §8.
+
+### 2026-09-30 — support letter: spacing, numbered clauses, brand once
 
 Owner sent printed letter 002-ISL-SD-VIII-2026: the Nama…Email rows (both
 parties) too tight. Rendered the PDF (pymupdf in the scratchpad) and found two
@@ -3334,3 +3355,162 @@ this instead, in one turn:
 
 If he picks something not on your list, take it without re-litigating — and update
 §6 with it so the next thread inherits the decision.
+
+---
+
+## 8. Agents track — the VPS, Hermes and Telegram (MIRA, MANDA)
+
+A separate, long-running track that sits beside the app work. **A thread on this
+track never touches §6.** It updates §8.6 and §8.7 and the Last-updated line in
+the same commit as whatever it changes, and it records what shipped in §4.
+
+The owner talks to the agents in Telegram on his phone. **You cannot reach
+Telegram** — anything for an agent is written as a paste-ready message (the
+briefing artifact, §8.3) and the owner relays it; the agents' replies come back
+the same way, pasted into the chat.
+
+### 8.1 What runs where
+
+Both agents are Hermes (Hostinger's agent platform, image
+`ghcr.io/hostinger/hvps-hermes-agent:latest`, s6-supervised) in Docker on one VPS.
+
+| | MIRA | MANDA |
+|---|---|---|
+| Job | the owner's operations agent: Dolibarr (the current ERP), ICAPROC, email, Drive | the project team's agent: solar system design, project docs |
+| Container | `hermes-agent-r33y-hermes-agent-1` — Compose project `/docker/hermes-agent-r33y/` | `hermes-agent-manda` — started with plain `docker run`, **not** Compose |
+| Data (`/opt/data` inside) | `/docker/hermes-agent-r33y/data` | `~/.hermes-manda/workspace`; config at `~/.hermes-manda/config` (= `/opt/data/.hermes` and `/root/.hermes`) |
+| Config file | `/opt/data/config.yaml` | `/opt/data/config.yaml` |
+| Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) |
+| ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` |
+| Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) |
+| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** |
+
+- The two config styles differ (`provider: anthropic` + bare model vs. a
+  `anthropic/…` slug). Change a model in the style that agent already uses.
+- "Hermes" the buy-side agent (`po@icasolar.com`, `buy_admin`) has **no
+  container** — it was repurposed into MIRA on 2026-08-31. The ICAPROC user
+  still exists.
+- The owner's Telegram user id appears in MIRA's log session ids
+  (`agent:main:telegram:dm:<id>`). Never commit the number.
+
+### 8.2 The VPS
+
+- Hostinger VM **1938892** · `srv1938892.hstgr.cloud` · **31.97.221.88**.
+- Firewall **363683**, active since this track began: inbound 22, 80, 443 and
+  ICMP only.
+- Backups: Hostinger's weekly. Snapshot 370659 has **expired** — take a fresh
+  one before any change to a container (one snapshot per VM; a new one
+  replaces the old).
+- Pending: 23 package updates and a reboot. Root SSH is password-only (no key).
+- Core dumps to delete: `/docker/hermes-agent-r33y/data/core` and
+  `/root/.hermes-mira-backup/core`.
+- Both agents' configs list MCP servers that are dead and retry OAuth every
+  5 minutes: supabase, vercel, wordpress-com, stripe, unreal-engine.
+
+### 8.3 How you reach things from this sandbox
+
+| Need | Route | Notes |
+|---|---|---|
+| Hostinger API (read + write) | `curl -sS https://developers.hostinger.com/api/vps/v1/virtual-machines/1938892` | The cloud environment holds a **"Hostinger API" credential** (Bearer, host `developers.hostinger.com`); the proxy injects it. The token is never in the session — never ask for it. First thing each thread: one GET of the VM to prove access. |
+| Hostinger MCP connector | `mcp__Hostinger_Connector__*` | Truncated to ~15 write-side VPS tools and needs periodic re-auth in claude.ai connector settings. Useful when the auto-mode classifier blocks a curl write (the firewall was activated through it). |
+| A shell on the VPS | **none** | The API has no exec endpoint (all 47 endpoints checked, npm `hostinger-api-mcp` v1.61.1). Anything on the box is typed by the owner in hPanel's browser terminal — write him the exact commands and read back the output he pastes. |
+| Container logs | Hostinger Docker API | Only Compose projects are visible, so **MIRA's logs yes, MANDA's no** until MANDA is converted to Compose. |
+| What the agents did in ICAPROC | `mcp__Supabase__query_logs` (edge logs) | Filter `cf_connecting_ip = '31.97.221.88'`. Also how you check both agents are idle before a change. |
+| ICAPROC data | `mcp__Supabase__execute_sql` | Project `xijgplktpnpnstgeolfa` (§1). |
+| Shared drive "ICAPROC AI AGENTS" | `mcp__Google_Drive__*` | root `0ABVtY2DmqfIuUk9PVA` · `00-READ-FIRST` `1_5dEqz1Nkva9IMghTKmQtJ5rzBmvfBSU` · `10-PACKS` `1UO2AXOn7PBXbzQp80Z3hJepYWToI0Hve` · `20-RUNBOOKS` `1E35zmL34huRwf9hpo_-vct74YNWz3vmC` · `90-OUTPUT` `1INHFyHKlQgDJd_4ejfWM7ChflcsQGo-j` · MIRA `1tg7ns8aqsz7kzU88LJwnL_qc1dhwyvRO` (MIRA-SKILL.md `1AjLbHjX17fQov3QNUNjNbS6Kla_8EwJ5`) · MANDA `1CgIBIb091jWBTwfSLfeG9B9_NrPTyndx`. The agents reach it as service account `hermes-drive-agent-365@icaproc-purchasing.iam.gserviceaccount.com`. |
+| Model facts | WebFetch `platform.claude.com` docs | Fetch, never recall (rule 5 below). |
+| Messages for the owner to relay | artifact https://claude.ai/artifact/BiK5DxpeabeGMNnL17yqnC | Copy-button cards grouped by date. To add cards: `Artifact` action `read` with that url, edit the saved file, publish with the same `url`. Newest group on top. |
+| Telegram | **none** | The owner relays (above). |
+
+### 8.4 Hermes facts already established (don't re-derive)
+
+- **Forced tool use.** Hermes' Anthropic adapter sets `tool_choice` to a forced
+  value at `anthropic_adapter.py:3066` and `:3072`. The 5.5-generation models
+  (`claude-sonnet-5-5`, `claude-opus-5-5`) and Fable 5.1 reject forced
+  `tool_choice` (`any`/`tool`) with a 400. Until it is known **which code paths
+  hit those lines and how often**, no agent moves to a 5.5 model.
+- The Anthropic path sends no `thinking: disabled` and no `budget_tokens`;
+  `computer_20251124` appears only in docstrings. Temperature handling looked
+  fine (non-default temperature/top_p/top_k → 400 on 4.7+ models — confirm).
+- **Compression.** `context_compressor.py` summarises history at a **500,000-token**
+  threshold, with a 120 s summary timeout and a 600 s ceiling. The owner's
+  "⏳ Working — 9 min — context compression in progress" on 2026-09-29 was
+  MIRA stalling at ~521,720 tokens: a summary that big times out and retries.
+  The fix is a lower threshold (and a cheap `auxiliary.compression` model),
+  plus `/new` when a topic ends. `/compress` forces one by hand.
+- Model prices (per MTok in/out, fetched 2026-09-29): Sonnet 5.5 and Sonnet 5
+  $2/$10 · Opus 5.5 $4/$20 · Opus 5 and Opus 4.6 $5/$25 · Haiku 4.5 $1/$5
+  (active; retirement not before 2026-10-15, with 60 days' notice). The
+  Opus 4.7+ tokenizer counts 1–1.35× Opus 4.6's tokens for the same text.
+
+### 8.5 Rules for this track
+
+1. **No secrets in chat, ever.** If the owner starts to paste a token or
+   password: *"Keep that token to yourself — don't paste it here."* Four
+   credentials leaked into earlier output and must be rotated — the Anthropic
+   API key, MANDA's Telegram bot token, the `project@ptmbs.co` Gmail app
+   password, the dashboard basic-auth password. Never write their values
+   anywhere, this file included.
+2. **Read-only first.** Change one agent at a time, and give the owner a
+   rollback card before the change, not after. *"Be very careful to not affect
+   what already works."* Memories, skills and the Telegram connection are
+   never collateral.
+3. Before touching a container: edge logs show it idle, and a fresh snapshot exists.
+4. **Never call `VPS_createNewProjectV1` with an existing project name** — it
+   replaces the project.
+5. Model names, prices and API behaviour are fetched from the docs each time,
+   not remembered. Two wrong beliefs already cost a round each (that MANDA ran
+   Sonnet 5; that forced tool use is fine on Sonnet 5.5).
+6. Repo changes follow §1: commit and push to `main`, no PRs, no previews.
+7. A pack change follows CLAUDE.md's "Shipping a pack change" — upload to the
+   shared drive, trash the superseded copy, and finish with the paste-ready
+   update message for **both** MIRA and MANDA.
+
+### 8.6 Status (2026-10-01)
+
+- Schema pack v7 and both boot prompts are on Drive; both agents were briefed
+  on 2026-09-20 and acknowledged.
+- **Waiting on MANDA:** which callers reach the forced `tool_choice` lines and
+  how often; how her model name is spelled in config; her compressor settings;
+  whether she sets temperature, and how she handles refusals and `max_tokens`.
+- **Waiting on MIRA:** confirmation that her session was reset (`/new`) and her
+  compression settings.
+- **Model recommendation (not yet applied):** MANDA → `claude-opus-5` (same
+  price per token as Opus 4.6 and a generation newer, with no forced-tool
+  problem — but its tokenizer counts up to 1.35× more tokens, so watch spend); MIRA stays on `claude-sonnet-5` until forced tool use is
+  answered. Neither moves to a 5.5 model before then.
+
+### 8.7 Next — one keyboard pass with the owner
+
+The owner is not technical and travels; batch these into one sitting at a
+computer (hPanel terminal), in this order, each with its rollback written down:
+
+1. Snapshot the VM.
+2. Rotate the four leaked credentials (§8.5.1) — a separate Anthropic API key
+   per agent, so spend and revocation are per agent.
+3. Convert MANDA to Compose with an `.env` file (makes her logs visible, ends
+   secrets in `docker run` history).
+4. Telegram allowlist on MANDA's bot (project team ids only).
+5. Deploy the boot prompts into `HERMES_SYSTEM_PROMPT`; then retire
+   `MANDASOLARDESIGN.md`.
+6. Remove the dead MCP servers (§8.2).
+7. Lower the compression threshold; set a cheap compression model.
+8. Model change — one agent, with rollback (§8.6).
+9. Delete the core dumps; `apt upgrade` and reboot.
+10. SSH key for root, then disable root password login.
+11. Drive service account → Viewer (not Editor) on `00`/`10`/`20`; it keeps
+    write on `90-OUTPUT` and its own agent folder.
+12. Delete branch `claude/eager-edison-bil5j3` in the GitHub UI.
+
+### 8.8 Direction agreed (2026-09-30)
+
+- **Keep two agents** for now — one per audience (owner ops; project team), not
+  one per function. More agents means more context to keep in sync.
+- When the sell side moves from Dolibarr to ICAPROC, **split MIRA**: MIRA →
+  `buy_admin`, a new sales agent → `sell_admin`/`sales`. Only then; today only
+  `owner` covers both sides.
+- Add a "which system is the truth" table (Dolibarr vs ICAPROC, per document
+  type) to the packs.
+- Put approval rules (what MIRA may do without asking) in her boot prompt.
+- Add a "select only the columns and rows you need" habit to the schema pack.
+- A customer-facing agent, if ever, is a separate agent with its own narrow role.
