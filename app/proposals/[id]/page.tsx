@@ -17,6 +17,7 @@ import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
 import DocumentPresence from '@/components/ui/DocumentPresence';
+import { peersByFocus, firstName as presenceFirstName, type DocPeer } from '@/lib/presence';
 import { useEpcLobby } from '@/hooks/useEpcLobby';
 import { normField, nearestDuplicate } from '@/lib/proposalFields';
 import { evalFormula } from '@/lib/formula';
@@ -417,6 +418,43 @@ export default function QuoteEditorPage() {
     quoteNumber: quote?.quote_number || '',
     editing: dirty,
   });
+
+  // ── Live line marker (owner, 2026-10-02) ───────────────────────────────────
+  // The line this user's cursor is in is shared over the proposal's presence
+  // channel (never saved); colleagues' lines come back and are marked in their
+  // colour, with their name, so two people don't quietly work the same line.
+  const [myLine, setMyLine] = useState<string | null>(null);
+  const [docPeers, setDocPeers] = useState<DocPeer[]>([]);
+  const linePeers = useMemo(() => peersByFocus(docPeers), [docPeers]);
+  useEffect(() => {
+    const lineOf = (el: EventTarget | null) =>
+      (el instanceof Element ? el.closest('[data-presence-row]')?.getAttribute('data-presence-row') : null) ?? null;
+    const onIn = (e: FocusEvent) => setMyLine(lineOf(e.target));
+    // Focus leaving for nothing (a click on the page) also leaves the line.
+    const onOut = (e: FocusEvent) => { if (!e.relatedTarget) setMyLine(null); };
+    document.addEventListener('focusin', onIn);
+    document.addEventListener('focusout', onOut);
+    return () => { document.removeEventListener('focusin', onIn); document.removeEventListener('focusout', onOut); };
+  }, []);
+  /** The coloured edge on a line a colleague is in. */
+  const lineEdge = (itemId: string): React.CSSProperties | undefined => {
+    const ps = linePeers.get(itemId);
+    return ps?.length ? { boxShadow: `inset 3px 0 0 ${ps[0].color}` } : undefined;
+  };
+  /** Their name tag(s), pinned to the line's top edge. */
+  const lineTag = (itemId: string) => {
+    const ps = linePeers.get(itemId);
+    if (!ps?.length) return null;
+    return (
+      <span className="absolute -top-2 right-1 z-10 flex gap-0.5 pointer-events-none" aria-label={ps.map((p) => p.name).join(', ')}>
+        {ps.map((p) => (
+          <span key={p.email} className="px-1.5 rounded text-[9px] font-bold leading-[14px] text-black/80 whitespace-nowrap" style={{ backgroundColor: p.color }}>
+            {presenceFirstName(p.name, p.email)}{p.editing ? ' ✎' : ''}
+          </span>
+        ))}
+      </span>
+    );
+  };
 
   // ── Autocomplete state ─────────────────────────────────────────────────────
   // x/y anchor the dropdown with position:fixed so the table's overflow-x-auto
@@ -2004,6 +2042,8 @@ export default function QuoteEditorPage() {
                 name={gate.profile.display_name || gate.profile.email}
                 editing={dirty}
                 onPeerSaved={syncNow}
+                focus={myLine}
+                onPeersChange={setDocPeers}
               />
             )}
           </div>
@@ -2561,6 +2601,8 @@ export default function QuoteEditorPage() {
                                 itemDrag.lineAt(itemKey(sec.section_id, item.item_id), { table: true })} ${
                                 itemDrag.dragKey === itemKey(sec.section_id, item.item_id) ? DRAGGING_ROW : ''}`}
                               {...itemDrag.rowProps(itemKey(sec.section_id, item.item_id), { stopPropagation: true })}
+                              data-presence-row={item.item_id}
+                              style={lineEdge(item.item_id)}
                             >
                               <td className="pl-2 py-2">
                                 <span
@@ -2572,6 +2614,7 @@ export default function QuoteEditorPage() {
                                 </span>
                               </td>
                               <td className="px-2 py-2 relative">
+                                {lineTag(item.item_id)}
                                 <input
                                   value={item.description}
                                   onChange={(e) => {
@@ -2999,6 +3042,8 @@ export default function QuoteEditorPage() {
                                   itemDrag.lineAt(itemKey(sec.section_id, sub.item_id), { table: true })} ${
                                   itemDrag.dragKey === itemKey(sec.section_id, sub.item_id) ? DRAGGING_ROW : ''}`}
                                 {...itemDrag.rowProps(itemKey(sec.section_id, sub.item_id), { stopPropagation: true })}
+                                data-presence-row={sub.item_id}
+                                style={lineEdge(sub.item_id)}
                               >
                                 <td className="pl-2 py-1.5">
                                   <span
@@ -3009,7 +3054,8 @@ export default function QuoteEditorPage() {
                                     {GRIP}
                                   </span>
                                 </td>
-                                <td className="pl-6 pr-4 py-1.5 flex items-center gap-2">
+                                <td className="pl-6 pr-4 py-1.5 flex items-center gap-2 relative">
+                                  {lineTag(sub.item_id)}
                                   <span className="text-slate-600 flex-shrink-0">↳</span>
                                   <input value={sub.description} onChange={(e) => updateItem(sec.section_id, sub.item_id, { description: e.target.value })}
                                     onKeyDown={(e) => navCell(e, sub.item_id, 'desc')}

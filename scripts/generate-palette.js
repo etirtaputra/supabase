@@ -452,8 +452,16 @@ const CORPORATE_SHELL_CSS = [
   // out-specifies Tailwind's `disabled:` variants, so without the exclusion a
   // greyed-out Save rendered as a live navy button (owner, 2026-09-28: "there's
   // still showing the Save button even though it is applied").
-  `${both('[class~="bg-emerald-600"][class~="text-white"]:not(:disabled)')},${both('[class~="bg-emerald-600"][class~="text-white"]:disabled:not([class*="disabled:bg-"])')}{background-color:rgb(var(--c-brand));color:#fff}`,
-  `${both('[class~="bg-emerald-600"][class~="text-white"]:hover:not(:disabled)')}{background-color:rgb(var(--c-brand-hover))}`,
+  //
+  // The projects area (EPC proposals, library, directory) signs its primary
+  // button in VIOLET instead — bg-violet-600 + text-white — and was left
+  // lavender with navy ink in Corporate light, the one primary button in the
+  // app that did not turn navy (owner, 2026-10-02: "navy buttons"). It is the
+  // same signature in another colour, so it takes the same rule.
+  ...['bg-emerald-600', 'bg-violet-600'].flatMap((fill) => [
+    `${both(`[class~="${fill}"][class~="text-white"]:not(:disabled)`)},${both(`[class~="${fill}"][class~="text-white"]:disabled:not([class*="disabled:bg-"])`)}{background-color:rgb(var(--c-brand));color:#fff}`,
+    `${both(`[class~="${fill}"][class~="text-white"]:hover:not(:disabled)`)}{background-color:rgb(var(--c-brand-hover))}`,
+  ]),
   // Focus is the brand too, so the field you are typing in is unmistakable
   // and never confused with a green "valid" state.
   `${both('[class*="focus:border-emerald"]:focus')}{border-color:rgb(var(--c-brand) / .7)}`,

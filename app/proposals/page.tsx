@@ -477,7 +477,7 @@ export default function QuotesListPage() {
   }
 
   // One proposal row (card or compact). Used for a proposal and for each of its older versions.
-  const renderRow = (q: ProjectQuote) => {
+  const renderRow = (q: ProjectQuote, nested = false) => {
     const t = totalsByQuote.get(q.quote_id);
     // The customer is the group's header, so a row leads with what tells its
     // proposals apart: the SITE (Imigrasi's 31 share one description and differ
@@ -489,7 +489,7 @@ export default function QuotesListPage() {
     const livePeers = peersByProposal.get(q.quote_id) ?? [];
     const someoneEditing = livePeers.some((p) => p.editing);
     return (
-    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border transition-all ${compact ? 'rounded-lg px-3 py-1.5' : 'rounded-2xl px-4 sm:px-5 py-4'} ${someoneEditing ? 'border-amber-500/40' : livePeers.length ? 'border-emerald-500/30' : 'border-slate-800 hover:border-slate-700'}`}>
+    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 transition-colors ${compact ? 'py-1.5' : 'py-3'} ${nested ? 'pl-8 sm:pl-10 pr-3 sm:pr-4 bg-slate-950/40' : compact ? 'px-3' : 'px-4 sm:px-5'} ${someoneEditing ? 'bg-amber-500/[0.07]' : livePeers.length ? 'bg-emerald-500/[0.05]' : 'hover:bg-slate-800/40'}`}>
                 <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
   {compact ? (
     /* One line: who, what state, what it's worth, which number */
@@ -653,9 +653,9 @@ export default function QuotesListPage() {
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm">
+    <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-canvas/90 backdrop-blur-xl border-b border-white/[0.07]">
+      <div className="sticky top-0 z-40 bg-chrome/80 backdrop-blur-md border-b border-slate-800/60">
         <div className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-4 flex items-center justify-between flex-wrap gap-3">
           <BrandMenu wordmarkClass="text-xl font-bold" subtitle="EPC" />
           {/* min-w-0 so this cluster yields instead of colliding with the nav */}
@@ -784,7 +784,7 @@ export default function QuotesListPage() {
             <button onClick={() => { setSearch(''); setFilterType(''); setCreator(''); setNoteFilter(''); }} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">{t('Clear filters')}</button>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {searchLc && (
               <p className="px-1 text-[11px] text-slate-500">{tr('Searching all proposals, archive included')}</p>
             )}
@@ -799,50 +799,47 @@ export default function QuotesListPage() {
               const c = g.counts;
               return (
                 <section key={g.key || '(none)'}>
-                  {/* The customer, and how its proposals stand — counted over ALL
-                      of them, whatever the view (owner, 2026-10-02). */}
-                  {/* A tinted band, not a bare line: the customer must read as the
-                      start of a new section at a glance (owner, 2026-10-02). */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/25">
-                    <h2 className="text-sm font-bold text-white truncate max-w-full">{g.name || tr('No customer')}</h2>
-                    <span className="flex flex-wrap items-center gap-x-2.5 text-[11px] tabular-nums">
-                      <span className="text-slate-300">{c.total === 1 ? tr('One proposal') : tf('{n} proposals', { n: c.total })}</span>
-                      {([['Draft', c.draft, 'text-slate-300'], ['Sent', c.sent, 'text-blue-300 tone-step'],
-                        ['Won', c.won, 'text-emerald-300'], ['Rejected', c.rejected, 'text-red-400']] as const).map(([label, n, tone]) => (
-                        <span key={label} className={n ? tone : 'text-slate-600'}>{tr(label)} {n}</span>
-                      ))}
-                    </span>
-                    <span className="text-[11px] text-slate-500">{tf('Last activity {date}', { date: fmtDate(g.lastActivity) })}</span>
-                  </div>
-                  <div className="space-y-2">
+                  {/* One bordered panel per customer, the house list shape (Sales,
+                      Banks, Invoices). The customer is its shaded first strip — a
+                      different colour from the rows, so each customer reads as a
+                      section of its own (owner, 2026-10-02). Counts are over ALL
+                      of the customer's proposals, whatever the view. */}
+                  <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden divide-y divide-slate-800/60">
+                    <div className={`flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 bg-slate-800/60 ${compact ? 'px-3 py-2' : 'px-4 sm:px-5 py-2.5'}`}>
+                      <h2 className="text-sm font-bold text-white truncate min-w-0 max-w-full">{g.name || tr('No customer')}</h2>
+                      <span className="flex flex-wrap items-baseline gap-x-2.5 text-[11px] tabular-nums">
+                        <span className="text-slate-400">{c.total === 1 ? tr('One proposal') : tf('{n} proposals', { n: c.total })}</span>
+                        {([['Draft', c.draft, 'text-slate-300'], ['Sent', c.sent, 'text-blue-300 tone-step'],
+                          ['Won', c.won, 'text-emerald-300'], ['Rejected', c.rejected, 'text-red-400']] as const).map(([label, n, tone]) => (
+                          <span key={label} className={n ? tone : 'text-slate-600'}>{tr(label)} {n}</span>
+                        ))}
+                        <span className="text-slate-500">· {tf('Last activity {date}', { date: fmtDate(g.lastActivity) })}</span>
+                      </span>
+                    </div>
                     {fams.map((f) => {
                       const fkey = `${g.key}|${f.key}`;
                       // A search that only hit an OLDER version opens the versions, so the hit is visible.
                       const versionsOpen = openFamilies.has(fkey) || (!!searchLc && !matches(f.latest) && f.older.some(matches));
                       return (
-                        <div key={fkey}>
+                        <React.Fragment key={fkey}>
                           {renderRow(f.latest)}
                           {f.older.length > 0 && (
                             <button onClick={() => toggleIn(setOpenFamilies, fkey)}
-                              className="ml-4 mt-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
-                              {versionsOpen ? tr('Hide versions') : tf('{n} other versions', { n: f.older.length })}
+                              className={`w-full text-left ${compact ? 'pl-8 py-1' : 'pl-10 py-1.5'} pr-4 text-[11px] text-slate-500 hover:text-slate-300 hover:bg-slate-800/40 transition-colors`}>
+                              ↳ {versionsOpen ? tr('Hide versions') : tf('{n} other versions', { n: f.older.length })}
                             </button>
                           )}
-                          {versionsOpen && (
-                            <div className="ml-3 sm:ml-6 mt-1.5 pl-3 border-l border-white/[0.08] space-y-2">
-                              {f.older.map((o) => renderRow(o))}
-                            </div>
-                          )}
-                        </div>
+                          {versionsOpen && f.older.map((o) => renderRow(o, true))}
+                        </React.Fragment>
                       );
                     })}
+                    {g.families.length > CUSTOMER_PREVIEW && !searchLc && (
+                      <button onClick={() => toggleIn(setOpenCustomers, g.key)}
+                        className="w-full text-left px-4 sm:px-5 py-2 text-[11px] font-medium text-violet-300 hover:bg-slate-800/40 transition-colors">
+                        {openCustomers.has(g.key) ? tr('Show fewer') : tf('Show {n} more', { n: g.families.length - CUSTOMER_PREVIEW })}
+                      </button>
+                    )}
                   </div>
-                  {g.families.length > CUSTOMER_PREVIEW && !searchLc && (
-                    <button onClick={() => toggleIn(setOpenCustomers, g.key)}
-                      className="mt-2 px-1 text-[11px] text-violet-300 hover:text-violet-200 transition-colors">
-                      {openCustomers.has(g.key) ? tr('Show fewer') : tf('Show {n} more', { n: g.families.length - CUSTOMER_PREVIEW })}
-                    </button>
-                  )}
                 </section>
               );
             })}

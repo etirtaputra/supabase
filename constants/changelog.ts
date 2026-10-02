@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-02T10:00:32Z",
+    title: "Proposal EPC: tampilan seragam dengan halaman lain, tombol navy, dan penanda baris rekan kerja",
+    details: [
+      "Daftar Proposal EPC kini memakai bentuk yang sama dengan Penjualan, Bank dan daftar lainnya: latar putih, satu panel per pelanggan, dan nama pelanggan di strip berwarna di atas panelnya.",
+      "Tombol utama di area Proposal (Proposal baru, Simpan, dll.) kini berwarna navy perusahaan pada tampilan Corporate, sama seperti tombol utama di halaman lain.",
+      "Di dalam proposal, baris yang sedang dikerjakan rekan kerja kini diberi garis warna dan nama mereka (mis. “Abel”). Tanda ✎ berarti mereka punya perubahan yang belum disimpan. Penanda hilang begitu mereka pindah baris atau keluar — tidak ada yang tersimpan.",
+    ],
+  },
+  {
     at: "2026-10-02T09:09:44Z",
     title: "Proposal EPC: judul pelanggan diberi warna latar",
     details: [

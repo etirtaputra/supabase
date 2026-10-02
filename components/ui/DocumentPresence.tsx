@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { createSupabaseClient } from '@/lib/supabase';
-import { colorFor, initials, firstName as firstNameOf } from '@/lib/presence';
+import { colorFor, initials, firstName as firstNameOf, type DocPeer } from '@/lib/presence';
 
 /**
  * Live presence for a shared document (Supabase Realtime Presence — no DB
@@ -19,24 +19,34 @@ import { colorFor, initials, firstName as firstNameOf } from '@/lib/presence';
  * Used by both document editors — the EPC proposal (`app/proposals/[id]`) and
  * the sales quotation (`app/sales/[id]`). Nothing here is specific to either:
  * `channelId` names the document, and everything else is presence.
+ *
+ * `focus` is the line this user is on; every peer's line comes back through
+ * `onPeersChange`, so an editor can mark the lines colleagues are working on
+ * (lib/presence.ts `peersByFocus`). An editor that passes neither is unchanged.
  */
 
-interface Peer { email: string; name: string; color: string; editing: boolean }
+type Peer = DocPeer;
 
 const firstName = (p: Peer) => firstNameOf(p.name, p.email);
 
-export default function DocumentPresence({ channelId, email, name, editing, onPeerSaved }: {
+export default function DocumentPresence({ channelId, email, name, editing, onPeerSaved, focus = null, onPeersChange }: {
   channelId: string;
   email: string;
   name: string;
   editing: boolean;             // is THIS user holding unsaved edits
   onPeerSaved?: () => void;     // a colleague's edit flag just cleared (likely saved)
+  focus?: string | null;        // the line THIS user is on (an item id), shared live
+  onPeersChange?: (peers: Peer[]) => void;
 }) {
   const supabase = useMemo(() => createSupabaseClient(), []);
   const [peers, setPeers] = useState<Peer[]>([]);
   const chanRef = useRef<RealtimeChannel | null>(null);
   const editingRef = useRef(editing);
   editingRef.current = editing;
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  const peersCb = useRef(onPeersChange);
+  peersCb.current = onPeersChange;
   const prevEditors = useRef<Set<string>>(new Set());
   const savedCb = useRef(onPeerSaved);
   savedCb.current = onPeerSaved;
@@ -48,7 +58,7 @@ export default function DocumentPresence({ channelId, email, name, editing, onPe
     chanRef.current = channel;
 
     const sync = () => {
-      const state = channel.presenceState() as Record<string, { email?: string; name?: string; color?: string; editing?: boolean }[]>;
+      const state = channel.presenceState() as Record<string, { email?: string; name?: string; color?: string; editing?: boolean; focus?: string | null }[]>;
       const byEmail = new Map<string, Peer>();
       for (const key in state) {
         const meta = state[key]?.[0];
@@ -58,6 +68,7 @@ export default function DocumentPresence({ channelId, email, name, editing, onPe
           name: meta.name || meta.email,
           color: meta.color || colorFor(meta.email),
           editing: !!meta.editing,
+          focus: typeof meta.focus === 'string' && meta.focus ? meta.focus : null,
         });
       }
       const list = [...byEmail.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -67,23 +78,30 @@ export default function DocumentPresence({ channelId, email, name, editing, onPe
       for (const e of prevEditors.current) if (!now.has(e) && byEmail.has(e)) someoneJustSaved = true;
       prevEditors.current = now;
       setPeers(list);
+      peersCb.current?.(list);
       if (someoneJustSaved) savedCb.current?.();
     };
 
     channel.on('presence', { event: 'sync' }, sync);
     channel.subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') await channel.track({ email, name, color, editing: editingRef.current });
+      if (status === 'SUBSCRIBED') await channel.track({ email, name, color, editing: editingRef.current, focus: focusRef.current });
     });
 
     return () => { supabase.removeChannel(channel); chanRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId, email, name]);
 
-  // Re-broadcast whenever this user's editing flag flips
+  // Re-broadcast whenever this user's editing flag flips or they move to
+  // another line. Moving is debounced: tabbing down a column should send the
+  // line you stop on, not every line you pass.
   useEffect(() => {
     const ch = chanRef.current;
-    if (ch) ch.track({ email, name, color: colorFor(email), editing }).then(() => {}, () => {});
-  }, [editing, email, name]);
+    if (!ch) return;
+    const t = setTimeout(() => {
+      ch.track({ email, name, color: colorFor(email), editing, focus }).then(() => {}, () => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [editing, focus, email, name]);
 
   if (!peers.length) return null;
   const editors = peers.filter((p) => p.editing);

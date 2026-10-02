@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-02** · last change: *EPC proposal list: customer headers on a tinted band (owner: "different color … clear separation")* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-02** · last change: *EPC proposals: house-style list, navy primary buttons in Corporate, live line markers in the editor* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 867 tests at handoff (2026-10-02), all pass
+npm test             # node --test "lib/**/*.test.ts" — 868 tests at handoff (2026-10-02), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,47 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-02 (latest) — the EPC proposal list, grouped by customer
+### 2026-10-02 (latest) — proposals look like the rest of the app; who is on which line
+
+Owner: "the section and color could be even better, especially the Light
+version … consistent with the rest of the pages" → previewed locally in both
+Corporate skins, then "go ahead with the new look and navy buttons and showing
+which line a colleague is editing live."
+
+- **Measured first** (an Explore survey of every list page): Proposals was the
+  only list on `bg-canvas` (the others are `bg-chrome`), the only one drawing
+  each row as its own rounded card, and its violet band matched no house
+  pattern. The house shape is one bordered panel per group
+  (`bg-slate-900/40 border border-slate-800/80 rounded-2xl`, rows in
+  `divide-y divide-slate-800/60`, hover `bg-slate-800/40`) — Sales, Banks,
+  Invoices, Delivery.
+- **`app/proposals/page.tsx`:** page on `bg-chrome`; one panel per customer whose
+  first strip (`bg-slate-800/60`, flips correctly in both Corporate skins —
+  `bg-sunken` was measured near-invisible in dark) carries the name and counts;
+  versions and "Show N more" are rows inside the panel; `renderRow(q, nested)`.
+- **Navy buttons:** `bg-violet-600` + `text-white` (the projects area's primary
+  button, 18 sites) now takes the SAME Corporate rule as the emerald primary —
+  `scripts/generate-palette.js` maps both fills to `--c-brand`; palette
+  regenerated. It was the one primary button left lavender with navy ink in
+  Corporate light. Non-corporate skins unchanged.
+- **Live line marker:** `components/ui/DocumentPresence.tsx` gains optional
+  `focus` (the line this user is in, debounced 250 ms) and `onPeersChange`;
+  presence metas now carry `focus`. The editor tracks the focused row via
+  `data-presence-row` on item and sub-item `<tr>`s (focusin/focusout) and marks
+  colleagues' lines with an inset edge in their colour + a name tag (`✎` =
+  unsaved edits). `lib/presence.ts` `peersByFocus` (tested). Ephemeral: nothing
+  is written. The sales quotation editor passes neither prop and is unchanged.
+- **Verified end to end** in Chromium against the production build with Supabase
+  Realtime faked over a routed WebSocket (Phoenix v1 JSON): peers on `i2`
+  (editing) and `s1` drew `rgb(96,165,250)` / `rgb(244,114,182)` edges with tags
+  "Abel ✎" / "Budi"; clicking lines i1 then i4 broadcast `focus: i1` then `i4`
+  (4 track messages in all). Rig: scratchpad `rig/editlive.mjs`.
+- Measured for the multi-user ideas (30 days): 50 proposals touched, 11 by 2+
+  people, only 5 same-hour overlaps; Tisa ≈ 70% of edits; **24 of 60 sends
+  were pulled back to draft** to fix. Review step / owner / "what changed"
+  proposals put to the owner — §6.0 #16.
+
+### 2026-10-02 — the EPC proposal list, grouped by customer
 
 Owner: "as the list of EPC Proposal get more and more, we need a better way to
 organize them" → step 1 of 3 approved ("go ahead with step 1"), plus "another
@@ -3253,7 +3293,7 @@ evidence for every one are in §4 under the dated entries.
 | 9 | **Cancel the 148 dead Draft POs** | No longer counted as debt (`fb56650`), still clutter Draft + search | Owner OK → set status `Cancelled` (reversible, never delete). |
 | 10 | ~~Ask ICAPROC partly broken~~ | Done 2026-10-02 (§4): it was 4 missing views + 3 mis-filtered, not 1. Rebuilt on the base tables, gated to buy side. | — |
 | 15 | **31 of 93 live POs carry no supplier/company of their own** | Ask (and anything reading `5.0` directly) falls back to the PO's supplier quote — 29 resolve, **2 stay unknown**. | Owner OK → backfill `5.0_purchases.supplier_id/company_id` from `4.0_price_quotes` (29 rows, dry-run first); find the 2 by hand. |
-| 16 | **EPC proposals, step 2: Won/Lost and linked versions** | Step 1 (grouping) shipped 2026-10-02 (§4). `accepted` exists in the editor but was never used. | Owner decides who may mark won/lost; then a `replaces_quote_id`-style column + won/lost/replaced statuses, so `familyKey` stops relying on the number. Owner also asked what Imigrasi's -P / -N series mean (unanswered). |
+| 16 | **EPC proposals, step 2: review step, Won/Lost, linked versions** | Step 1 (grouping) + house look + live line markers shipped 2026-10-02 (§4). `accepted` exists in the editor but was never used. 24 of 60 sends were un-sent to fix. Proposed: Draft → In review → Approved → Sent → Won/Lost, editing after Sent makes a REV; plus an owner / "waiting on" per proposal with a "Mine" tab, and "changed since you looked" marks. | Owner decides who may mark won/lost; then a `replaces_quote_id`-style column + won/lost/replaced statuses, so `familyKey` stops relying on the number. Owner also asked what Imigrasi's -P / -N series mean (unanswered). |
 | 17 | **New EPC proposal numbering** | Owner (2026-10-02): `YYMMDD` + a customer code or a running number instead of the random 4 letters; old numbers stay. | Proposal put to the owner; awaiting the choice. `lib/proposalGroups.ts` `familyKey` must learn the new format in the same commit. |
 | 11 | **Load bank statements** | `41.1_bank_transactions` has nothing for July 2026 | Needed to reconcile supplier payments (and to settle #6). |
 | 13 | **Wording, second pass** | Buttons + page names done 2026-09-28 (§4) | Tooltips (`title=`), placeholders, non-button headings, `<Link>` buttons. Extend `lib/wording.ts`'s scanner the same way. |
