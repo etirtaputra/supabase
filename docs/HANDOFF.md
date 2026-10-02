@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-02** · last change: *EPC proposal editor no longer hangs: the tab-title watcher looped on a customer name with a trailing space* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-02** · last change: *Ask ICAPROC rebuilt on the base tables (4 of its 9 views were gone) and gated to buy side; stray spaces trimmed from 2 customer names and 2 items* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,10 +123,10 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 852 tests at handoff (2026-10-02), all pass
+npm test             # node --test "lib/**/*.test.ts" — 861 tests at handoff (2026-10-02), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
-npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
+npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
 npm run build        # next build must be green
 ```
 Plus: a `constants/changelog.ts` entry in the same commit — **in Indonesian**,
@@ -138,7 +138,48 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-02 (latest) — the proposal editor hung: a tab title that never matched itself
+### 2026-10-02 (latest) — Ask ICAPROC reads the real tables; stray spaces trimmed
+
+Owner: "go ahead, trim the spaces and fix Ask ICAPROC".
+
+**Correction, said out loud:** §6.0 #10 (and my status on 2026-10-01) said
+ONE view was missing. Measured: **4 of the 9 views Ask read did not exist**
+(`v_analytics_master` = Source 1 purchases, `mv_component_analytics`,
+`v_supplier_performance`, `v_purchase_history_analytics`), and 3 more were
+filtered on columns they lack (`v_payment_tracking` / `v_landed_cost_summary`
+by model/component; `v_quote_history_analytics` is now a per-supplier
+aggregate with no `quote_date`). PostgREST errors were never read, so a
+question with a keyword reached the model with 7 of 10 sources EMPTY.
+
+- **`lib/askContext.ts`** (pure, `lib/askContext.test.ts`): purchase lines,
+  per-item cost stats and supplier performance computed from `5.0`/`5.1`/
+  `6.0` with the canonical **`computeTUCMap`** — no second TUC formula. Live
+  POs only (Confirmed / Partially / Fully Received; Draft and Replaced are not
+  purchases). Keyword match keeps the components matching the MOST words, so
+  "epever xtra4210n" is that model, not every EPEVER item. Supplier quote
+  history now reads `quote_history`; payments/landed costs are filtered by
+  the matched POs' numbers. A source that errors is named to the model as
+  unreadable, never presented as "no data", and logged.
+- **Gate:** the route uses service role and only checked sign-in, so any
+  signed-in role (engineer, MANDA) could read supplier costs by calling
+  `/api/ask` directly. It now refuses unless `canOpenPath(perms, '/ask')`
+  (buy side; unknown role → refused). Test pins the gate before the first read.
+- **Real-data check** (scratchpad, EPEVER XTRA4210N-G3, its 5 live POs): TUC
+  per PO 956,738 / 883,267 / 866,534 / 855,289, headline 892,116 — equal to a
+  hand calculation from the raw rows; min/max at PO rate 772,443 / 945,550 —
+  equal to an independent SQL. The unsettled Sept PO says "not settled yet".
+- **Found:** 31 of 93 live POs have no `supplier_id`/`company_id`; 29 name
+  both on their supplier quote. Ask falls back to the quote (read-only,
+  `withQuoteParties`). Backfill left for the owner — §6.0 #15.
+- **Data, owner-approved:** trimmed `customer_name` on Q-20261002-SXD2 and
+  Q-20260821-7FI7 ("Ibu Diana"), and `internal_description`/`supplier_model`
+  on 2 items (SOLARMAN LDW-1, ICAL IP1272; the 4.1 sync trigger trimmed the
+  one SOLARMAN quote line with it). Q-20260821-7FI7 is SENT, so
+  `guard_quote_unsend()` refuses a service write: done as the owner via
+  `request.jwt.claims` (dry-run first) — both rows now say
+  `updated_by_email = eric@ica.id`, which is true.
+
+### 2026-10-02 — the proposal editor hung: a tab title that never matched itself
 
 Field report (Tisa, adminproject@ptmbs.co, via owner): Chrome "Page
 Unresponsive" on EPC proposal **Q-20261002-SXD2** (customer
@@ -3172,7 +3213,8 @@ evidence for every one are in §4 under the dated entries.
 | 7 | **Read `/usage`** | Log since 2026-09-22; Spotlight attribution fixed 2026-09-27 (`1336170`) | Read around **2026-10-04** (a clean week). Use it to cut the menu. Owner-only: ⌘I → "usage". |
 | 8 | **Prevent the wrong-rate PO at entry** | Not built | New Deal form: warn when the rate is >3× off `liveFx` for that currency. Reuse `RATE_SUSPECT_FACTOR` from `lib/dealBalance.ts`. |
 | 9 | **Cancel the 148 dead Draft POs** | No longer counted as debt (`fb56650`), still clutter Draft + search | Owner OK → set status `Cancelled` (reversible, never delete). |
-| 10 | **Ask ICAPROC partly broken** | `app/api/ask/route.ts:106-107` reads `v_purchase_history_analytics`, which does NOT exist | Small fix: point it at a real view/table; purchase-history questions currently return nothing. |
+| 10 | ~~Ask ICAPROC partly broken~~ | Done 2026-10-02 (§4): it was 4 missing views + 3 mis-filtered, not 1. Rebuilt on the base tables, gated to buy side. | — |
+| 15 | **31 of 93 live POs carry no supplier/company of their own** | Ask (and anything reading `5.0` directly) falls back to the PO's supplier quote — 29 resolve, **2 stay unknown**. | Owner OK → backfill `5.0_purchases.supplier_id/company_id` from `4.0_price_quotes` (29 rows, dry-run first); find the 2 by hand. |
 | 11 | **Load bank statements** | `41.1_bank_transactions` has nothing for July 2026 | Needed to reconcile supplier payments (and to settle #6). |
 | 13 | **Wording, second pass** | Buttons + page names done 2026-09-28 (§4) | Tooltips (`title=`), placeholders, non-button headings, `<Link>` buttons. Extend `lib/wording.ts`'s scanner the same way. |
 | 12 | ~~Owner tries the Corporate skin~~ | Done: Corporate is the default since 2026-09-29 (light/dark follows each person's choice). | — |

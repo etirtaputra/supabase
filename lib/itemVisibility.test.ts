@@ -123,6 +123,8 @@ const INCLUDES_ARCHIVED: Record<string, string> = {
     'Tech Specs compares products side by side, including against a superseded model. Back-office, never customer-facing.',
   'components/ui/CommandPalette.tsx':
     'Spotlight finds an item BY NAME so you can open it. Refusing to find a retired item reads as a broken search.',
+  'app/api/ask/route.ts':
+    'Ask ICAPROC answers history ("what did we pay for X"). An item archived today was still bought last year, and its POs must still have a name.',
 };
 
 test('every screen that reads the catalogue says whether archived items belong in it', () => {

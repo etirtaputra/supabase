@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-02T07:54:26Z",
+    title: "Ask ICAPROC kembali menjawab soal pembelian dengan data lengkap",
+    details: [
+      "Ask ICAPROC ternyata selama ini membaca beberapa sumber data yang sudah tidak ada, sehingga pertanyaan seperti “berapa harga beli EPEVER XTRA4210N?” sering dijawab “data tidak tersedia”. Sekarang Ask membaca langsung dari PO, baris PO dan biaya PO.",
+      "Jawaban harga kini memakai True Unit Cost yang sama dengan layar lain (termasuk ongkos kirim, bea masuk dan biaya bank; tanpa PPN/PPh), per PO dan rata-ratanya. PO Draft dan PO yang sudah diganti tidak dihitung sebagai pembelian.",
+      "Kinerja supplier (jumlah order, total belanja, keterlambatan dari tanggal janji) dihitung ulang dari PO. Bila ada sumber data yang gagal dibaca, Ask kini mengatakannya — bukan menjawab “tidak ada data”.",
+      "Ask ICAPROC hanya untuk peran pembelian (buy side), sama seperti di menu. Peran lain tidak bisa lagi membaca harga beli lewat Ask.",
+      "Nama customer “P TDelta Marlin Sandang Tekstile” dan “Ibu Diana”, serta 2 nama barang (SOLARMAN LDW-1, ICAL IP1272), dirapikan dari spasi berlebih.",
+    ],
+  },
+  {
     at: "2026-10-02T07:30:00Z",
     title: "Proposal EPC tidak lagi macet (“Page Unresponsive”) saat diedit",
     details: [
