@@ -24,6 +24,8 @@ import { SECTION_GROUPS, STANDARD_SECTIONS, type ProjectQuote } from '@/types/qu
 import { useEpcLobby, type LobbyPeer } from '@/hooks/useEpcLobby';
 import { initials, firstName } from '@/lib/presence';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { groupProposals, customerKey, ACTIVE_DAYS } from '@/lib/proposalGroups';
+import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
 
 const STATUS_STYLES: Record<string, string> = {
   draft:    'bg-slate-700/60 text-slate-300',
@@ -32,13 +34,9 @@ const STATUS_STYLES: Record<string, string> = {
   rejected: 'bg-red-500/20 text-red-400',
 };
 
-// The list is split into these sections, in this order; empty ones are hidden.
-const STATUS_SECTIONS: { key: string; label: string; accent: string; rule: string }[] = [
-  { key: 'draft',    label: 'Drafts',   accent: 'text-slate-300',   rule: 'bg-slate-500/20' },
-  { key: 'sent',     label: 'Sent',     accent: 'text-blue-300',    rule: 'bg-blue-500/20' },
-  { key: 'accepted', label: 'Accepted', accent: 'text-emerald-300', rule: 'bg-emerald-500/20' },
-  { key: 'rejected', label: 'Rejected', accent: 'text-red-400',     rule: 'bg-red-500/20' },
-];
+// The list is grouped by CUSTOMER (lib/proposalGroups.ts). A customer shows
+// this many proposals before "Show N more" — Imigrasi alone has 31.
+const CUSTOMER_PREVIEW = 3;
 
 function fmtDate(d: string) {
   return fmtDay(d) || '—';
@@ -82,6 +80,13 @@ export default function QuotesListPage() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');   // '' = all project types
   const [noteFilter, setNoteFilter] = useState('');    // '' = all · open · none
+  const [creator, setCreator] = useState('');          // '' = everyone
+  const [scope, setScope] = useState<'active' | 'archive'>('active');
+  // Customers showing ALL their proposals, and proposals showing their older versions.
+  const [openCustomers, setOpenCustomers] = useState<Set<string>>(new Set());
+  const [openFamilies, setOpenFamilies] = useState<Set<string>>(new Set());
+  const toggleIn = (set: React.Dispatch<React.SetStateAction<Set<string>>>, key: string) =>
+    set((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   // Every OPEN follow-up note, in one query for the whole list.
   const [openNotes, setOpenNotes] = useState<QuoteNote[]>([]);
   // `supabase` is rebuilt every render (line 71), so it is deliberately not a
@@ -275,20 +280,43 @@ export default function QuotesListPage() {
     return m;
   }, [allItems, searchLc]);
 
-  // Search (number / customer / description / location / ITEMS) + type filter.
-  // Applied before the status grouping so each section shows only matches.
-  const visibleQuotes = useMemo(() => {
-    return quotes.filter((q) => {
-      if (filterType && (q.project_type || 'custom') !== filterType) return false;
-      if (noteFilter === 'open' && !noteByQuote.has(q.quote_id)) return false;
-      if (noteFilter === 'none' && noteByQuote.has(q.quote_id)) return false;
-      if (!searchLc) return true;
-      const headerHit = [q.quote_number, q.customer_name, q.project_description, q.location,
-        PROJECT_TYPES.find((t) => t.key === q.project_type)?.label]
-        .filter(Boolean).join(' ').toLowerCase().includes(searchLc);
-      return headerHit || itemMatchByQuote.has(q.quote_id);
-    });
-  }, [quotes, searchLc, filterType, itemMatchByQuote, noteFilter, noteByQuote]);
+  // Search (number / customer / description / location / ITEMS) + type, note
+  // and maker filters. A proposal is listed when ANY of its versions matches.
+  const matches = useCallback((q: ProjectQuote): boolean => {
+    if (filterType && (q.project_type || 'custom') !== filterType) return false;
+    if (noteFilter === 'open' && !noteByQuote.has(q.quote_id)) return false;
+    if (noteFilter === 'none' && noteByQuote.has(q.quote_id)) return false;
+    if (creator && (q.created_by_email ?? '') !== creator) return false;
+    if (!searchLc) return true;
+    const headerHit = [q.quote_number, q.customer_name, q.project_description, q.location,
+      PROJECT_TYPES.find((t) => t.key === q.project_type)?.label]
+      .filter(Boolean).join(' ').toLowerCase().includes(searchLc);
+    return headerHit || itemMatchByQuote.has(q.quote_id);
+  }, [searchLc, filterType, itemMatchByQuote, noteFilter, noteByQuote, creator]);
+  const visibleQuotes = useMemo(() => quotes.filter(matches), [quotes, matches]);
+
+  // Customer → proposal → versions. Built from ALL quotes, so a customer's
+  // counts and a proposal's versions never depend on the filters.
+  const allGroups = useMemo(() => groupProposals(quotes, {
+    hasOpenNote: (id) => noteByQuote.has(id),
+    show: (f) => [f.latest, ...f.older].some(matches),
+  }), [quotes, noteByQuote, matches]);
+  const scopeCounts = useMemo(() => {
+    const c = { active: 0, archive: 0 };
+    for (const g of allGroups) for (const f of g.families) c[f.active ? 'active' : 'archive'] += 1;
+    return c;
+  }, [allGroups]);
+  // A search looks everywhere — finding an old proposal is the usual reason to search.
+  const groups = useMemo(() => (searchLc ? allGroups : allGroups
+    .map((g) => ({ ...g, families: g.families.filter((f) => f.active === (scope === 'active')) }))
+    .filter((g) => g.families.length > 0)), [allGroups, scope, searchLc]);
+
+  // Who made proposals, busiest first — for the "Made by" filter.
+  const creators = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const q of quotes) if (q.created_by_email) n.set(q.created_by_email, (n.get(q.created_by_email) ?? 0) + 1);
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([e]) => e);
+  }, [quotes]);
 
   // Project types actually present, so the dropdown never offers empty options
   const availableTypes = useMemo(() => {
@@ -448,6 +476,182 @@ export default function QuotesListPage() {
     );
   }
 
+  // One proposal row (card or compact). Used for a proposal and for each of its older versions.
+  const renderRow = (q: ProjectQuote) => {
+    const t = totalsByQuote.get(q.quote_id);
+    // The customer is the group's header, so a row leads with what tells its
+    // proposals apart: the SITE (Imigrasi's 31 share one description and differ
+    // only by location), else the description. A location that merely repeats
+    // the customer ("Sinar Samudra" at "Sinar Samudra") says nothing new.
+    const site = (q.location ?? '').trim();
+    const title = site && customerKey(site) !== customerKey(q.customer_name) ? site : (q.project_description || q.quote_number || '—');
+    const desc = title === q.project_description ? '' : q.project_description;
+    const livePeers = peersByProposal.get(q.quote_id) ?? [];
+    const someoneEditing = livePeers.some((p) => p.editing);
+    return (
+    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border transition-all ${compact ? 'rounded-lg px-3 py-1.5' : 'rounded-2xl px-4 sm:px-5 py-4'} ${someoneEditing ? 'border-amber-500/40' : livePeers.length ? 'border-emerald-500/30' : 'border-slate-800 hover:border-slate-700'}`}>
+                <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
+  {compact ? (
+    /* One line: who, what state, what it's worth, which number */
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink min-w-0 max-w-[45%]" title={title}>{title}</span>
+      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>{tr(q.status)}</span>
+      {driftByQuote.has(q.quote_id) && (
+        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
+          title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost`}>
+          ⚠ {driftByQuote.get(q.quote_id)}
+        </span>
+      )}
+      {/* An OPEN note takes the description's place (owner's
+          call, 2026-08-27). A live "waiting on the customer"
+          is worth more than a description you wrote yourself
+          and already know, and the row does not grow to say
+          it. The description is still there in Card view. */}
+      {noteByQuote.has(q.quote_id) ? (
+        <span className="text-[11px] text-amber-300/90 truncate hidden md:inline"
+          title={noteThreadTitle(q.quote_id)}>
+          <span aria-hidden className="mr-1">●</span>{noteByQuote.get(q.quote_id)!.body}
+        </span>
+      ) : desc ? (
+        <span className="text-[11px] text-slate-500 truncate hidden md:inline">{desc}</span>
+      ) : null}
+      {/* Money and date are FIXED-WIDTH and last (from sm up), so
+          every row's amount shares a right edge and the column can
+          be read as a column. On a PHONE the fixed widths would
+          overflow the viewport and drag the whole page sideways —
+          there the amount sizes itself and the date steps aside
+          (it's one tap away in the proposal). */}
+      <span className="ml-auto flex items-center gap-2 sm:gap-3 flex-shrink-0 tabular-nums">
+        <span className="font-mono text-[10px] text-slate-600 hidden sm:block max-w-[14rem] truncate" title={q.quote_number || undefined}>
+          {q.quote_number || '—'}
+        </span>
+        <span className="sm:w-[9rem] text-right whitespace-nowrap text-[13px] font-bold text-slate-100">
+          {t && t.subtotal > 0 ? fmtRp(t.subtotal) : ''}
+        </span>
+        <span className="hidden sm:block w-[4.5rem] text-right text-[10px] text-slate-500">{fmtDate(q.quote_date)}</span>
+      </span>
+    </div>
+  ) : (<>
+  {/* Primary focus: the customer + status/type */}
+  <div className="flex flex-wrap items-center gap-2 mb-0.5">
+    <span className="font-semibold text-white text-base truncate max-w-full" title={title}>{title}</span>
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>
+      {q.status}
+    </span>
+    {q.project_type && q.project_type !== 'custom' && (
+      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 bg-sky-500/15 text-sky-300">
+        {PROJECT_TYPES.find((t) => t.key === q.project_type)?.label ?? q.project_type}
+      </span>
+    )}
+    {driftByQuote.has(q.quote_id) && (
+      <span
+        className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
+        title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost — open and press Costs to refresh`}
+      >
+        ⚠ {driftByQuote.get(q.quote_id)} outdated cost{driftByQuote.get(q.quote_id)! > 1 ? 's' : ''}
+      </span>
+    )}
+  </div>
+  {/* An OPEN follow-up note. Compact view swaps it in for the
+      description because the row cannot grow; a card has the
+      room for both, so the note sits ABOVE — a live "waiting on
+      the customer" outranks a description you wrote yourself.
+      Clamped to two lines so one long note can't stretch the
+      card; the full thread is in the hover title. */}
+  {noteByQuote.has(q.quote_id) && (
+    <p className="flex items-start gap-1.5 text-[11px] text-amber-300/90 mb-1.5"
+      title={noteThreadTitle(q.quote_id)}>
+      <span aria-hidden className="flex-shrink-0">●</span>
+      <span className="min-w-0 line-clamp-2">{noteByQuote.get(q.quote_id)!.body}</span>
+      {(noteCountByQuote.get(q.quote_id) ?? 1) > 1 && (
+        <span className="flex-shrink-0 text-amber-400/70 tabular-nums">
+          +{(noteCountByQuote.get(q.quote_id) ?? 1) - 1}
+        </span>
+      )}
+    </p>
+  )}
+  {/* Project name / scope */}
+  {desc && (
+    <p className="text-xs text-slate-400 truncate max-w-full mb-1.5">{desc}</p>
+  )}
+  {/* Price */}
+  {t && t.subtotal > 0 && (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mb-1.5 tabular-nums">
+      <span className="text-[15px] font-bold text-slate-100">
+        {fmtRp(t.subtotal)}
+        <span className="ml-1.5 text-[10px] font-normal text-slate-500">excl. PPN</span>
+      </span>
+      {t.wp > 0 && (
+        <span className="text-[11px] text-amber-300/90" title={`System size ${t.wp.toLocaleString('en-US')} Wp — price per Wp excl. PPN`}>
+          {fmtRp(t.subtotal / t.wp)}/Wp
+        </span>
+      )}
+    </div>
+  )}
+  {/* Reference line: quote number, dates, editor */}
+  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+    <span className="font-mono text-slate-500 flex-shrink-0" title="Proposal number">{q.quote_number || '—'}</span>
+    <span className="flex-shrink-0">{fmtDate(q.quote_date)}</span>
+    {q.sent_at && (
+      <span className="flex-shrink-0 text-blue-300/80" title="Stamped when the status was set to SENT">
+        ➤ sent {fmtDate(q.sent_at)}
+      </span>
+    )}
+    {(q.updated_by_email || q.created_by_email) && (
+      <span className="flex-shrink-0 text-slate-500 hidden sm:block"
+        title={`Created by ${q.created_by_email || '—'}${q.created_at ? ` on ${fmtDateTime(q.created_at)}` : ''}\nLast edited by ${q.updated_by_email || q.created_by_email || '—'}${q.updated_at ? ` on ${fmtDateTime(q.updated_at)}` : ''}`}>
+        ✎ Edited by <span className="text-slate-400">{(q.updated_by_email || q.created_by_email)!.split('@')[0]}</span>
+        {q.updated_at ? ` · ${fmtDateTime(q.updated_at)}` : ''}
+      </span>
+    )}
+  </div>
+  {/* Which items matched the search — shows why this proposal is here */}
+  {searchLc && itemMatchByQuote.get(q.quote_id)?.length ? (
+    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+      <span className="text-[10px] text-slate-600 flex-shrink-0">contains</span>
+      {itemMatchByQuote.get(q.quote_id)!.slice(0, 3).map((d, i) => (
+        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300/90 truncate max-w-[220px]">{d}</span>
+      ))}
+      {itemMatchByQuote.get(q.quote_id)!.length > 3 && (
+        <span className="text-[10px] text-slate-600">+{itemMatchByQuote.get(q.quote_id)!.length - 3} more</span>
+      )}
+    </div>
+  ) : null}
+  </>)}
+                </Link>
+                {livePeers.length > 0 && <LivePresence peers={livePeers} />}
+                <div className="hidden sm:flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+  <button
+    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number, date: q.quote_date ?? '' }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupNumbering('revision'); setDupError(''); }}
+    className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
+    title="Duplicate"
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+  </button>
+  <Link
+    href={`/proposals/${q.quote_id}/print`}
+    target="_blank"
+    className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
+    title="Print / PDF"
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+  </Link>
+  {/* The slot is kept when Delete is not offered, so draft and sent rows
+      in one customer group put their amounts on the same edge. */}
+  {(q.status !== 'sent' || gate.profile?.role === 'owner') ? (
+  <button
+    onClick={() => setDeleteId(q.quote_id)}
+    className="p-2 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-colors"
+    title="Delete"
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+  </button>
+  ) : <span aria-hidden className="w-8 flex-shrink-0" />}
+    </div>
+    </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm">
       {/* Header */}
@@ -519,25 +723,43 @@ export default function QuotesListPage() {
             )}
           </div>
         )}
-        {/* Search + project-type filter */}
+        {/* View, search and filters — one control size (constants/controls.ts). */}
         {!loading && quotes.length > 0 && (
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
-              <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search number, customer, item / keyword, location…"
-                className="w-full pl-10 pr-4 h-11 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-violet-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Active = still in play (a draft, sent in the last ACTIVE_DAYS, or a
+                follow-up note open). Everything else is one click away. */}
+            <div className="flex gap-1.5">
+              {(['active', 'archive'] as const).map((s) => (
+                <button key={s} onClick={() => setScope(s)}
+                  title={s === 'active'
+                    ? tf('Drafts, proposals sent in the last {n} days, and any with an open note', { n: ACTIVE_DAYS })
+                    : tf('Sent more than {n} days ago, won or rejected', { n: ACTIVE_DAYS })}
+                  className={`${BAR_BTN} px-3 ${scope === s && !searchLc ? BAR_BTN_ON : BAR_BTN_OFF}`}>
+                  {s === 'active' ? tf('Active ({n})', { n: scopeCounts.active }) : tf('Archived ({n})', { n: scopeCounts.archive })}
+                </button>
+              ))}
             </div>
-            <select value={filterType} onChange={(e) => setFilterType(e.target.value)}
-              className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-violet-500/60 outline-none text-slate-300 text-xs">
-              <option value="">All project types</option>
+            <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[220px]">
+              <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tr('Search number, customer, item / keyword, location…')}
+                className={`w-full pl-10 ${BAR_INPUT}`} />
+            </div>
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={BAR_SELECT}>
+              <option value="">{tr('All project types')}</option>
               {availableTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             </select>
+            {creators.length > 1 && (
+              <select value={creator} onChange={(e) => setCreator(e.target.value)} title={tr('Show only the proposals one person made')} className={BAR_SELECT}>
+                <option value="">{tr('Made by: everyone')}</option>
+                {creators.map((e) => <option key={e} value={e}>{e.split('@')[0]}</option>)}
+              </select>
+            )}
             {/* Only offered once a note exists — an empty filter on a feature
                 nobody has used yet is a control that can only disappoint. */}
             {noteByQuote.size > 0 && (
               <select value={noteFilter} onChange={(e) => setNoteFilter(e.target.value)}
                 title={tr('Proposals with a follow-up note still open')}
-                className="h-11 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-violet-500/60 outline-none text-slate-300 text-xs">
+                className={BAR_SELECT}>
                 <option value="">{tr('All notes')}</option>
                 <option value="open">{tf('Open note ({n})', { n: noteByQuote.size })}</option>
                 <option value="none">{tr('Nothing open')}</option>
@@ -559,188 +781,68 @@ export default function QuotesListPage() {
         ) : visibleQuotes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-slate-500 gap-2">
             <p className="text-slate-400 font-medium">No proposals match your search</p>
-            <button onClick={() => { setSearch(''); setFilterType(''); }} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">{t('Clear filters')}</button>
+            <button onClick={() => { setSearch(''); setFilterType(''); setCreator(''); setNoteFilter(''); }} className="text-xs text-violet-400 hover:text-violet-300 transition-colors">{t('Clear filters')}</button>
           </div>
         ) : (
-          <div className="space-y-7">
-            {STATUS_SECTIONS.map(({ key, label, accent, rule }) => {
-              const groupQuotes = visibleQuotes.filter((q) => q.status === key);
-              if (!groupQuotes.length) return null;
-              return (
-              <div key={key}>
-                <div className="flex items-center gap-3 mb-2.5 px-1">
-                  <h2 className={`text-xs font-bold uppercase tracking-widest ${accent}`}>{label}</h2>
-                  <span className="text-[11px] text-slate-600 tabular-nums">{groupQuotes.length}</span>
-                  <div className={`flex-1 h-px ${rule}`} />
-                </div>
-                <div className="space-y-2">
-                  {groupQuotes.map((q) => {
-                    const t = totalsByQuote.get(q.quote_id);
-                    const livePeers = peersByProposal.get(q.quote_id) ?? [];
-                    const someoneEditing = livePeers.some((p) => p.editing);
-                    return (
-                    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 bg-slate-900/50 hover:bg-slate-900/80 border transition-all ${compact ? 'rounded-lg px-3 py-1.5' : 'rounded-2xl px-4 sm:px-5 py-4'} ${someoneEditing ? 'border-amber-500/40' : livePeers.length ? 'border-emerald-500/30' : 'border-slate-800 hover:border-slate-700'}`}>
-                <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
-                  {compact ? (
-                    /* One line: who, what state, what it's worth, which number */
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink-0 max-w-[38%]">{q.customer_name || 'No customer'}</span>
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>{tr(q.status)}</span>
-                      {driftByQuote.has(q.quote_id) && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
-                          title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost`}>
-                          ⚠ {driftByQuote.get(q.quote_id)}
-                        </span>
-                      )}
-                      {/* An OPEN note takes the description's place (owner's
-                          call, 2026-08-27). A live "waiting on the customer"
-                          is worth more than a description you wrote yourself
-                          and already know, and the row does not grow to say
-                          it. The description is still there in Card view. */}
-                      {noteByQuote.has(q.quote_id) ? (
-                        <span className="text-[11px] text-amber-300/90 truncate hidden md:inline"
-                          title={noteThreadTitle(q.quote_id)}>
-                          <span aria-hidden className="mr-1">●</span>{noteByQuote.get(q.quote_id)!.body}
-                        </span>
-                      ) : q.project_description ? (
-                        <span className="text-[11px] text-slate-500 truncate hidden md:inline">{q.project_description}</span>
-                      ) : null}
-                      {/* Money and date are FIXED-WIDTH and last (from sm up), so
-                          every row's amount shares a right edge and the column can
-                          be read as a column. On a PHONE the fixed widths would
-                          overflow the viewport and drag the whole page sideways —
-                          there the amount sizes itself and the date steps aside
-                          (it's one tap away in the proposal). */}
-                      <span className="ml-auto flex items-center gap-2 sm:gap-3 flex-shrink-0 tabular-nums">
-                        <span className="font-mono text-[10px] text-slate-600 hidden sm:block max-w-[14rem] truncate" title={q.quote_number || undefined}>
-                          {q.quote_number || '—'}
-                        </span>
-                        <span className="sm:w-[9rem] text-right whitespace-nowrap text-[13px] font-bold text-slate-100">
-                          {t && t.subtotal > 0 ? fmtRp(t.subtotal) : ''}
-                        </span>
-                        <span className="hidden sm:block w-[4.5rem] text-right text-[10px] text-slate-500">{fmtDate(q.quote_date)}</span>
-                      </span>
-                    </div>
-                  ) : (<>
-                  {/* Primary focus: the customer + status/type */}
-                  <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                    <span className="font-semibold text-white text-base truncate max-w-full">{q.customer_name || 'No customer'}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>
-                      {q.status}
-                    </span>
-                    {q.project_type && q.project_type !== 'custom' && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 bg-sky-500/15 text-sky-300">
-                        {PROJECT_TYPES.find((t) => t.key === q.project_type)?.label ?? q.project_type}
-                      </span>
-                    )}
-                    {driftByQuote.has(q.quote_id) && (
-                      <span
-                        className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
-                        title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost — open and press Costs to refresh`}
-                      >
-                        ⚠ {driftByQuote.get(q.quote_id)} outdated cost{driftByQuote.get(q.quote_id)! > 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </div>
-                  {/* An OPEN follow-up note. Compact view swaps it in for the
-                      description because the row cannot grow; a card has the
-                      room for both, so the note sits ABOVE — a live "waiting on
-                      the customer" outranks a description you wrote yourself.
-                      Clamped to two lines so one long note can't stretch the
-                      card; the full thread is in the hover title. */}
-                  {noteByQuote.has(q.quote_id) && (
-                    <p className="flex items-start gap-1.5 text-[11px] text-amber-300/90 mb-1.5"
-                      title={noteThreadTitle(q.quote_id)}>
-                      <span aria-hidden className="flex-shrink-0">●</span>
-                      <span className="min-w-0 line-clamp-2">{noteByQuote.get(q.quote_id)!.body}</span>
-                      {(noteCountByQuote.get(q.quote_id) ?? 1) > 1 && (
-                        <span className="flex-shrink-0 text-amber-400/70 tabular-nums">
-                          +{(noteCountByQuote.get(q.quote_id) ?? 1) - 1}
-                        </span>
-                      )}
-                    </p>
-                  )}
-                  {/* Project name / scope */}
-                  {q.project_description && (
-                    <p className="text-xs text-slate-400 truncate max-w-full mb-1.5">{q.project_description}</p>
-                  )}
-                  {/* Price */}
-                  {t && t.subtotal > 0 && (
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 mb-1.5 tabular-nums">
-                      <span className="text-[15px] font-bold text-slate-100">
-                        {fmtRp(t.subtotal)}
-                        <span className="ml-1.5 text-[10px] font-normal text-slate-500">excl. PPN</span>
-                      </span>
-                      {t.wp > 0 && (
-                        <span className="text-[11px] text-amber-300/90" title={`System size ${t.wp.toLocaleString('en-US')} Wp — price per Wp excl. PPN`}>
-                          {fmtRp(t.subtotal / t.wp)}/Wp
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {/* Reference line: quote number, dates, editor */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                    <span className="font-mono text-slate-500 flex-shrink-0" title="Proposal number">{q.quote_number || '—'}</span>
-                    <span className="flex-shrink-0">{fmtDate(q.quote_date)}</span>
-                    {q.sent_at && (
-                      <span className="flex-shrink-0 text-blue-300/80" title="Stamped when the status was set to SENT">
-                        ➤ sent {fmtDate(q.sent_at)}
-                      </span>
-                    )}
-                    {(q.updated_by_email || q.created_by_email) && (
-                      <span className="flex-shrink-0 text-slate-500 hidden sm:block"
-                        title={`Created by ${q.created_by_email || '—'}${q.created_at ? ` on ${fmtDateTime(q.created_at)}` : ''}\nLast edited by ${q.updated_by_email || q.created_by_email || '—'}${q.updated_at ? ` on ${fmtDateTime(q.updated_at)}` : ''}`}>
-                        ✎ Edited by <span className="text-slate-400">{(q.updated_by_email || q.created_by_email)!.split('@')[0]}</span>
-                        {q.updated_at ? ` · ${fmtDateTime(q.updated_at)}` : ''}
-                      </span>
-                    )}
-                  </div>
-                  {/* Which items matched the search — shows why this proposal is here */}
-                  {searchLc && itemMatchByQuote.get(q.quote_id)?.length ? (
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                      <span className="text-[10px] text-slate-600 flex-shrink-0">contains</span>
-                      {itemMatchByQuote.get(q.quote_id)!.slice(0, 3).map((d, i) => (
-                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300/90 truncate max-w-[220px]">{d}</span>
-                      ))}
-                      {itemMatchByQuote.get(q.quote_id)!.length > 3 && (
-                        <span className="text-[10px] text-slate-600">+{itemMatchByQuote.get(q.quote_id)!.length - 3} more</span>
-                      )}
-                    </div>
-                  ) : null}
-                  </>)}
-                </Link>
-                {livePeers.length > 0 && <LivePresence peers={livePeers} />}
-                <div className="hidden sm:flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => { setDup({ id: q.quote_id, number: q.quote_number, date: q.quote_date ?? '' }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupNumbering('revision'); setDupError(''); }}
-                    className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
-                    title="Duplicate"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                  </button>
-                  <Link
-                    href={`/proposals/${q.quote_id}/print`}
-                    target="_blank"
-                    className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
-                    title="Print / PDF"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                  </Link>
-                  {(q.status !== 'sent' || gate.profile?.role === 'owner') && (
-                  <button
-                    onClick={() => setDeleteId(q.quote_id)}
-                    className="p-2 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-colors"
-                    title="Delete"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-                  )}
-                    </div>
-                    </div>
-                    );
-                  })}
-                </div>
+          <div className="space-y-6">
+            {searchLc && (
+              <p className="px-1 text-[11px] text-slate-500">{tr('Searching all proposals, archive included')}</p>
+            )}
+            {groups.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-32 text-slate-500 gap-2">
+                <p className="text-slate-400 font-medium">{scope === 'active' ? tr('No active proposals') : tr('Nothing in the archive')}</p>
               </div>
+            )}
+            {groups.map((g) => {
+              const showAll = !!searchLc || openCustomers.has(g.key) || g.families.length <= CUSTOMER_PREVIEW;
+              const fams = showAll ? g.families : g.families.slice(0, CUSTOMER_PREVIEW);
+              const c = g.counts;
+              return (
+                <section key={g.key || '(none)'}>
+                  {/* The customer, and how its proposals stand — counted over ALL
+                      of them, whatever the view (owner, 2026-10-02). */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 px-1">
+                    <h2 className="text-sm font-semibold text-white truncate max-w-full">{g.name || tr('No customer')}</h2>
+                    <span className="flex flex-wrap items-center gap-x-2.5 text-[11px] tabular-nums">
+                      <span className="text-slate-300">{tf('{n} proposals', { n: c.total })}</span>
+                      {([['Draft', c.draft, 'text-slate-300'], ['Sent', c.sent, 'text-blue-300 tone-step'],
+                        ['Won', c.won, 'text-emerald-300'], ['Rejected', c.rejected, 'text-red-400']] as const).map(([label, n, tone]) => (
+                        <span key={label} className={n ? tone : 'text-slate-600'}>{tr(label)} {n}</span>
+                      ))}
+                    </span>
+                    <span className="text-[11px] text-slate-500">{tf('Last activity {date}', { date: fmtDate(g.lastActivity) })}</span>
+                    <div className="flex-1 h-px bg-white/[0.06] min-w-[2rem]" />
+                  </div>
+                  <div className="space-y-2">
+                    {fams.map((f) => {
+                      const fkey = `${g.key}|${f.key}`;
+                      // A search that only hit an OLDER version opens the versions, so the hit is visible.
+                      const versionsOpen = openFamilies.has(fkey) || (!!searchLc && !matches(f.latest) && f.older.some(matches));
+                      return (
+                        <div key={fkey}>
+                          {renderRow(f.latest)}
+                          {f.older.length > 0 && (
+                            <button onClick={() => toggleIn(setOpenFamilies, fkey)}
+                              className="ml-4 mt-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+                              {versionsOpen ? tr('Hide versions') : tf('{n} other versions', { n: f.older.length })}
+                            </button>
+                          )}
+                          {versionsOpen && (
+                            <div className="ml-3 sm:ml-6 mt-1.5 pl-3 border-l border-white/[0.08] space-y-2">
+                              {f.older.map((o) => renderRow(o))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {g.families.length > CUSTOMER_PREVIEW && !searchLc && (
+                    <button onClick={() => toggleIn(setOpenCustomers, g.key)}
+                      className="mt-2 px-1 text-[11px] text-violet-300 hover:text-violet-200 transition-colors">
+                      {openCustomers.has(g.key) ? tr('Show fewer') : tf('Show {n} more', { n: g.families.length - CUSTOMER_PREVIEW })}
+                    </button>
+                  )}
+                </section>
               );
             })}
           </div>

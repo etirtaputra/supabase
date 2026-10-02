@@ -131,6 +131,24 @@ export const ID: Record<string, string> = {
   'All notes': 'Semua catatan',
   'Open note ({n})': 'Catatan terbuka ({n})',
   'Nothing open': 'Tidak ada yang terbuka',
+  // EPC proposal list grouped by customer (2026-10-02)
+  'Search number, customer, item / keyword, location…': 'Cari nomor, pelanggan, barang / kata kunci, lokasi…',
+  'All project types': 'Semua jenis proyek',
+  'Show only the proposals one person made': 'Tampilkan hanya proposal buatan satu orang',
+  'Made by: everyone': 'Dibuat oleh: semua',
+  'Active ({n})': 'Aktif ({n})',
+  'Archived ({n})': 'Arsip ({n})',
+  'Drafts, proposals sent in the last {n} days, and any with an open note': 'Konsep, proposal yang dikirim dalam {n} hari terakhir, dan yang catatannya masih terbuka',
+  'Sent more than {n} days ago, won or rejected': 'Dikirim lebih dari {n} hari lalu, diterima atau ditolak',
+  'Searching all proposals, archive included': 'Mencari di semua proposal, termasuk arsip',
+  'No active proposals': 'Tidak ada proposal aktif',
+  'Nothing in the archive': 'Arsip kosong',
+  '{n} proposals': '{n} proposal',
+  'Won': 'Diterima',
+  'Last activity {date}': 'Aktivitas terakhir {date}',
+  '{n} other versions': '{n} versi lain',
+  'Hide versions': 'Sembunyikan versi',
+  'Show {n} more': 'Tampilkan {n} lagi',
 
   // ── Document statuses ─────────────────────────────────────────────────────
   // Stored in the database in ENGLISH (constants/enums.ts, lib/salesStatus.ts)

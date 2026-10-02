@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-02** · last change: *Ask ICAPROC rebuilt on the base tables (4 of its 9 views were gone) and gated to buy side; stray spaces trimmed from 2 customer names and 2 items* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-02** · last change: *EPC proposal list grouped by customer, versions folded, Active/Archive, per-customer status counts* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 861 tests at handoff (2026-10-02), all pass
+npm test             # node --test "lib/**/*.test.ts" — 867 tests at handoff (2026-10-02), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,42 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-02 (latest) — Ask ICAPROC reads the real tables; stray spaces trimmed
+### 2026-10-02 (latest) — the EPC proposal list, grouped by customer
+
+Owner: "as the list of EPC Proposal get more and more, we need a better way to
+organize them" → step 1 of 3 approved ("go ahead with step 1"), plus "another
+good metric per customer is how many proposals are in total, in draft, sent,
+won, rejected" and "it's better to categorized by Customer Name".
+
+- **Measured first:** 82 proposals since 2026-07-05 (39 in the last 30 days),
+  72 "sent" in one status pile; Imigrasi 31, Ayana 10, IRC Inoac 5; notes typed
+  into the NUMBER to tell versions apart; no "won" ever set (the editor's
+  `accepted`); 80 of 81 issued by MBS (so no company filter); 6 makers.
+- **`lib/proposalGroups.ts`** (pure, tested): customer (`normField` of the
+  name) → proposal (`familyKey`: the house `Q-YYYYMMDD-XXXX` stem, so `-REV…`
+  and typed notes are versions) → versions, newest by `created_at`. Counts per
+  customer over ALL proposals whatever the view. **Active** = newest version is
+  a draft, or sent ≤ `ACTIVE_DAYS` (60) ago, or any version has an open
+  follow-up note; the rest is **Archive**. A search ignores the tab.
+- **`app/proposals/page.tsx`:** status sections replaced by customer groups
+  (3 shown, "Show N more"), "N other versions" toggles, Active/Archive tabs with
+  counts, "Made by" filter. Rows lead with the **site** (`location`) — Imigrasi's
+  31 share one description and differ only by site — falling back to the
+  description when the location only repeats the customer. The row's Delete
+  slot is now reserved when Delete is not offered: drafts and sent rows mixed
+  in one group put the amount on different edges otherwise (seen in the first
+  screenshot). The filter row moved onto `constants/controls.ts` tokens.
+- On the live data (SQL equivalent of the rules): 22 customers, 70 proposals
+  after folding 11 versions, Active 63 / Archive 7; default view ≈ 18 customer
+  headers and ~30 rows. My earlier "81 rows → about 25" counted customers, not
+  rows — corrected to the owner.
+- Verified by rendering the real production build in Chromium (fake engineer
+  session, fixture shaped like production, Tailwind compiled locally per §5):
+  IBM Plex Sans loaded, every bar control 36 px at desktop, phone readable.
+- **Not done (§6.0 #16, #17):** step 2 (won/lost + versions linked by a column)
+  and the owner's new numbering request.
+
+### 2026-10-02 — Ask ICAPROC reads the real tables; stray spaces trimmed
 
 Owner: "go ahead, trim the spaces and fix Ask ICAPROC".
 
@@ -3215,6 +3250,8 @@ evidence for every one are in §4 under the dated entries.
 | 9 | **Cancel the 148 dead Draft POs** | No longer counted as debt (`fb56650`), still clutter Draft + search | Owner OK → set status `Cancelled` (reversible, never delete). |
 | 10 | ~~Ask ICAPROC partly broken~~ | Done 2026-10-02 (§4): it was 4 missing views + 3 mis-filtered, not 1. Rebuilt on the base tables, gated to buy side. | — |
 | 15 | **31 of 93 live POs carry no supplier/company of their own** | Ask (and anything reading `5.0` directly) falls back to the PO's supplier quote — 29 resolve, **2 stay unknown**. | Owner OK → backfill `5.0_purchases.supplier_id/company_id` from `4.0_price_quotes` (29 rows, dry-run first); find the 2 by hand. |
+| 16 | **EPC proposals, step 2: Won/Lost and linked versions** | Step 1 (grouping) shipped 2026-10-02 (§4). `accepted` exists in the editor but was never used. | Owner decides who may mark won/lost; then a `replaces_quote_id`-style column + won/lost/replaced statuses, so `familyKey` stops relying on the number. Owner also asked what Imigrasi's -P / -N series mean (unanswered). |
+| 17 | **New EPC proposal numbering** | Owner (2026-10-02): `YYMMDD` + a customer code or a running number instead of the random 4 letters; old numbers stay. | Proposal put to the owner; awaiting the choice. `lib/proposalGroups.ts` `familyKey` must learn the new format in the same commit. |
 | 11 | **Load bank statements** | `41.1_bank_transactions` has nothing for July 2026 | Needed to reconcile supplier payments (and to settle #6). |
 | 13 | **Wording, second pass** | Buttons + page names done 2026-09-28 (§4) | Tooltips (`title=`), placeholders, non-button headings, `<Link>` buttons. Extend `lib/wording.ts`'s scanner the same way. |
 | 12 | ~~Owner tries the Corporate skin~~ | Done: Corporate is the default since 2026-09-29 (light/dark follows each person's choice). | — |

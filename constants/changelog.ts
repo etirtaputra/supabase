@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-02T08:48:57Z",
+    title: "Daftar Proposal EPC kini dikelompokkan per pelanggan",
+    details: [
+      "Proposal tidak lagi ditumpuk per status (Konsep / Dikirim). Setiap pelanggan punya judul sendiri, dengan jumlah proposalnya: total, Konsep, Dikirim, Diterima (menang) dan Ditolak — dihitung dari semua proposal pelanggan itu.",
+      "Tiap baris kini diawali lokasi/site proyek (mis. “Imigrasi Jayapura”), bukan nama pelanggan yang berulang. Pelanggan dengan banyak proposal menampilkan 3 terbaru; klik “Tampilkan … lagi” untuk sisanya.",
+      "Revisi (-REV, -REV2, …) dilipat di bawah versi terbarunya: klik “… versi lain” untuk melihatnya.",
+      "Tab Aktif dan Arsip: Aktif berisi konsep, proposal yang dikirim dalam 60 hari terakhir, dan yang masih punya catatan terbuka. Sisanya (lebih lama, diterima atau ditolak) ada di Arsip. Pencarian selalu mencari di keduanya.",
+      "Filter baru “Dibuat oleh” untuk melihat proposal satu orang saja. Kotak cari dan filter kini seukuran semua kontrol lain di aplikasi.",
+    ],
+  },
+  {
     at: "2026-10-02T07:54:26Z",
     title: "Ask ICAPROC kembali menjawab soal pembelian dengan data lengkap",
     details: [
