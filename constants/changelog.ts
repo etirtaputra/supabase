@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-02T07:30:00Z",
+    title: "Proposal EPC tidak lagi macet (“Page Unresponsive”) saat diedit",
+    details: [
+      "Sejak 28 September, halaman Proposal bisa macet total saat mulai diedit bila nama customer berakhir dengan spasi atau berisi spasi ganda — misalnya “P TDelta Marlin Sandang Tekstile ”. Mengetik nama dua kata juga memicunya, tepat setelah menekan spasi. Sudah diperbaiki: proposal bisa dibuka dan diedit seperti biasa.",
+      "Penyebabnya judul tab browser: aplikasi terus-menerus menulis ulang judul tab yang dirapikan browser, tanpa henti. Perbaikan ini berlaku di semua halaman, bukan hanya Proposal.",
+      "Tidak ada data yang hilang atau berubah. Bila halaman masih macet, tutup tab lama lalu buka lagi supaya versi baru termuat.",
+    ],
+  },
+  {
     at: "2026-10-01T03:00:00Z",
     title: "Pengaturan › Perusahaan: alamat, kontak, NPWP dan rekening tiap perusahaan",
     details: [

@@ -19,23 +19,27 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { pageLabelFor } from '@/constants/navigation';
 import { useT } from '@/hooks/useT';
+import { tabTitle } from '@/lib/pageTitle';
 
-export const APP_TITLE = 'ICAPROC';
+export { APP_TITLE } from '@/lib/pageTitle';
 
 export function usePageTitle(detail?: string | null, deps: unknown[] = []): void {
   const pathname = usePathname();
   const { t, lang } = useT();
   useEffect(() => {
     const label = pageLabelFor(pathname, window.location.search);
-    const parts = [label ? t(label) : null, detail || null].filter(Boolean);
-    const want = parts.length ? `${parts.join(' · ')} — ${APP_TITLE}` : APP_TITLE;
+    const want = tabTitle(label ? t(label) : null, detail);
     document.title = want;
+    // Compare against what the browser READ BACK, never against `want`: the
+    // getter collapses whitespace, and a title that can never equal what we
+    // wrote re-triggers this observer forever (lib/pageTitle.ts).
+    const applied = document.title;
     // Next re-applies the section's static metadata (app/<section>/layout.tsx,
     // English, rendered on the server before anyone's language is known) on a
     // soft navigation — AFTER this effect has run. Purchasing found that the
     // hard way and re-ran its effect on every URL change; watching the <head>
     // and putting ours back is the general answer.
-    const obs = new MutationObserver(() => { if (document.title !== want) document.title = want; });
+    const obs = new MutationObserver(() => { if (document.title !== applied) document.title = want; });
     obs.observe(document.head, { subtree: true, childList: true, characterData: true });
     return () => obs.disconnect();
     // `deps` lets a page whose tab lives in the query (?tab=) re-title when

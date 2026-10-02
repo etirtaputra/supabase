@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-01** · last change: *Settings › Company: a per-company editor (address, contact, NPWP, receiving account) that every document prints from* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-02** · last change: *EPC proposal editor no longer hangs: the tab-title watcher looped on a customer name with a trailing space* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 848 tests at handoff (2026-10-01), all pass
+npm test             # node --test "lib/**/*.test.ts" — 852 tests at handoff (2026-10-02), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 419 problems at handoff (298 errors); just don't ADD any
@@ -138,7 +138,34 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-01 (latest) — Settings › Company: one editor for every issuing company
+### 2026-10-02 (latest) — the proposal editor hung: a tab title that never matched itself
+
+Field report (Tisa, adminproject@ptmbs.co, via owner): Chrome "Page
+Unresponsive" on EPC proposal **Q-20261002-SXD2** (customer
+`"P TDelta Marlin Sandang Tekstile "`, trailing space) — opens fine, hangs on
+edit, all morning; she fell back to Dolibarr.
+
+- **Measured, not guessed.** Edge logs: no request storm. The editor loaded,
+  its 15 s stamp poll ticked, then went silent and the page was reloaded
+  01:12/01:17/01:23/01:25 UTC with no item ever saved — a CPU hang in the tab.
+  Reproduced in Chromium (scratchpad rig): the `usePageTitle` observer from
+  `56d876e` (2026-09-28) compared `document.title` to the string it wrote, but
+  the getter **strips and collapses whitespace** (HTML spec). A trailing space
+  in the detail → `"…Tekstile  — ICAPROC"` reads back with one space → never
+  equal → every write mutates `<head>` → the observer fires again → forever
+  (capped at 20,000 rewrites in the test; the fixed hook writes once).
+  Opening survives because the effect writes BEFORE it observes; the loop
+  starts on the first other `<head>` mutation — the **Tailwind CDN rewriting
+  its `<style>`** when editing renders new classes. Typing any two-word name
+  hits it on the space bar, on every page whose title carries typed data.
+- **Fix:** `lib/pageTitle.ts` `tabTitle()` builds the title already in the
+  browser's whitespace form, and the hook re-applies only when the title
+  differs from what the browser **read back** (`applied`), never from `want`.
+  `lib/pageTitle.test.ts` pins both, incl. the real customer name.
+- The DB value still ends in a space; harmless now. Not trimmed — production
+  data, owner not asked.
+
+### 2026-10-01 — Settings › Company: one editor for every issuing company
 
 Owner: "no place to easily set up the company info other than editing manually
 in Supabase" + "the bank account to transfer to, including for quotes".
