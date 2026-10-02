@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-02T09:09:44Z",
+    title: "Proposal EPC: judul pelanggan diberi warna latar",
+    details: [
+      "Setiap judul pelanggan di daftar Proposal EPC kini berupa pita berwarna, sehingga batas antar pelanggan langsung terlihat.",
+      "Pelanggan dengan satu proposal kini tertulis “1 proposal” (sebelumnya “1 proposals” pada tampilan bahasa Inggris).",
+    ],
+  },
+  {
     at: "2026-10-02T08:48:57Z",
     title: "Daftar Proposal EPC kini dikelompokkan per pelanggan",
     details: [

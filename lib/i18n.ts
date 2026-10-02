@@ -144,6 +144,7 @@ export const ID: Record<string, string> = {
   'No active proposals': 'Tidak ada proposal aktif',
   'Nothing in the archive': 'Arsip kosong',
   '{n} proposals': '{n} proposal',
+  'One proposal': '1 proposal',
   'Won': 'Diterima',
   'Last activity {date}': 'Aktivitas terakhir {date}',
   '{n} other versions': '{n} versi lain',

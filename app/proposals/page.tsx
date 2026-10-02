@@ -801,17 +801,18 @@ export default function QuotesListPage() {
                 <section key={g.key || '(none)'}>
                   {/* The customer, and how its proposals stand — counted over ALL
                       of them, whatever the view (owner, 2026-10-02). */}
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 px-1">
-                    <h2 className="text-sm font-semibold text-white truncate max-w-full">{g.name || tr('No customer')}</h2>
+                  {/* A tinted band, not a bare line: the customer must read as the
+                      start of a new section at a glance (owner, 2026-10-02). */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 px-3 py-2 rounded-xl bg-violet-500/10 border border-violet-500/25">
+                    <h2 className="text-sm font-bold text-white truncate max-w-full">{g.name || tr('No customer')}</h2>
                     <span className="flex flex-wrap items-center gap-x-2.5 text-[11px] tabular-nums">
-                      <span className="text-slate-300">{tf('{n} proposals', { n: c.total })}</span>
+                      <span className="text-slate-300">{c.total === 1 ? tr('One proposal') : tf('{n} proposals', { n: c.total })}</span>
                       {([['Draft', c.draft, 'text-slate-300'], ['Sent', c.sent, 'text-blue-300 tone-step'],
                         ['Won', c.won, 'text-emerald-300'], ['Rejected', c.rejected, 'text-red-400']] as const).map(([label, n, tone]) => (
                         <span key={label} className={n ? tone : 'text-slate-600'}>{tr(label)} {n}</span>
                       ))}
                     </span>
                     <span className="text-[11px] text-slate-500">{tf('Last activity {date}', { date: fmtDate(g.lastActivity) })}</span>
-                    <div className="flex-1 h-px bg-white/[0.06] min-w-[2rem]" />
                   </div>
                   <div className="space-y-2">
                     {fams.map((f) => {

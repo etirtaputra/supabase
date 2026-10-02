@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-02** · last change: *EPC proposal list grouped by customer, versions folded, Active/Archive, per-customer status counts* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-02** · last change: *EPC proposal list: customer headers on a tinted band (owner: "different color … clear separation")* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -170,6 +170,9 @@ won, rejected" and "it's better to categorized by Customer Name".
 - Verified by rendering the real production build in Chromium (fake engineer
   session, fixture shaped like production, Tailwind compiled locally per §5):
   IBM Plex Sans loaded, every bar control 36 px at desktop, phone readable.
+- Follow-up (owner's screenshot, same day): each customer header is a tinted
+  band (`bg-violet-500/10` + border) instead of a bare rule, checked in
+  Corporate dark and light; "1 proposals" → "One proposal" / "1 proposal".
 - **Not done (§6.0 #16, #17):** step 2 (won/lost + versions linked by a column)
   and the owner's new numbering request.
 
