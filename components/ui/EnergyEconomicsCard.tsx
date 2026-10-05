@@ -171,6 +171,14 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
             <Field label="Annual O&M" unit="Rp/MWp·yr" value={a.om_per_mwp_year}
               placeholder="0" onChange={(v) => onChange({ om_per_mwp_year: v ?? undefined })} />
           </div>
+          {/* The O&M field is PER MWp — say what that comes to for this system,
+              so a yearly total typed into it is caught at a glance. */}
+          {result && result.omYear > 0 && (
+            <p className="-mt-1 mb-2.5 text-[10px] text-slate-500 tabular-nums">
+              Annual O&amp;M = {fmtIdr(a.om_per_mwp_year ?? 0)}/MWp × {(dcKwp / 1000).toLocaleString('en-US', { maximumFractionDigits: 4 })} MWp
+              = <span className="text-amber-300 font-semibold">{fmtIdr(result.omYear)} per year</span>, deducted every year from year 1
+            </p>
+          )}
 
           {/* PLN tariff — one dropdown; full-width row so the golongan names have room */}
           <TariffRow
@@ -216,11 +224,19 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
                   <p className="text-sm font-bold text-white tabular-nums">{fmtPayback(result.paybackYears)}</p>
                   <p className="text-[9px] text-slate-600">cumulative cash flow turns positive</p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-slate-500">Savings · over {life} years</p>
-                  <p className="text-sm font-bold text-white tabular-nums">{fmtIdr(result.costAvoided)}</p>
-                  <p className="text-[9px] text-slate-600">{Math.round(result.lifetimeKwh).toLocaleString('en-US')} kWh generated over {life} years</p>
-                </div>
+                {result.omLifetime > 0 ? (
+                  <div>
+                    <p className="text-[10px] text-slate-500">Net savings · over {life} years</p>
+                    <p className="text-sm font-bold text-white tabular-nums">{fmtIdr(result.netSavings)}</p>
+                    <p className="text-[9px] text-slate-600">{fmtIdr(result.costAvoided)} saved − {fmtIdr(result.omLifetime)} O&amp;M</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[10px] text-slate-500">Savings · over {life} years</p>
+                    <p className="text-sm font-bold text-white tabular-nums">{fmtIdr(result.costAvoided)}</p>
+                    <p className="text-[9px] text-slate-600">{Math.round(result.lifetimeKwh).toLocaleString('en-US')} kWh generated over {life} years</p>
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -247,6 +263,8 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
                         {hybrid && <th className="text-right py-1 px-2">Batt kWh</th>}
                         <th className="text-right py-1 px-2">Tariff</th>
                         <th className="text-right py-1 px-2">Savings</th>
+                        <th className="text-right py-1 px-2">O&amp;M</th>
+                        <th className="text-right py-1 px-2">Net</th>
                         <th className="text-right py-1 pl-2">Cumulative</th>
                       </tr>
                     </thead>
@@ -259,6 +277,8 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
                           {hybrid && <td className="text-right py-0.5 px-2">{Math.round(r.battOutKwh).toLocaleString('en-US')}</td>}
                           <td className="text-right py-0.5 px-2">{Math.round(r.tariff).toLocaleString('en-US')}</td>
                           <td className="text-right py-0.5 px-2">{Math.round(r.savings).toLocaleString('en-US')}</td>
+                          <td className="text-right py-0.5 px-2 text-amber-300/80">{r.om > 0 ? `−${Math.round(r.om).toLocaleString('en-US')}` : '—'}</td>
+                          <td className="text-right py-0.5 px-2">{Math.round(r.net).toLocaleString('en-US')}</td>
                           <td className={`text-right py-0.5 pl-2 ${r.cumulative >= 0 ? 'text-emerald-400' : 'text-red-400/80'}`}>{Math.round(r.cumulative).toLocaleString('en-US')}</td>
                         </tr>
                       ))}

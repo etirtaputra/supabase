@@ -482,11 +482,19 @@ export default function PrintPage() {
                 <div className="v">{fmtPayback(econ.paybackYears)}</div>
                 <div className="s">cumulative cash flow turns positive</div>
               </div>
-              <div className="econ-kpi">
-                <div className="k">Savings · over {econLife} years</div>
-                <div className="v">{fmtIdr(econ.costAvoided)}</div>
-                <div className="s">{fmtIntDoc(econ.lifetimeKwh)} kWh generated over {econLife} years</div>
-              </div>
+              {econ.omLifetime > 0 ? (
+                <div className="econ-kpi">
+                  <div className="k">Net savings · over {econLife} years</div>
+                  <div className="v">{fmtIdr(econ.netSavings)}</div>
+                  <div className="s">{fmtIdr(econ.costAvoided)} saved − {fmtIdr(econ.omLifetime)} O&amp;M</div>
+                </div>
+              ) : (
+                <div className="econ-kpi">
+                  <div className="k">Savings · over {econLife} years</div>
+                  <div className="v">{fmtIdr(econ.costAvoided)}</div>
+                  <div className="s">{fmtIntDoc(econ.lifetimeKwh)} kWh generated over {econLife} years</div>
+                </div>
+              )}
             </div>
 
             {/* Assumptions */}
@@ -499,6 +507,9 @@ export default function PrintPage() {
               <div><span className="al">Tariff inflation</span><span className="av">{econAssump?.tariff_inflation_pct ?? ECON_DEFAULTS.tariff_inflation_pct}%/yr</span></div>
               <div><span className="al">Discount rate</span><span className="av">{econAssump?.hurdle_rate_pct ?? ECON_DEFAULTS.hurdle_rate_pct}%</span></div>
               <div><span className="al">Price per Wp</span><span className="av">{fmtIdr2(econ.pricePerWp)}</span></div>
+              {econ.omYear > 0 && (
+                <div><span className="al">Annual O&amp;M</span><span className="av">{fmtIdr(econ.omYear)}/yr</span></div>
+              )}
               {econHybrid && (econAssump?.battery_kwh_day ?? 0) > 0 && (
                 <>
                   <div><span className="al">Battery output</span><span className="av">{econAssump!.battery_kwh_day} kWh/day</span></div>
@@ -518,6 +529,7 @@ export default function PrintPage() {
                   {econHybrid && <th className="right">Battery (kWh)</th>}
                   <th className="right">Tariff (Rp/kWh)</th>
                   <th className="right">Annual Savings (Rp)</th>
+                  {econ.omYear > 0 && <th className="right">O&amp;M (Rp)</th>}
                   <th className="right">Net Cash Flow (Rp)</th>
                   <th className="right">Cumulative (Rp)</th>
                 </tr>
@@ -531,6 +543,7 @@ export default function PrintPage() {
                     {econHybrid && <td className="num">{fmtIntDoc(r.battOutKwh)}</td>}
                     <td className="num">{fmtIntDoc(r.tariff)}</td>
                     <td className="num">{fmtIntDoc(r.savings)}</td>
+                    {econ.omYear > 0 && <td className="num">{r.om > 0 ? `−${fmtIntDoc(r.om)}` : '—'}</td>}
                     <td className="num">{fmtIntDoc(r.net)}</td>
                     <td className={`num ${r.cumulative >= 0 ? 'pos' : 'neg'}`}>{fmtIntDoc(r.cumulative)}</td>
                   </tr>
@@ -539,7 +552,7 @@ export default function PrintPage() {
             </table>
             <p className="econ-note">
               Projection over {econLife} years based on the assumptions above; actual generation depends on site conditions, weather, and system availability.
-              LCOE = total investment ÷ energy generated over {econLife} years. NPV and IRR computed on annual net cash flows including the initial investment (year 0).
+              LCOE = (total investment + O&M over {econLife} years) ÷ energy generated over {econLife} years. NPV and IRR computed on annual net cash flows including the initial investment (year 0).
             </p>
           </div>
         )}

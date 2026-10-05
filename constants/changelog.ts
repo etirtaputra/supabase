@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-05T09:38:32Z",
+    title: "Simulasi Energi: biaya O&M tahunan kini terlihat dan ikut dihitung di LCOE",
+    details: [
+      "Biaya O&M sebenarnya sudah mengurangi arus kas, NPV, IRR dan payback, tetapi tidak pernah tampil sebagai baris tersendiri, dan LCOE belum memasukkannya. Sekarang keduanya beres.",
+      "Di bawah kolom “Annual O&M” kini tertulis totalnya per tahun untuk sistem ini (kolom diisi per MWp — mis. Rp 50.816.745/MWp × 3,5235 MWp = Rp 179.052.801 per tahun), supaya salah isi langsung terlihat.",
+      "Tabel arus kas per tahun (di editor dan di PDF) kini punya kolom O&M dan arus kas bersih. Daftar asumsi di PDF menampilkan O&M per tahun.",
+      "LCOE = (investasi + O&M selama umur sistem) ÷ energi yang dihasilkan. Kotak “Penghematan” menjadi “Penghematan bersih” setelah dikurangi O&M. Proposal tanpa O&M tidak berubah angkanya.",
+    ],
+  },
+  {
     at: "2026-10-05T06:22:56Z",
     title: "Menautkan barang kini sekaligus banyak, langsung setelah barang baru dibuat",
     details: [

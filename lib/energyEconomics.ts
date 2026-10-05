@@ -11,8 +11,13 @@
  *   - Annual savings = (PV generation + battery output) × that year's tariff
  *   - Hybrid battery: effective kWh/day dispatched, linear capacity
  *     degradation, contribution stops at battery lifetime
+ *   - Annual O&M (Rp per MWp per year × MWp) is a cost every year from
+ *     year 1: net = savings − O&M
  *   - NPV at the hurdle rate, IRR, payback = first year cumulative ≥ 0
- *   - LCOE = Total CAPEX ÷ lifetime kWh (fixed over lifetime, per the sheet)
+ *   - LCOE = (CAPEX + lifetime O&M) ÷ lifetime kWh. The sheet divided CAPEX
+ *     alone — it never carried an O&M figure. Once a team entered one
+ *     (Q-20261004-DCRU, 2026-10-05) the LCOE stayed put while the cash flows
+ *     moved, so O&M looked "missing". With O&M = 0 the result is unchanged.
  *
  * CAPEX and DC kWp come live from the quote (subtotal excl. PPN, system
  * size) — the whole point is that a quote revision can never drift apart
@@ -107,8 +112,11 @@ export interface EconResult {
   lifetimeKwh: number;      // PV + battery
   pvLifetimeKwh: number;
   battLifetimeKwh: number;
-  costAvoided: number;      // Σ savings
-  lcoe: number;             // Rp/kWh = CAPEX ÷ lifetime kWh
+  costAvoided: number;      // Σ savings (gross, before O&M)
+  omYear: number;           // Rp per year (O&M per MWp × MWp)
+  omLifetime: number;       // Σ O&M over the lifetime
+  netSavings: number;       // Σ savings − Σ O&M
+  lcoe: number;             // Rp/kWh = (CAPEX + lifetime O&M) ÷ lifetime kWh
   lcoeVsTariff: number;     // lcoe − today's tariff (negative = cheaper than grid)
   economical: boolean;
   yr1GenKwh: number;        // nameplate year-1 generation (before degradation)
@@ -182,11 +190,12 @@ export function computeEnergyEconomics(
     irr = (lo + hi) / 2;
   }
 
-  const lcoe = lifetimeKwh > 0 ? capexIdr / lifetimeKwh : 0;
+  const omLifetime = omYear * life;
+  const lcoe = lifetimeKwh > 0 ? (capexIdr + omLifetime) / lifetimeKwh : 0;
   return {
     years, npv, irr, paybackYears: payback,
     lifetimeKwh, pvLifetimeKwh: pvKwh, battLifetimeKwh: battKwh,
-    costAvoided: avoided, lcoe,
+    costAvoided: avoided, omYear, omLifetime, netSavings: avoided - omLifetime, lcoe,
     lcoeVsTariff: lcoe - tariff0,
     economical: lcoe < tariff0,
     yr1GenKwh: yr1Gen,

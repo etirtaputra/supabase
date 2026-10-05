@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-05** · last change: *item linking in bulk — a link step after every new item, select all / deselect all on the whole category, reasons up front; "Others in this category" on the Item Hub* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-05** · last change: *Energy Simulation — Annual O&M shown as its own line (editor + PDF) and included in the LCOE* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 881 tests at handoff (2026-10-05), all pass
+npm test             # node --test "lib/**/*.test.ts" — 884 tests at handoff (2026-10-05), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,40 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-05 (latest) — item linking in bulk; the category is shown, not linked
+### 2026-10-05 (latest) — Energy Simulation: O&M visible, and in the LCOE
+
+Owner: "for EPC Proposal Q-20261004-DCRU the energy simulation seems off, my
+team entered the Annual O&M, but it is not in the projections."
+
+- **Measured.** The quote (PT Hon Chuan, 3,523.5 kWp = 4,860 × 725 Wp, CAPEX
+  Rp 20,293,530,230) has `om_per_mwp_year` 50,816,745 → Rp 179,052,801/yr.
+  `lib/energyEconomics.ts` already subtracted it from net / cumulative / NPV /
+  IRR / payback (NPV 28.41 → 26.89 bn, IRR 26.5 → 25.6%, payback 3.89 → 4.03
+  yrs) but: the editor table had no O&M or net column, the PDF had no O&M
+  column or assumption line, the "Savings" KPI is gross, and **the LCOE was
+  CAPEX ÷ kWh** (ported from the sheet, which never had O&M) so it did not
+  move at all.
+- **Rule change, said out loud:** LCOE = (CAPEX + lifetime O&M) ÷ lifetime
+  kWh. For this quote 226.64 → 266.63 Rp/kWh. With O&M = 0 every number is
+  unchanged. New `omYear`, `omLifetime`, `netSavings` on the result.
+  `lib/energyEconomics.test.ts` (3 tests, golden = this quote) is the first
+  test this engine has had.
+- Editor card (`components/ui/EnergyEconomicsCard.tsx`): the O&M field states
+  what per-MWp comes to per year; KPI becomes "Net savings" (saved − O&M) when
+  O&M > 0; table gains O&M and Net. PDF (`app/proposals/[id]/print`): Annual
+  O&M in the assumptions, an O&M column (only when > 0), Net savings KPI, LCOE
+  footnote updated.
+- **Left for the owner/team (not changed):** whether 50,816,745 is per MWp
+  (→ 179 M/yr) or the whole-plant yearly figure; the quote already sells
+  "Preventive Maintenance" for 3 years (Rp 125.3 M/yr, Rp 375.9 M in CAPEX)
+  while O&M is also charged from year 1 — possible double count; O&M does not
+  escalate (tariff does, 2.5%/yr); `kw_ac` is 2.97 (prints "2.97 kW AC" —
+  9 × 330 kW = 2,970 kW).
+- Verified on the production build (rig `om.mjs`): editor card and PDF show
+  Rp 179,052,801/yr each year, LCOE Rp 266.63, NPV Rp 26,889,102,994, net
+  savings Rp 117,140,707,655.
+
+### 2026-10-05 — item linking in bulk; the category is shown, not linked
 
 Owner: "linking items is one-by-one, and as items grow it becomes tedious …
 select all or deselect all … reason for linking … Does it also make sense to
