@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-05** · last change: *PLN tariff label — Q3 2026 rates still in force until ESDM sets Q4* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-05** · last change: *Agents track: MAX, a third agent for the sales team — boot prompt v1 and the setup plan (§8)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,39 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-05 (latest) — PLN tariff label: Q3 rates still in force
+### 2026-10-05 (latest) — agents: MAX, the sales team's agent, planned (§8)
+
+Owner: *"start a new agent for sales side, and call him Max"*. Decided with him:
+the sales team talks to Max through an allowlisted bot; Max works in Dolibarr
+and reaches ICAPROC only through its endpoints; **Max takes the sell side and
+MIRA keeps the buy side** (the §8.8 split, brought forward); ICAPROC login
+`max@icasolar.com` as **`sell_admin`** (owner's pick over `sales`, so Max can
+manage tiers and record receipts).
+
+- `docs/agents/MAX-BOOT-PROMPT_v1_2026-10-05.md` — his whole role definition:
+  boot call, order of authority, the first **"which system is the truth"**
+  table (§8.8), approval rules by who asked (salesperson vs owner), and what
+  never goes in a chat — `sell_admin` can read bank accounts and landed cost,
+  and his audience is a team. Registered in `lib/agentDocs.ts` and `INDEX.md`.
+- No code change was needed: `sell_admin` already passes `/sales/mirror`,
+  `/sales/stock` (not `reverse`) and `/prices`, and RLS on 22.x admits it. A
+  human `sell_admin` (`salessupport2@`) already exists.
+- Read-only checks on the box: 24 h before 2026-10-05 the VM used ~2.0 of
+  8 GB RAM, ~39 % CPU, ~12.8 of 100 GB disk — room for a third agent. MIRA's
+  `.env` holds only the dashboard login and Hostinger's own keys; her
+  Anthropic key and Telegram token are set in the **Hermes dashboard**, so
+  Max's secrets never have to pass through a thread.
+- Corrected on the way (from the docs, 2026-10-01): models from Claude 4.7 on
+  use a tokenizer that makes **≈30 % more tokens** for the same text, so
+  Opus 5 costs MANDA ~30 % more than Opus 4.6 at the same per-token price; the
+  §8.6 recommendation to move her is withdrawn. Sonnet 5.5 also fails
+  (beyond forced tool use) when history is edited under a signed thinking
+  block, on Anthropic accounts created on or after 2026-08-31 — §8.4.
+
+Nothing on the VPS, in Supabase or in Telegram has changed yet; §8.7 is the
+plan.
+
+### 2026-10-05 — PLN tariff label: Q3 rates still in force
 
 Owner: "go ahead, update the label now". As of 2026-10-05 ESDM had not set
 the Triwulan IV 2026 tariff (press, 1–5 Oct; Minister Bahlil signalled no
@@ -3686,19 +3718,19 @@ the same way, pasted into the chat.
 
 ### 8.1 What runs where
 
-Both agents are Hermes (Hostinger's agent platform, image
+Every agent is Hermes (Hostinger's agent platform, image
 `ghcr.io/hostinger/hvps-hermes-agent:latest`, s6-supervised) in Docker on one VPS.
 
-| | MIRA | MANDA |
-|---|---|---|
-| Job | the owner's operations agent: Dolibarr (the current ERP), ICAPROC, email, Drive | the project team's agent: solar system design, project docs |
-| Container | `hermes-agent-r33y-hermes-agent-1` — Compose project `/docker/hermes-agent-r33y/` | `hermes-agent-manda` — started with plain `docker run`, **not** Compose |
-| Data (`/opt/data` inside) | `/docker/hermes-agent-r33y/data` | `~/.hermes-manda/workspace`; config at `~/.hermes-manda/config` (= `/opt/data/.hermes` and `/root/.hermes`) |
-| Config file | `/opt/data/config.yaml` | `/opt/data/config.yaml` |
-| Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) |
-| ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` |
-| Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) |
-| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** |
+| | MIRA | MANDA | MAX (planned, 2026-10-05) |
+|---|---|---|---|
+| Job | the owner's operations agent: Dolibarr (the current ERP), ICAPROC, email, Drive | the project team's agent: solar system design, project docs | the sales team's agent: Dolibarr sales, ICAPROC prices/stock/customers (takes the sell side from MIRA) |
+| Container | `hermes-agent-r33y-hermes-agent-1` — Compose project `/docker/hermes-agent-r33y/` | `hermes-agent-manda` — started with plain `docker run`, **not** Compose | `hermes-agent-max` — Compose, from hPanel's Hermes template (not created yet) |
+| Data (`/opt/data` inside) | `/docker/hermes-agent-r33y/data` | `~/.hermes-manda/workspace`; config at `~/.hermes-manda/config` (= `/opt/data/.hermes` and `/root/.hermes`) | `/docker/hermes-agent-max/data` (once created) |
+| Config file | `/opt/data/config.yaml` | `/opt/data/config.yaml` | set in his Hermes dashboard |
+| Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) | recommended `claude-sonnet-5` (same as MIRA; no 5.5 until forced tool use is answered) |
+| ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (not created yet) |
+| Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) | bot created by the owner 2026-10-05; **allowlisted** to the sales team from day one |
+| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v1_2026-10-05.md` — goes into his dashboard at setup |
 
 - The two config styles differ (`provider: anthropic` + bare model vs. a
   `anthropic/…` slug). Change a model in the style that agent already uses.
@@ -3755,8 +3787,20 @@ Both agents are Hermes (Hostinger's agent platform, image
   plus `/new` when a topic ends. `/compress` forces one by hand.
 - Model prices (per MTok in/out, fetched 2026-09-29): Sonnet 5.5 and Sonnet 5
   $2/$10 · Opus 5.5 $4/$20 · Opus 5 and Opus 4.6 $5/$25 · Haiku 4.5 $1/$5
-  (active; retirement not before 2026-10-15, with 60 days' notice). The
-  Opus 4.7+ tokenizer counts 1–1.35× Opus 4.6's tokens for the same text.
+  (active; retirement not before 2026-10-15, with 60 days' notice). Opus 4.6
+  is active until at least 2027-02-05. **Tokenizer (pricing page, fetched
+  2026-10-01): Claude 4.7 and later use a tokenizer that makes ≈30 % more
+  tokens for the same text** (Sonnet 4.6 and earlier, and Opus 4.6, use the
+  old one). Same per-token price ≠ same bill: Opus 5 costs ≈1.3× Opus 4.6.
+  Sonnet 5 → 5.5: same price, same tokenizer — no saving.
+- **Sonnet 5.5 migration guide (fetched 2026-10-01), beyond forced tool use:**
+  thinking blocks are signed over the conversation before them; on Anthropic
+  accounts created **on or after 2026-08-31** a replayed block after an edit
+  to earlier history is a 400 — and Hermes' compressor edits history. So
+  rotate keys **inside the existing Anthropic account**, never a new one.
+  `thinking: disabled` is a 400 on 5.5 (Hermes sends none). Text between tool
+  calls comes back as (empty) thinking blocks, so Telegram progress notes go
+  quiet. More refusal categories (`general_harms` can catch benign work).
 
 ### 8.5 Rules for this track
 
@@ -3781,7 +3825,7 @@ Both agents are Hermes (Hostinger's agent platform, image
    shared drive, trash the superseded copy, and finish with the paste-ready
    update message for **both** MIRA and MANDA.
 
-### 8.6 Status (2026-10-01)
+### 8.6 Status (2026-10-05)
 
 - Schema pack v7 and both boot prompts are on Drive; both agents were briefed
   on 2026-09-20 and acknowledged.
@@ -3790,15 +3834,54 @@ Both agents are Hermes (Hostinger's agent platform, image
   whether she sets temperature, and how she handles refusals and `max_tokens`.
 - **Waiting on MIRA:** confirmation that her session was reset (`/new`) and her
   compression settings.
-- **Model recommendation (not yet applied):** MANDA → `claude-opus-5` (same
-  price per token as Opus 4.6 and a generation newer, with no forced-tool
-  problem — but its tokenizer counts up to 1.35× more tokens, so watch spend); MIRA stays on `claude-sonnet-5` until forced tool use is
-  answered. Neither moves to a 5.5 model before then.
+- **Model recommendation (revised 2026-10-01):** **nobody moves.** MANDA stays
+  on Opus 4.6 — Opus 5 is the same per-token price but ≈30 % more tokens
+  (§8.4), so move her only if her answers fall short, knowingly. MIRA stays on
+  Sonnet 5 (5.5 costs the same and breaks forced tool use). Opus 5.5 ($4/$20,
+  ≈ today's bill after the tokenizer) is the one to revisit once forced tool
+  use is answered. That answer can come from the source instead of MANDA:
+  `ghcr.io` and the public Hermes repo are both reachable from the sandbox.
+- **MAX (2026-10-05):** decided and documented (§8.1, §4); boot prompt v1 is
+  in `docs/agents/` and on Drive. **Nothing created yet** — no login, no bot,
+  no container. **His Telegram bot exists** (owner, 2026-10-05; token with the
+  owner only). Waiting on the owner for the rest of the setup (§8.7 part A).
+  MIRA keeps doing sales until Max has passed his first tests; then her boot
+  prompt v2 hands the sell side over (part A, step 10).
 
 ### 8.7 Next — one keyboard pass with the owner
 
 The owner is not technical and travels; batch these into one sitting at a
-computer (hPanel terminal), in this order, each with its rollback written down:
+computer (hPanel terminal), in this order, each with its rollback written down.
+The step-by-step for the owner, with rollbacks, is in the briefing artifact
+(§8.3) under "Setting up MAX".
+
+**Part A — MAX (new, 2026-10-05).** Nothing existing is touched until step 10.
+
+1. Snapshot the VM (replaces the expired 370659). Rollback for all of part A.
+2. ~~Owner: Telegram @BotFather → `/newbot`; keeps the token.~~ **Done
+   2026-10-05** — the owner holds the token. Rollback `/deletebot`.
+3. Owner: each salesperson's numeric Telegram id (they message @userinfobot).
+4. Owner: a new Anthropic API key named `max`, **in the existing account**
+   (§8.4). Rollback: delete the key.
+5. Owner: hPanel → Docker Manager → Hermes template, project name
+   **`hermes-agent-max`** — a NEW name (rule §8.5.4). Then a thread verifies
+   by API that `hermes-agent-r33y` and `traefik` are unchanged. Rollback:
+   delete `hermes-agent-max` only.
+6. Thread: ICAPROC login `max@icasolar.com` / `sell_admin` by SQL (§4,
+   "Creating an agent login by SQL") with an unknown random password; owner
+   sets the real one with one `update auth.users … crypt()` line in the
+   Supabase SQL editor. Rollback: `banned_until = 'infinity'`, or delete.
+7. Owner: a Dolibarr user for Max (sales rights only) and its API key.
+   Rollback: disable that user.
+8. Owner, in Max's Hermes dashboard: provider `anthropic`, model
+   `claude-sonnet-5`, the key, the bot token, the allowlist, Dolibarr and
+   ICAPROC credentials, and the boot prompt with `<OWNER_TELEGRAM_ID>` filled in.
+9. Tests, owner first: onboarding (expect `sell_admin`), one price, one
+   dry-run stock-out; then one salesperson; then a non-allowlisted account
+   must get nothing.
+10. Only then: MIRA boot prompt v2 (sell side → Max), pack-shipping rule.
+
+**Part B — MIRA and MANDA (unchanged from 2026-10-01).**
 
 1. Snapshot the VM.
 2. Rotate the four leaked credentials (§8.5.1) — a separate Anthropic API key
@@ -3823,7 +3906,9 @@ computer (hPanel terminal), in this order, each with its rollback written down:
   one per function. More agents means more context to keep in sync.
 - When the sell side moves from Dolibarr to ICAPROC, **split MIRA**: MIRA →
   `buy_admin`, a new sales agent → `sell_admin`/`sales`. Only then; today only
-  `owner` covers both sides.
+  `owner` covers both sides. **Superseded 2026-10-05:** the owner brought the
+  split forward — the sales agent is MAX (`sell_admin`), set up now while
+  sales are still in Dolibarr. MIRA's own role is not narrowed yet.
 - Add a "which system is the truth" table (Dolibarr vs ICAPROC, per document
   type) to the packs.
 - Put approval rules (what MIRA may do without asking) in her boot prompt.
