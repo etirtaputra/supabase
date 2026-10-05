@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-05T23:28:03Z",
+    title: "Simulasi Energi: keterangan tarif PLN diperbarui untuk Oktober",
+    details: [
+      "Pemerintah belum menetapkan tarif PLN Triwulan IV (Oktober–Desember 2026), jadi tarif Triwulan III masih berlaku. Keterangan di atas pilihan tarif kini menyebutkan hal itu. Angka tarifnya tidak berubah.",
+    ],
+  },
+  {
     at: "2026-10-05T09:38:32Z",
     title: "Simulasi Energi: biaya O&M tahunan kini terlihat dan ikut dihitung di LCOE",
     details: [

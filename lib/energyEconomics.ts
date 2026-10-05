@@ -44,12 +44,15 @@ export interface EconAssumptions {
 }
 
 /**
- * Official PLN "tarif adjustment" per golongan — Triwulan III 2026
+ * Official PLN "tarif adjustment" per golongan — set for Triwulan III 2026
  * (July–September, unchanged from prior quarters per Kementerian ESDM).
+ * As of 2026-10-05 ESDM had not yet set Triwulan IV (Oct–Dec); the Q3 rates
+ * stay in force until it does, and the minister signalled no increase. When
+ * Q4 is announced, update the period label (and any rate that moved).
  * Pre-populates the tariff picker; the user can always override with a
  * custom Rp/kWh (e.g. blended WBP/LWBP or a B2B PPA rate).
  */
-export const PLN_TARIFF_PERIOD = 'Tarif Adjustment PLN · Triwulan III 2026 (Jul–Sep)';
+export const PLN_TARIFF_PERIOD = 'Tarif Adjustment PLN · Triwulan III 2026 · still in force until ESDM sets Triwulan IV (Oct–Dec)';
 export const PLN_TARIFF_OPTIONS: { label: string; value: number }[] = [
   { label: 'R-1/TR 900 VA RTM (rumah tangga)', value: 1352 },
   { label: 'R-1/TR 1.300–2.200 VA (rumah tangga)', value: 1444.70 },

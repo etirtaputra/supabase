@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-05** · last change: *Energy Simulation — Annual O&M shown as its own line (editor + PDF) and included in the LCOE* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-05** · last change: *PLN tariff label — Q3 2026 rates still in force until ESDM sets Q4* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,16 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-05 (latest) — Energy Simulation: O&M visible, and in the LCOE
+### 2026-10-05 (latest) — PLN tariff label: Q3 rates still in force
+
+Owner: "go ahead, update the label now". As of 2026-10-05 ESDM had not set
+the Triwulan IV 2026 tariff (press, 1–5 Oct; Minister Bahlil signalled no
+increase), so the Q3 rates stay in force. `PLN_TARIFF_PERIOD` in
+`lib/energyEconomics.ts` now says so; **no rate changed**. **Follow-up:**
+when ESDM announces Q4, set the label to Triwulan IV 2026 (Okt–Des) and
+update any rate that moved.
+
+### 2026-10-05 — Energy Simulation: O&M visible, and in the LCOE
 
 Owner: "for EPC Proposal Q-20261004-DCRU the energy simulation seems off, my
 team entered the Annual O&M, but it is not in the projections."
