@@ -36,6 +36,7 @@ import { extractPdf } from '@/lib/extractPdfClient';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr, fmtInt } from '@/lib/formatters';
+import type { NewLinkRow } from '@/lib/itemLinks';
 import { useSettings } from '@/hooks/useSettings';
 import type { Tab, MenuItem } from '@/types/forms';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -997,6 +998,15 @@ function MasterInsertPage() {
     refetch();
   };
 
+  // The bulk picker: one insert, one toast, one reload — not one per item.
+  const handleAddComponentLinks = async (links: NewLinkRow[]) => {
+    if (!links.length) return;
+    const { error } = await supabase.from('8.0_component_links').insert(links);
+    if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
+    showToast(links.length === 1 ? 'Component link added.' : `${links.length} component links added.`, 'success');
+    refetch();
+  };
+
   const handleDeleteComponentLink = async (linkId: string) => {
     const { error } = await supabase.from('8.0_component_links').delete().eq('link_id', linkId);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
@@ -1219,9 +1229,10 @@ function MasterInsertPage() {
                     onUpdateCompetitorPrice={handleUpdateCompetitorPrice}
                     componentLinks={data.componentLinks}
                     onAddComponentLink={handleAddComponentLink}
+                    onAddComponentLinks={handleAddComponentLinks}
                     onDeleteComponentLink={handleDeleteComponentLink}
                     onSave={handleComponentUpdates}
-                    onAdd={async (fields) => { await handleInsert('3.0_components', [fields]); }}
+                    onAdd={async (fields) => { const rows = await handleInsert('3.0_components', [fields]); return (rows?.[0] as { component_id?: string } | undefined)?.component_id; }}
                     onAddSupplier={() => setShowSupplierForm(true)}
                     onDelete={handleComponentDelete}
                     onSaveLineItem={handleSaveLineItem}

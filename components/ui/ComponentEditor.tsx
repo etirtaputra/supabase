@@ -30,6 +30,8 @@ import { ENUMS } from '../../constants/enums';
 import { CATEGORY_UNITS, hasCategoryUnit } from '../../constants/categoryUnits';
 import { categoryLabelOf, categoryPath } from '../../constants/productTaxonomy';
 import { CategoryOptionGroups } from './CategoryOptions';
+import { linkCandidates, buildLinkRows, reasonRequired, LINK_TYPES, LINK_REASONS, type LinkableItem, type NewLinkType, type NewLinkRow } from '@/lib/itemLinks';
+import { formatCategory } from '@/lib/formatCategory';
 
 
 interface ComponentHistoryEntry {
@@ -53,7 +55,8 @@ interface ComponentEditorProps {
   /** For the vendor/supplier filter — resolves each item's quotes/POs to a name. */
   suppliers?: { supplier_id: string; supplier_name?: string; supplier_code?: string }[];
   onSave: (updates: { component_id: string; changes: Partial<Component> }[]) => Promise<void>;
-  onAdd?: (fields: Omit<Component, 'component_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  /** Resolves to the new item's id when the caller knows it — that opens its "link to similar items?" step. */
+  onAdd?: (fields: Omit<Component, 'component_id' | 'created_at' | 'updated_at'>) => Promise<string | void>;
   onAddSupplier?: () => void;
   onDelete?: (component_id: string) => Promise<void>;
   onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
@@ -65,6 +68,8 @@ interface ComponentEditorProps {
   onUpdateCompetitorPrice?: (id: string, changes: Partial<CompetitorPrice>) => Promise<void>;
   componentLinks?: ComponentLink[];
   onAddComponentLink?: (link: Omit<ComponentLink, 'link_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  /** Many links in ONE insert (the bulk picker). Falls back to onAddComponentLink per row. */
+  onAddComponentLinks?: (links: NewLinkRow[]) => Promise<void>;
   onDeleteComponentLink?: (linkId: string) => Promise<void>;
 }
 
@@ -839,7 +844,7 @@ function RowMenuItem({ label, hint, icon, onClick, href, external, tone }: {
     : <button type="button" onClick={onClick} role="menuitem" className={cls}>{inner}</button>;
 }
 
-export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], suppliers = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onDeleteComponentLink }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], suppliers = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onAddComponentLinks, onDeleteComponentLink }: ComponentEditorProps) {
   const { t, tf } = useT();
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [search, setSearch] = useState(initialSearch);
@@ -1091,7 +1096,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [addLinkSearch, setAddLinkSearch] = useState('');
   // Multi-select: link several comparables in ONE save (chips + toggle list)
   const [addLinkTargets, setAddLinkTargets] = useState<Component[]>([]);
-  const [addLinkType, setAddLinkType] = useState('category_comparable');
+  const [addLinkType, setAddLinkType] = useState<string>('brand_equivalent');
   const [addLinkNormUnit, setAddLinkNormUnit] = useState('Wp');
   const [addLinkNormA, setAddLinkNormA] = useState('');
   const [addLinkNormBs, setAddLinkNormBs] = useState<Record<string, string>>({});
@@ -1099,6 +1104,27 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [addLinkSuccDir, setAddLinkSuccDir] = useState<'target_succeeds' | 'self_succeeds'>('target_succeeds');
   const [addLinkNotes, setAddLinkNotes] = useState('');
   const [addLinkSaving, setAddLinkSaving] = useState(false);
+  // Items just created that are waiting for their "link to similar items?" step,
+  // and their fields until the catalogue refetch brings the real rows.
+  const [newItemQueue, setNewItemQueue] = useState<string[]>([]);
+  const [pendingNewItems, setPendingNewItems] = useState<Record<string, Component>>({});
+  const resetLinkForm = () => {
+    setAddLinkSearch(''); setAddLinkTargets([]); setAddLinkType('brand_equivalent'); setAddLinkNormUnit('Wp');
+    setAddLinkNormA(''); setAddLinkNormBs({}); setAddLinkSuccDir('target_succeeds'); setAddLinkNotes('');
+  };
+  const openLinkStep = (id: string) => {
+    resetLinkForm();
+    setInspectId(id);
+    setInspectTab('linked');
+    setShowAddLink(true);
+  };
+  /** Done with this new item (linked or skipped): open the next, or close the step. */
+  const nextNewItem = (doneId: string) => {
+    const rest = newItemQueue.filter((x) => x !== doneId);
+    setNewItemQueue(rest);
+    if (rest.length) openLinkStep(rest[0]);
+    else setShowAddLink(false);
+  };
   const [confirmDeleteLinkId, setConfirmDeleteLinkId] = useState<string | null>(null);
 
   // Phones get a tappable card list instead of the wide table (view & search).
@@ -1662,13 +1688,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     if (!onAdd || validRows.length === 0) return;
     setAddSaving(true);
     try {
+      const created: Record<string, Component> = {};
       for (const row of validRows) {
         let specs: any = undefined;
         if (row.specifications.trim()) {
           try { specs = JSON.parse(row.specifications); } catch { specs = row.specifications; }
         }
         const normVal = row.norm_value !== '' ? parseFloat(row.norm_value) : null;
-        await onAdd({
+        const newId = await onAdd({
           supplier_model: row.supplier_model.trim(),
           internal_description: row.internal_description.trim(),
           brand: row.brand.trim() || null as any,
@@ -1678,10 +1705,24 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
           datasheet_url: row.datasheet_url.trim() || null as any,
           norm_value: (normVal != null && !isNaN(normVal)) ? normVal : null as any,
         });
+        if (typeof newId === 'string' && newId) {
+          created[newId] = {
+            component_id: newId, supplier_model: row.supplier_model.trim(), internal_description: row.internal_description.trim(),
+            brand: row.brand.trim() || null, category: row.category || null,
+            norm_value: (normVal != null && !isNaN(normVal)) ? normVal : null,
+          } as unknown as Component;
+        }
       }
       setAddRows([{ ...EMPTY_ADD }]);
       setAddRowsExpanded(new Set());
       setShowAddForm(false);
+      // Every new item goes straight to "link it to similar items?" — one at a time.
+      const ids = Object.keys(created);
+      if (ids.length && (onAddComponentLinks || onAddComponentLink)) {
+        setPendingNewItems((m) => ({ ...m, ...created }));
+        setNewItemQueue(ids);
+        openLinkStep(ids[0]);
+      }
     } finally {
       setAddSaving(false);
     }
@@ -5118,56 +5159,69 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
 
                   {/* ── Linked tab ─────────────────────────────────────────── */}
                   {inspectTab === 'linked' && (() => {
-                    // Candidates: typed search across the catalog, or — before any
-                    // typing — the SAME CATEGORY, since comparables almost always
-                    // live there. One tap toggles selection; no per-item search.
-                    const inspectedComp = components.find((c) => c.component_id === inspectId);
-                    const linkSearchLower = addLinkSearch.toLowerCase();
+                    // The picker (lib/itemLinks.ts): the WHOLE category, filterable,
+                    // suggestions first; typing also reaches other categories.
+                    // Select all / Deselect all work on what is shown.
+                    const inspectedComp = components.find((c) => c.component_id === inspectId) ?? (inspectId ? pendingNewItems[inspectId] : undefined);
                     const selectedLinkIds = new Set(addLinkTargets.map((t) => t.component_id));
-                    const notLinkable = (c: Component) => c.component_id === inspectId || linkedIds.has(c.component_id);
-                    const linkCandidates = addLinkSearch.length > 1
-                      ? components.filter((c) => !notLinkable(c) &&
-                          (c.supplier_model.toLowerCase().includes(linkSearchLower) ||
-                           (c.internal_description || '').toLowerCase().includes(linkSearchLower) ||
-                           (c.brand || '').toLowerCase().includes(linkSearchLower))
-                        ).slice(0, 12)
-                      : (inspectedComp?.category
-                          ? components.filter((c) => !notLinkable(c) && c.category === inspectedComp.category).slice(0, 30)
-                          : []);
+                    const cands = linkCandidates(components as unknown as LinkableItem[], {
+                      component_id: inspectId ?? '', category: inspectedComp?.category ?? null,
+                      internal_description: inspectedComp?.internal_description ?? null, supplier_model: inspectedComp?.supplier_model ?? null,
+                      brand: inspectedComp?.brand ?? null, norm_value: inspectedComp?.norm_value ?? null,
+                    }, { filter: addLinkSearch, exclude: linkedIds });
+                    const shown = [...cands.sameCategory, ...cands.elsewhere] as unknown as Component[];
                     const toggleLinkTarget = (c: Component) =>
                       setAddLinkTargets((prev) => prev.some((t) => t.component_id === c.component_id)
                         ? prev.filter((t) => t.component_id !== c.component_id)
                         : [...prev, c]);
+                    const selectAllShown = () => setAddLinkTargets((prev) => {
+                      const have = new Set(prev.map((p) => p.component_id));
+                      return [...prev, ...shown.filter((c) => !have.has(c.component_id))];
+                    });
+                    const isNewItemStep = !!inspectId && newItemQueue.includes(inspectId);
+                    const missingReason = reasonRequired(addLinkType) && !addLinkNotes.trim();
 
                     const handleSaveLink = async () => {
-                      if (!addLinkTargets.length || !onAddComponentLink) return;
+                      if (!addLinkTargets.length || missingReason || !inspectId) return;
+                      const normSelf = addLinkNormA !== '' ? Number(addLinkNormA) : (inspectedComp?.norm_value ?? null);
+                      const rows = buildLinkRows(inspectId, addLinkTargets, {
+                        type: addLinkType, succDir: addLinkSuccDir, normUnit: addLinkNormUnit, normSelf,
+                        normByTarget: Object.fromEntries(addLinkTargets.map((t) => [t.component_id,
+                          addLinkNormBs[t.component_id] !== undefined && addLinkNormBs[t.component_id] !== '' ? Number(addLinkNormBs[t.component_id]) : (t.norm_value ?? null)])),
+                        reason: addLinkNotes,
+                      });
                       setAddLinkSaving(true);
                       try {
-                        for (const t of addLinkTargets) {
-                          // Successor stores direction: b succeeds a
-                          const swap = addLinkType === 'successor' && addLinkSuccDir === 'self_succeeds';
-                          await onAddComponentLink({
-                            component_id_a: swap ? t.component_id : inspectId!,
-                            component_id_b: swap ? inspectId! : t.component_id,
-                            link_type: addLinkType as any,
-                            normalization_unit: addLinkType === 'normalized' ? addLinkNormUnit : null,
-                            norm_value_a:       addLinkType === 'normalized' && addLinkNormA ? Number(addLinkNormA) : null,
-                            norm_value_b:       addLinkType === 'normalized' && addLinkNormBs[t.component_id] ? Number(addLinkNormBs[t.component_id]) : null,
-                            notes: addLinkNotes || null,
-                          });
-                        }
-                        setShowAddLink(false);
-                        setAddLinkSearch('');
-                        setAddLinkTargets([]);
-                        setAddLinkType('category_comparable');
-                        setAddLinkNormUnit('Wp');
-                        setAddLinkNormA('');
-                        setAddLinkNormBs({});
-                        setAddLinkSuccDir('target_succeeds');
-                        setAddLinkNotes('');
+                        // One insert for the whole selection — not one save and reload per item.
+                        if (onAddComponentLinks) await onAddComponentLinks(rows);
+                        else if (onAddComponentLink) for (const r of rows) await onAddComponentLink(r as any);
+                        resetLinkForm();
+                        if (isNewItemStep) nextNewItem(inspectId);
                       } finally {
                         setAddLinkSaving(false);
                       }
+                    };
+
+                    const pickRow = (c: Component) => {
+                      const on = selectedLinkIds.has(c.component_id);
+                      return (
+                        <button
+                          key={c.component_id}
+                          onClick={() => toggleLinkTarget(c)}
+                          className={`w-full text-left px-3 py-1.5 border-b border-slate-800/60 last:border-0 flex items-center gap-2.5 transition-colors ${on ? 'bg-violet-500/10' : 'hover:bg-slate-800'}`}
+                        >
+                          <span className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border ${on ? 'bg-violet-600 border-violet-500' : 'border-slate-600'}`}>
+                            {on && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-white truncate">{c.internal_description || c.supplier_model}</p>
+                            <p className="text-[10px] text-slate-500 font-mono truncate">{c.supplier_model}{c.brand ? ` · ${c.brand}` : ''}</p>
+                          </span>
+                          {cands.suggested.has(c.component_id) && (
+                            <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-violet-500/15 text-violet-300">{t('Suggested')}</span>
+                          )}
+                        </button>
+                      );
                     };
 
                     return (
@@ -5176,7 +5230,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         {/* Add link button / form */}
                         {onAddComponentLink && !showAddLink && (
                           <button
-                            onClick={() => setShowAddLink(true)}
+                            onClick={() => { resetLinkForm(); setShowAddLink(true); }}
                             className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-slate-700 text-slate-500 hover:border-violet-500/50 hover:text-violet-300 transition-colors text-xs font-semibold"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
@@ -5186,84 +5240,33 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
 
                         {showAddLink && (
                           <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-4 space-y-3">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400/70">New Link</p>
-
-                            {/* Targets: pick MANY in one go — selected stack as
-                                chips; the list below toggles (same category shown
-                                before any search, since comparables live there). */}
-                            <div>
-                              <label className="text-[11px] text-slate-400 mb-1 block">
-                                Items to link{addLinkTargets.length > 0 ? ` — ${addLinkTargets.length} selected` : ''}
-                              </label>
-                              {addLinkTargets.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 mb-2">
-                                  {addLinkTargets.map((t) => (
-                                    <span key={t.component_id} className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-slate-800 border border-violet-500/30 max-w-full">
-                                      <span className="text-[11px] text-white truncate max-w-[14rem]">{t.internal_description || t.supplier_model}</span>
-                                      {addLinkType === 'normalized' && (
-                                        <input
-                                          type="number"
-                                          value={addLinkNormBs[t.component_id] ?? ''}
-                                          onChange={(e) => setAddLinkNormBs((m) => ({ ...m, [t.component_id]: e.target.value }))}
-                                          placeholder={addLinkNormUnit}
-                                          title={`This item's ${addLinkNormUnit} value`}
-                                          className="w-16 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-[11px] text-white focus:outline-none focus:border-violet-500"
-                                        />
-                                      )}
-                                      <button onClick={() => toggleLinkTarget(t)} className="text-slate-500 hover:text-white flex-shrink-0 p-0.5">
-                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                      </button>
-                                    </span>
-                                  ))}
+                            {isNewItemStep ? (
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400/70">{t('New item')}</p>
+                                  <p className="text-sm font-semibold text-white">{t('Link it to similar items?')}</p>
+                                  {newItemQueue.length > 1 && (
+                                    <p className="text-[11px] text-slate-500">{tf('{n} more new items to link after this one', { n: newItemQueue.length - 1 })}</p>
+                                  )}
                                 </div>
-                              )}
-                              <input
-                                type="text"
-                                value={addLinkSearch}
-                                onChange={(e) => setAddLinkSearch(e.target.value)}
-                                placeholder="Search the whole catalog — or pick from the list below…"
-                                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
-                              />
-                              {linkCandidates.length > 0 && (
-                                <div className="mt-1.5 rounded-lg bg-slate-950/60 border border-slate-800 max-h-52 overflow-y-auto custom-scrollbar">
-                                  <p className="px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-slate-600 sticky top-0 bg-slate-950/90">
-                                    {addLinkSearch.length > 1 ? 'Matches — tap to select' : `Same category (${inspectedComp?.category}) — tap to select`}
-                                  </p>
-                                  {linkCandidates.map((c) => {
-                                    const on = selectedLinkIds.has(c.component_id);
-                                    return (
-                                      <button
-                                        key={c.component_id}
-                                        onClick={() => toggleLinkTarget(c)}
-                                        className={`w-full text-left px-3 py-1.5 border-b border-slate-800/60 last:border-0 flex items-center gap-2.5 transition-colors ${on ? 'bg-violet-500/10' : 'hover:bg-slate-800'}`}
-                                      >
-                                        <span className={`w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border ${on ? 'bg-violet-600 border-violet-500' : 'border-slate-600'}`}>
-                                          {on && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                                        </span>
-                                        <span className="min-w-0">
-                                          <p className="text-xs font-medium text-white truncate">{c.internal_description || c.supplier_model}</p>
-                                          <p className="text-[10px] text-slate-500 font-mono truncate">{c.supplier_model}{c.brand ? ` · ${c.brand}` : ''}</p>
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
+                                <button onClick={() => { resetLinkForm(); nextNewItem(inspectId!); }}
+                                  className="flex-shrink-0 px-3 py-1 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors">
+                                  {newItemQueue.length > 1 ? t('Skip to next new item') : t('Skip')}
+                                </button>
+                              </div>
+                            ) : (
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400/70">{t('New link')}</p>
+                            )}
 
                             {/* Link type */}
                             <div>
-                              <label className="text-[11px] text-slate-400 mb-1 block">Comparison type</label>
+                              <label className="text-[11px] text-slate-400 mb-1 block">{t('Link type')}</label>
                               <select
                                 value={addLinkType}
                                 onChange={(e) => setAddLinkType(e.target.value)}
                                 className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-violet-500"
                               >
-                                <option value="exact_model">Exact Model — same specs, drop-in replacement</option>
-                                <option value="brand_equivalent">Brand Equivalent — same function, different brand</option>
-                                <option value="normalized">Normalized — compare via unit metric (cost/Wp, etc.)</option>
-                                <option value="category_comparable">Category Reference — same category, general comparison</option>
-                                <option value="successor">Successor — one replaces the other</option>
+                                {LINK_TYPES.map((o) => <option key={o.value} value={o.value}>{t(o.label)}</option>)}
                               </select>
                             </div>
 
@@ -5284,11 +5287,11 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               </div>
                             )}
 
-                            {/* Normalization: unit + this item's value; each selected
-                                item's value sits on its chip above */}
+                            {/* Normalization: unit + this item's value (pre-filled from the
+                                catalogue's capacity); each selected item's value sits on its chip */}
                             {addLinkType === 'normalized' && (
                               <div className="rounded-lg bg-slate-800/40 border border-slate-700/50 p-3 space-y-2">
-                                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Normalization — type each linked item's {addLinkNormUnit} value on its chip above</p>
+                                <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">Normalization — each selected item's {addLinkNormUnit} is taken from the catalogue; change it on its chip below if needed</p>
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <label className="text-[11px] text-slate-400 mb-1 block">Unit</label>
@@ -5304,7 +5307,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                     <label className="text-[11px] text-slate-400 mb-1 block">This ({addLinkNormUnit})</label>
                                     <input
                                       type="number"
-                                      value={addLinkNormA}
+                                      value={addLinkNormA !== '' ? addLinkNormA : (inspectedComp?.norm_value ?? '')}
                                       onChange={(e) => setAddLinkNormA(e.target.value)}
                                       placeholder="e.g. 550"
                                       className="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-violet-500"
@@ -5314,32 +5317,109 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               </div>
                             )}
 
-                            {/* Notes */}
+                            {/* Reason — up front, one tap for the usual ones; required for a successor */}
                             <div>
-                              <label className="text-[11px] text-slate-400 mb-1 block">Notes (optional)</label>
+                              <label className="text-[11px] text-slate-400 mb-1 block">
+                                {reasonRequired(addLinkType) ? t('Reason (required for a successor)') : t('Reason')}
+                              </label>
                               <input
                                 type="text"
                                 value={addLinkNotes}
                                 onChange={(e) => setAddLinkNotes(e.target.value)}
-                                placeholder="Why are these linked?"
-                                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500"
+                                placeholder={t('Why are these linked?')}
+                                className={`w-full px-3 py-1.5 rounded-lg bg-slate-950 border text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500 ${missingReason && addLinkTargets.length ? 'border-amber-500/60' : 'border-slate-700'}`}
                               />
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {LINK_REASONS[addLinkType as NewLinkType]?.map((r) => (
+                                  <button key={r} type="button" onClick={() => setAddLinkNotes(t(r))}
+                                    className={`px-2 py-0.5 rounded-full border text-[10.5px] transition-colors ${addLinkNotes === t(r) ? 'border-violet-500/60 bg-violet-500/15 text-violet-200' : 'border-slate-700 text-slate-400 hover:text-white hover:border-slate-500'}`}>
+                                    {t(r)}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
 
-                            <div className="flex gap-2">
+                            {/* Items: the whole category, filterable; Select all / Deselect all on what is shown */}
+                            <div>
+                              <input
+                                type="text"
+                                value={addLinkSearch}
+                                onChange={(e) => setAddLinkSearch(e.target.value)}
+                                placeholder={inspectedComp?.category ? tf('Filter {category} — or type to search every item', { category: formatCategory(inspectedComp.category) }) : t('Type to search every item')}
+                                className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+                              />
+                              <div className="flex flex-wrap items-center justify-between gap-2 mt-1.5">
+                                <span className="text-[11px] text-slate-500 tabular-nums">
+                                  {tf('{n} in this category', { n: cands.sameCategory.length })}
+                                  {addLinkTargets.length > 0 && <span className="text-violet-300 font-semibold"> · {tf('{n} selected', { n: addLinkTargets.length })}</span>}
+                                </span>
+                                <span className="flex gap-1.5">
+                                  <button type="button" onClick={selectAllShown} disabled={!shown.length}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-700 text-[11px] font-semibold text-slate-300 hover:text-white hover:border-slate-500 disabled:opacity-40 transition-colors">
+                                    {tf('Select all shown ({n})', { n: shown.length })}
+                                  </button>
+                                  <button type="button" onClick={() => setAddLinkTargets([])} disabled={!addLinkTargets.length}
+                                    className="px-2.5 py-1 rounded-lg border border-slate-700 text-[11px] font-semibold text-slate-300 hover:text-white hover:border-slate-500 disabled:opacity-40 transition-colors">
+                                    {t('Deselect all')}
+                                  </button>
+                                </span>
+                              </div>
+                              <div className="mt-1.5 rounded-lg bg-slate-950/60 border border-slate-800 max-h-72 overflow-y-auto custom-scrollbar">
+                                {cands.sameCategory.length === 0 && cands.elsewhere.length === 0 && (
+                                  <p className="px-3 py-3 text-[11px] text-slate-600 italic">{addLinkSearch ? t('Nothing matches') : t('Nothing else in this category')}</p>
+                                )}
+                                {(cands.sameCategory as unknown as Component[]).map(pickRow)}
+                                {cands.elsewhere.length > 0 && (
+                                  <>
+                                    <p className="px-3 pt-2 pb-0.5 text-[9px] uppercase tracking-wider text-slate-600 sticky top-0 bg-slate-950/90">{t('Other categories')}</p>
+                                    {(cands.elsewhere as unknown as Component[]).map(pickRow)}
+                                  </>
+                                )}
+                              </div>
+                              {/* What is selected — with each item's capacity when comparing by unit */}
+                              {addLinkTargets.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-2 max-h-28 overflow-y-auto custom-scrollbar">
+                                  {addLinkTargets.map((tg) => (
+                                    <span key={tg.component_id} className="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-slate-800 border border-violet-500/30 max-w-full">
+                                      <span className="text-[11px] text-white truncate max-w-[12rem]">{tg.internal_description || tg.supplier_model}</span>
+                                      {addLinkType === 'normalized' && (
+                                        <input
+                                          type="number"
+                                          value={addLinkNormBs[tg.component_id] ?? (tg.norm_value ?? '')}
+                                          onChange={(e) => setAddLinkNormBs((m) => ({ ...m, [tg.component_id]: e.target.value }))}
+                                          placeholder={addLinkNormUnit}
+                                          title={`This item's ${addLinkNormUnit} value`}
+                                          className="w-16 px-1.5 py-0.5 rounded bg-slate-950 border border-slate-700 text-[11px] text-white focus:outline-none focus:border-violet-500"
+                                        />
+                                      )}
+                                      <button onClick={() => toggleLinkTarget(tg)} className="text-slate-500 hover:text-white flex-shrink-0 p-0.5">
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
                               <button
                                 onClick={handleSaveLink}
-                                disabled={!addLinkTargets.length || addLinkSaving}
+                                disabled={!addLinkTargets.length || addLinkSaving || missingReason}
                                 className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
                               >
                                 {addLinkSaving ? t('Saving…') : addLinkTargets.length ? addLinkTargets.length === 1 ? tf('Link {n} item', { n: 1 }) : tf('Link {n} items', { n: addLinkTargets.length }) : t('Link items')}
                               </button>
-                              <button
-                                onClick={() => { setShowAddLink(false); setAddLinkSearch(''); setAddLinkTargets([]); }}
-                                className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-                              >
-                                {t('Cancel')}
-                              </button>
+                              {!isNewItemStep && (
+                                <button
+                                  onClick={() => { setShowAddLink(false); resetLinkForm(); }}
+                                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                                >
+                                  {t('Cancel')}
+                                </button>
+                              )}
+                              {missingReason && addLinkTargets.length > 0 && (
+                                <span className="text-[11px] text-amber-300">{t('A successor link needs a reason')}</span>
+                              )}
                             </div>
                           </div>
                         )}

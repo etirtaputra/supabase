@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-05T06:22:56Z",
+    title: "Menautkan barang kini sekaligus banyak, langsung setelah barang baru dibuat",
+    details: [
+      "Setelah menambah barang baru di Editor Barang, langsung muncul langkah “Tautkan ke barang yang mirip?” — berisi SEMUA barang di kategori yang sama (tidak lagi hanya 30 pertama). Bisa dilewati.",
+      "Ada tombol “Pilih semua yang tampil” dan “Batalkan semua pilihan”. Ketik di kotak saring untuk mempersempit daftar (mis. “mppt 40a”), lalu pilih semua yang tersisa. Barang yang paling mirip ditandai “Disarankan” dan ada di atas, tapi tidak pernah dicentang otomatis.",
+      "Alasan tautan kini diisi di depan, dengan pilihan sekali ketuk (mis. “Fungsi sama, merek berbeda”). Untuk tautan Pengganti, alasan wajib diisi.",
+      "Semua tautan yang dipilih disimpan sekaligus, bukan satu per satu.",
+      "Barang di kategori yang sama TIDAK ditautkan otomatis (kabel saja bisa menjadi puluhan ribu tautan yang tidak berarti). Sebagai gantinya, halaman barang di Pusat Barang kini menampilkan “Barang lain di kategori ini”: kapasitas, harga jual, harga per Wp/W/A, dan biaya landed — termurah per satuan di atas, dengan barang ini disorot.",
+      "Jenis tautan “Category Reference” tidak ditawarkan lagi — kategorinya sendiri sudah menjawab itu.",
+    ],
+  },
+  {
     at: "2026-10-05T05:09:10Z",
     title: "Proposal menang dirayakan, dan Dasbor kini mengingatkan proposal yang perlu ditindaklanjuti",
     details: [

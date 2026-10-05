@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-02** · last change: *EPC wins celebrated (confetti + once-per-person banner) and EPC nudges in "Needs you today"* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-05** · last change: *item linking in bulk — a link step after every new item, select all / deselect all on the whole category, reasons up front; "Others in this category" on the Item Hub* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 873 tests at handoff (2026-10-05), all pass
+npm test             # node --test "lib/**/*.test.ts" — 881 tests at handoff (2026-10-05), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,53 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-05 (latest) — wins are celebrated; the dashboard nudges EPC work
+### 2026-10-05 (latest) — item linking in bulk; the category is shown, not linked
+
+Owner: "linking items is one-by-one, and as items grow it becomes tedious …
+select all or deselect all … reason for linking … Does it also make sense to
+automatically link items that are already in the same category?" → answered
+**no auto-linking**, proposed 4 changes → "go ahead with all 4".
+
+- **Measured first.** 1,040 active items in 18 categories; 38 links in
+  `8.0_component_links` (brand_equivalent 17, normalized 14, successor 7,
+  category_comparable **0**, exact_model 0); **3 of 38 carry a reason**. The old
+  picker listed the first 30 of the category, and six categories are bigger
+  (ac_cable 416, non_stock 191, solar_charge_controller 74, mounting 73,
+  inverter_charger 61, solar_pump_inverter 31). Auto-linking ac_cable alone
+  would be ~86,000 pairs, most not alternatives — so the category is SHOWN,
+  never stored.
+- **Rules in `lib/itemLinks.ts`** (tested, 8): `linkCandidates` = the whole
+  category minus self / already-linked / archived, filtered (every word must
+  match), "Suggested" look-alikes first (word overlap + capacity within 10%,
+  never pre-ticked); other categories only while typing (≥2 chars, max 20).
+  `buildLinkRows` keeps the existing successor direction (b succeeds a).
+  `LINK_TYPES` drops `category_comparable` (old rows still render).
+  `LINK_REASONS` one-tap reasons; `reasonRequired` = successor only.
+  `categoryPeers` drives the Item Hub panel.
+- **Item Editor (`components/ui/ComponentEditor.tsx`)**: `onAdd` now returns
+  the new id; after "Save component" each new item opens Inspect › Linked with
+  the "New item — Link it to similar items?" step (Skip / Skip to next new
+  item; the item is held in `pendingNewItems` until the refetch lands). The
+  picker: type → reason (chips) → filter → `{n} in this category` · Select all
+  shown (n) · Deselect all → list → Link N items. One bulk insert via the new
+  `onAddComponentLinks` (`app/purchasing/page.tsx`: one insert, one toast, one
+  refetch); per-row fallback kept.
+- **Item Hub (`app/items/[componentId]/page.tsx`)** overview: "Others in this
+  category" — capacity, sell price (canSell), price per Wp/W/A (where
+  `CATEGORY_UNITS` has a unit and price is not already per unit), landed cost
+  (TUC, buy roles); cheapest per unit first; this item highlighted; big
+  categories show the 12 most alike with "Show all N". Sell price and
+  brand/model are only SELECTED for roles that may see them. (Today only the
+  owner can open the Item Hub.)
+- **Verified** in Chromium on the production build, Supabase faked
+  (scratchpad `rig/links.mjs`): new item → link step lists 74 of 74
+  controllers; Select all → 74 selected; Deselect all → none; filter
+  "mppt 40a" + Select all + a reason chip → ONE POST of 2 rows with the
+  reason; Hub panel ranks 620 Wp (2,742/Wp) above 630 Wp (2,801) above 550 Wp
+  (3,000), unpriced last; the 74-item category shows 12 + "Tampilkan semua 73".
+- Checks: tsc clean · 881 tests · eslint 415 (baseline) · `next build` green.
+
+### 2026-10-05 — wins are celebrated; the dashboard nudges EPC work
 
 Owner: "are there ways to make using ICAPROC more fun to use?" → "go ahead with
 1 and 2" (1 = celebrate wins, 2 = a morning card proposing the next move).

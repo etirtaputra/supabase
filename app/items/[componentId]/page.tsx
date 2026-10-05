@@ -54,6 +54,8 @@ import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLin
 import { successorIdOf } from '@/lib/successors';
 import { fmtWarranty, warrantyLabel } from '@/lib/warranty';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { categoryPeers, type LinkableItem } from '@/lib/itemLinks';
+import { CATEGORY_UNITS } from '@/constants/categoryUnits';
 
 
 interface Comp {
@@ -80,6 +82,8 @@ interface SalesDoc {
 }
 interface SaleItem { item_id: string; quote_id: string; quantity: number; unit_price: number; is_section: boolean }
 interface Supplier { supplier_id: string; supplier_name: string }
+
+type Peer = LinkableItem & { selling_price_idr: number | null };
 
 const descOf = (c: Comp) => (c.internal_description && c.internal_description.trim()) || c.supplier_model || '(no description)';
 const daysSince = (iso: string | null | undefined): number | null => {
@@ -139,6 +143,8 @@ export default function ItemHubPage() {
   const [componentLinks, setComponentLinks] = useState<ComponentLink[]>([]);
   const [linkedComps, setLinkedComps] = useState<CompLite[]>([]);
   const [competitorPrices, setCompetitorPrices] = useState<CompetitorPrice[]>([]);
+  // Others in this category — shown, never stored as links (owner, 2026-10-05).
+  const [peers, setPeers] = useState<Peer[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -218,6 +224,25 @@ export default function ItemHubPage() {
   }, [componentId, canBuy, canBrand, canFloor]);       // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (canOpen && componentId) load(); }, [canOpen, componentId, load]);
+
+  // Same-category items for "Others in this category". The sell price and the
+  // brand/model are SELECTED only for roles that may see them — a hidden
+  // column must not reach the network tab either. Landed cost comes from the
+  // buy-side TUC map this page already holds (buy roles only).
+  const peerCategory = comp?.category ?? null;
+  useEffect(() => {
+    if (!peerCategory) return;
+    let alive = true;
+    const cols = `component_id, internal_description, category, norm_value, archived_at${canSell ? ', selling_price_idr' : ''}${canBrand ? ', supplier_model, brand' : ''}`;
+    supabase.from('3.0_components').select(cols).eq('category', peerCategory).is('archived_at', null).limit(2000)
+      .then(({ data }) => {
+        if (!alive) return;
+        setPeers(((data ?? []) as unknown as Partial<Peer>[]).map((c) => ({
+          supplier_model: null, brand: null, selling_price_idr: null, ...c,
+        }) as Peer));
+      });
+    return () => { alive = false; };
+  }, [peerCategory, canSell, canBrand]);       // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Stock roll-ups (same math as /stock and /products) ─────────────────────
   const rolled = useMemo(() => rollUpOne(balances), [balances]);
@@ -469,6 +494,9 @@ export default function ItemHubPage() {
                 monthlySoldRate={monthlySoldRate} lastMove={lastMove} lastOut={lastOut} slowDays={SLOW_DAYS}
                 chain={chain} activeTiers={activeTiers} tucRes={tucRes} />
             )}
+            {tab === 'overview' && comp.category && peers.length > 1 && (
+              <CategoryPeers comp={comp} peers={peers} canSell={canSell} canBuy={canBuy} canBrand={canBrand} tucMap={tucMap} />
+            )}
             {tab === 'buy' && canBuy && (
               <BuyTab compUnit={comp.unit} tucRes={tucRes} fx={fx} myPoLines={myPoLines}
                 incoming={incoming} leadTimes={leadTimes}
@@ -619,6 +647,81 @@ function OverviewTab({ comp, physical, reserved, live, incoming, arrival, avgCos
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Others in this category ──────────────────────────────────────────────────
+// The answer to "should items in the same category be linked automatically?":
+// no — ac_cable alone would make ~86,000 links — but the category is SHOWN
+// here, ranked by price per unit of capacity, so the comparison is free.
+const PEER_LIMIT = 12;
+function CategoryPeers({ comp, peers, canSell, canBuy, canBrand, tucMap }: {
+  comp: Comp; peers: Peer[]; canSell: boolean; canBuy: boolean; canBrand: boolean; tucMap: Map<string, TUCResult>;
+}) {
+  const { t, tf } = useT();
+  const [all, setAll] = useState(false);
+  const cat = comp.category ? CATEGORY_UNITS[comp.category] : undefined;
+  const perUnit = !!cat && !cat.priceIsPerUnit;
+  const self: Peer = { component_id: comp.component_id, supplier_model: canBrand ? comp.supplier_model : null,
+    internal_description: comp.internal_description, brand: canBrand ? comp.brand ?? null : null, category: comp.category,
+    norm_value: comp.norm_value, archived_at: null, selling_price_idr: comp.selling_price_idr };
+  const tuc = (id: string) => tucMap.get(id)?.tuc ?? null;
+  // Sell roles rank by the sell price; buy-only roles by landed cost.
+  const priceOf = (c: Peer) => (canSell ? (c.selling_price_idr && c.selling_price_idr > 0 ? Number(c.selling_price_idr) : null) : canBuy ? tuc(c.component_id) : null);
+  const { rows, total } = categoryPeers(self, peers, priceOf, { perUnit, limit: all ? 5000 : PEER_LIMIT });
+  const name = (c: Peer) => (c.internal_description && c.internal_description.trim()) || c.supplier_model || '—';
+  return (
+    <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-hidden">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-3.5 pb-2">
+        <div>
+          <h3 className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{t('Others in this category')}</h3>
+          <p className="text-[11px] text-slate-600 mt-0.5">
+            {perUnit
+              ? tf('{category} · cheapest per {unit} first · shown automatically, nothing is linked', { category: humanize(comp.category ?? ''), unit: cat!.unit })
+              : tf('{category} · cheapest first · shown automatically, nothing is linked', { category: humanize(comp.category ?? '') })}
+          </p>
+        </div>
+        {total > PEER_LIMIT && (
+          <button onClick={() => setAll((v) => !v)} className="text-[11px] text-sky-400 hover:text-sky-300">
+            {all ? t('Show the most similar only') : tf('Show all {n}', { n: fmtInt(total) })}
+          </button>
+        )}
+      </div>
+      <div className={`overflow-x-auto ${all ? 'max-h-[28rem] overflow-y-auto' : ''}`}>
+        <table className="w-full text-xs">
+          <thead className="text-[10px] uppercase tracking-wider text-slate-600 border-y border-slate-800/80">
+            <tr>
+              <th className="text-left font-semibold px-4 py-2">{t('Item')}</th>
+              {cat && <th className="text-right font-semibold px-3 py-2">{t('Capacity')}</th>}
+              {canSell && <th className="text-right font-semibold px-3 py-2">{t('Sell price')} ({moneyUnit()})</th>}
+              {perUnit && (canSell || canBuy) && <th className="text-right font-semibold px-3 py-2">{moneyUnit()} / {cat!.unit}</th>}
+              {canBuy && <th className="text-right font-semibold px-4 py-2">{t('Landed cost')} ({moneyUnit()})</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800/60">
+            {rows.map((r) => (
+              <tr key={r.item.component_id} className={r.self ? 'bg-sky-500/10' : 'hover:bg-slate-800/30'}>
+                <td className="px-4 py-1.5 min-w-[220px]">
+                  {r.self ? (
+                    <span className="text-sky-300 font-semibold">{name(r.item)} <span className="text-[10px] font-normal text-sky-400/80">· {t('this item')}</span></span>
+                  ) : (
+                    <Link href={`/items/${r.item.component_id}`} className="text-slate-300 hover:text-sky-300">{name(r.item)}</Link>
+                  )}
+                  {canBrand && r.item.brand && <span className="ml-1.5 text-[10px] text-slate-600">{r.item.brand}</span>}
+                </td>
+                {cat && <td className="px-3 py-1.5 text-right tabular-nums text-slate-400">{Number(r.item.norm_value) > 0 ? `${fmtInt(Number(r.item.norm_value))} ${cat.unit}` : '—'}</td>}
+                {canSell && <td className="px-3 py-1.5 text-right tabular-nums text-emerald-300/90">{r.item.selling_price_idr ? fmtMoneyCell(Number(r.item.selling_price_idr)) : '—'}</td>}
+                {perUnit && (canSell || canBuy) && <td className="px-3 py-1.5 text-right tabular-nums text-slate-300">{r.perUnit != null ? fmtMoneyCell(r.perUnit) : '—'}</td>}
+                {canBuy && <td className="px-4 py-1.5 text-right tabular-nums text-sky-300/90">{tuc(r.item.component_id) != null ? fmtMoneyCell(tuc(r.item.component_id)!) : '—'}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!all && total > PEER_LIMIT && (
+        <p className="px-4 py-2 text-[10px] text-slate-600 border-t border-slate-800/60">{tf('The {shown} most similar of {total} — tap "Show all" for the rest.', { shown: fmtInt(rows.length - 1), total: fmtInt(total) })}</p>
+      )}
     </div>
   );
 }
