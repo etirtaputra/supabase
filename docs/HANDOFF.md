@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-02** · last change: *EPC proposals: house-style list, navy primary buttons in Corporate, live line markers in the editor* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-02** · last change: *EPC wins celebrated (confetti + once-per-person banner) and EPC nudges in "Needs you today"* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 868 tests at handoff (2026-10-02), all pass
+npm test             # node --test "lib/**/*.test.ts" — 873 tests at handoff (2026-10-05), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,51 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-02 (latest) — proposals look like the rest of the app; who is on which line
+### 2026-10-05 (latest) — wins are celebrated; the dashboard nudges EPC work
+
+Owner: "are there ways to make using ICAPROC more fun to use?" → "go ahead with
+1 and 2" (1 = celebrate wins, 2 = a morning card proposing the next move).
+
+- **Measured first.** 6 regular users in 14 days (2 owners, 3 engineers, 1
+  sell_admin). Latest-version EPC proposals: 2 sent this week; **31 sent 7–30
+  days ago but for only 6 customers** (Rp 18.0 bn); **31 older than 30 days**
+  across 15 customers (Rp 43.6 bn); 3 idle drafts; 2 open notes; **0 ever
+  marked won**. "Needs you today" had no EPC signal at all.
+- **Morning card = the existing "Needs you today" queue**, not a new widget:
+  `lib/dashboard.ts` gains an EPC block for `perms.projects` (RLS
+  `can_view_epc` is wider, so nothing un-openable is fetched; 10.2 paged).
+  Rules live in **`lib/proposalNudges.ts`** (tested), shared with the list:
+  follow-up = newest version sent ≥ `quoteFollowUpDays` (Settings, 7) and
+  < `EPC_OUTCOME_DAYS` (30), **counted by customer**; outcome = sent ≥ 30 days
+  ("mark won or lost"); idle = draft untouched ≥ 7 days; open notes. Each row
+  links to `/proposals?due=followup|outcome|idle` or `?notes=open`; the list
+  reads the param on mount and filters with the SAME `epcDue`, across Active
+  and Archive, with a "Show all proposals" reset. `ActionDomain` gains `epc`
+  (violet, already in Widgets' maps). For the owner these rank by money with
+  the buy/sell rows — the Rp 43.6 bn "no outcome" row will lead until outcomes
+  are recorded; intended.
+- **Wins:** `lib/proposalWins.ts` (tested) — a win is the latest
+  `… -> accepted` row in 10.3_quote_activity (trigger-written: who and when)
+  on a proposal still `accepted`; value = top-level subtotal; display names
+  from user_profiles. `components/ui/WinBanner.tsx` shows unseen wins of the
+  last 14 days with a burst, once per person per browser
+  (`localStorage icaproc_seen_wins`, a convenience), on the dashboard (gated
+  `canOpenPath(perms, '/proposals')`) and the proposals list.
+  `components/ui/Celebrate.tsx` is pure-CSS confetti (deterministic scatter —
+  `react-hooks/purity` forbids Math.random in render; reduced motion hidden by
+  a CSS media rule, no first-frame flash). The editor bursts when `savedStatus`
+  CHANGES to accepted (own save or a colleague's merge), never on load.
+- Who can mark won is unchanged: a sent proposal is locked for non-owners, so
+  in practice the owner marks wins (§6.0 #16 still asks who should).
+- **Verified** in Chromium on the production build, Supabase faked
+  (scratchpad `rig/fun.mjs`, `fun2.mjs`): queue rows 2 customers/7 proposals,
+  4 no-outcome, 1 idle, 1 note — matching the fixture; banner text with names;
+  "Mantap!" persists across reload; `?due=followup` lists exactly the 2
+  customers; 90-fleck burst appears at ~1.1 s and is gone by ~4 s; in the
+  editor a colleague's accepted (via the focus sync) fired the burst and
+  "🎉 Menang! Kerja bagus, tim.".
+
+### 2026-10-02 — proposals look like the rest of the app; who is on which line
 
 Owner: "the section and color could be even better, especially the Light
 version … consistent with the rest of the pages" → previewed locally in both

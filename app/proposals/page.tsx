@@ -24,7 +24,9 @@ import { SECTION_GROUPS, STANDARD_SECTIONS, type ProjectQuote } from '@/types/qu
 import { useEpcLobby, type LobbyPeer } from '@/hooks/useEpcLobby';
 import { initials, firstName } from '@/lib/presence';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import WinBanner from '@/components/ui/WinBanner';
 import { groupProposals, customerKey, ACTIVE_DAYS } from '@/lib/proposalGroups';
+import { epcDue, EPC_OUTCOME_DAYS, EPC_IDLE_DRAFT_DAYS, type EpcDue } from '@/lib/proposalNudges';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -82,6 +84,17 @@ export default function QuotesListPage() {
   const [noteFilter, setNoteFilter] = useState('');    // '' = all · open · none
   const [creator, setCreator] = useState('');          // '' = everyone
   const [scope, setScope] = useState<'active' | 'archive'>('active');
+  // Arriving from a dashboard nudge (`?due=followup|outcome|idle`, `?notes=open`):
+  // the list opens on exactly what the nudge counted — the same rule
+  // (lib/proposalNudges.ts), across Active and Archive.
+  const [due, setDue] = useState<EpcDue | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    const d = p.get('due');
+    if (d === 'followup' || d === 'outcome' || d === 'idle') setDue(d);
+    if (p.get('notes') === 'open') setNoteFilter('open');
+  }, []);
+  const clearDue = () => { setDue(null); window.history.replaceState(null, '', '/proposals'); };
   // Customers showing ALL their proposals, and proposals showing their older versions.
   const [openCustomers, setOpenCustomers] = useState<Set<string>>(new Set());
   const [openFamilies, setOpenFamilies] = useState<Set<string>>(new Set());
@@ -209,7 +222,7 @@ export default function QuotesListPage() {
 
   // Per-item Cost Basis settings for Project Quotes (mode + buffer). The global
   // buffer and the drift threshold both live in Settings › Defaults.
-  const { epcCostBufferPct: globalBufferPct, costDriftPct } = useSettings();
+  const { epcCostBufferPct: globalBufferPct, costDriftPct, quoteFollowUpDays } = useSettings();
   const [layout, setLayout] = useListLayout('proposals');
   const compact = layout === 'compact';
 
@@ -307,9 +320,16 @@ export default function QuotesListPage() {
     return c;
   }, [allGroups]);
   // A search looks everywhere — finding an old proposal is the usual reason to search.
-  const groups = useMemo(() => (searchLc ? allGroups : allGroups
-    .map((g) => ({ ...g, families: g.families.filter((f) => f.active === (scope === 'active')) }))
-    .filter((g) => g.families.length > 0)), [allGroups, scope, searchLc]);
+  const groups = useMemo(() => {
+    const now = Date.now();
+    const keep = due
+      ? (f: { latest: ProjectQuote }) => epcDue(f.latest, now, quoteFollowUpDays) === due
+      : searchLc ? () => true : (f: { active: boolean }) => f.active === (scope === 'active');
+    return allGroups
+      .map((g) => ({ ...g, families: g.families.filter(keep) }))
+      .filter((g) => g.families.length > 0);
+  }, [allGroups, scope, searchLc, due, quoteFollowUpDays]);
+  const dueCount = useMemo(() => groups.reduce((n, g) => n + g.families.length, 0), [groups]);
 
   // Who made proposals, busiest first — for the "Made by" filter.
   const creators = useMemo(() => {
@@ -715,6 +735,7 @@ export default function QuotesListPage() {
       <main className="max-w-6xl 2xl:max-w-[1760px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
         <MobileNotice variant="edit" />
         <MigrationBanner />
+        <WinBanner />
         {createError && (
           <div className="bg-red-500/10 border border-red-500/40 rounded-2xl px-4 py-3 text-sm text-red-300">
             Creating the quote failed: <span className="font-medium">{createError}</span>
@@ -785,7 +806,17 @@ export default function QuotesListPage() {
           </div>
         ) : (
           <div className="space-y-5">
-            {searchLc && (
+            {due && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 rounded-xl border border-violet-500/25 bg-violet-500/[0.06] text-[12px]">
+                <span className="text-slate-200 font-medium">
+                  {due === 'followup' ? tf('{n} proposals sent over {d} days ago, waiting on an answer', { n: dueCount, d: quoteFollowUpDays })
+                    : due === 'outcome' ? tf('{n} proposals with no outcome after {d} days — open each and mark it won or lost', { n: dueCount, d: EPC_OUTCOME_DAYS })
+                    : tf('{n} drafts untouched for {d} days or more', { n: dueCount, d: EPC_IDLE_DRAFT_DAYS })}
+                </span>
+                <button onClick={clearDue} className="text-violet-300 hover:text-violet-200 font-medium">{tr('Show all proposals')}</button>
+              </div>
+            )}
+            {searchLc && !due && (
               <p className="px-1 text-[11px] text-slate-500">{tr('Searching all proposals, archive included')}</p>
             )}
             {groups.length === 0 && (

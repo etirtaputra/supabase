@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-05T05:09:10Z",
+    title: "Proposal menang dirayakan, dan Dasbor kini mengingatkan proposal yang perlu ditindaklanjuti",
+    details: [
+      "Saat sebuah Proposal EPC ditandai menang (status “accepted”), muncul konfeti dan pesan “Menang! Kerja bagus, tim.” — juga di layar rekan yang sedang membuka proposal itu.",
+      "Semua yang bisa membuka Proposal akan melihat sekali pita “🎉 Menang!” di Dasbor dan di daftar Proposal: nama pelanggan, lokasi, nilai, siapa yang membuat dan siapa yang menandai menang. Tekan “Mantap!” untuk menutupnya.",
+      "Panel “Perlu tindakan hari ini” di Dasbor kini juga berisi Proposal EPC: pelanggan yang menunggu jawaban (dihitung per pelanggan), proposal yang sudah lebih dari 30 hari tanpa hasil (tandai menang atau ditolak), konsep yang tidak disentuh seminggu, dan catatan tindak lanjut yang masih terbuka.",
+      "Setiap baris itu langsung membuka daftar Proposal yang sudah tersaring ke proposal yang dimaksud.",
+    ],
+  },
+  {
     at: "2026-10-02T10:00:32Z",
     title: "Proposal EPC: tampilan seragam dengan halaman lain, tombol navy, dan penanda baris rekan kerja",
     details: [

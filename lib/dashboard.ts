@@ -19,8 +19,10 @@ import { todayISO } from './dateRange';
 import { fetchLandedVariances } from './landedCost';
 import { fetchReorderAlerts } from './reorder';
 import { computeInTransit, type OpenPo, type ReceivedPo, type PoCost } from './inTransit';
+import { fetchAllRows } from './fetchAllRows';
+import { epcNudges, subtotalsByQuote, EPC_OUTCOME_DAYS, type NudgeQuote } from './proposalNudges';
 
-export type ActionDomain = 'sell' | 'buy' | 'cash';
+export type ActionDomain = 'sell' | 'buy' | 'cash' | 'epc';
 
 export interface ActionItem {
   key: string;
@@ -310,6 +312,66 @@ export async function fetchActionQueue(
         amount: 0, count: n, href: '/banks',
       });
     }
+  }
+
+  // ── EPC proposals: chase, close out, pick up (owner, 2026-10-05) ─────────
+  // The engineers live in Proposals and had nothing here. Same rules as the
+  // proposals list's `?due=` filter (lib/proposalNudges.ts), so the count and
+  // the list one tap away always agree. `projects` is the menu's gate for
+  // /proposals; RLS (can_view_epc) is at least as wide, so nothing is fetched
+  // that this role could not open.
+  if (perms.projects) {
+    try {
+      const [qRes, itemsRes, notesRes] = await Promise.all([
+        supabase.from('10.0_project_quotes').select('quote_id, quote_number, customer_name, status, created_at, updated_at, sent_at'),
+        // 10.2 passed the 1,000-row cap on 2026-08-28 — paged, or totals come out short.
+        fetchAllRows<{ quote_id: string; parent_item_id: string | null; quantity: number | null; sell_price: number | null }>((from, to) =>
+          supabase.from('10.2_quote_items').select('quote_id, parent_item_id, quantity, sell_price').order('item_id').range(from, to)),
+        supabase.from('10.5_quote_notes').select('note_id, body, created_at').is('cleared_at', null).order('created_at', { ascending: false }),
+      ]);
+      if (!qRes.error && !itemsRes.error) {
+        const totals = subtotalsByQuote(itemsRes.rows);
+        const nudges = epcNudges((qRes.data ?? []) as NudgeQuote[], {
+          now: Date.now(), followUpDays: opts.quoteFollowUpDays, valueOf: (id) => totals.get(id) ?? 0,
+        });
+        for (const nd of nudges) {
+          if (nd.due === 'followup') items.push({
+            key: 'epc-followup', domain: 'epc', tone: 'watch',
+            title: plural(nd.customers, '{n} customer waiting on an answer', '{n} customers waiting on an answer'),
+            titleVars: { n: nd.customers },
+            detail: plural(nd.proposals, '{p} proposal sent over {d} days ago — oldest {oldest} days', '{p} proposals sent over {d} days ago — oldest {oldest} days'),
+            detailVars: { p: nd.proposals, d: opts.quoteFollowUpDays, oldest: nd.oldestDays },
+            amount: nd.value, count: nd.proposals, href: '/proposals?due=followup',
+          });
+          if (nd.due === 'outcome') items.push({
+            key: 'epc-outcome', domain: 'epc', tone: 'watch',
+            title: plural(nd.proposals, '{n} proposal with no outcome after {d} days', '{n} proposals with no outcome after {d} days'),
+            titleVars: { n: nd.proposals, d: EPC_OUTCOME_DAYS },
+            detail: 'mark each one won or lost, so the pipeline shows what is really open',
+            amount: nd.value, count: nd.proposals, href: '/proposals?due=outcome',
+          });
+          if (nd.due === 'idle') items.push({
+            key: 'epc-idle', domain: 'epc', tone: 'watch',
+            title: plural(nd.proposals, '{n} draft untouched for a week', '{n} drafts untouched for a week'),
+            titleVars: { n: nd.proposals },
+            detail: 'the oldest was last edited {oldest} days ago',
+            detailVars: { oldest: nd.oldestDays },
+            amount: nd.value, count: nd.proposals, href: '/proposals?due=idle',
+          });
+        }
+      }
+      const notes = (notesRes.data ?? []) as { note_id: string; body: string; created_at: string }[];
+      if (!notesRes.error && notes.length) {
+        items.push({
+          key: 'epc-notes', domain: 'epc', tone: 'watch',
+          title: plural(notes.length, '{n} follow-up note open', '{n} follow-up notes open'),
+          titleVars: { n: notes.length },
+          detail: 'newest: {body}',
+          detailVars: { body: notes[0].body.replace(/\s+/g, ' ').slice(0, 80) },
+          amount: 0, count: notes.length, href: '/proposals?notes=open',
+        });
+      }
+    } catch { /* additive — never cost the rest of the queue */ }
   }
 
   // Money at stake first; count-only signals fall to the bottom

@@ -17,6 +17,7 @@ import { lineWp, wpPerModule } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
 import DocumentPresence from '@/components/ui/DocumentPresence';
+import Celebrate from '@/components/ui/Celebrate';
 import { peersByFocus, firstName as presenceFirstName, type DocPeer } from '@/lib/presence';
 import { useEpcLobby } from '@/hooks/useEpcLobby';
 import { normField, nearestDuplicate } from '@/lib/proposalFields';
@@ -418,6 +419,22 @@ export default function QuoteEditorPage() {
     quoteNumber: quote?.quote_number || '',
     editing: dirty,
   });
+
+  // ── A win, celebrated where it happens (owner, 2026-10-05) ────────────────
+  // When the status that reached the DATABASE turns to accepted (= won) —
+  // marked in this tab, or arriving from a colleague's save — burst once.
+  // The first status (the load) is not a change, so opening a proposal that
+  // was won last week stays quiet.
+  const prevSavedStatus = useRef<ProjectQuote['status'] | null>(null);
+  const [winBurst, setWinBurst] = useState(0);
+  useEffect(() => {
+    const prev = prevSavedStatus.current;
+    prevSavedStatus.current = savedStatus;
+    if (prev && prev !== 'accepted' && savedStatus === 'accepted') {
+      setWinBurst((n) => n + 1);
+      setSaveMsg(`🎉 ${t('Won! Well done, team.')}`);
+    }
+  }, [savedStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Live line marker (owner, 2026-10-02) ───────────────────────────────────
   // The line this user's cursor is in is shared over the proposal's presence
@@ -1976,6 +1993,7 @@ export default function QuoteEditorPage() {
 
   return (
     <div className="min-h-screen bg-canvas text-slate-200 font-sans text-sm">
+      {winBurst > 0 && <Celebrate key={winBurst} />}
       {/* Shared brand suggestions for every line-item brand input (native autocomplete) */}
       <datalist id="epc-brands">
         {brandOptions.map((b) => <option key={b} value={b} />)}

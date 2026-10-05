@@ -1,4 +1,6 @@
 'use client';
+import WinBanner from '@/components/ui/WinBanner';
+import { canOpenPath } from '@/constants/navigation';
 import { useMemo, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -367,6 +369,8 @@ export default function Home() {
       </div>
 
       <main className="max-w-[1800px] 2xl:max-w-[2460px] mx-auto px-3 sm:px-4 md:px-6 xl:px-8 py-4 sm:py-5 xl:py-6 space-y-6 xl:space-y-7">
+        {/* A won EPC proposal, celebrated once per person — for whoever may open it. */}
+        {perms && canOpenPath(perms, '/proposals') && <WinBanner />}
 
         {/* ── Customise: what this person watches, and in what order ──
                Personal and per-device. The house layout stays in
