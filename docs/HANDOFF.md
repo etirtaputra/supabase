@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-06** · last change: *Agents track: MAX's container is up as `hermes-agent-ezd3`; MIRA untouched (§8.7)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-06** · last change: *Agents track: MAX's ICAPROC login created and verified (§8.7)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3728,7 +3728,7 @@ Every agent is Hermes (Hostinger's agent platform, image
 | Data (`/opt/data` inside) | `/docker/hermes-agent-r33y/data` | `~/.hermes-manda/workspace`; config at `~/.hermes-manda/config` (= `/opt/data/.hermes` and `/root/.hermes`) | `/docker/hermes-agent-ezd3/data` |
 | Config file | `/opt/data/config.yaml` | `/opt/data/config.yaml` | set in his dashboard: https://hermes-agent-ezd3.srv1938892.hstgr.cloud (login user `max`) |
 | Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) | recommended `claude-sonnet-5` (same as MIRA; no 5.5 until forced tool use is answered) |
-| ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (not created yet) |
+| ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (created 2026-10-06) |
 | Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) | bot created by the owner 2026-10-05; **allowlisted** to the sales team from day one |
 | Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v1_2026-10-05.md` — goes into his dashboard at setup |
 
@@ -3847,8 +3847,9 @@ Every agent is Hermes (Hostinger's agent platform, image
   in `docs/agents/` and on Drive. **Nothing created yet** — no login, no bot,
   no container. **His Telegram bot exists** (owner, 2026-10-05; token with the
   owner only). **2026-10-06:** snapshot 389803 taken; his container is up as
-  `hermes-agent-ezd3`, dashboard ready, nothing configured in it yet. Next:
-  his ICAPROC login (step 6), Dolibarr user, then the dashboard settings.
+  `hermes-agent-ezd3`, dashboard ready, nothing configured in it yet; his
+  ICAPROC login `max@icasolar.com` (`sell_admin`) exists and verifies. Next:
+  his Dolibarr user, then the dashboard settings (step 8).
   MIRA keeps doing sales until Max has passed his first tests; then her boot
   prompt v2 hands the sell side over (part A, step 10).
 
@@ -3880,10 +3881,16 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    newer Hermes than she has run on**, and §8.4's line numbers
    (`anthropic_adapter.py:3066/3072`) may not hold for Max's image. Rollback:
    delete `hermes-agent-ezd3` only.
-6. Thread: ICAPROC login `max@icasolar.com` / `sell_admin` by SQL (§4,
-   "Creating an agent login by SQL") with an unknown random password; owner
-   sets the real one with one `update auth.users … crypt()` line in the
-   Supabase SQL editor. Rollback: `banned_until = 'infinity'`, or delete.
+6. ~~Thread: ICAPROC login `max@icasolar.com` / `sell_admin` by SQL.~~ **Done
+   2026-10-06** in one `DO` block (allowlist → `auth.users` with the eight
+   token columns `''` → `auth.identities`); verified against MIRA's row:
+   role `sell_admin`, 1 identity with matching `sub`, confirmed, not banned,
+   password hash checks, tokens `''`. **The owner asked for the password to
+   be generated and shown in the chat to save time**, so it is in that
+   thread's transcript — it is the FIFTH credential to rotate (part B step 2).
+   Rollback: `update auth.users set banned_until = 'infinity' where email =
+   'max@icasolar.com'`, or delete the user (cascades to `user_profiles`) and
+   its `allowed_emails` row.
 7. Owner: a Dolibarr user for Max (sales rights only) and its API key.
    Rollback: disable that user.
 8. Owner, in Max's Hermes dashboard: provider `anthropic`, model
@@ -3897,8 +3904,11 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
 **Part B — MIRA and MANDA (unchanged from 2026-10-01).**
 
 1. Snapshot the VM.
-2. Rotate the four leaked credentials (§8.5.1) — a separate Anthropic API key
-   per agent, so spend and revocation are per agent.
+2. Rotate the leaked credentials (§8.5.1) — a separate Anthropic API key
+   per agent, so spend and revocation are per agent — **plus Max's ICAPROC
+   password**, shown in chat at the owner's request on 2026-10-06 (rotate with
+   one `update auth.users set encrypted_password = extensions.crypt(…)` line
+   typed by the owner in the Supabase SQL editor, then in Max's dashboard).
 3. Convert MANDA to Compose with an `.env` file (makes her logs visible, ends
    secrets in `docker run` history).
 4. Telegram allowlist on MANDA's bot (project team ids only).
