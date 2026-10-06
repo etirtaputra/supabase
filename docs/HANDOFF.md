@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-06** · last change: *Agents track: MAX boot prompt v2 — his credentials by name, and the Hermes slots it goes in (§8.7)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-06** · last change: *Agents track: why MAX said "I'm Claude Code" — a subscription token, not an API key (§8.4)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3795,6 +3795,17 @@ Every agent is Hermes (Hostinger's agent platform, image
   tokens for the same text** (Sonnet 4.6 and earlier, and Opus 4.6, use the
   old one). Same per-token price ≠ same bill: Opus 5 costs ≈1.3× Opus 4.6.
   Sonnet 5 → 5.5: same price, same tokenizer — no saving.
+- **"I'm Claude Code" = a subscription token, not an API key (Hermes v0.21.5
+  source, 2026-10-06).** `agent/anthropic_credentials.py:_is_oauth_token`
+  treats any Anthropic credential that does NOT start with `sk-ant-api` (i.e.
+  `sk-ant-oat…`, `eyJ…`, `cc-…` — a Claude.ai subscription / setup token) as
+  OAuth, and `anthropic_adapter.py` then PREPENDS "You are Claude Code,
+  Anthropic's official CLI for Claude." to the system prompt and renames tools
+  to dodge Anthropic's third-party-app billing classifier. That is why MAX's
+  first reply said he was Claude Code. An agent must run on a **Console API key
+  (`sk-ant-api03-…`)** — billed per use to the company, revocable per agent —
+  never on a personal subscription token. Check MIRA's and MANDA's key type the
+  same way (prefix only, never the value).
 - **Sonnet 5.5 migration guide (fetched 2026-10-01), beyond forced tool use:**
   thinking blocks are signed over the conversation before them; on Anthropic
   accounts created **on or after 2026-08-31** a replayed block after an edit
