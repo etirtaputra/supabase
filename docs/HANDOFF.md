@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-05** · last change: *Agents track: MAX, a third agent for the sales team — boot prompt v1 and the setup plan (§8)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-06** · last change: *Agents track: VPS snapshot 389803 taken for MAX's setup (expires in 24 h, §8.2)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3745,9 +3745,11 @@ Every agent is Hermes (Hostinger's agent platform, image
 - Hostinger VM **1938892** · `srv1938892.hstgr.cloud` · **31.97.221.88**.
 - Firewall **363683**, active since this track began: inbound 22, 80, 443 and
   ICMP only.
-- Backups: Hostinger's weekly. Snapshot 370659 has **expired** — take a fresh
-  one before any change to a container (one snapshot per VM; a new one
-  replaces the old).
+- Backups: Hostinger's weekly. Snapshot **389803** taken 2026-10-06 00:02 UTC
+  for MAX's setup — **it expires 24 h later (2026-10-07 00:02 UTC)**, so a
+  snapshot covers one sitting, not a week. Take a fresh one before any change
+  to a container (one snapshot per VM; a new one replaces the old; an expired
+  one reads back as `id: 0`).
 - Pending: 23 package updates and a reboot. Root SSH is password-only (no key).
 - Core dumps to delete: `/docker/hermes-agent-r33y/data/core` and
   `/root/.hermes-mira-backup/core`.
@@ -3857,7 +3859,9 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
 
 **Part A — MAX (new, 2026-10-05).** Nothing existing is touched until step 10.
 
-1. Snapshot the VM (replaces the expired 370659). Rollback for all of part A.
+1. ~~Snapshot the VM.~~ **Done 2026-10-06 00:02 UTC — snapshot 389803, expires
+   2026-10-07 00:02 UTC.** Rollback for all of part A while it lasts; if the
+   setup runs past that, take another before step 5.
 2. ~~Owner: Telegram @BotFather → `/newbot`; keeps the token.~~ **Done
    2026-10-05** — the owner holds the token. Rollback `/deletebot`.
 3. Owner: each salesperson's numeric Telegram id (they message @userinfobot).
