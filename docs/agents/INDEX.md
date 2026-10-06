@@ -5,8 +5,9 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-10-05** (MAX boot prompt v1: a third agent, for the
-> sales team. Sell side moves from MIRA to MAX; MIRA keeps the buy side.)
+> **Last updated: 2026-10-06** (MAX boot prompt v2: his credentials by name,
+> and the Hermes slots it goes in. MAX is the sales team's agent; the sell side
+> moves from MIRA to him once he passes his tests.)
 
 ## The one call that beats this page
 
@@ -33,7 +34,7 @@ superseded now and finding out after acting on it.
 | **Solar design** | `MANDA-SOLAR-DESIGN_v3_2026-09-09.md` | MANDA, engineering | v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` | MANDA's config | v3: boots from `/api/agent/onboarding`, not a hard-coded filename; order of authority; efficiency |
 | **MIRA boot prompt** | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` | MIRA's config | v1: she had none — boot call, order of authority, never guess a table name, token reuse |
-| **MAX boot prompt** | `MAX-BOOT-PROMPT_v1_2026-10-05.md` | MAX's config | v1: the sales team's agent — sell_admin, Dolibarr + ICAPROC, which system is the truth, who may approve what, what never goes in a chat |
+| **MAX boot prompt** | `MAX-BOOT-PROMPT_v2_2026-10-06.md` | MAX's SOUL.md | v2: where his six credentials are (by name) and never printing one; the real Hermes slots. v1: sell_admin, Dolibarr + ICAPROC, the truth table, who may approve what, what never goes in a chat |
 | **Agent platform** | `AGENT-PLATFORM_v3_2026-09-07.md` | the owner and me | v3: onboarding endpoint and the enforced registry |
 
 ## What each agent loads

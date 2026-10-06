@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-06** · last change: *Agents track: MAX's ICAPROC login created and verified (§8.7)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-06** · last change: *Agents track: MAX boot prompt v2 — his credentials by name, and the Hermes slots it goes in (§8.7)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3730,7 +3730,7 @@ Every agent is Hermes (Hostinger's agent platform, image
 | Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) | recommended `claude-sonnet-5` (same as MIRA; no 5.5 until forced tool use is answered) |
 | ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (created 2026-10-06) |
 | Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) | bot created by the owner 2026-10-05; **allowlisted** to the sales team from day one |
-| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v1_2026-10-05.md` — goes into his dashboard at setup |
+| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v2_2026-10-06.md` — goes in **`/opt/data/SOUL.md`** (dashboard → FILES) |
 
 - The two config styles differ (`provider: anthropic` + bare model vs. a
   `anthropic/…` slug). Change a model in the style that agent already uses.
@@ -3893,9 +3893,18 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    its `allowed_emails` row.
 7. Owner: a Dolibarr user for Max (sales rights only) and its API key.
    Rollback: disable that user.
-8. Owner, in Max's Hermes dashboard: provider `anthropic`, model
-   `claude-sonnet-5`, the key, the bot token, the allowlist, Dolibarr and
-   ICAPROC credentials, and the boot prompt with `<OWNER_TELEGRAM_ID>` filled in.
+8. Owner, in Max's Hermes dashboard (v0.21.5): **done 2026-10-06** — provider
+   `anthropic`, model `claude-sonnet-5`, his Anthropic key, the bot token with
+   only the owner's id allowed (Hermes' default for anyone else is a pairing
+   code the owner approves on PAIRING, so salespeople are approved there, not
+   collected in advance). **Still to do:** the boot prompt into
+   `/opt/data/SOUL.md` (Hermes' identity slot; until then he calls himself
+   "Claude Code"); the six credential variables on KEYS; and in `config.yaml`
+   `terminal.env_passthrough` listing them (Hermes strips secrets from the
+   agent's terminal and code otherwise) plus `compression.threshold_tokens:
+   150000` (default is 50 % of the window ≈ 500k on Sonnet 5). MoA is off by
+   default (`moa.active_preset: ""`); leave it. The paste-ready cards are in
+   the briefing artifact under "MAX's dashboard · 6 Oct".
 9. Tests, owner first: onboarding (expect `sell_admin`), one price, one
    dry-run stock-out; then one salesperson; then a non-allowlisted account
    must get nothing.
