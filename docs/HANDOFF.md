@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-06** · last change: *Agents track: VPS snapshot 389803 taken for MAX's setup (expires in 24 h, §8.2)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-06** · last change: *Agents track: MAX's container is up as `hermes-agent-ezd3`; MIRA untouched (§8.7)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3724,9 +3724,9 @@ Every agent is Hermes (Hostinger's agent platform, image
 | | MIRA | MANDA | MAX (planned, 2026-10-05) |
 |---|---|---|---|
 | Job | the owner's operations agent: Dolibarr (the current ERP), ICAPROC, email, Drive | the project team's agent: solar system design, project docs | the sales team's agent: Dolibarr sales, ICAPROC prices/stock/customers (takes the sell side from MIRA) |
-| Container | `hermes-agent-r33y-hermes-agent-1` — Compose project `/docker/hermes-agent-r33y/` | `hermes-agent-manda` — started with plain `docker run`, **not** Compose | `hermes-agent-max` — Compose, from hPanel's Hermes template (not created yet) |
-| Data (`/opt/data` inside) | `/docker/hermes-agent-r33y/data` | `~/.hermes-manda/workspace`; config at `~/.hermes-manda/config` (= `/opt/data/.hermes` and `/root/.hermes`) | `/docker/hermes-agent-max/data` (once created) |
-| Config file | `/opt/data/config.yaml` | `/opt/data/config.yaml` | set in his Hermes dashboard |
+| Container | `hermes-agent-r33y-hermes-agent-1` — Compose project `/docker/hermes-agent-r33y/` | `hermes-agent-manda` — started with plain `docker run`, **not** Compose | `hermes-agent-ezd3-hermes-agent-1` — Compose project `/docker/hermes-agent-ezd3/`, from hPanel's catalog 2026-10-06 (the form has **no name field**; Hostinger picks the suffix) |
+| Data (`/opt/data` inside) | `/docker/hermes-agent-r33y/data` | `~/.hermes-manda/workspace`; config at `~/.hermes-manda/config` (= `/opt/data/.hermes` and `/root/.hermes`) | `/docker/hermes-agent-ezd3/data` |
+| Config file | `/opt/data/config.yaml` | `/opt/data/config.yaml` | set in his dashboard: https://hermes-agent-ezd3.srv1938892.hstgr.cloud (login user `max`) |
 | Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) | recommended `claude-sonnet-5` (same as MIRA; no 5.5 until forced tool use is answered) |
 | ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (not created yet) |
 | Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) | bot created by the owner 2026-10-05; **allowlisted** to the sales team from day one |
@@ -3846,7 +3846,9 @@ Every agent is Hermes (Hostinger's agent platform, image
 - **MAX (2026-10-05):** decided and documented (§8.1, §4); boot prompt v1 is
   in `docs/agents/` and on Drive. **Nothing created yet** — no login, no bot,
   no container. **His Telegram bot exists** (owner, 2026-10-05; token with the
-  owner only). Waiting on the owner for the rest of the setup (§8.7 part A).
+  owner only). **2026-10-06:** snapshot 389803 taken; his container is up as
+  `hermes-agent-ezd3`, dashboard ready, nothing configured in it yet. Next:
+  his ICAPROC login (step 6), Dolibarr user, then the dashboard settings.
   MIRA keeps doing sales until Max has passed his first tests; then her boot
   prompt v2 hands the sell side over (part A, step 10).
 
@@ -3867,10 +3869,17 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
 3. Owner: each salesperson's numeric Telegram id (they message @userinfobot).
 4. Owner: a new Anthropic API key named `max`, **in the existing account**
    (§8.4). Rollback: delete the key.
-5. Owner: hPanel → Docker Manager → Hermes template, project name
-   **`hermes-agent-max`** — a NEW name (rule §8.5.4). Then a thread verifies
-   by API that `hermes-agent-r33y` and `traefik` are unchanged. Rollback:
-   delete `hermes-agent-max` only.
+5. ~~Owner: hPanel → Docker Manager → Catalog → Hermes Agent.~~ **Done
+   2026-10-06 00:10 UTC → project `hermes-agent-ezd3`** (no name field on the
+   form; it asks only ADMIN_USERNAME — set to `max` — ADMIN_PASSWORD, and
+   Hostinger's Nexos and Oxylabs keys, left as filled). Verified by API:
+   `hermes-agent-r33y` and `traefik` still "Up 5 weeks"; Max's log reads
+   `HERMES_DASHBOARD_READY port=4860`. **Side effect:** pulling `:latest` for
+   Max moved the tag, so MIRA's container now shows as a bare `sha256:51f52f…`
+   image — she is unchanged while running, but **recreating her would pull a
+   newer Hermes than she has run on**, and §8.4's line numbers
+   (`anthropic_adapter.py:3066/3072`) may not hold for Max's image. Rollback:
+   delete `hermes-agent-ezd3` only.
 6. Thread: ICAPROC login `max@icasolar.com` / `sell_admin` by SQL (§4,
    "Creating an agent login by SQL") with an unknown random password; owner
    sets the real one with one `update auth.users … crypt()` line in the
