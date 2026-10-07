@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-07** · last change: *MAX boot prompt v3 from his first test: owner recognised by chat, exact item names, no guessed addresses (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-07** · last change: *MAX v4 — Claude's Tier-1 error removed from his role text; his second test passed (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3730,7 +3730,7 @@ Every agent is Hermes (Hostinger's agent platform, image
 | Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) | recommended `claude-sonnet-5` (same as MIRA; no 5.5 until forced tool use is answered) |
 | ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (created 2026-10-06) |
 | Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) | bot created by the owner 2026-10-05; **allowlisted** to the sales team from day one |
-| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v3_2026-10-07.md` — in **`/opt/data/SOUL.md`** (dashboard → FILES); the owner's chat is marked by a `channel_overrides` note in `config.yaml` |
+| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v4_2026-10-07.md` — in **`/opt/data/SOUL.md`** (dashboard → FILES); the owner's chat is marked by a `channel_overrides` note in `config.yaml` |
 
 - The two config styles differ (`provider: anthropic` + bare model vs. a
   `anthropic/…` slug). Change a model in the style that agent already uses.
@@ -3867,8 +3867,15 @@ Every agent is Hermes (Hostinger's agent platform, image
   31.97.221.88 at 05:52 UTC, then onboarding (role `sell_admin`; hidden:
   `landed_cost_open`, `po_late`) and a correct tier read for the 30 mm
   ICA550-72HMI (1,380,000 / 1,450,000 / 1,550,000 — but he did not say which
-  of the two ICA550-72HMI items; the 35 mm one has a Tier-1 override of
-  1,500,000). **Gaps found:** (a) Hermes shows the model the sender's display
+  of the two ICA550-72HMI items). *Correction 2026-10-07:* this thread first
+  said the 35 mm item's Tier-1 is 1,500,000 and wrote that into MAX v3. Wrong —
+  `computeTierChain` ignores any override on the net tier ("kept in the
+  table, inert"), so both are 1,380,000; the 1,500,000 row (last edited by
+  MIRA, 2026-09-02) is inert. Max caught it in his second test. Read prices
+  through `/api/agent/prices` or `computeTierChain`, never off `21.1` alone.
+  **Second test (2026-10-07) PASSED:** he named the owner's chat by the Hermes
+  note (owner override live), listed both items by full name, and said a price
+  change needs the owner's yes in this chat. **Gaps found:** (a) Hermes shows the model the sender's display
   name, never the Telegram id (`gateway/session.py`, ~line 430), so "owner =
   user <id>" was uncheckable — owner chose a `channel_overrides` note keyed by
   his chat id (v3); (b) he cannot read the packs — no Drive — and guessed four
