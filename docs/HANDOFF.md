@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-07** · last change: *MAX reads the shared drive; boot prompt v5 writes down how (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-07** · last change: *MAX's third test passed — Dolibarr read and a dry-run stock-out, nothing posted (§8.7)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3955,10 +3955,20 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
 9. Tests, owner first: onboarding (expect `sell_admin`), one price, one
    dry-run stock-out; then one salesperson; then a non-allowlisted account
    must get nothing. **Onboarding + price passed 2026-10-06** (see §8.6);
-   done 2026-10-07: owner-chat note, exact items, a pack read from Drive.
-   Still to do: a dry-run stock-out, a Dolibarr read, a salesperson (approve
-   on PAIRING; ask him who he is talking to), a stranger (must get a pairing
-   code and nothing else); confirm his key is `sk-ant-api03-`. Snapshot 389803 has expired:
+   done 2026-10-07: owner-chat note, exact items, a pack read from Drive,
+   and the **third test** — Dolibarr read of SO2608-4772 (customer, invoice,
+   shipment SH2609-4459 shipped 2026-09-02) and a `/sales/stock` dry run
+   (1 × ICA200-72M from MAIN, no shortfall), NOTHING posted (verified: no
+   `30.0` rows for the order, none in 6 h). The dry run returns no cost — only
+   a real post reads cost back (`route.ts`) — so he quoted Dolibarr's `pa_ht`
+   (645,000) with its source and flagged it as owner-only. SO2608-4772 has
+   SHIPPED and is still not off ICAPROC stock (MIRA's until the handover).
+   Still to do: a salesperson (approve on PAIRING; who is he talking to, a
+   Tier-2 price, landed cost must be REFUSED), a stranger (pairing code only).
+   **Key:** stays `sk-ant-usr-` (owner's Console now issues linked keys; the
+   unlinked one is labelled legacy) — so Hermes keeps adding the "Claude
+   Code" line; harmless in practice, SOUL.md wins. Spend: Max's setup and tests
+   $1.72; MIRA+MANDA's shared key ≈ $3/day (49.84 → 52.91, 2026-10-06 → 07). Snapshot 389803 has expired:
    take a fresh one before the Drive file is copied into his data folder.
 10. Only then: MIRA boot prompt v2 (sell side → Max), pack-shipping rule.
 
