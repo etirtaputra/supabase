@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-06** · last change: *Agents track: correction — MAX's key is a real API key; Hermes misreads the new sk-ant-usr format (§8.4)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-07** · last change: *MAX boot prompt v3 from his first test: owner recognised by chat, exact item names, no guessed addresses (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3730,7 +3730,7 @@ Every agent is Hermes (Hostinger's agent platform, image
 | Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) | recommended `claude-sonnet-5` (same as MIRA; no 5.5 until forced tool use is answered) |
 | ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (created 2026-10-06) |
 | Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) | bot created by the owner 2026-10-05; **allowlisted** to the sales team from day one |
-| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v2_2026-10-06.md` — goes in **`/opt/data/SOUL.md`** (dashboard → FILES) |
+| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v3_2026-10-07.md` — in **`/opt/data/SOUL.md`** (dashboard → FILES); the owner's chat is marked by a `channel_overrides` note in `config.yaml` |
 
 - The two config styles differ (`provider: anthropic` + bare model vs. a
   `anthropic/…` slug). Change a model in the style that agent already uses.
@@ -3861,9 +3861,20 @@ Every agent is Hermes (Hostinger's agent platform, image
   in `docs/agents/` and on Drive. **Nothing created yet** — no login, no bot,
   no container. **His Telegram bot exists** (owner, 2026-10-05; token with the
   owner only). **2026-10-06:** snapshot 389803 taken; his container is up as
-  `hermes-agent-ezd3`, dashboard ready, nothing configured in it yet; his
-  ICAPROC login `max@icasolar.com` (`sell_admin`) exists and verifies. Next:
-  his Dolibarr user, then the dashboard settings (step 8).
+  `hermes-agent-ezd3`; ICAPROC login `max@icasolar.com` (`sell_admin`).
+  **2026-10-06, first test PASSED in part:** SOUL.md v2 in place (he answers as
+  MAX), keys + passthrough working — edge logs show ONE sign-in from
+  31.97.221.88 at 05:52 UTC, then onboarding (role `sell_admin`; hidden:
+  `landed_cost_open`, `po_late`) and a correct tier read for the 30 mm
+  ICA550-72HMI (1,380,000 / 1,450,000 / 1,550,000 — but he did not say which
+  of the two ICA550-72HMI items; the 35 mm one has a Tier-1 override of
+  1,500,000). **Gaps found:** (a) Hermes shows the model the sender's display
+  name, never the Telegram id (`gateway/session.py`, ~line 430), so "owner =
+  user <id>" was uncheckable — owner chose a `channel_overrides` note keyed by
+  his chat id (v3); (b) he cannot read the packs — no Drive — and guessed four
+  storage paths first; owner chose to give him MIRA's Drive service account,
+  **waiting on MIRA** for the credentials file's path; (c) whether his key was
+  swapped to `sk-ant-api03-` is not yet confirmed.
   MIRA keeps doing sales until Max has passed his first tests; then her boot
   prompt v2 hands the sell side over (part A, step 10).
 
@@ -3921,7 +3932,11 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    the briefing artifact under "MAX's dashboard · 6 Oct".
 9. Tests, owner first: onboarding (expect `sell_admin`), one price, one
    dry-run stock-out; then one salesperson; then a non-allowlisted account
-   must get nothing.
+   must get nothing. **Onboarding + price passed 2026-10-06** (see §8.6);
+   still to do after v3 + Drive: the owner-chat note (ask him in the owner's
+   chat and in a salesperson's chat who he is talking to), a pack read, a
+   dry-run stock-out, a salesperson, a stranger. Snapshot 389803 has expired:
+   take a fresh one before the Drive file is copied into his data folder.
 10. Only then: MIRA boot prompt v2 (sell side → Max), pack-shipping rule.
 
 **Part B — MIRA and MANDA (unchanged from 2026-10-01).**
