@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-07** · last change: *MAX v4 — Claude's Tier-1 error removed from his role text; his second test passed (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-07** · last change: *Agents track: MIRA's Drive and Dolibarr answers; snapshot retaken for MAX's Drive step (§8.2, §8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3745,8 +3745,9 @@ Every agent is Hermes (Hostinger's agent platform, image
 - Hostinger VM **1938892** · `srv1938892.hstgr.cloud` · **31.97.221.88**.
 - Firewall **363683**, active since this track began: inbound 22, 80, 443 and
   ICMP only.
-- Backups: Hostinger's weekly. Snapshot **389803** taken 2026-10-06 00:02 UTC
-  for MAX's setup — **it expires 24 h later (2026-10-07 00:02 UTC)**, so a
+- Backups: Hostinger's weekly. Snapshot **389803** retaken 2026-10-07 00:38 UTC
+  (expires 2026-10-08 00:38 UTC) before MAX's Drive file copy — **a snapshot
+  lasts 24 h**, so a
   snapshot covers one sitting, not a week. Take a fresh one before any change
   to a container (one snapshot per VM; a new one replaces the old; an expired
   one reads back as `id: 0`).
@@ -3879,8 +3880,16 @@ Every agent is Hermes (Hostinger's agent platform, image
   name, never the Telegram id (`gateway/session.py`, ~line 430), so "owner =
   user <id>" was uncheckable — owner chose a `channel_overrides` note keyed by
   his chat id (v3); (b) he cannot read the packs — no Drive — and guessed four
-  storage paths first; owner chose to give him MIRA's Drive service account,
-  **waiting on MIRA** for the credentials file's path; (c) whether his key was
+  storage paths first; owner chose to give him MIRA's Drive service account —
+  **MIRA answered 2026-10-07:** her file is `/opt/data/.hermes/credentials/gdrive.json`
+  (host: `/docker/hermes-agent-r33y/data/.hermes/credentials/gdrive.json`), and
+  she reaches Dolibarr at `erp.indodaya.co.id` by REST API key (header), no
+  login. The copy into `/docker/hermes-agent-ezd3/data/.hermes/credentials/` is
+  the owner's terminal step (`cp -p`, ownership by reference; never `cat` it).
+  The service account is still **Editor** on the whole shared drive (§8.7
+  part B step 11), so Max is told read-only plus his own 90-OUTPUT folder.
+  MIRA and MANDA both acknowledged MAX on 2026-10-07 and hand nothing over
+  until told; (c) whether his key was
   swapped to `sk-ant-api03-` is not yet confirmed.
   MIRA keeps doing sales until Max has passed his first tests; then her boot
   prompt v2 hands the sell side over (part A, step 10).
