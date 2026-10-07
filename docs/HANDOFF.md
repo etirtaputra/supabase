@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-07** · last change: *Agents track: MIRA's Drive and Dolibarr answers; snapshot retaken for MAX's Drive step (§8.2, §8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-07** · last change: *MAX reads the shared drive; boot prompt v5 writes down how (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3730,7 +3730,7 @@ Every agent is Hermes (Hostinger's agent platform, image
 | Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) | recommended `claude-sonnet-5` (same as MIRA; no 5.5 until forced tool use is answered) |
 | ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (created 2026-10-06) |
 | Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) | bot created by the owner 2026-10-05; **allowlisted** to the sales team from day one |
-| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v4_2026-10-07.md` — in **`/opt/data/SOUL.md`** (dashboard → FILES); the owner's chat is marked by a `channel_overrides` note in `config.yaml` |
+| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v5_2026-10-07.md` — in **`/opt/data/SOUL.md`** (dashboard → FILES); the owner's chat is marked by a `channel_overrides` note in `config.yaml` |
 
 - The two config styles differ (`provider: anthropic` + bare model vs. a
   `anthropic/…` slug). Change a model in the style that agent already uses.
@@ -3889,7 +3889,13 @@ Every agent is Hermes (Hostinger's agent platform, image
   The service account is still **Editor** on the whole shared drive (§8.7
   part B step 11), so Max is told read-only plus his own 90-OUTPUT folder.
   MIRA and MANDA both acknowledged MAX on 2026-10-07 and hand nothing over
-  until told; (c) whether his key was
+  until told. **Drive DONE 2026-10-07:** file copied on the host (first attempt
+  was typed in Max's *container* terminal — hPanel's Docker Manager "Terminal"
+  opens a container, not the VPS; the stray empty dir it made was removed);
+  copy is root/0644, 2393 bytes, same as MIRA's. **Drive test PASSED:** he
+  listed 10-PACKS (6 files) and read schema §9 ("Every table, once", 59
+  tables) using `/opt/hermes/.venv/bin/python3` (plain `python3` lacks the
+  Google libraries); nothing installed, nothing written. v5 writes this down; (c) whether his key was
   swapped to `sk-ant-api03-` is not yet confirmed.
   MIRA keeps doing sales until Max has passed his first tests; then her boot
   prompt v2 hands the sell side over (part A, step 10).
@@ -3949,9 +3955,10 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
 9. Tests, owner first: onboarding (expect `sell_admin`), one price, one
    dry-run stock-out; then one salesperson; then a non-allowlisted account
    must get nothing. **Onboarding + price passed 2026-10-06** (see §8.6);
-   still to do after v3 + Drive: the owner-chat note (ask him in the owner's
-   chat and in a salesperson's chat who he is talking to), a pack read, a
-   dry-run stock-out, a salesperson, a stranger. Snapshot 389803 has expired:
+   done 2026-10-07: owner-chat note, exact items, a pack read from Drive.
+   Still to do: a dry-run stock-out, a Dolibarr read, a salesperson (approve
+   on PAIRING; ask him who he is talking to), a stranger (must get a pairing
+   code and nothing else); confirm his key is `sk-ant-api03-`. Snapshot 389803 has expired:
    take a fresh one before the Drive file is copied into his data folder.
 10. Only then: MIRA boot prompt v2 (sell side → Max), pack-shipping rule.
 

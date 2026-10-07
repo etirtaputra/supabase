@@ -65,7 +65,7 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'max-boot',
     title: 'MAX boot prompt',
-    file: 'MAX-BOOT-PROMPT_v4_2026-10-07.md',
+    file: 'MAX-BOOT-PROMPT_v5_2026-10-07.md',
     audience: "MAX's own configuration",
     first: false,
   },

@@ -5,7 +5,7 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-10-07** (MAX boot prompt v4: v3's example about the two
+> **Last updated: 2026-10-07** (MAX boot prompt v5: how he reaches the drive. v4: v3's example about the two
 > ICA550-72HMI items was false and is removed. v3, from his first test: the
 > owner is recognised by his chat, not a number; exact item names; no guessed
 > addresses. MAX is the sales team's agent; the sell side moves from MIRA to
@@ -36,7 +36,7 @@ superseded now and finding out after acting on it.
 | **Solar design** | `MANDA-SOLAR-DESIGN_v3_2026-09-09.md` | MANDA, engineering | v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` | MANDA's config | v3: boots from `/api/agent/onboarding`, not a hard-coded filename; order of authority; efficiency |
 | **MIRA boot prompt** | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` | MIRA's config | v1: she had none — boot call, order of authority, never guess a table name, token reuse |
-| **MAX boot prompt** | `MAX-BOOT-PROMPT_v4_2026-10-07.md` | MAX's SOUL.md | v4: drops v3's false claim that the two ICA550-72HMI items differ at Tier-1 (a Tier-1 override is inert). v3: the owner is recognised by his chat (a Hermes per-chat note), not a number; name the exact item; never guess an address; packs are on the shared drive. v2: where his six credentials are (by name) and never printing one; the real Hermes slots. v1: sell_admin, Dolibarr + ICAPROC, the truth table, who may approve what, what never goes in a chat |
+| **MAX boot prompt** | `MAX-BOOT-PROMPT_v5_2026-10-07.md` | MAX's SOUL.md | v5: Drive — the service-account file, the Python that has the Google libraries, the folder ids, read-only except his own 90-OUTPUT folder. v4: drops v3's false claim that the two ICA550-72HMI items differ at Tier-1 (a Tier-1 override is inert). v3: the owner is recognised by his chat (a Hermes per-chat note), not a number; name the exact item; never guess an address; packs are on the shared drive. v2: where his six credentials are (by name) and never printing one; the real Hermes slots. v1: sell_admin, Dolibarr + ICAPROC, the truth table, who may approve what, what never goes in a chat |
 | **Agent platform** | `AGENT-PLATFORM_v3_2026-09-07.md` | the owner and me | v3: onboarding endpoint and the enforced registry |
 
 ## What each agent loads
