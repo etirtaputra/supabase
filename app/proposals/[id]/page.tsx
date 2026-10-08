@@ -31,6 +31,7 @@ import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type
 import type { Component } from '@/types/database';
 import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { isOfferable } from '@/lib/itemVisibility';
+import { catalogMatches, lastQuotedDates } from '@/lib/catalogSearch';
 import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -1126,25 +1127,23 @@ export default function QuoteEditorPage() {
     };
   }, []);
 
+  // Newest supplier quote per item — the autocomplete lists the item someone
+  // just priced ahead of its look-alikes (lib/catalogSearch).
+  const lastQuoted = useMemo(
+    () => lastQuotedDates(catalog.quotes, catalog.quoteItems),
+    [catalog.quotes, catalog.quoteItems]);
+
   // ── Filtered autocomplete results: catalog + this quote's rows + past quotes
   const acResults = useMemo(() => {
-    if (!acState || acState.query.length < 2) return { comps: [] as Component[], prev: [] as PrevItem[] };
+    if (!acState || acState.query.length < 2) return { comps: [] as Component[], prev: [] as PrevItem[], compTotal: 0 };
     const q = acState.query.toLowerCase();
-    const comps = catalog.components
-      .filter((c) => {
-        // Items whose cost is "Hidden" for Project Quotes are treated as not
-        // part of the PV catalog — keep unrelated/sensitive lines (UPS,
-        // Stabilizer, …) out of the Project Quote autocomplete entirely.
-        // Same rule as Support Letters — one definition, in lib/itemVisibility.
-        if (!isOfferable(c)) return false;
-        return (
-          c.internal_description?.toLowerCase().includes(q) ||
-          c.supplier_model?.toLowerCase().includes(q) ||
-          c.brand?.toLowerCase().includes(q) ||
-          c.category?.toLowerCase().includes(q)
-        );
-      })
-      .slice(0, 6);
+    // Items whose cost is "Hidden" for Project Quotes are treated as not
+    // part of the PV catalog — keep unrelated/sensitive lines (UPS,
+    // Stabilizer, …) out of the Project Quote autocomplete entirely.
+    // Same rule as Support Letters — one definition, in lib/itemVisibility.
+    // Every word must match, in any order; closest and freshest-quoted first.
+    const { shown: comps, total: compTotal } = catalogMatches(
+      catalog.components.filter((c) => isOfferable(c)), acState.query, { limit: 12, lastQuoted });
     const compNames = new Set(comps.map((c) => compName(c).trim().toLowerCase()));
 
     // Rows already in this quote (draft state — works before saving), except
@@ -1177,8 +1176,8 @@ export default function QuoteEditorPage() {
       )
       .sort((a, b) => b.date.localeCompare(a.date));
 
-    return { comps, prev: [...local, ...crossQuote].slice(0, 5) };
-  }, [acState, catalog.components, prevItems, sections]);
+    return { comps, prev: [...local, ...crossQuote].slice(0, 5), compTotal };
+  }, [acState, catalog.components, prevItems, sections, lastQuoted]);
   const acCount = acResults.comps.length + acResults.prev.length;
 
   // ── Computed totals ────────────────────────────────────────────────────────
@@ -2712,6 +2711,11 @@ export default function QuoteEditorPage() {
                                         </button>
                                       );
                                     })}
+                                    {acResults.compTotal > acResults.comps.length && (
+                                      <p className="px-4 py-1.5 text-[10px] text-slate-500 border-t border-slate-800">
+                                        {tf('+{n} more catalogue items match — keep typing to narrow', { n: acResults.compTotal - acResults.comps.length })}
+                                      </p>
+                                    )}
                                     {acResults.prev.length > 0 && (
                                       <p className="px-4 pt-2 pb-1 text-[9px] uppercase tracking-wider text-slate-600 border-t border-slate-800">
                                         Previously entered items

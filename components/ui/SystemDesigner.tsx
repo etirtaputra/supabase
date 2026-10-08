@@ -32,6 +32,7 @@ import {
   type PanelSpec, type OnGridInverterSpec, type HybridInverterSpec, type BatterySpec,
 } from '@/lib/systemDesign/system';
 import type { DesignedLine } from './MountingDesigner';
+import { selectAll } from '@/lib/fetchAllRows';
 
 /** Both designers quote from the same mounting family — one remembered choice. */
 const SYSTEM_KEY = 'icaproc.mountingDesigner.system';
@@ -149,14 +150,15 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
   // and the balance-of-system roles (cable, connectors, protection).
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('3.0_components')
+    const { data } = await selectAll((f, t) => supabase.from('3.0_components')
       .select(`component_id, supplier_model, internal_description, category, unit, specifications, ${VISIBILITY_COLUMNS}`)
       // `switchgear` and `monitoring` split out of `accessories` on 2026-09-05;
       // the balance-of-system roles (combiner_box, dc_breaker, ac_distribution)
       // live in `switchgear` now, so omitting it would quietly stop resolving them.
       .in('category', ['pv_module', 'on_grid_inverter', 'inverter_charger', 'batteries', 'mounting', 'accessories', 'switchgear', 'monitoring', 'pv_cable'])
       .is('archived_at', null)
-      .limit(3000);
+      .order('component_id')
+      .range(f, t));
     setRows((data as DesignCandidate[]) ?? []);
     setLoading(false);
   }, [supabase]);

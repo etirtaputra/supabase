@@ -32,6 +32,7 @@ import {
   buildUsageReport, byGroup, NAV_SOURCES, MIN_DAYS, MIN_VIEWS,
   type PageViewRow, type NavSource, type Verdict,
 } from '@/lib/usage';
+import { selectAll } from '@/lib/fetchAllRows';
 
 const WINDOWS = [7, 30, 90] as const;
 type Win = (typeof WINDOWS)[number];
@@ -79,12 +80,13 @@ export default function UsagePage() {
     setViews(null); setErr(null);
     const since = new Date(Date.now() - win * 86_400_000).toISOString();
     const supabase = createSupabaseClient();
-    const { data, error } = await supabase
+    const { data, error } = await selectAll((f, t) => supabase
       .from('42.0_page_views')
       .select('viewed_at,user_email,user_role,session_id,path,dest_href,from_path,nav_source,depth,viewport')
       .gte('viewed_at', since)
       .order('viewed_at', { ascending: true })
-      .limit(50000);
+      .order('view_id', { ascending: true })
+      .range(f, t));
     if (error) {
       // The likeliest cause by far is that the migration has not been run. Say
       // that, rather than showing an empty table that reads as "nobody uses

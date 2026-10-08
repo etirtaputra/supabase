@@ -35,6 +35,7 @@ import MountingDesigner, { type DesignedLine } from '@/components/ui/MountingDes
 import SystemDesigner from '@/components/ui/SystemDesigner';
 import type { SystemDesign } from '@/lib/systemDesign/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { selectAll } from '@/lib/fetchAllRows';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -222,7 +223,7 @@ export default function SalesQuotePage() {
       supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct, sort_order, is_active'),
       supabase.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr, override_discount_pct'),
-      supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').limit(2000),
+      selectAll((f, t) => supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').order('component_id').range(f, t)),
       supabase.from('30.1_stock_balances').select(canGP ? 'component_id, qty_on_hand, avg_cost_idr' : 'component_id, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, customer_id, quote_date, quote_number, order_number'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at'),

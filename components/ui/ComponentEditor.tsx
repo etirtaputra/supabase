@@ -32,6 +32,7 @@ import { categoryLabelOf, categoryPath } from '../../constants/productTaxonomy';
 import { CategoryOptionGroups } from './CategoryOptions';
 import { linkCandidates, buildLinkRows, reasonRequired, LINK_TYPES, LINK_REASONS, type LinkableItem, type NewLinkType, type NewLinkRow } from '@/lib/itemLinks';
 import { formatCategory } from '@/lib/formatCategory';
+import { selectAll } from '@/lib/fetchAllRows';
 
 
 interface ComponentHistoryEntry {
@@ -1036,8 +1037,8 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [reorderById, setReorderById] = useState<Map<string, ReorderAlert>>(new Map());
   useEffect(() => {
     Promise.all([
-      supabase.from('10.2_quote_items').select('component_id').not('component_id', 'is', null).limit(20000),
-      supabase.from('22.1_sales_quote_items').select('component_id').not('component_id', 'is', null).limit(20000),
+      selectAll((f, t) => supabase.from('10.2_quote_items').select('component_id').not('component_id', 'is', null).order('item_id').range(f, t)),
+      selectAll((f, t) => supabase.from('22.1_sales_quote_items').select('component_id').not('component_id', 'is', null).order('item_id').range(f, t)),
     ]).then(([epc, sales]) => {
       const s = new Set<string>();
       for (const r of ((epc.data ?? []) as { component_id: string }[])) s.add(String(r.component_id));

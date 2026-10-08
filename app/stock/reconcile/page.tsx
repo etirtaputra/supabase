@@ -34,6 +34,7 @@ import {
 import { autoPostVerdict, HOLD_LABEL, HOLD_NOTE } from '@/lib/landedAutoPost';
 import { drainTrueUpQueue, drainMessage } from '@/lib/landedAutoPostClient';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { selectAll } from '@/lib/fetchAllRows';
 
 interface Comp { component_id: string; supplier_model: string | null; internal_description: string | null; unit: string | null }
 
@@ -84,7 +85,7 @@ export default function ReconcilePage() {
     try {
       const [s, compRes, supRes, quoteRes] = await Promise.all([
         fetchLandedVariances(supabase),
-        supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit').limit(5000),
+        selectAll((f, t) => supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit').order('component_id').range(f, t)),
         supabase.from('2.0_suppliers').select('supplier_id, supplier_name'),
         supabase.from('4.0_price_quotes').select('quote_id, supplier_id'),
       ]);

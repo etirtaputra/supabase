@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-08** · last change: *Agents track: one writing style for all agents — ASD-STE100-style English, plain Indonesian; MAX v6 (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-08** · last change: *the 1,000-row cap — every over-cap read now pages; EPC autocomplete matches words in any order* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 884 tests at handoff (2026-10-05), all pass
+npm test             # node --test "lib/**/*.test.ts" — 889 tests at handoff (2026-10-08), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,45 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-05 (latest) — agents: MAX, the sales team's agent, planned (§8)
+### 2026-10-08 (latest) — the 1,000-row cap, again; EPC autocomplete
+
+Owner: "why are the last 3 Deye Inverter quote only input not showing in EPC
+Proposal autocomplete?" → "go ahead".
+
+- **The autocomplete** kept the FIRST 6 matches in `supplier_model` order and
+  matched the query as one phrase. "deye" = 28 items → five BOS battery parts
+  and a logger; SUN-100K-G03 / SUN-110K-G03 / SUN-50K-G04 (quoted 2026-10-07)
+  were 9th, 11th, 22nd. Now `lib/catalogSearch.ts` (tested): every word, any
+  order; rank starts-with › phrase › words; within a rank, newest supplier
+  quote first; 12 shown + "+N more — keep typing". Fields are joined with a
+  separator so a phrase cannot span model and brand.
+- **The bigger find:** `4.1_price_quote_line_items` reached 1,015 rows and
+  `useSupabaseData` read it in one request — the server stops at 1,000 and
+  says nothing, so the last 15 by sort order (12 Deye hybrids from the 11 Sep
+  quote, 2 EPEVER, 1 Trina) had no quote price in Proposals, Deal Lookup, the
+  Item Editor or Ctrl+K. `3.0_components` is at 1,050, so ~50 items were
+  missing from the new-sales-quotation picker, Support Letters, Serials,
+  Landed Cost, Selling Prices' tally; `10.2` is at 2,666 so Ctrl+K searched
+  1,000 proposal lines; `v_quote_line_link_open` 1,015 on Products.
+- Fix: `selectAll()` in `lib/fetchAllRows.ts` (the `{ data, error }` shape of a
+  plain select, paging underneath). Every `.limit(n > 1000)` in the app now
+  pages, each ordered to its primary key (views without one:
+  every column). `useSupabaseData` pages quotes, quote lines, POs, PO lines,
+  PO costs, quote_history and links. **`lib/rowCap.test.ts` fails the build on
+  any `.limit()` above 1,000.**
+- Verified on the production build with a fake server capped at 1,000 and the
+  real 28-item Deye list: 3 pages for 1,015 lines; "deye" lists the three new
+  inverters first and the Sep hybrids WITH price; "deye 100k", "100k g03",
+  "sun-80k" each find their item.
+- **Not done (noticed):** 371 of 1,015 quote lines point at a quote that no
+  longer exists (orphans from deleted quotes); `useSupabaseData` still asks for
+  three relations that do not exist (`5.0_proforma_invoices`,
+  `purchase_history`, `component_history`) — harmless errors, never read.
+  Unbounded selects with NO `.limit` on tables still under 1,000 (e.g.
+  `6.0_po_costs` 409 in dashboard / inTransit / position) are not covered by the
+  guard yet.
+
+### 2026-10-05 — agents: MAX, the sales team's agent, planned (§8)
 
 Owner: *"start a new agent for sales side, and call him Max"*. Decided with him:
 the sales team talks to Max through an allowlisted bot; Max works in Dolibarr

@@ -91,3 +91,19 @@ export async function fetchAllComponents<T>(
   });
   return rows;
 }
+
+/**
+ * `fetchAllRows` in the `{ data, error }` shape a plain Supabase select
+ * resolves to — so a `Promise.all` of selects can swap one capped query for a
+ * paged one without touching how its result is read.
+ *
+ * A `.limit(8000)` does NOT get past the cap: the server still stops at 1,000
+ * and says nothing. That is how Ctrl+K, the Item Hub and the item page lost the
+ * newest supplier quote lines once `4.1` reached 1,015 rows (2026-10-08).
+ */
+export async function selectAll<T = unknown>(
+  page: (from: number, to: number) => PromiseLike<unknown>,
+): Promise<{ data: T[]; error: { message: string } | null }> {
+  const r = await fetchAllRows<T>(page as (from: number, to: number) => PromiseLike<PageResult<T>>);
+  return { data: r.rows, error: r.error ? { message: r.error } : null };
+}

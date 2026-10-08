@@ -19,6 +19,7 @@ import { resolveBom, summarise, type DesignCandidate, type ResolveContext } from
 import { computeTierChain, tierPriceFor, type ChainTier } from './tierPricing.ts';
 import { VISIBILITY_COLUMNS } from './itemVisibility.ts';
 import type { BomLine, ResolvedLine } from './systemDesign/types.ts';
+import { selectAll } from './fetchAllRows.ts';
 
 /** Columns the resolver and the pricing path need — nothing about cost. */
 const CANDIDATE_COLUMNS =
@@ -52,8 +53,8 @@ export async function designContext(
 
   const [{ data: comps }, { data: tiers }, { data: overrides }, { data: balances }, { data: settings }] =
     await Promise.all([
-      client.from('3.0_components').select(CANDIDATE_COLUMNS)
-        .in('category', categories as string[]).is('archived_at', null).limit(3000),
+      selectAll((f, t) => client.from('3.0_components').select(CANDIDATE_COLUMNS)
+        .in('category', categories as string[]).is('archived_at', null).order('component_id').range(f, t)),
       client.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, sort_order, is_active')
         .eq('is_active', true).order('sort_order'),
       client.from('21.1_item_tier_prices').select('component_id, tier_id, override_price_idr'),

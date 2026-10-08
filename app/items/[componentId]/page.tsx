@@ -54,6 +54,7 @@ import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLin
 import { successorIdOf } from '@/lib/successors';
 import { fmtWarranty, warrantyLabel } from '@/lib/warranty';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { selectAll } from '@/lib/fetchAllRows';
 import { categoryPeers, type LinkableItem } from '@/lib/itemLinks';
 import { CATEGORY_UNITS } from '@/constants/categoryUnits';
 
@@ -160,8 +161,8 @@ export default function ItemHubPage() {
     const [compRes, balRes, movRes, whs, tierRes, ovRes, sqRes, sqiRes, custRes, delivered] = await Promise.all([
       supabase.from('3.0_components').select(compCols).eq('component_id', componentId).maybeSingle(),
       supabase.from('30.1_stock_balances').select(`location, qty_on_hand, updated_at${canCost ? ', avg_cost_idr' : ''}`).eq('component_id', componentId),
-      supabase.from('30.0_stock_movements').select(`movement_id, direction, quantity, source_type, source_id, location, moved_at, notes, created_by_email${canBuy ? ', unit_cost_idr' : ''}`)
-        .eq('component_id', componentId).order('moved_at', { ascending: false }).limit(2000),
+      selectAll((f, t) => supabase.from('30.0_stock_movements').select(`movement_id, direction, quantity, source_type, source_id, location, moved_at, notes, created_by_email${canBuy ? ', unit_cost_idr' : ''}`)
+        .eq('component_id', componentId).order('moved_at', { ascending: false }).order('movement_id').range(f, t)),
       fetchWarehouses(supabase),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, name, default_discount_pct, margin_floor_pct, sort_order, is_active').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('tier_id, override_price_idr').eq('component_id', componentId),
@@ -190,12 +191,12 @@ export default function ItemHubPage() {
       // /proposals feed the same engines.
       const [poRes, poiRes, costRes, pqRes, pqiRes, supRes, linkRes, compPriceRes] = await Promise.all([
         supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date, estimated_delivery_date'),
-        supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').limit(8000),
+        selectAll((f, t) => supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').order('po_line_item_id').range(f, t)),
         supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date, notes'),
         supabase.from('4.0_price_quotes').select('quote_id, supplier_id, quote_date, pi_number, currency, status'),
         // ALL quote lines, not just this item's: the forensics' linked-item
         // price tags need the comparables' latest quotes too.
-        supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency').limit(8000),
+        selectAll((f, t) => supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency').order('quote_line_id').range(f, t)),
         supabase.from('2.0_suppliers').select('supplier_id, supplier_name'),
         supabase.from('8.0_component_links').select('*').or(`component_id_a.eq.${componentId},component_id_b.eq.${componentId}`),
         // The Pricing tab's market band (same data Market Intel maintains)
@@ -234,7 +235,7 @@ export default function ItemHubPage() {
     if (!peerCategory) return;
     let alive = true;
     const cols = `component_id, internal_description, category, norm_value, archived_at${canSell ? ', selling_price_idr' : ''}${canBrand ? ', supplier_model, brand' : ''}`;
-    supabase.from('3.0_components').select(cols).eq('category', peerCategory).is('archived_at', null).limit(2000)
+    selectAll((f, t) => supabase.from('3.0_components').select(cols).eq('category', peerCategory).is('archived_at', null).order('component_id').range(f, t))
       .then(({ data }) => {
         if (!alive) return;
         setPeers(((data ?? []) as unknown as Partial<Peer>[]).map((c) => ({

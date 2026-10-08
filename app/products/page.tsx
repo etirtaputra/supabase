@@ -17,7 +17,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef, Fragment, Suspense } from 'react';
 import { createPortal } from 'react-dom';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fetchAllComponents } from '@/lib/fetchAllRows';
+import { fetchAllComponents, selectAll } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -360,8 +360,8 @@ function ProductsInner() {
       // po_number in them at all (constants/openViews.ts).
       // (Widened to `string` so supabase-js skips literal-parsing the dynamic select.)
       supabase.from(canSeePo ? '5.0_purchases' : V_PO_SCHEDULE).select(('po_id, quote_id, status, po_date, estimated_delivery_date, supplier_id, actual_received_date' + (canSeePo ? ', po_number' : '')) as string),
-      supabase.from(V_PO_LINE_QTY).select('po_id, component_id, quantity'),
-      supabase.from(V_QUOTE_LINE_LINK).select('quote_id, component_id').limit(8000),
+      selectAll((f, t) => supabase.from(V_PO_LINE_QTY).select('po_id, component_id, quantity').order('po_id').order('component_id').order('quantity').range(f, t)),
+      selectAll((f, t) => supabase.from(V_QUOTE_LINE_LINK).select('quote_id, component_id').order('quote_id').order('component_id').range(f, t)),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type').eq('link_type', 'successor'),
       // Goods-receipt dates only (no costs — the /products network-tab rule) —

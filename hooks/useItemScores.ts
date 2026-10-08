@@ -17,7 +17,7 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchAllComponents } from '@/lib/fetchAllRows';
+import { fetchAllComponents, selectAll } from '@/lib/fetchAllRows';
 import { V_PO_SCHEDULE, V_PO_LINE_QTY } from '@/constants/openViews';
 import { computeItemScores, type ItemScoreInput, type ItemScoreResult } from '@/lib/itemScore';
 import { useSettings } from './useSettings';
@@ -71,7 +71,7 @@ export function useItemScores(supabase: SupabaseClient, enabled: boolean): { sco
     const [comps, balRes, movRes, doRes, doiRes, soiRes, poRes, poiRes, linkRes] = await Promise.all([
       fetchAllComps(),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
-      supabase.from('30.0_stock_movements').select('component_id, direction, quantity, unit_cost_idr, source_type, source_id').limit(20000),
+      selectAll((f, t) => supabase.from('30.0_stock_movements').select('component_id, direction, quantity, unit_cost_idr, source_type, source_id').order('movement_id').range(f, t)),
       supabase.from('24.0_delivery_orders').select('do_id, quote_id, status, delivered_at'),
       supabase.from('24.1_delivery_order_items').select('do_id, so_item_id, component_id, qty'),
       supabase.from('22.1_sales_quote_items').select('item_id, unit_price'),

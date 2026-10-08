@@ -20,7 +20,7 @@
 'use client';
 import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fetchAllComponents } from '@/lib/fetchAllRows';
+import { fetchAllComponents, selectAll } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -134,7 +134,7 @@ export default function PricingPage() {
       fetchMarginProfiles(supabase),
       // Archived items are excluded here too, or the tally counts rows the
       // list below will not show and "how many are unclassified" stops adding up.
-      supabase.from('3.0_components').select('margin_profile_id').is('archived_at', null).limit(20000),
+      selectAll((f, t) => supabase.from('3.0_components').select('margin_profile_id').is('archived_at', null).order('component_id').range(f, t)),
     ]);
     const counts = new Map<string, number>();
     for (const r of ((tally.data ?? []) as { margin_profile_id: string | null }[])) {

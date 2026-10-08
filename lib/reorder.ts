@@ -31,6 +31,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { V_PO_SCHEDULE, V_PO_LINE_QTY } from '../constants/openViews.ts';
 import { COMMITTED_STATUSES } from './salesStatus';
 import { fetchDeliveredByQuoteComp } from './reservedStock';
+import { selectAll } from './fetchAllRows';
 
 /** PO statuses that mean "ordered, on the way, not yet fully arrived" —
  *  the same set Products and the item hub use for their Incoming figures. */
@@ -133,15 +134,15 @@ export async function fetchReorderAlerts(supabase: SupabaseClient): Promise<Reor
   const since = new Date(Date.now() - DEMAND_WINDOW_DAYS * 86_400_000).toISOString();
   const [balRes, movRes, poRes, poiRes, sqRes, sqiRes, delivered] = await Promise.all([
     supabase.from('30.1_stock_balances').select('component_id, qty_on_hand'),
-    supabase.from('30.0_stock_movements')
+    selectAll((f, t) => supabase.from('30.0_stock_movements')
       .select('component_id, quantity, source_type')
       .eq('direction', 'out').neq('source_type', 'transfer').gte('moved_at', since)
-      .limit(20000),
+      .order('movement_id').range(f, t)),
     // Reorder alerts run for warehouse and sell-side eyes too, and need only
     // WHAT is coming and WHEN — never what it cost. Read the open views so
     // the buy-side tables can stay shut (constants/openViews.ts).
     supabase.from(V_PO_SCHEDULE).select('po_id, status, po_date, actual_received_date'),
-    supabase.from(V_PO_LINE_QTY).select('po_id, component_id, quantity').limit(8000),
+    selectAll((f, t) => supabase.from(V_PO_LINE_QTY).select('po_id, component_id, quantity').order('po_id').order('component_id').order('quantity').range(f, t)),
     supabase.from('22.0_sales_quotes').select('quote_id, status'),
     supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),
     fetchDeliveredByQuoteComp(supabase),

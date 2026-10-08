@@ -1974,6 +1974,7 @@ export const ID: Record<string, string> = {
   '{n} in this category': '{n} di kategori ini',
   '{n} more new items to link after this one': 'Masih {n} barang baru lagi untuk ditautkan setelah ini',
   '{n} selected': '{n} dipilih',
+  '+{n} more catalogue items match — keep typing to narrow': '+{n} barang katalog lain cocok — ketik lagi untuk mempersempit',
 };
 
 const DICTS: Record<Lang, Record<string, string>> = { en: {}, id: ID };

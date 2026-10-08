@@ -33,6 +33,7 @@ import {
 } from '@/lib/specSchema';
 import { suggestSpecs, suggestionValue, type Suggestions } from '@/lib/systemDesign/specSuggest';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { selectAll } from '@/lib/fetchAllRows';
 
 interface Row {
   component_id: string;
@@ -84,9 +85,9 @@ export default function SpecReadinessPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('3.0_components')
+    const { data } = await selectAll((f, t) => supabase.from('3.0_components')
       .select('component_id, supplier_model, internal_description, brand, category, specifications')
-      .in('category', CALC_CATEGORIES).limit(3000);
+      .in('category', CALC_CATEGORIES).order('component_id').range(f, t));
     setRows(((data as Row[]) ?? []).sort((a, b) => (a.supplier_model ?? '').localeCompare(b.supplier_model ?? '')));
     setLoading(false);
   }, [supabase]);

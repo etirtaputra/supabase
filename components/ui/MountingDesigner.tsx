@@ -30,6 +30,7 @@ import { resolveBom, summarise, type DesignCandidate } from '@/lib/systemDesign/
 import { isOfferable, VISIBILITY_COLUMNS } from '@/lib/itemVisibility';
 import { mountingSystems, shortlist, RAIL_PROFILE_LABEL, type RailProfile } from '@/lib/systemDesign/mountingSystem';
 import { designRoleOf, type SystemDesign } from '@/lib/systemDesign/types';
+import { selectAll } from '@/lib/fetchAllRows';
 
 const SYSTEM_KEY = 'icaproc.mountingDesigner.system';
 
@@ -119,9 +120,9 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
   // read dimensions off. Fetched when the designer opens, not on every quote.
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase.from('3.0_components')
+    const { data } = await selectAll((f, t) => supabase.from('3.0_components')
       .select(`component_id, supplier_model, internal_description, category, unit, specifications, ${VISIBILITY_COLUMNS}`)
-      .in('category', ['mounting', 'pv_module']).is('archived_at', null).limit(2000);
+      .in('category', ['mounting', 'pv_module']).is('archived_at', null).order('component_id').range(f, t));
     const rows = (data as DesignCandidate[]) ?? [];
     // Structure only: every role this engine emits (rail, joint, clamps,
     // supports, grounding) is catalogued under `mounting`. Cable and MC4 are

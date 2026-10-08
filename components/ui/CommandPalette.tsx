@@ -3,7 +3,11 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { noteNavSource } from '@/lib/usageTracker';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fetchAllComponents } from '@/lib/fetchAllRows';
+import { fetchAllComponents, selectAll } from '@/lib/fetchAllRows';
+
+/** A row read in pages for the search index — fields are read by name below. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SearchRow = Record<string, any>;
 import { useAuth } from '@/hooks/useAuth';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
 import { destinationsFor } from '@/constants/navigation';
@@ -296,21 +300,21 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       canBuy ? supabase.from('2.0_suppliers').select('supplier_id, supplier_name, supplier_code') : none,
       canBuy ? supabase.from('1.0_companies').select('company_id, legal_name') : none,
       canSell ? supabase.from('20.0_customers').select('customer_id, customer_code, display_name, legal_name, tier, is_active').order('display_name') : none,
-      canBuy ? supabase.from('4.0_price_quotes').select('quote_id, pi_number, quote_date, supplier_id, company_id, status').order('quote_date', { ascending: false }).limit(1500) : none,
-      canBuy ? supabase.from('5.0_purchases').select('po_id, po_number, po_date, quote_id, company_id, status').order('po_date', { ascending: false }).limit(1500) : none,
-      canBuy ? supabase.from('4.1_price_quote_line_items').select('quote_id, component_id, quantity, unit_price, currency, supplier_description').limit(8000) : none,
-      canBuy ? supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity, unit_cost, currency, supplier_description').limit(8000) : none,
-      canProjects ? supabase.from('10.2_quote_items').select('quote_id, description').limit(8000) : none,
+      canBuy ? selectAll<SearchRow>((f, t) => supabase.from('4.0_price_quotes').select('quote_id, pi_number, quote_date, supplier_id, company_id, status').order('quote_date', { ascending: false }).order('quote_id').range(f, t)) : none,
+      canBuy ? selectAll<SearchRow>((f, t) => supabase.from('5.0_purchases').select('po_id, po_number, po_date, quote_id, company_id, status').order('po_date', { ascending: false }).order('po_id').range(f, t)) : none,
+      canBuy ? selectAll<SearchRow>((f, t) => supabase.from('4.1_price_quote_line_items').select('quote_id, component_id, quantity, unit_price, currency, supplier_description').order('quote_line_id').range(f, t)) : none,
+      canBuy ? selectAll<SearchRow>((f, t) => supabase.from('5.1_purchase_line_items').select('po_id, component_id, quantity, unit_cost, currency, supplier_description').order('po_line_item_id').range(f, t)) : none,
+      canProjects ? selectAll<SearchRow>((f, t) => supabase.from('10.2_quote_items').select('quote_id, description').order('item_id').range(f, t)) : none,
       canSell ? supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, quote_date, updated_at, revision').order('updated_at', { ascending: false }).limit(1000) : none,
-      canSell ? supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section').limit(8000) : none,
+      canSell ? selectAll<SearchRow>((f, t) => supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section').order('item_id').range(f, t)) : none,
       canSell ? supabase.from('26.0_customer_receipts').select('receipt_id, receipt_number, quote_id, amount, payment_date').order('payment_date', { ascending: false }).limit(500) : none,
-      canSell ? supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number').limit(2000) : none,
-      canSell ? supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number').limit(2000) : none,
+      canSell ? selectAll<SearchRow>((f, t) => supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number').order('invoice_id').range(f, t)) : none,
+      canSell ? selectAll<SearchRow>((f, t) => supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number').order('do_id').range(f, t)) : none,
       canBuy ? supabase.from('30.2_goods_receipts').select('grn_id, grn_number, po_id, received_at, location, notes').order('received_at', { ascending: false }).limit(500) : none,
       canSell ? supabase.from('27.0_aftersales_cases').select('case_id, case_number, customer_id, quote_id, category, status, subject, reported_at').order('reported_at', { ascending: false }).limit(1000) : none,
       // The unit register — a serial read off a label is the fastest route to
       // everything about that unit, so it belongs in the one search box.
-      (canSell || canBuy) ? supabase.from('30.4_serial_numbers').select('serial_id, serial, serial_norm, component_id, product_text, customer_id, quote_id, status, is_external, created_at').order('created_at', { ascending: false }).limit(4000) : none,
+      (canSell || canBuy) ? selectAll<SearchRow>((f, t) => supabase.from('30.4_serial_numbers').select('serial_id, serial, serial_norm, component_id, product_text, customer_id, quote_id, status, is_external, created_at').order('created_at', { ascending: false }).order('serial_id').range(f, t)) : none,
       // Contact people: searching a person's name or position finds their company
       canSell ? supabase.from('20.1_customer_contacts').select('customer_id, name, title') : none,
     ]);

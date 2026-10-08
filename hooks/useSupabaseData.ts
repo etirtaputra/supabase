@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fetchAllComponents } from '@/lib/fetchAllRows';
+import { fetchAllComponents, fetchAllRows, type PageResult } from '@/lib/fetchAllRows';
 import { TABLE_NAMES } from '../constants/tableNames';
 import type { DatabaseData } from '../types/database';
 
@@ -56,12 +56,24 @@ export function useSupabaseData() {
         components: allComponents,
       }));
 
+      // Every transactional list is read in PAGES (lib/fetchAllRows): the API
+      // returns at most 1,000 rows per request and says nothing when it cuts.
+      // `4.1` crossed that line silently (1,015 rows, 2026-10-08) and the
+      // newest supplier quotes — 12 Deye inverters among them — vanished from
+      // every cost read. Each order ends on the primary key so pages are
+      // stable: a page boundary must not land between equal sort values.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const all = <T = any>(build: (from: number, to: number) => PromiseLike<PageResult<T>>) =>
+        fetchAllRows<T>(build).then((r) => (r.error ? null : r.rows));
+
       // Fetch transactional data (independent, non-blocking)
-      supabase
+      all((f, t) => supabase
         .from(TABLE_NAMES.PRICE_QUOTES)
         .select('*')
         .order('quote_date', { ascending: false })
-        .then(({ data: quotes }) => {
+        .order('quote_id', { ascending: true })
+        .range(f, t))
+        .then((quotes) => {
           if (quotes) setData((prev) => ({ ...prev, quotes }));
         });
 
@@ -70,13 +82,14 @@ export function useSupabaseData() {
       // never ordered and sorts last; `updated_at` then `quote_line_id` make
       // the rest deterministic — without them Postgres returns physical order,
       // which reshuffles silently whenever a row is written.
-      supabase
+      all((f, t) => supabase
         .from(TABLE_NAMES.PRICE_QUOTE_LINE_ITEMS)
         .select('*')
         .order('sort_order', { ascending: true, nullsFirst: false })
         .order('updated_at', { ascending: true })
         .order('quote_line_id', { ascending: true })
-        .then(({ data: quoteItems }) => {
+        .range(f, t))
+        .then((quoteItems) => {
           if (quoteItems) setData((prev) => ({ ...prev, quoteItems }));
         });
 
@@ -88,29 +101,34 @@ export function useSupabaseData() {
           if (pis) setData((prev) => ({ ...prev, pis }));
         });
 
-      supabase
+      all((f, t) => supabase
         .from(TABLE_NAMES.PURCHASES)
         .select('*')
         .order('po_date', { ascending: false })
-        .then(({ data: pos }) => {
+        .order('po_id', { ascending: true })
+        .range(f, t))
+        .then((pos) => {
           if (pos) setData((prev) => ({ ...prev, pos }));
         });
 
-      supabase
+      all((f, t) => supabase
         .from(TABLE_NAMES.PURCHASE_LINE_ITEMS)
         .select('*')
         .order('sort_order', { ascending: true, nullsFirst: false })
         .order('updated_at', { ascending: true })
         .order('po_line_item_id', { ascending: true })
-        .then(({ data: poItems }) => {
+        .range(f, t))
+        .then((poItems) => {
           if (poItems) setData((prev) => ({ ...prev, poItems }));
         });
 
-      supabase
+      all((f, t) => supabase
         .from(TABLE_NAMES.PO_COSTS)
         .select('*')
         .order('payment_date', { ascending: false, nullsFirst: false })
-        .then(({ data: poCosts }) => {
+        .order('cost_id', { ascending: true })
+        .range(f, t))
+        .then((poCosts) => {
           if (poCosts) setData((prev) => ({ ...prev, poCosts }));
         });
 
@@ -122,11 +140,13 @@ export function useSupabaseData() {
           if (poHistory) setData((prev) => ({ ...prev, poHistory }));
         });
 
-      supabase
+      all((f, t) => supabase
         .from(TABLE_NAMES.QUOTE_HISTORY)
         .select('*')
         .order('quote_date', { ascending: false })
-        .then(({ data: quoteHistory }) => {
+        .order('history_id', { ascending: true })
+        .range(f, t))
+        .then((quoteHistory) => {
           if (quoteHistory) setData((prev) => ({ ...prev, quoteHistory }));
         });
 
@@ -138,19 +158,21 @@ export function useSupabaseData() {
           if (competitorPrices) setData((prev) => ({ ...prev, competitorPrices }));
         });
 
-      supabase
+      all((f, t) => supabase
         .from(TABLE_NAMES.COMPONENT_HISTORY)
         .select('*')
         .order('changed_at', { ascending: false })
-        .limit(2000)
-        .then(({ data: componentHistory }) => {
+        .range(f, t))
+        .then((componentHistory) => {
           if (componentHistory) setData((prev) => ({ ...prev, componentHistory }));
         });
 
-      supabase
+      all((f, t) => supabase
         .from(TABLE_NAMES.COMPONENT_LINKS)
         .select('*')
-        .then(({ data: componentLinks }) => {
+        .order('link_id', { ascending: true })
+        .range(f, t))
+        .then((componentLinks) => {
           if (componentLinks) setData((prev) => ({ ...prev, componentLinks }));
         });
 

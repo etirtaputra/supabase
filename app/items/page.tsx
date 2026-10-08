@@ -11,7 +11,7 @@
  */
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fetchAllComponents } from '@/lib/fetchAllRows';
+import { fetchAllComponents, selectAll } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useT } from '@/hooks/useT';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -160,9 +160,9 @@ function ItemsInner() {
       // avg cost only for buy-side roles — never let landed cost reach a
       // sell-side browser's network tab (the /products leak, not repeated)
       supabase.from('30.1_stock_balances').select(`component_id, location, qty_on_hand${canBuy ? ', avg_cost_idr' : ''}`),
-      supabase.from('30.0_stock_movements').select('component_id, moved_at').order('moved_at', { ascending: false }).limit(2000),
-      supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency').limit(8000),
-      supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').limit(8000),
+      selectAll((f, t) => supabase.from('30.0_stock_movements').select('component_id, moved_at').order('moved_at', { ascending: false }).order('movement_id').range(f, t)),
+      selectAll((f, t) => supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency').order('quote_line_id').range(f, t)),
+      selectAll((f, t) => supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').order('po_line_item_id').range(f, t)),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id'),
       supabase.from('4.0_price_quotes').select('quote_id, supplier_id, quote_date, pi_number, currency, status'),
       supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date'),

@@ -13,7 +13,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fetchAllComponents } from '@/lib/fetchAllRows';
+import { fetchAllComponents, selectAll } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
 import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
@@ -116,7 +116,7 @@ export default function StockPage() {
     const [allComps, balRes, movRes, whs, sqRes, sqiRes, custRes, deliveredMap] = await Promise.all([
       fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, brand, category, unit'),
       supabase.from('30.1_stock_balances').select('component_id, location, qty_on_hand, avg_cost_idr, updated_at'),
-      supabase.from('30.0_stock_movements').select('component_id, direction, source_type, moved_at').order('moved_at', { ascending: false }).limit(2000),
+      selectAll((f, t) => supabase.from('30.0_stock_movements').select('component_id, direction, source_type, moved_at').order('moved_at', { ascending: false }).order('movement_id').range(f, t)),
       fetchWarehouses(supabase),
       supabase.from('22.0_sales_quotes').select('quote_id, status, order_number, quote_number, ordered_at, updated_at, customer_id'),
       supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section'),

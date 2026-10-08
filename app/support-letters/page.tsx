@@ -40,6 +40,7 @@ import {
   DEFAULT_CLOSING_NOTE, brandsOf, warrantyTextID, previewLetterNumber,
   type SupportLetter, type SupportLetterItem, type LetterStatus,
 } from '@/lib/supportLetters';
+import { selectAll } from '@/lib/fetchAllRows';
 
 interface Customer {
   customer_id: string; display_name: string; legal_name: string;
@@ -132,7 +133,7 @@ export default function SupportLettersPage() {
       supabase.from('28.1_support_letter_items').select('*').order('sort_order'),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name, billing_address, account_manager_id').order('display_name'),
       supabase.from('20.1_customer_contacts').select('customer_id, name, title, is_primary'),
-      supabase.from('3.0_components').select(`component_id, supplier_model, internal_description, brand, category, warranty, warranty_value, warranty_unit, ${VISIBILITY_COLUMNS}`).order('internal_description').limit(5000),
+      selectAll((f, t) => supabase.from('3.0_components').select(`component_id, supplier_model, internal_description, brand, category, warranty, warranty_value, warranty_unit, ${VISIBILITY_COLUMNS}`).order('internal_description').order('component_id').range(f, t)),
       supabase.from('user_profiles').select('id, email, display_name').in('role', ['owner', 'sales', 'sell_admin']),
       supabase.from('1.0_companies').select('company_id, legal_name'),
     ]);

@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-08T09:34:05Z",
+    title: "Pencarian barang di EPC Proposal lebih pintar, dan harga penawaran supplier terbaru tidak lagi hilang",
+    details: [
+      "Saran barang di baris EPC Proposal kini mencocokkan setiap kata dalam urutan apa pun — “deye 100k” langsung menemukan DEYE SUN-100K-G03. Barang yang paling mirip dan yang paling baru ditawar supplier tampil paling atas.",
+      "Daftar saran kini menampilkan hingga 12 barang (sebelumnya 6, menurut abjad) dan memberi tahu berapa barang lain yang juga cocok, supaya tidak ada yang tersembunyi diam-diam.",
+      "Perbaikan penting: server hanya mengirim 1.000 baris per permintaan. Sejak baris penawaran supplier melewati 1.000, 15 baris terbaru tidak terbaca — termasuk 12 inverter hybrid Deye (11 Sep) — sehingga harganya tidak muncul di Proposal, Deal Lookup, Editor Barang, dan pencarian. Sekarang semua dibaca bertahap sampai habis.",
+      "Hal yang sama diperbaiki di pemilih barang Penawaran Penjualan baru, Surat Dukungan, Nomor Seri, Biaya Landed, Harga Jual, Produk, dan pencarian Ctrl+K — sekitar 50 barang katalog sebelumnya tidak muncul di sana.",
+    ],
+  },
+  {
     at: "2026-10-05T23:28:03Z",
     title: "Simulasi Energi: keterangan tarif PLN diperbarui untuk Oktober",
     details: [

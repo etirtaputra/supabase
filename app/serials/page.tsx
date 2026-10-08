@@ -33,6 +33,7 @@ import {
   fetchSerials, parseSerialBatch, findExisting, traceSerial, normSerial, SERIAL_STATUS,
   type SerialRow, type SerialSalesDoc, type SerialDo, type SerialInvoice,
 } from '@/lib/serials';
+import { selectAll } from '@/lib/fetchAllRows';
 
 interface Comp { component_id: string; internal_description: string | null; supplier_model: string | null; unit: string | null }
 interface Cust { customer_id: string; display_name: string; legal_name: string }
@@ -105,7 +106,7 @@ function SerialsPage() {
     try {
       const [regs, compRes, custRes, orderRes, doRes, invRes] = await Promise.all([
         fetchSerials(supabase),
-        supabase.from('3.0_components').select('component_id, internal_description, supplier_model, unit').limit(5000),
+        selectAll((f, t) => supabase.from('3.0_components').select('component_id, internal_description, supplier_model, unit').order('component_id').range(f, t)),
         supabase.from('20.0_customers').select('customer_id, display_name, legal_name').order('display_name'),
         supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, ordered_at, delivered_at').order('quote_date', { ascending: false }),
         supabase.from('24.0_delivery_orders').select('do_id, do_number, quote_id, delivery_date, delivered_at, status').order('delivery_date', { ascending: false }),
