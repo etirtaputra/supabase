@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-07** · last change: *MAX's third test passed — Dolibarr read and a dry-run stock-out, nothing posted (§8.7)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-08** · last change: *Agents track: one writing style for all agents — ASD-STE100-style English, plain Indonesian; MAX v6 (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -3730,7 +3730,7 @@ Every agent is Hermes (Hostinger's agent platform, image
 | Model (as reported 2026-09-29) | `claude-sonnet-5` (provider `anthropic`); delegation `claude-haiku-4-5`; no `reasoning_effort` | `anthropic/claude-opus-4.6` (line 6); `reasoning_effort: medium` (line 76) | recommended `claude-sonnet-5` (same as MIRA; no 5.5 until forced tool use is answered) |
 | ICAPROC login | `mira@icasolar.com` · role `owner` | `project@ptmbs.co` · role `engineer` | `max@icasolar.com` · role `sell_admin` (created 2026-10-06) |
 | Telegram | DM with the owner only | `@mbs_projectadmin_bot` — **open to every Telegram user** (no allowlist yet) | bot created by the owner 2026-10-05; **allowlisted** to the sales team from day one |
-| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v5_2026-10-07.md` — in **`/opt/data/SOUL.md`** (dashboard → FILES); the owner's chat is marked by a `channel_overrides` note in `config.yaml` |
+| Boot prompt | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` — in her Drive skill file, not yet in `HERMES_SYSTEM_PROMPT` | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` — not yet deployed; **keep `/opt/data/MANDASOLARDESIGN.md` until v3 is in** | `MAX-BOOT-PROMPT_v6_2026-10-08.md` — in **`/opt/data/SOUL.md`** (dashboard → FILES); the owner's chat is marked by a `channel_overrides` note in `config.yaml` |
 
 - The two config styles differ (`provider: anthropic` + bare model vs. a
   `anthropic/…` slug). Change a model in the style that agent already uses.
@@ -3968,7 +3968,14 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    **Key:** stays `sk-ant-usr-` (owner's Console now issues linked keys; the
    unlinked one is labelled legacy) — so Hermes keeps adding the "Claude
    Code" line; harmless in practice, SOUL.md wins. Spend: Max's setup and tests
-   $1.72; MIRA+MANDA's shared key ≈ $3/day (49.84 → 52.91, 2026-10-06 → 07). Snapshot 389803 has expired:
+   $1.72; MIRA+MANDA's shared key ≈ $3/day (49.84 → 52.91, 2026-10-06 → 07).
+   **Writing style (owner's rule, 2026-10-08):** every agent replies in
+   ASD-STE100-style English and plain standard Indonesian (KBBI, EYD Edisi V),
+   in the asker's language. One block, `docs/agents/WRITING-STYLE_v1_2026-10-08.md`,
+   appended to each agent's SOUL.md — MAX via boot prompt v6; MIRA then MANDA
+   by a Telegram message asking each to append it (rollback: remove the
+   `## How you write` section; SOUL.md is read every message). A model follows
+   STE's writing rules, not its dictionary: STE-style, not certified STE. Snapshot 389803 has expired:
    take a fresh one before the Drive file is copied into his data folder.
 10. Only then: MIRA boot prompt v2 (sell side → Max), pack-shipping rule.
 

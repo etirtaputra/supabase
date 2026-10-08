@@ -65,8 +65,15 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'max-boot',
     title: 'MAX boot prompt',
-    file: 'MAX-BOOT-PROMPT_v5_2026-10-07.md',
+    file: 'MAX-BOOT-PROMPT_v6_2026-10-08.md',
     audience: "MAX's own configuration",
+    first: false,
+  },
+  {
+    id: 'writing-style',
+    title: 'How every agent writes (ASD-STE100 English, plain Indonesian)',
+    file: 'WRITING-STYLE_v1_2026-10-08.md',
+    audience: "every agent's SOUL.md — the same block for MIRA, MANDA and MAX",
     first: false,
   },
   {
