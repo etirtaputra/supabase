@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-08** · last change: *the 1,000-row cap — every over-cap read now pages; EPC autocomplete matches words in any order* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-09** · last change: *Deal context — quote source (channel, time, contact) and a reason per quote/PO line; 52 chat-note quotes converted* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 889 tests at handoff (2026-10-08), all pass
+npm test             # node --test "lib/**/*.test.ts" — 897 tests at handoff (2026-10-09), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,52 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-08 (latest) — the 1,000-row cap, again; EPC autocomplete
+### 2026-10-09 (latest) — deal context: where a quote came from, why each line
+
+Owner: "add context to why we ask for quotes, or order things … Source:
+WhatsApp, WeChat, Email; then with Dates and Times … each line item also have
+added context why we asked for the quotes or issued a PO" → "go ahead".
+
+- **Measured.** 163 supplier quotes; the "PI number" box held a real document
+  number on ~110 and a hand-typed chat/email note on **52** (I first said 31 —
+  Postgres reads `\b` as backspace, not a word boundary, so "WA …" was missed;
+  use `\y`). Formats: "WA"/"WhatsApp", four date styles, "x to y", "y's WeChat".
+- **Schema** (`migrations/deal_context.sql`, applied): 4.0 and 5.0 gain
+  `source_channel` (checked list), `source_at` timestamptz, `source_contact`,
+  `received_by`. 4.1 and 5.1 gain `reason` (checked list — 5.1 refuses
+  `price_check`), `reason_note`, and FK links `reason_project_quote_id` (10.0),
+  `reason_sales_quote_id` (22.0), `reason_replaces_component_id` (3.0), all ON
+  DELETE SET NULL. No triggers touched; write tested as the owner (rolled back).
+- **Rules** `lib/dealContext.ts` (tested, 8): channels, reasons (`needs` names
+  the record a reason points at), Jakarta-time formatting (fixed +7),
+  `sourceLabel` ("WhatsApp · Joe · 2026-10-09 09:15"), `lineContextFields`
+  (keeps only the link the reason points at; PO drops price_check),
+  `sourceFieldsFromForm`, `reasonParts`, and `parseLegacySource` (the backfill
+  parser — a date inside an email subject is the PI's date, so the quote date
+  is used for it).
+- **New Deal** (`NewDealForm`, purchasing page): header Source · Date & time
+  received (defaults now; `datetime` field type added to FieldRenderer) ·
+  Supplier contact (suggests past names) · Our contact (defaults to you);
+  "Document No." empty → the reference is written from the source. Each line:
+  Why + project / sales order / old item picker + note; "Why — all lines";
+  replacement lines can record the successor link (8.0) on save. Stored quote
+  → PO carries header source and line reasons.
+- **Shown** in Deal Lookup (quote card SourceLine with in-place "Edit source";
+  ReasonChip on quote and PO lines), the Item Editor's Costs list and price
+  tooltip, and the Item Hub Purchases table (`components/ui/DealContext.tsx`).
+  Types: PriceQuote/PurchaseOrder extend SourceFields, line types LineContext.
+- **Data:** the 52 notes converted (36 WhatsApp, 10 WeChat, 6 Email);
+  `pi_number` untouched. Old lines have no reason — none was recorded.
+- Verified on the production build (rig `ctx.mjs`): the saved 4.0 row carries
+  the four fields and the generated reference; 4.1 rows carry reason + link;
+  the successor link posts once; Deal Lookup shows "WhatsApp → Wendy ·
+  2026-10-07 16:55" and "Untuk proyek · PT Hon Chuan Indonesia — KIIC Plant —
+  phase 2".
+- **Not done:** the Revise-PO "amend in place" path leaves the PO's source as
+  it was; agents (MIRA/MAX) do not fill these fields yet — when they enter
+  quotes, they should.
+
+### 2026-10-08 — the 1,000-row cap, again; EPC autocomplete
 
 Owner: "why are the last 3 Deye Inverter quote only input not showing in EPC
 Proposal autocomplete?" → "go ahead".

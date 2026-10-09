@@ -28,6 +28,7 @@ import { Spinner } from '../ui/LoadingSkeleton';
 import { fmtInt } from '@/lib/formatters';
 import { evalCell } from '@/lib/formula';
 import { useT } from '@/hooks/useT';
+import { reasonsFor, reasonDef } from '@/lib/dealContext';
 import type { FieldConfig } from '../../types/forms';
 
 export interface DealLine {
@@ -37,13 +38,25 @@ export interface DealLine {
   quantity: string;
   unit_price: string;
   currency: string;
+  /** Why it is asked for / ordered (lib/dealContext.ts LINE_REASONS) and what for. */
+  reason?: string;
+  reason_note?: string;
+  reason_project_quote_id?: string;
+  reason_sales_quote_id?: string;
+  reason_replaces_component_id?: string;
+  /** Replacement lines: also record the new item as the old one's successor. */
+  make_successor?: boolean;
 }
 
 let lineSeq = 0;
 export const blankDealLine = (currency = ''): DealLine => ({
   key: `dl-${Date.now()}-${lineSeq++}`,
   component_id: null, supplier_description: '', quantity: '', unit_price: '', currency,
+  reason: '', reason_note: '', reason_project_quote_id: '', reason_sales_quote_id: '', reason_replaces_component_id: '', make_successor: true,
 });
+
+/** What a line's reason can point at — offered by the picker next to "Why". */
+export interface ReasonTarget { id: string; label: string; sub?: string }
 
 const DRAFT_KEY = 'form-draft:new-deal';
 const LEGACY_HEADER_KEY = 'form-draft:Step 1: Quote Header';
@@ -77,13 +90,19 @@ interface Props {
   /** Return false to keep the draft (a failed insert must not eat the typing). */
   onSubmit: (header: Record<string, any>, items: DealLine[]) => Promise<boolean | void> | boolean | void;
   loading: boolean;
+  /** EPC proposals and sales orders a line can be "for" (empty = role cannot read them). */
+  projects?: ReasonTarget[];
+  salesOrders?: ReasonTarget[];
 }
 
 export default function NewDealForm({
   title, withPo, headerFields, onFieldChange, components, currencies,
   itemsLocked = false, seedLines = null, sourceKey = null, headerAction, onSubmit, loading,
+  projects = [], salesOrders = [],
 }: Props) {
   const { t } = useT();
+  // Quote + PO: the lines are ORDERED, so "price check only" is not offered.
+  const reasonOpts = reasonsFor(withPo ? 'po' : 'quote');
   const formId = useId();
 
   const buildDefaults = (flds: FieldConfig[]) => {
@@ -371,7 +390,18 @@ export default function NewDealForm({
           {/* The Items section announces itself on every screen size — the
               same "Items" title desktop and mobile; phones additionally give
               each card an "Item N" header since they have no column row. */}
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1 pt-2 border-t border-slate-800/80">Items</p>
+          <div className="flex flex-wrap items-center gap-2 px-1 pt-2 border-t border-slate-800/80">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Items</p>
+            {/* One reason for the whole deal is the common case — set it once. */}
+            <label className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-500">
+              {t('Why — all lines')}
+              <select value="" onChange={(e) => { const v = e.target.value; if (v) setLines((ls) => { const next = ls.map((l) => ({ ...l, reason: v })); persist(header, next); return next; }); }}
+                className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500/60">
+                <option value="">{t('Set…')}</option>
+                {reasonOpts.map((r) => <option key={r.value} value={r.value}>{t(r.label)}</option>)}
+              </select>
+            </label>
+          </div>
           <div className="hidden md:grid grid-cols-[18px_minmax(0,2.2fr)_minmax(0,1.6fr)_70px_110px_84px_100px_24px] gap-2 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
             <span /><span>Component</span><span>Supplier description</span>
             <span className="text-right">Qty</span><span className="text-right">Unit price</span>
@@ -442,6 +472,48 @@ export default function NewDealForm({
                 <button type="button" onClick={() => removeLine(l.key)} tabIndex={-1}
                   className="hidden md:block col-span-1 text-slate-600 hover:text-red-400 transition-colors text-base leading-none justify-self-end"
                   title="Remove line">×</button>
+                {/* Why this line — the context a later negotiation needs. Shown
+                    once the line has content, so the blank last row stays quiet. */}
+                {movable && (() => {
+                  const def = reasonDef(l.reason);
+                  const target = def?.needs === 'project' ? { list: projects, key: 'reason_project_quote_id' as const, ph: t('Which project?') }
+                    : def?.needs === 'sales_order' ? { list: salesOrders, key: 'reason_sales_quote_id' as const, ph: t('Which sales order?') }
+                    : null;
+                  return (
+                    <div className="col-span-6 md:col-[2/-1] flex flex-wrap items-center gap-1.5 md:pb-1.5">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-600">{t('Why')}</span>
+                      <select value={l.reason ?? ''} onChange={(e) => setLine(l.key, { reason: e.target.value })}
+                        className={`${lineInpBase} !w-auto ${l.reason ? 'text-slate-200' : 'text-slate-600'}`}>
+                        <option value="">{t('— reason —')}</option>
+                        {reasonOpts.map((r) => <option key={r.value} value={r.value}>{t(r.label)}</option>)}
+                      </select>
+                      {target && (
+                        <select value={(l[target.key] as string) ?? ''} onChange={(e) => setLine(l.key, { [target.key]: e.target.value })}
+                          className={`${lineInpBase} !w-auto max-w-[280px] ${l[target.key] ? 'text-slate-200' : 'text-slate-600'}`}>
+                          <option value="">{target.list.length ? target.ph : t('None you can open')}</option>
+                          {target.list.map((o) => <option key={o.id} value={o.id}>{o.label}{o.sub ? ` · ${o.sub}` : ''}</option>)}
+                        </select>
+                      )}
+                      {def?.needs === 'component' && (
+                        <div className="w-[260px] max-w-full">
+                          <RichDropdown options={components.filter((c: { component_id?: string }) => c.component_id !== l.component_id)} value={l.reason_replaces_component_id || null}
+                            config={{ labelKey: 'supplier_model', valueKey: 'component_id', subLabelKey: 'internal_description' }}
+                            placeholder={t('Old model it replaces…')}
+                            onChange={(v: unknown) => setLine(l.key, { reason_replaces_component_id: v ? String(v) : '' })} />
+                        </div>
+                      )}
+                      {def?.needs === 'component' && l.reason_replaces_component_id && l.component_id && (
+                        <label className="flex items-center gap-1 text-[11px] text-slate-400" title={t('Records the new item as the successor of the old one, so Products and the Item Editor show it as replaced')}>
+                          <input type="checkbox" checked={l.make_successor !== false} onChange={(e) => setLine(l.key, { make_successor: e.target.checked })} className="accent-emerald-600" />
+                          {t('Mark as successor')}
+                        </label>
+                      )}
+                      <input value={l.reason_note ?? ''} onChange={(e) => setLine(l.key, { reason_note: e.target.value })}
+                        placeholder={t('Note (optional) — e.g. customer needs it before Lebaran')}
+                        className={`${lineInp} flex-1 min-w-[180px]`} />
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

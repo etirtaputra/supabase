@@ -4,7 +4,7 @@
  */
 'use client';
 
-import React, { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { Fragment, useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Spinner } from './LoadingSkeleton';
 import SpecRenderer from './SpecRenderer';
@@ -32,6 +32,8 @@ import { categoryLabelOf, categoryPath } from '../../constants/productTaxonomy';
 import { CategoryOptionGroups } from './CategoryOptions';
 import { linkCandidates, buildLinkRows, reasonRequired, LINK_TYPES, LINK_REASONS, type LinkableItem, type NewLinkType, type NewLinkRow } from '@/lib/itemLinks';
 import { formatCategory } from '@/lib/formatCategory';
+import { SourceLine, ReasonChip } from './DealContext';
+import type { SourceFields, LineContext } from '@/lib/dealContext';
 import { selectAll } from '@/lib/fetchAllRows';
 
 
@@ -454,7 +456,11 @@ function QuoteCombobox({ quotes, value, onChange }: QuoteComboboxProps) {
 }
 
 // --- Usage Tooltip (portal-based to escape table overflow) ---
-interface TooltipQuoteLine { pi_number?: string; quote_date?: string; quantity: number; unit_price: number; currency: string; }
+interface TooltipQuoteLine {
+  pi_number?: string; quote_date?: string; quantity: number; unit_price: number; currency: string;
+  /** Where the quote came from and why this line was asked for (lib/dealContext.ts). */
+  src?: SourceFields; ctx?: LineContext;
+}
 interface TooltipPOLine { po_number: string; po_date?: string; quantity: number; unit_cost: number; currency: string; }
 interface UsageTooltipProps {
   quoteLines: TooltipQuoteLine[]; poLines: TooltipPOLine[]; style: React.CSSProperties;
@@ -491,6 +497,12 @@ function UsageTooltip({ quoteLines, poLines, style, onMouseEnter, onMouseLeave }
                 <span className="text-slate-400">{fmtD(ql.quote_date)}</span>
                 <span className="text-right text-slate-300">{ql.quantity}</span>
                 <span className="text-right text-emerald-300 font-semibold tabular-nums">{fmtPrice(ql.unit_price, ql.currency)}</span>
+                {(ql.src?.source_channel || ql.ctx?.reason || ql.ctx?.reason_note) && (
+                  <span className="col-span-4 text-[10px] inline-flex flex-wrap items-center gap-x-2">
+                    {ql.src && <SourceLine s={ql.src} />}
+                    {ql.ctx && <ReasonChip l={ql.ctx} nameOf={() => undefined} />}
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -1268,6 +1280,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       linesMap.get(item.component_id)!.push({
         pi_number: q.pi_number, quote_date: q.quote_date,
         quantity: item.quantity, unit_price: item.unit_price, currency: item.currency,
+        src: q as SourceFields, ctx: item as LineContext,
       });
       if (item.unit_price <= 0) return;
       const cid = item.component_id;
@@ -2162,7 +2175,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     quoteItems.forEach((item) => {
       if (item.component_id !== inspectId) return;
       const q = quoteMap.get(item.quote_id);
-      allQuoteLines.push({ pi_number: q?.pi_number, quote_date: q?.quote_date, quantity: item.quantity, unit_price: item.unit_price, currency: item.currency });
+      allQuoteLines.push({ pi_number: q?.pi_number, quote_date: q?.quote_date, quantity: item.quantity, unit_price: item.unit_price, currency: item.currency, src: q as SourceFields | undefined, ctx: item as LineContext });
     });
     allQuoteLines.sort((a, b) => (b.quote_date || '').localeCompare(a.quote_date || ''));
 
@@ -5101,7 +5114,8 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               </thead>
                               <tbody className="divide-y divide-slate-800/60">
                                 {allQuoteLines.map((ql, i) => (
-                                  <tr key={i} className="hover:bg-white/[0.02]">
+                                  <Fragment key={i}>
+                                  <tr className="hover:bg-white/[0.02]">
                                     <td className="px-3 py-1.5 font-mono text-blue-300">
                                       {ql.pi_number
                                         ? <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(ql.pi_number)}`} title="Open in Deal Lookup" className="hover:text-blue-200 transition-colors">{ql.pi_number}</a>
@@ -5111,6 +5125,18 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                     <td className="px-3 py-1.5 text-right text-slate-300 tabular-nums">{ql.quantity}</td>
                                     <td className="px-3 py-1.5 text-right text-blue-300 font-semibold tabular-nums">{fmtP(ql.unit_price, ql.currency)}</td>
                                   </tr>
+                                  {/* The negotiation context: where it came from, why it was asked */}
+                                  {(ql.src?.source_channel || ql.ctx?.reason || ql.ctx?.reason_note) && (
+                                    <tr className="!border-t-0">
+                                      <td colSpan={4} className="px-3 pb-1.5 -mt-1 text-[10px]">
+                                        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                          {ql.src && <SourceLine s={ql.src} />}
+                                          {ql.ctx && <ReasonChip l={ql.ctx} nameOf={(id) => { const c = components.find((x) => x.component_id === id); return c ? (c.supplier_model || c.internal_description || undefined) : undefined; }} />}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  )}
+                                  </Fragment>
                                 ))}
                               </tbody>
                             </table>

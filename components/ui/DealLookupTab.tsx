@@ -24,6 +24,8 @@ import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategor
 import { fmtIdr, fmtCcy, fmtDate, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
 import { useT } from '@/hooks/useT';
+import { SourceLine, ReasonChip } from './DealContext';
+import { SOURCE_CHANNELS, sourceFieldsFromForm, isoToLocalInput } from '@/lib/dealContext';
 import LayoutToggle from './LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
@@ -444,6 +446,8 @@ interface Props {
   onReorderQuoteLineItems?: (quoteId: string, orderedIds: string[]) => Promise<void>;
   onReorderPoLineItems?: (poId: string, orderedIds: string[]) => Promise<void>;
   initialSearch?: string;  // e.g. a PI/PO number from the global search palette
+  /** id → name for what a line's reason points at (EPC proposals, sales orders). */
+  reasonNames?: Map<string, string>;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -457,9 +461,20 @@ export default function DealLookupTab({
   onAddPoLineItem, onAddQuoteLineItem,
   onDeletePoLineItem, onDeleteQuoteLineItem,
   onReorderQuoteLineItems, onReorderPoLineItems,
-  initialSearch,
+  initialSearch, reasonNames,
 }: Props) {
   const { t, tf } = useT();
+  // What a line's reason points at, by name: proposals / sales orders from the
+  // page, an old model from the catalogue.
+  const reasonNameOf = useCallback((id: string) => {
+    const n = reasonNames?.get(id);
+    if (n) return n;
+    const c = components.find((x) => String(x.component_id) === id);
+    return c ? (c.supplier_model || c.internal_description || undefined) : undefined;
+  }, [reasonNames, components]);
+  // Editing a quote's source in place (channel, when, from, received by).
+  const [editingSource, setEditingSource] = useState<string | null>(null);
+  const [sourceDraft, setSourceDraft] = useState<Record<string, string>>({});
 
   // ── Drag a line into place ──────────────────────────────────────────────
   // This screen mirrors a document, and the document has an order. Neither
@@ -973,6 +988,37 @@ export default function DealLookupTab({
                       ) : null)}
                     </div>
 
+                    {/* Where it came from — editable in place, for quotes entered before the fields existed */}
+                    {editingSource === qKey && onUpdateQuote ? (
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-slate-500">{t('Source')}</span>
+                        <select value={sourceDraft.source_channel ?? ''} onChange={(e) => setSourceDraft((d) => ({ ...d, source_channel: e.target.value }))}
+                          className="rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none">
+                          <option value="">—</option>
+                          {SOURCE_CHANNELS.map((c) => <option key={c.value} value={c.value}>{t(c.label)}</option>)}
+                        </select>
+                        <input type="datetime-local" value={sourceDraft.source_at ?? ''} onChange={(e) => setSourceDraft((d) => ({ ...d, source_at: e.target.value }))}
+                          className="rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none [&::-webkit-calendar-picker-indicator]:invert" />
+                        <input value={sourceDraft.source_contact ?? ''} placeholder={t('Supplier contact')} onChange={(e) => setSourceDraft((d) => ({ ...d, source_contact: e.target.value }))}
+                          className="w-28 rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none" />
+                        <input value={sourceDraft.received_by ?? ''} placeholder={t('Our contact')} onChange={(e) => setSourceDraft((d) => ({ ...d, received_by: e.target.value }))}
+                          className="w-28 rounded px-1.5 py-0.5 bg-slate-900 border border-sky-500/40 text-white focus:outline-none" />
+                        <button disabled={renameBusy} onClick={async () => { setRenameBusy(true); try { await onUpdateQuote(qKey, sourceFieldsFromForm(sourceDraft)); } finally { setRenameBusy(false); setEditingSource(null); } }}
+                          className="text-emerald-400 hover:text-emerald-300 font-semibold disabled:opacity-40">{t('Save')}</button>
+                        <button onClick={() => setEditingSource(null)} className="text-slate-500 hover:text-slate-300">✕</button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <SourceLine s={qt} />
+                        {onUpdateQuote && (
+                          <button onClick={(e) => { e.stopPropagation(); const x = qt; setSourceDraft({ source_channel: x.source_channel ?? '', source_at: isoToLocalInput(x.source_at), source_contact: x.source_contact ?? '', received_by: x.received_by ?? '' }); setEditingSource(qKey); }}
+                            className="text-slate-500 hover:text-sky-300 transition-colors">
+                            {qt.source_channel ? t('Edit source') : t('+ Where did this quote come from?')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Replacement lineage + one-click "this quote replaces that one" */}
                     {(qRevisionOf || qSupersededBy.length > 0 || onUpdateQuote) && (
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]" onClick={(e) => e.stopPropagation()}>
@@ -1128,6 +1174,7 @@ export default function DealLookupTab({
                                             <CopyText text={comp.internal_description}>{comp.internal_description}</CopyText>
                                           </p>
                                         )}
+                                        <ReasonChip l={item} nameOf={reasonNameOf} className="mt-0.5" />
                                         {isEditingLine && <button onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }} className="text-[10px] text-sky-400 hover:text-sky-300 transition-colors">{t('Change product')}</button>}
                                       </div>
                                     )}
@@ -1939,6 +1986,7 @@ export default function DealLookupTab({
                                             {ltPayment != null && <span className="text-[10px] text-slate-600"><span className="font-semibold text-sky-500/70 tabular-nums">{ltPayment}d</span> 1st pay→rcvd</span>}
                                           </div>
                                         )}
+                                        <ReasonChip l={item} nameOf={reasonNameOf} className="mt-0.5" />
                                         {isEditingLine && <button onMouseDown={(e) => { e.preventDefault(); setEditingLine((prev) => prev && { ...prev, showCompSearch: true }); }} className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors">{t('Change product')}</button>}
                                       </div>
                                     )}
@@ -2236,6 +2284,8 @@ export default function DealLookupTab({
                                       <CopyText text={displayComp.internal_description}>{displayComp.internal_description}</CopyText>
                                     </p>
                                   )}
+                                  {/* Why it was asked for / ordered — the PO line's own reason, else the quote's */}
+                                  <ReasonChip l={((row.p?.reason || row.p?.reason_note ? row.p : row.q) ?? {})} nameOf={reasonNameOf} className="mt-0.5" />
                                   {(onlyQ || onlyP) && !activeEdit && (
                                     onSibling ? (
                                       <span className="text-[10px] font-semibold text-slate-500">on {onSibling}</span>

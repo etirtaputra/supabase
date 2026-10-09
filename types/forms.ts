@@ -6,7 +6,7 @@
 import type React from 'react';
 
 // Field types supported by the form system
-export type FieldType = 'text' | 'email' | 'number' | 'date' | 'textarea' | 'select' | 'rich-select';
+export type FieldType = 'text' | 'email' | 'number' | 'date' | 'datetime' | 'textarea' | 'select' | 'rich-select';
 
 // Rich select configuration
 export interface RichSelectConfig {

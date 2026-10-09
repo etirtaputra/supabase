@@ -193,10 +193,10 @@ export default function ItemHubPage() {
         supabase.from('5.0_purchases').select('po_id, po_number, po_date, status, currency, exchange_rate, total_value, quote_id, supplier_id, pi_number, actual_received_date, estimated_delivery_date'),
         selectAll((f, t) => supabase.from('5.1_purchase_line_items').select('po_line_item_id, po_id, component_id, quantity, unit_cost, currency').order('po_line_item_id').range(f, t)),
         supabase.from('6.0_po_costs').select('cost_id, po_id, cost_category, amount, currency, exchange_rate, payment_date, notes'),
-        supabase.from('4.0_price_quotes').select('quote_id, supplier_id, quote_date, pi_number, currency, status'),
+        supabase.from('4.0_price_quotes').select('quote_id, supplier_id, quote_date, pi_number, currency, status, source_channel, source_at, source_contact, received_by'),
         // ALL quote lines, not just this item's: the forensics' linked-item
         // price tags need the comparables' latest quotes too.
-        selectAll((f, t) => supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency').order('quote_line_id').range(f, t)),
+        selectAll((f, t) => supabase.from('4.1_price_quote_line_items').select('quote_line_id, quote_id, component_id, quantity, unit_price, currency, reason, reason_note, reason_project_quote_id, reason_sales_quote_id, reason_replaces_component_id').order('quote_line_id').range(f, t)),
         supabase.from('2.0_suppliers').select('supplier_id, supplier_name'),
         supabase.from('8.0_component_links').select('*').or(`component_id_a.eq.${componentId},component_id_b.eq.${componentId}`),
         // The Pricing tab's market band (same data Market Intel maintains)

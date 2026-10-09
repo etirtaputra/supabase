@@ -133,7 +133,7 @@ export default function FieldRenderer({
       ) : (
         <input
           id={datalistId}
-          type={field.type}
+          type={field.type === 'datetime' ? 'datetime-local' : field.type}
           className={baseInputClasses}
           value={value || ''}
           onChange={(e) => onChange(field.name, e.target.value)}

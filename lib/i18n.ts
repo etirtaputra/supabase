@@ -56,6 +56,8 @@ export const KEEPERS: readonly string[] = [
   'Admin', 'Menu', 'Status', 'Subtotal', 'Total', 'SVC', 'LIB', 'PREV',
   // The price tier is "tier" in the office's Indonesian too ('Tiers' → 'Tier').
   'Tier',
+  // Product names a quote arrives through (lib/dealContext.ts SOURCE_CHANNELS).
+  'WhatsApp', 'WeChat', 'Email',
 ];
 
 /** Is this string left in English on purpose, rather than simply untranslated? */
@@ -1975,6 +1977,40 @@ export const ID: Record<string, string> = {
   '{n} more new items to link after this one': 'Masih {n} barang baru lagi untuk ditautkan setelah ini',
   '{n} selected': '{n} dipilih',
   '+{n} more catalogue items match — keep typing to narrow': '+{n} barang katalog lain cocok — ketik lagi untuk mempersempit',
+  '+ Where did this quote come from?': '+ Dari mana penawaran ini datang?',
+  'Document No.': 'No. dokumen',
+  'Edit source': 'Ubah sumber',
+  'For a customer order': 'Untuk pesanan pelanggan',
+  'For a project': 'Untuk proyek',
+  'Supplier contact': 'Kontak supplier',
+  'Our contact': 'Kontak kami',
+  'Date & time received': 'Tanggal & jam diterima',
+  'Mark as successor': 'Tandai sebagai pengganti',
+  'Meeting / visit': 'Rapat / kunjungan',
+  'New product / trial': 'Produk baru / uji coba',
+  'None you can open': 'Tidak ada yang dapat Anda buka',
+  'Note (optional) — e.g. customer needs it before Lebaran': 'Catatan (opsional) — mis. pelanggan butuh sebelum Lebaran',
+  'Old model it replaces…': 'Model lama yang digantikan…',
+  'Our person who received it': 'Orang kita yang menerimanya',
+  'Phone call': 'Telepon',
+  'Price check only': 'Hanya cek harga',
+  'Price list / PDF': 'Daftar harga / PDF',
+  'Records the new item as the successor of the old one, so Products and the Item Editor show it as replaced': 'Mencatat barang baru sebagai pengganti barang lama, sehingga Produk dan Editor Barang menampilkannya sebagai sudah diganti',
+  'Replaces an old model': 'Menggantikan model lama',
+  'Set…': 'Atur…',
+  'Source': 'Sumber',
+  'Stock / restock': 'Stok / isi ulang stok',
+  'Supplier website': 'Situs supplier',
+  'The supplier’s PI or quote number. Leave it empty for a chat, call or meeting — the reference is written from the source below.': 'Nomor PI atau penawaran dari supplier. Kosongkan untuk chat, telepon, atau rapat — referensinya ditulis otomatis dari sumber di bawah.',
+  'The supplier’s person who sent it': 'Orang supplier yang mengirimnya',
+  'Warranty / after-sales': 'Garansi / purnajual',
+  'When the message or document arrived — date and time': 'Kapan pesan atau dokumen diterima — tanggal dan jam',
+  'Where the quote arrived — WhatsApp, WeChat, email, a call…': 'Lewat mana penawaran diterima — WhatsApp, WeChat, email, telepon…',
+  'Which project?': 'Proyek yang mana?',
+  'Which sales order?': 'Pesanan penjualan yang mana?',
+  'Why': 'Alasan',
+  'Why — all lines': 'Alasan — semua baris',
+  '— reason —': '— alasan —',
 };
 
 const DICTS: Record<Lang, Record<string, string>> = { en: {}, id: ID };

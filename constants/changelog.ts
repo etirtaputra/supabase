@@ -20,6 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-09T01:14:12Z",
+    title: "Transaksi Baru: dari mana penawaran datang, dan alasan setiap barang diminta atau dipesan",
+    details: [
+      "Kolom baru di kepala penawaran/PO: Sumber (WhatsApp, WeChat, Email, Telepon, Rapat/kunjungan, Daftar harga/PDF, Situs supplier, Lainnya), Tanggal & jam diterima (otomatis sekarang), Kontak supplier, dan Kontak kami.",
+      "“No. dokumen” kini hanya untuk nomor PI/penawaran dari supplier. Jika dikosongkan (penawaran lewat chat atau telepon), ICAPROC menulis referensinya sendiri, mis. “WhatsApp · Joe · 2026-10-09 09:15”.",
+      "Setiap baris barang punya “Alasan”: Stok, Untuk proyek (pilih EPC Proposal-nya), Untuk pesanan pelanggan (pilih pesanannya), Menggantikan model lama (pilih barang lamanya — bisa sekaligus ditandai sebagai pengganti di katalog), Garansi/purnajual, Produk baru/uji coba, Hanya cek harga, atau Lainnya — plus catatan singkat. “Alasan — semua baris” mengisi semua baris sekaligus.",
+      "Saat PO dibuat dari penawaran, alasan setiap baris ikut terbawa. “Hanya cek harga” tidak berlaku untuk PO.",
+      "Sumber dan alasan tampil di Telusur Transaksi (bisa diubah di kartu penawaran lewat “Ubah sumber”), di riwayat harga Editor Barang, dan di tab Pembelian Pusat Barang — pengingat tempat, waktu, dan konteks untuk negosiasi berikutnya.",
+      "52 penawaran lama yang referensinya ditulis sebagai catatan chat/email (mis. “WA Wendy to Eric 2026-10-07 16:55”) sudah diisi otomatis ke kolom baru. Teks aslinya tetap ada.",
+    ],
+  },
+  {
     at: "2026-10-08T09:34:05Z",
     title: "Pencarian barang di EPC Proposal lebih pintar, dan harga penawaran supplier terbaru tidak lagi hilang",
     details: [

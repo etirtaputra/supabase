@@ -40,6 +40,8 @@ import type { NewLinkRow } from '@/lib/itemLinks';
 import { useSettings } from '@/hooks/useSettings';
 import type { Tab, MenuItem } from '@/types/forms';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { SOURCE_CHANNELS, sourceFieldsFromForm, sourceLabel, isoToLocalInput, lineContextFields, type LineContext } from '@/lib/dealContext';
+import type { ReasonTarget } from '@/components/forms/NewDealForm';
 
 const MENU_ITEMS: MenuItem[] = [
   { id: 'catalog', label: 'Item Editor', icon: '🗂️',
@@ -492,6 +494,44 @@ function MasterInsertPage() {
   // Preselected mode, remembered per browser — someone who always books
   // quote + PO together never has to flip the switch again.
   const [withPo, setWithPo] = useState(false);
+
+  // What a deal line can be "for": EPC proposals (newest version per number)
+  // and sales orders. Read only when New Deal is open; a role whose RLS hides
+  // either simply gets an empty picker — the reason and note still save.
+  const [reasonProjects, setReasonProjects] = useState<ReasonTarget[]>([]);
+  const [reasonOrders, setReasonOrders] = useState<ReasonTarget[]>([]);
+  useEffect(() => {
+    // New Deal offers them; Deal Lookup and the Item Editor name them on lines.
+    if (!['quoting', 'lookup', 'catalog'].includes(activeTab)) return;
+    if (reasonProjects.length || reasonOrders.length) return;
+    let alive = true;
+    Promise.all([
+      supabase.from('10.0_project_quotes').select('quote_id, quote_number, customer_name, location, quote_date').order('quote_date', { ascending: false }).limit(400),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, customer_id, status, quote_date').not('order_number', 'is', null).order('quote_date', { ascending: false }).limit(400),
+      supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
+    ]).then(([pq, so, cu]) => {
+      if (!alive) return;
+      setReasonProjects(((pq.data ?? []) as { quote_id: string; quote_number: string; customer_name: string | null; location: string | null }[])
+        .map((q) => ({ id: q.quote_id, label: [q.customer_name, q.location].filter(Boolean).join(' — ') || q.quote_number, sub: q.quote_number })));
+      const cust = new Map(((cu.data ?? []) as { customer_id: string; display_name: string | null; legal_name: string | null }[]).map((c) => [c.customer_id, c.display_name || c.legal_name || '']));
+      setReasonOrders(((so.data ?? []) as { quote_id: string; order_number: string; customer_id: string | null }[])
+        .map((o) => ({ id: o.quote_id, label: o.order_number, sub: (o.customer_id && cust.get(o.customer_id)) || undefined })));
+    });
+    return () => { alive = false; };
+  }, [activeTab]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const reasonNames = useMemo(() => new Map<string, string>([
+    ...reasonProjects.map((p) => [p.id, p.label] as [string, string]),
+    ...reasonOrders.map((o) => [o.id, [o.label, o.sub].filter(Boolean).join(' · ')] as [string, string]),
+  ]), [reasonProjects, reasonOrders]);
+
+  // People already named on quotes — "From" suggests them, "Received by" too.
+  const contactSuggestions = useMemo(
+    () => [...new Set((data.quotes as { source_contact?: string | null }[]).map((q) => q.source_contact).filter((x): x is string => !!x))].sort(),
+    [data.quotes]);
+  const receiverSuggestions = useMemo(
+    () => [...new Set([profile?.display_name?.split(' ')[0], ...(data.quotes as { received_by?: string | null }[]).map((q) => q.received_by)].filter((x): x is string => !!x))].sort(),
+    [data.quotes, profile?.display_name]);
   // Does this deal go on the Progress board? On by default whenever a PO is
   // being raised — issuing a PO IS the decision to process it — so the common
   // case needs no thought. Quote-only deals never go on the board: 66 of the
@@ -552,6 +592,12 @@ function MasterInsertPage() {
   // supplier model SKU, editable description, add/remove rows), not a
   // read-only list. The PO gets whatever the editor shows on save; the stored
   // quote's own line items are never rewritten.
+  // A stored line's reason travels with it into the editor (quote → PO).
+  const reasonSeed = (x: LineContext): Partial<DealLine> => ({
+    reason: x.reason ?? '', reason_note: x.reason_note ?? '',
+    reason_project_quote_id: x.reason_project_quote_id ?? '', reason_sales_quote_id: x.reason_sales_quote_id ?? '',
+    reason_replaces_component_id: x.reason_replaces_component_id ?? '',
+  });
   const storedQuoteLineSeeds = useMemo<DealLine[] | null>(() => {
     if (!storedQuoteSel) return null;
     const its = data.quoteItems.filter((qi) => String(qi.quote_id) === String(storedQuoteSel));
@@ -563,6 +609,7 @@ function MasterInsertPage() {
       quantity: String(qi.quantity ?? ''),
       unit_price: String(qi.unit_price ?? ''),
       currency: qi.currency ?? '',
+      ...reasonSeed(qi),
     }));
   }, [storedQuoteSel, data.quoteItems]);
 
@@ -579,6 +626,7 @@ function MasterInsertPage() {
       quantity: String(pi.quantity ?? ''),
       unit_price: String(pi.unit_cost ?? ''),
       currency: pi.currency ?? '',
+      ...reasonSeed(pi),
     }));
   }, [storedPoSel, data.poItems]);
 
@@ -665,16 +713,40 @@ function MasterInsertPage() {
     // also written to the PO when one is raised. Normalise to a number or null.
     const freightVal = freight_charges_intl === '' || freight_charges_intl == null ? null : Number(freight_charges_intl);
     quote.freight_charges_intl = freightVal;
+    // Where it came from (lib/dealContext.ts): clean columns, and when there is
+    // no document number the reference is written from them — "WhatsApp ·
+    // Jasmine · 2026-09-15 15:34" — so Deal Lookup and every link still have a name.
+    const source = sourceFieldsFromForm(quote);
+    Object.assign(quote, source);
+    if (!String(quote.pi_number ?? '').trim()) quote.pi_number = sourceLabel(source) || null;
     const lineRows = items.map((l) => ({
       component_id: l.component_id, supplier_description: l.supplier_description || null,
       quantity: Number(l.quantity), unit_price: Number(l.unit_price) || 0,
       currency: l.currency || quote.currency,
+      ...lineContextFields(l, 'quote'),
     }));
+    // The same lines as ordered: a PO line never carries "price check only".
+    const poContext = (l: DealLine) => lineContextFields(l, 'po');
+    // Replacement lines can record the hand-off in the catalogue (old → new),
+    // once — so Products and the Item Editor show the old model as superseded.
+    const recordSuccessors = async (ref: string) => {
+      const pairs = items
+        .filter((l) => l.reason === 'replacement' && l.make_successor !== false && l.component_id && l.reason_replaces_component_id && l.reason_replaces_component_id !== l.component_id)
+        .map((l) => [l.reason_replaces_component_id as string, l.component_id as string] as const);
+      const fresh = pairs.filter(([a, b], i) => pairs.findIndex(([x, y]) => x === a && y === b) === i)
+        .filter(([a, b]) => !data.componentLinks.some((k) => k.link_type === 'successor' && k.component_id_a === a && k.component_id_b === b));
+      if (!fresh.length) return;
+      const { error } = await supabase.from('8.0_component_links').insert(fresh.map(([a, b]) => ({
+        component_id_a: a, component_id_b: b, link_type: 'successor', notes: `Replaces the old model — recorded on ${ref || 'a supplier quote'}`,
+      })));
+      if (error) showToast(`Saved, but the successor link could not be recorded: ${error.message}`, 'error');
+    };
     if (!withPo) {
       const qRows = await handleInsert('4.0_price_quotes', quote);
       const q0 = qRows?.[0];
       if (!q0) return false;
       if (lineRows.length) await handleInsert('4.1_price_quote_line_items', lineRows.map((r) => ({ ...r, quote_id: q0.quote_id })));
+      await recordSuccessors(quote.pi_number);
       return true;
     }
 
@@ -694,6 +766,7 @@ function MasterInsertPage() {
           component_id: l.component_id, supplier_description: l.supplier_description || null,
           quantity: Number(l.quantity), unit_cost: Number(l.unit_price) || 0,
           currency: l.currency || quote.currency,
+          ...poContext(l),
         }));
       // Blank total = compute it: the edited lines + supplier-billed freight
       // (falling back to the source PO's freight when the field wasn't touched).
@@ -741,6 +814,10 @@ function MasterInsertPage() {
         payment_terms: poTerms || settings.defaultPoPaymentTerms || null,
         replaces_po_id: supersede ? src.po_id : null,
         track_progress: trackProgress,
+        source_channel: source.source_channel ?? src.source_channel ?? null,
+        source_at: source.source_at ?? src.source_at ?? null,
+        source_contact: source.source_contact ?? src.source_contact ?? null,
+        received_by: source.received_by ?? src.received_by ?? null,
       });
       if (!poRows?.[0]) return false;
       const newPoId = String(poRows[0].po_id);
@@ -803,6 +880,11 @@ function MasterInsertPage() {
       // "Replaces PO" field: this fresh PO supersedes an older one.
       replaces_po_id: replaces_po_id || null,
       track_progress: trackProgress,
+      // Where the deal came from — the stored quote's own source when raised from one.
+      source_channel: source.source_channel ?? q.source_channel ?? null,
+      source_at: source.source_at ?? q.source_at ?? null,
+      source_contact: source.source_contact ?? q.source_contact ?? null,
+      received_by: source.received_by ?? q.received_by ?? null,
     });
     if (!poRows?.[0]) return false;
     const poId = String(poRows[0].po_id);
@@ -810,8 +892,10 @@ function MasterInsertPage() {
       await handleInsert('5.1_purchase_line_items', copiedItems.map((qi: any) => ({
         po_id: poId, component_id: qi.component_id, supplier_description: qi.supplier_description ?? null,
         quantity: qi.quantity, unit_cost: qi.unit_price, currency: qi.currency,
+        ...lineContextFields(qi, 'po'),
       })));
     }
+    await recordSuccessors(quote.pi_number);
     await stampPoTotal(poId, quote.total_value);
     // Marking the superseded PO Replaced is what makes the link a real hand-off,
     // not just a note — Deal Lookup then shows the lineage on both cards.
@@ -1352,6 +1436,11 @@ function MasterInsertPage() {
                               o.quote_date = src.quote_date;
                               o.pi_number = src.pi_number;
                               o.currency = src.currency;
+                              // The stored quote's own source — the PO inherits where the deal came from.
+                              o.source_channel = src.source_channel ?? '';
+                              o.source_at = isoToLocalInput(src.source_at);
+                              o.source_contact = src.source_contact ?? '';
+                              o.received_by = src.received_by ?? '';
                               // total_value is NOT carried: the PO totals from the editor's
                               // lines + freight, so a partial PO never inherits the full
                               // quote total.
@@ -1414,7 +1503,13 @@ function MasterInsertPage() {
                         { name: 'supplier_id', label: 'Supplier', type: 'rich-select', options: data.suppliers, config: { labelKey: 'supplier_name', valueKey: 'supplier_id', subLabelKey: 'location' }, req: true, default: storedPoDefaults?.supplier_id ?? storedDefaults?.supplier_id ?? pdfDefaults.supplier_id },
                         { name: 'company_id', label: 'Addressed To', type: 'select', options: options.companies, req: true, default: storedPoDefaults?.company_id ?? storedDefaults?.company_id ?? pdfDefaults.company_id },
                         { name: 'quote_date', label: 'Date', type: 'date', req: true, default: storedPoDefaults?.quote_date || storedDefaults?.quote_date || pdfData?.quote_date || pdfData?.pi_date || new Date().toISOString().split('T')[0] },
-                        { name: 'pi_number', label: 'Quote Ref', type: 'text', suggestions: suggestions.quoteNumbers, default: storedPoDefaults?.pi_number || storedDefaults?.pi_number || pdfData?.quote_number || pdfData?.pi_number },
+                        { name: 'pi_number', label: t('Document No.'), hint: t('The supplier’s PI or quote number. Leave it empty for a chat, call or meeting — the reference is written from the source below.'), type: 'text', suggestions: suggestions.quoteNumbers, default: storedPoDefaults?.pi_number || storedDefaults?.pi_number || pdfData?.quote_number || pdfData?.pi_number },
+                        // Where the quote came from (lib/dealContext.ts) — the place
+                        // and time a later negotiation will want to point back to.
+                        { name: 'source_channel', label: t('Source'), hint: t('Where the quote arrived — WhatsApp, WeChat, email, a call…'), type: 'select', options: SOURCE_CHANNELS.map((c) => ({ val: c.value, txt: t(c.label) })), default: pdfData ? 'email' : undefined },
+                        { name: 'source_at', label: t('Date & time received'), hint: t('When the message or document arrived — date and time'), type: 'datetime', default: isoToLocalInput(new Date().toISOString()) },
+                        { name: 'source_contact', label: t('Supplier contact'), hint: t('The supplier’s person who sent it'), type: 'text', suggestions: contactSuggestions },
+                        { name: 'received_by', label: t('Our contact'), hint: t('Our person who received it'), type: 'text', suggestions: receiverSuggestions, default: profile?.display_name?.split(' ')[0] || undefined },
                         // Total Value is NOT typed anymore (owner, 2026-08-14): the deal's
                         // total is items + supplier-billed freight, computed at save. A
                         // discount is a negative-price line, so it shows as a line.
@@ -1452,6 +1547,8 @@ function MasterInsertPage() {
                       ]}
                       onSubmit={submitDeal}
                       loading={loading}
+                      projects={reasonProjects}
+                      salesOrders={reasonOrders}
                     />
                     {withPo && storedQuoteSel && (
                       <p className="text-[11px] text-violet-300/70">
@@ -1766,6 +1863,7 @@ function MasterInsertPage() {
                   onPoStatusChange={handleStatusChange}
                   onUpdatePo={handleUpdatePo}
                   onUpdateQuote={handleUpdateQuote}
+                  reasonNames={reasonNames}
                   onMarkFullyPaid={handleMarkFullyPaid}
                   onCreatePO={(quoteId) => startPoForQuote(quoteId)}
                   onRevisePo={(poId) => startRevisionForPo(poId)}

@@ -3,6 +3,7 @@
  * Provides type safety for Supabase queries and responses
  */
 
+import type { SourceFields, LineContext } from '../lib/dealContext';
 import type {
   Currency,
   ProductCategory,
@@ -103,7 +104,7 @@ export interface Component extends BaseEntity {
 }
 
 // 4.0 Price Quotes
-export interface PriceQuote extends BaseEntity {
+export interface PriceQuote extends BaseEntity, SourceFields {
   quote_id: number;
   supplier_id: string; // UUID — matches 2.0_suppliers.supplier_id
   company_id: string;  // UUID — matches 1.0_companies.company_id
@@ -120,7 +121,7 @@ export interface PriceQuote extends BaseEntity {
 }
 
 // 4.1 Price Quote Line Items
-export interface PriceQuoteLineItem extends BaseEntity {
+export interface PriceQuoteLineItem extends BaseEntity, LineContext {
   quote_line_id: number;
   quote_id: number;
   component_id: string; // UUID
@@ -144,7 +145,7 @@ export interface ProformaInvoice extends BaseEntity {
 }
 
 // 6.0 Purchases (Purchase Orders)
-export interface PurchaseOrder extends BaseEntity {
+export interface PurchaseOrder extends BaseEntity, SourceFields {
   po_id: number;
   po_number: string;
   po_date: string;
@@ -178,7 +179,7 @@ export interface PurchaseOrder extends BaseEntity {
 }
 
 // 6.1 Purchase Line Items
-export interface PurchaseLineItem extends BaseEntity {
+export interface PurchaseLineItem extends BaseEntity, LineContext {
   po_line_item_id: number;
   po_id: number;
   component_id: string; // UUID
