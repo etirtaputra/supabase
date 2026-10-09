@@ -179,9 +179,12 @@ added context why we asked for the quotes or issued a PO" → "go ahead".
   the successor link posts once; Deal Lookup shows "WhatsApp → Wendy ·
   2026-10-07 16:55" and "Untuk proyek · PT Hon Chuan Indonesia — KIIC Plant —
   phase 2".
+- **Agent packs:** schema v8 (§5f) and purchasing runbook v3 (rule 6; §3/§4
+  fields, the eight reasons, PO never `price_check`), registry and INDEX
+  bumped, uploaded to the shared drive with the old copies trashed; MIRA and
+  MANDA update prompts given to the owner.
 - **Not done:** the Revise-PO "amend in place" path leaves the PO's source as
-  it was; agents (MIRA/MAX) do not fill these fields yet — when they enter
-  quotes, they should.
+  it was.
 
 ### 2026-10-08 — the 1,000-row cap, again; EPC autocomplete
 

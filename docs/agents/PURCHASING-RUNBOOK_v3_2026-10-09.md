@@ -3,6 +3,11 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v3, 2026-10-09** — the deal context: a quote records WHERE it came from
+> (Source · Date & time received · Supplier contact · Our contact), "Quote Ref"
+> is now "Document No." and holds only the supplier's document number, and every
+> line records WHY it was asked for or ordered. §3 and §4 changed; rule 6 added.
+>
 > **v2, 2026-09-07** — moved into `docs/agents/` and versioned; §4 now carries
 > the mechanism behind the lines-before-totals rule and the price-quote
 > exception to it; the offerable rule added to §2. Everything else is as
@@ -22,7 +27,7 @@ recorded incidents, not hypotheticals.
 
 ## Rules that override everything else
 
-An agent that remembers nothing else from this document must still obey these five.
+An agent that remembers nothing else from this document must still obey these six.
 
 1. **Lines before totals.** Never write `5.0_purchases.total_value` before
    `5.1_purchase_line_items` rows exist. See §4.
@@ -35,6 +40,10 @@ An agent that remembers nothing else from this document must still obey these fi
    column has no trigger behind it. Omit it there and the quote has no total at all. See §4.
 5. **New Deal creates; it does not edit.** Amendments to a saved document go through
    Deal Lookup. See §7.
+6. **Record the context; never invent it.** Every quote gets its source (channel, time,
+   who sent it, who received it) when you know it. Every line gets a reason only when
+   the request says why. A guessed reason is worse than none — it is read later as fact
+   in a negotiation. See §3.
 
 ## Escalate to a human, do not guess
 
@@ -155,7 +164,11 @@ offer so it can be compared, accepted, or left to expire.
 | Supplier | yes | Who quoted. |
 | Addressed To | yes | Which of our companies the quote is made out to. |
 | Date | yes | The quote's own date, not today. |
-| Quote Ref | — | The supplier's PI or quote number. |
+| Document No. | — | The supplier's PI or quote number **only**. Leave it empty for a chat, a call or a meeting — the app writes the reference from the source (`WhatsApp · Joe · 2026-10-09 09:15`). Do NOT type a chat note here any more ("WA Wendy to Eric …"). |
+| Source | — | Where the quote arrived: WhatsApp · WeChat · Email · Phone call · Meeting / visit · Price list / PDF · Supplier website · Other. |
+| Date & time received | — | When the message or document arrived — the timestamp on the chat or email, Jakarta time. Defaults to now. |
+| Supplier contact | — | The supplier's person who sent it (Joe, Jasmine, Tacy…). |
+| Our contact | — | Our person who received it (Wendy, Eric…). Defaults to the person signed in. |
 | Currency | yes | The currency the supplier quoted in. |
 | Freight Cost | — | Supplier-quoted freight. Accepts `=` formulas. Carried onto the PO if one is raised. |
 | Status | — | Defaults to `Open`. Also: Accepted · Replaced · Rejected · Expired. |
@@ -168,7 +181,27 @@ offer so it can be compared, accepted, or left to expire.
    differs.
 2. Quantity, unit price. Line currency defaults from the header.
 3. A fresh blank row always waits at the end — keep going until the quote is complete.
-4. Save once. Header and lines go together.
+4. **Why** (under each line): pick the reason, and what it points at.
+5. Save once. Header and lines go together.
+
+### Why each line — the reasons
+
+| Reason | Pick also | Use it when |
+|---|---|---|
+| Stock / restock | — | to keep it on the shelf |
+| For a project | the EPC proposal | it is for a project quote (e.g. PT Hon Chuan) |
+| For a customer order | the sales order | a customer already ordered it |
+| Replaces an old model | the OLD item | the new item takes over from an old one. Tick "Mark as successor" to record it in the catalogue too |
+| Warranty / after-sales | — | a unit for a customer's claim |
+| New product / trial | — | trying a new brand or model |
+| Price check only | — | comparing the market, no plan to buy. **Quotes only — never on a PO** |
+| Other | — | anything else — say what in the note |
+
+Each line also takes a short **note** ("customer needs it before Lebaran").
+"Why — all lines" sets one reason on every line at once.
+
+**Leave the reason empty when nobody said why.** Ask the person who sent the request;
+do not infer "stock" because no project was named.
 
 ### There is no Total field, and that is deliberate
 The deal's total is **items + freight**, computed at save. You cannot type it.
@@ -179,7 +212,16 @@ instead of vanishing into a total nobody can reconcile.
 ### Contract
 ```
 write 4.0_price_quotes           # header, incl. freight_charges_intl
+                                 # + source_channel, source_at (timestamptz),
+                                 #   source_contact, received_by   (§5f schema)
+                                 # pi_number = the supplier's document no.,
+                                 #   else "<Channel> · <contact> · YYYY-MM-DD HH:mm"
 then  4.1_price_quote_line_items # quote_id from the insert above
+                                 # + reason, reason_note, and ONE link that matches it:
+                                 #   project        -> reason_project_quote_id (10.0)
+                                 #   customer_order -> reason_sales_quote_id   (22.0)
+                                 #   replacement    -> reason_replaces_component_id (3.0)
+                                 # all other links null
 
 never total_value          # derived, not entered
 never po_number, po_date, exchange_rate,
@@ -199,8 +241,8 @@ becomes the PO cost. The **Status** field disappears, because the quote lands as
 automatically.
 
 ### Two shortcuts appear at the top
-1. **Stored Quote** — raise the PO for a quote saved earlier. Its lines are seeded in;
-   edit, add or remove them freely. The PO gets exactly what the editor shows, and the
+1. **Stored Quote** — raise the PO for a quote saved earlier. Its lines are seeded in —
+   with their reasons — and its source fills the header; edit, add or remove freely. The PO gets exactly what the editor shows, and the
    stored quote itself is never changed. Leave empty for a brand-new PI.
 2. **Stored PO** — revise an existing PO. It loads that PO's own items. **Keep the number**
    to amend in place; **change the number** to split lines off or supersede it, in which
@@ -250,10 +292,12 @@ only `copy_sku_trigger` on `4.1`, which fills descriptions. The New Deal form co
 write 4.0_price_quotes           # status -> Accepted
       total_value = items + freight     <- NO trigger here.
                                            State it or it stays null.
-then  4.1_price_quote_line_items
+then  4.1_price_quote_line_items # + reason fields, as §3
 then  5.0_purchases              # unit_price -> unit_cost
                                  # total_value: LEAVE NULL at insert
-then  5.1_purchase_line_items
+                                 # + the same four source fields as the quote
+then  5.1_purchase_line_items    # + the line's reason; price_check -> null
+                                 #   (the table refuses it)
 last  5.0_purchases.total_value  # ONLY if stated, and
                                  # ONLY after the lines exist
 

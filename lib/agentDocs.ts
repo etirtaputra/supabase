@@ -30,14 +30,14 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'schema',
     title: 'ICAPROC schema map',
-    file: 'ICAPROC-SCHEMA_v7_2026-09-19.md',
+    file: 'ICAPROC-SCHEMA_v8_2026-10-09.md',
     audience: 'every agent, before its first query',
     first: true,
   },
   {
     id: 'purchasing-runbook',
     title: 'Purchasing runbook (buy side)',
-    file: 'PURCHASING-RUNBOOK_v2_2026-09-07.md',
+    file: 'PURCHASING-RUNBOOK_v3_2026-10-09.md',
     audience: 'buy-side agents: quotes, POs, payments, landed cost',
     first: false,
   },

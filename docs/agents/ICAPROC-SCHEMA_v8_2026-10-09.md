@@ -2,9 +2,16 @@
 
 > **Read this before your first query. Never guess a table name.**
 >
-> Written 2026-09-06, revised 2026-09-07, 2026-09-09, 2026-09-11 and 2026-09-19,
-> against `main` @ the commit that carries it. Row counts are from those days and
-> drift; the NAMES and the RULES are what matter.
+> Written 2026-09-06, revised 2026-09-07, 2026-09-09, 2026-09-11, 2026-09-19 and
+> 2026-10-09, against `main` @ the commit that carries it. Row counts are from
+> those days and drift; the NAMES and the RULES are what matter.
+>
+> **v8 (2026-10-09) adds the deal context — §5f.** A supplier quote now records
+> WHERE it came from (`source_channel`, `source_at`, `source_contact`,
+> `received_by` on `4.0` and `5.0`), and every quote and PO line records WHY it
+> was asked for or ordered (`reason`, `reason_note` and one link on `4.1` and
+> `5.1`). `pi_number` goes back to meaning the supplier's document number: a
+> chat note ("WA Wendy to Eric 2026-10-07 16:55") is no longer typed into it.
 >
 > **v7 closes the gap that made this file guessable.** Seventeen tables existed
 > in the database and were named nowhere here, so an agent that needed one had no
@@ -435,6 +442,43 @@ anywhere.
 
 ---
 
+## 5f. Deal context — where a quote came from, why each line exists (2026-10-09)
+
+Rules and labels live in `lib/dealContext.ts`; the columns in
+`migrations/deal_context.sql`. All are nullable — old rows have none, and none
+may be guessed for them.
+
+**Header — `4.0_price_quotes` and `5.0_purchases`:**
+
+| Column | Type | Allowed / meaning |
+|---|---|---|
+| `source_channel` | text, CHECKED | `whatsapp` · `wechat` · `email` · `phone` · `meeting` · `price_list` · `website` · `other` — anything else is refused |
+| `source_at` | timestamptz | when the message or document ARRIVED (not when it was typed in). Store an instant; the app shows it in Jakarta time (UTC+7) |
+| `source_contact` | text | the supplier's person who sent it ("Joe", "Jasmine") |
+| `received_by` | text | our person who received it ("Wendy") |
+| `pi_number` | text | the supplier's PI / quote number ONLY. When there is none, the app writes `"<Channel> · <contact> · YYYY-MM-DD HH:mm"` (e.g. `WhatsApp · Joe · 2026-10-09 09:15`) so every deal still has a name |
+
+**Lines — `4.1_price_quote_line_items` and `5.1_purchase_line_items`:**
+
+| Column | Meaning |
+|---|---|
+| `reason` (CHECKED) | `stock` · `project` · `customer_order` · `replacement` · `warranty` · `new_product` · `price_check` · `other`. **`5.1` refuses `price_check`** — nobody orders to check a price |
+| `reason_project_quote_id` | FK → `10.0_project_quotes.quote_id`; only with `reason = project` |
+| `reason_sales_quote_id` | FK → `22.0_sales_quotes.quote_id` (the sales order); only with `reason = customer_order` |
+| `reason_replaces_component_id` | FK → `3.0_components.component_id` (the OLD model); only with `reason = replacement` |
+| `reason_note` | free text, one short line |
+
+A link that does not match the reason is a stale pick, not data: the app
+writes it as null. When a PO is raised from a stored quote, each line keeps its
+quote line's reason (a `price_check` becomes null). A `replacement` line can
+also record `8.0_component_links` `successor` (old → new) — once, never twice.
+
+On 2026-10-09 the 52 quotes whose `pi_number` held a chat/email note were
+converted into these columns (36 WhatsApp, 10 WeChat, 6 Email); their
+`pi_number` text was left as it was.
+
+---
+
 ## 6. What no one may write
 
 Maintained solely by `SECURITY DEFINER` triggers. Attempts are denied, and that
@@ -519,8 +563,8 @@ Counts drift. Names do not.
 |---|---|---|
 | `1.0_companies` | 5 | our own legal entities |
 | `2.0_suppliers` | 5 | 37 |
-| `4.0_price_quotes` → `4.1_price_quote_line_items` | 5, 5a | **no total trigger** |
-| `5.0_purchases` → `5.1_purchase_line_items` | 5, 5a | **lines first, total last** |
+| `4.0_price_quotes` → `4.1_price_quote_line_items` | 5, 5a, 5f | **no total trigger**; source + line reason (§5f) |
+| `5.0_purchases` → `5.1_purchase_line_items` | 5, 5a, 5f | **lines first, total last**; no `price_check` reason on `5.1` |
 | `6.0_po_costs` | 5 | freight, PIB, OPS — landed cost |
 | `7.0_competitor_prices` | 5 | |
 | `8.0_component_links` | 5 | `brand_equivalent` · `normalized` · `successor` |

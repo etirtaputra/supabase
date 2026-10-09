@@ -5,9 +5,9 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-10-08** (WRITING-STYLE v1: every agent writes
-> ASD-STE100-style English and plain standard Indonesian — one block, pasted
-> into each agent's SOUL.md. MAX boot prompt v6 carries it.)
+> **Last updated: 2026-10-09** (deal context: schema v8 §5f and purchasing
+> runbook v3 — a quote records where it came from, every quote/PO line records
+> why; "Document No." holds only the supplier's number.)
 
 ## The one call that beats this page
 
@@ -29,8 +29,8 @@ superseded now and finding out after acting on it.
 
 | Pack | Current file | For | Changed |
 |---|---|---|---|
-| **Schema map** | `ICAPROC-SCHEMA_v7_2026-09-19.md` | every agent, first | v7: §9 is a census of ALL 59 tables — if a name is not in §9 it does not exist; adds §5d money, §5e settings |
-| **Purchasing runbook** | `PURCHASING-RUNBOOK_v2_2026-09-07.md` | Hermes, buy side | v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
+| **Schema map** | `ICAPROC-SCHEMA_v8_2026-10-09.md` | every agent, first | v8: §5f deal context — `source_channel/source_at/source_contact/received_by` on 4.0 and 5.0; `reason` + one link + note on 4.1 and 5.1 (5.1 refuses `price_check`). v7: §9 is a census of ALL 59 tables — if a name is not in §9 it does not exist; adds §5d money, §5e settings |
+| **Purchasing runbook** | `PURCHASING-RUNBOOK_v3_2026-10-09.md` | MIRA / Hermes, buy side | v3: rule 6 (record the context, never invent it); §3 Source · Date & time received · Supplier contact · Our contact, "Document No." = supplier's number only, the eight line reasons; §4 a stored quote carries source and reasons to the PO. v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
 | **Solar design** | `MANDA-SOLAR-DESIGN_v3_2026-09-09.md` | MANDA, engineering | v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` | MANDA's config | v3: boots from `/api/agent/onboarding`, not a hard-coded filename; order of authority; efficiency |
 | **MIRA boot prompt** | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` | MIRA's config | v1: she had none — boot call, order of authority, never guess a table name, token reuse |
