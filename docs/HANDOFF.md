@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-09** · last change: *Deal context made quiet — one line per row, chat-note references read "WhatsApp · Joe"; project-only supplier default before it* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-09** · last change: *Epsivo lines default to "Stock / restock" (31 quote + 19 PO lines marked); purchasing runbook v5* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,21 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-09 (latest) — deal context made quiet (owner: "this is too messy")
+### 2026-10-09 (latest) — Epsivo is stock-only
+
+Owner: "For all Dongguan Epsivo's PI or PO they are for Stock."
+
+- `STOCK_ONLY_SUPPLIER_CODES = ['EPSIVO']` beside the project-only lists in
+  `lib/dealContext.ts`; `defaultLineReason` returns `stock` for it (the
+  supplier decides before the brand). Tested. New Deal shows "Stock / restock ·
+  Auto" through the same derived path as the project default.
+- **Data (owner's instruction "all … PI or PO"):** 31 rows of 4.1 and 19 of
+  5.1, none had a reason, set to `stock` with `reason_note` "Aturan pemilik
+  2026-10-09: pemasok ini selalu untuk stok". No Epsivo PO had a null total;
+  sum of PO totals asserted unchanged in the same DO block.
+- PURCHASING-RUNBOOK v5 (§3 stock-only exception); registry, INDEX, Drive.
+
+### 2026-10-09 — deal context made quiet (owner: "this is too messy")
 
 The Item Editor's last-price popup grew to four lines per quote: the chat note
 as "PI #" ("WA Joe Trisindo 20…") AND the same source again in a boxed chip,

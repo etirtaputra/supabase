@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-09T22:14:03Z",
+    title: "Barang dari Dongguan Epsivo otomatis beralasan “Stok”",
+    details: [
+      "Setiap baris dari Dongguan Epsivo Electric kini terisi “Stok / isi ulang stok” di Transaksi Baru, ditandai “Otomatis”. Tetap bisa diganti per baris.",
+      "31 baris penawaran dan 19 baris PO lama dari Epsivo sudah ditandai “Stok”.",
+    ],
+  },
+  {
     at: "2026-10-09T10:27:20Z",
     title: "Riwayat harga lebih rapi: sumber dan alasan kini satu baris kecil",
     details: [

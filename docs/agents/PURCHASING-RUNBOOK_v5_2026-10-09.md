@@ -3,6 +3,9 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v5, 2026-10-09** — a stock-only supplier: every line from EPSIVO (Dongguan
+> Epsivo Electric) has the reason "Stock / restock" (owner's rule). §3 changed.
+>
 > **v4, 2026-10-09** — project-only suppliers: every line from ANUGRAH, ESA,
 > JJLAPP, LAPP, PERSADA or SUPREME, and every JEMBO-brand item from any supplier,
 > has the reason "For a project" (owner's rule). Rule 6 and §3 changed.
@@ -46,7 +49,7 @@ An agent that remembers nothing else from this document must still obey these si
    Deal Lookup. See §7.
 6. **Record the context; never invent it.** Every quote gets its source (channel, time,
    who sent it, who received it) when you know it. Every line gets a reason only when
-   the request says why — or when the owner's project-only rule covers it (§3). A guessed
+   the request says why — or when the owner's supplier rules cover it (§3). A guessed
    reason is worse than none — it is read later as fact in a negotiation. See §3.
 
 ## Escalate to a human, do not guess
@@ -226,8 +229,17 @@ project link (`reason_project_quote_id`) only when the request names the project
 person says a line is for something else, their word wins. The 149 quote lines and 58 PO lines
 already on file were marked the same day, with `reason_note` "Aturan pemilik 2026-10-09:
 pemasok/merek ini selalu untuk proyek" — so a `project` line with that note and no project
-link came from the rule, not from a request. The rule lives in
-`lib/dealContext.ts` (`PROJECT_ONLY_SUPPLIER_CODES`, `PROJECT_ONLY_BRANDS`).
+link came from the rule, not from a request.
+
+**Exception — stock-only supplier (owner, 2026-10-09):** "For all Dongguan Epsivo's PI
+or PO they are for Stock." Write `reason = stock` on every line from `EPSIVO` (Dongguan
+Epsivo Electric Co., Ltd.), quote and PO. New Deal fills it in ("Stock / restock · Auto").
+The 31 quote lines and 19 PO lines already on file were marked the same day, with
+`reason_note` "Aturan pemilik 2026-10-09: pemasok ini selalu untuk stok". The supplier
+decides before the brand.
+
+The rules live in `lib/dealContext.ts` (`PROJECT_ONLY_SUPPLIER_CODES`,
+`PROJECT_ONLY_BRANDS`, `STOCK_ONLY_SUPPLIER_CODES`).
 
 ### There is no Total field, and that is deliberate
 The deal's total is **items + freight**, computed at save. You cannot type it.

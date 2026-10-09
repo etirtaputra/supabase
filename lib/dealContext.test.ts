@@ -117,3 +117,10 @@ test('the arrival time drops what the row already says', () => {
   assert.equal(fmtSourceAtShort('2026-09-23T17:00:00.000Z', '2026-09-24'), '');
   assert.equal(fmtSourceAtShort(null, '2026-09-24'), '');
 });
+
+test('Epsivo is stock-only (owner, 2026-10-09); the supplier decides before the brand', () => {
+  assert.equal(defaultLineReason('EPSIVO', null), 'stock');
+  assert.equal(defaultLineReason('epsivo', 'EPSIVO'), 'stock');
+  assert.equal(defaultLineReason('EPSIVO', 'JEMBO'), 'stock');
+  assert.equal(defaultLineReason('EPEVER', null), null);
+});

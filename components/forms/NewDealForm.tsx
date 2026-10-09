@@ -299,8 +299,8 @@ export default function NewDealForm({
     });
   };
 
-  // A line from a project-only supplier, or of a project-only brand, reads
-  // "For a project" until someone picks otherwise. Derived, not stored: picking
+  // A line from a project-only supplier or brand reads "For a project", one
+  // from a stock-only supplier "Stock / restock", until someone picks otherwise. Derived, not stored: picking
   // the supplier after the lines, or changing it, re-decides every untouched line.
   const autoReason = (l: DealLine) => (!l.reason && !l.reason_set && hasContent(l)
     ? defaultLineReason(supplierCodes[String(header.supplier_id ?? '')], compById.get(String(l.component_id))?.brand)
@@ -497,7 +497,7 @@ export default function NewDealForm({
                     <div className="col-span-6 md:col-[2/-1] flex flex-wrap items-center gap-1.5 md:pb-1.5">
                       <span className="text-[10px] uppercase tracking-wider text-slate-600">{t('Why')}</span>
                       <select value={reason} onChange={(e) => setLine(l.key, { reason: e.target.value, reason_set: true })}
-                        title={auto ? t('Filled in: everything from this supplier or brand is for a project') : undefined}
+                        title={auto ? t(reason === 'stock' ? 'Filled in: everything from this supplier is for stock' : 'Filled in: everything from this supplier or brand is for a project') : undefined}
                         className={`${lineInpBase} !w-auto ${reason ? 'text-slate-200' : 'text-slate-600'}`}>
                         <option value="">{t('— reason —')}</option>
                         {reasonOpts.map((r) => <option key={r.value} value={r.value}>{t(r.label)}</option>)}

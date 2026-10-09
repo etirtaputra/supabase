@@ -2011,6 +2011,7 @@ export const ID: Record<string, string> = {
   'Why': 'Alasan',
   'Why — all lines': 'Alasan — semua baris',
   'Filled in: everything from this supplier or brand is for a project': 'Terisi otomatis: semua barang dari supplier atau merek ini untuk proyek',
+  'Filled in: everything from this supplier is for stock': 'Terisi otomatis: semua barang dari supplier ini untuk stok',
   '— reason —': '— alasan —',
 };
 

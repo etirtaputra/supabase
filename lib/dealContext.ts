@@ -229,11 +229,22 @@ export function lineContextFields(l: LineContext, doc: 'quote' | 'po'): Required
  */
 export const PROJECT_ONLY_SUPPLIER_CODES: readonly string[] = ['ANUGRAH', 'ESA', 'JJLAPP', 'LAPP', 'PERSADA', 'SUPREME'];
 export const PROJECT_ONLY_BRANDS: readonly string[] = ['JEMBO'];
+/**
+ * Owner, 2026-10-09: "For all Dongguan Epsivo's PI or PO they are for Stock."
+ * The 31 quote lines and 19 PO lines already on file were marked the same day.
+ */
+export const STOCK_ONLY_SUPPLIER_CODES: readonly string[] = ['EPSIVO'];
 
-/** "project" when the supplier or the item's brand is project-only; otherwise null (ask). */
+/**
+ * The reason a line has before anyone picks one: "project" for a project-only
+ * supplier or brand, "stock" for a stock-only supplier, otherwise null (ask).
+ * The supplier decides first — it is who the deal is with.
+ */
 export function defaultLineReason(supplierCode: string | null | undefined, brand: string | null | undefined): LineReason | null {
   const up = (s: string | null | undefined) => (s ?? '').trim().toUpperCase();
-  if (PROJECT_ONLY_SUPPLIER_CODES.includes(up(supplierCode))) return 'project';
+  const code = up(supplierCode);
+  if (PROJECT_ONLY_SUPPLIER_CODES.includes(code)) return 'project';
+  if (STOCK_ONLY_SUPPLIER_CODES.includes(code)) return 'stock';
   const b = up(brand);
   return b && PROJECT_ONLY_BRANDS.some((x) => b.includes(x)) ? 'project' : null;
 }
