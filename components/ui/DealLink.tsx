@@ -12,8 +12,10 @@
  */
 export const dealLookupHref = (n: string) => `/purchasing?tab=lookup&q=${encodeURIComponent(n)}`;
 
-export default function DealLink({ number, className = '', prefix = '', title }: {
+export default function DealLink({ number, className = '', prefix = '', title, label }: {
   number?: string | null; className?: string; prefix?: string; title?: string;
+  /** Shown in place of the number (a chat-note reference reads "WhatsApp · Joe"); the link still searches the number. */
+  label?: string;
 }) {
   if (!number) return null;
   return (
@@ -21,7 +23,7 @@ export default function DealLink({ number, className = '', prefix = '', title }:
       onClick={(e) => e.stopPropagation()}
       title={title ?? `Open ${number} in Deal Lookup`}
       className={`hover:brightness-125 transition-all ${className}`}>
-      {prefix}{number}
+      {prefix}{label || number}
     </a>
   );
 }

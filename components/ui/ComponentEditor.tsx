@@ -32,8 +32,8 @@ import { categoryLabelOf, categoryPath } from '../../constants/productTaxonomy';
 import { CategoryOptionGroups } from './CategoryOptions';
 import { linkCandidates, buildLinkRows, reasonRequired, LINK_TYPES, LINK_REASONS, type LinkableItem, type NewLinkType, type NewLinkRow } from '@/lib/itemLinks';
 import { formatCategory } from '@/lib/formatCategory';
-import { SourceLine, ReasonChip } from './DealContext';
-import type { SourceFields, LineContext } from '@/lib/dealContext';
+import { DealContextLine } from './DealContext';
+import { dealRef, type SourceFields, type LineContext } from '@/lib/dealContext';
 import { selectAll } from '@/lib/fetchAllRows';
 
 
@@ -461,7 +461,7 @@ interface TooltipQuoteLine {
   /** Where the quote came from and why this line was asked for (lib/dealContext.ts). */
   src?: SourceFields; ctx?: LineContext;
 }
-interface TooltipPOLine { po_number: string; po_date?: string; quantity: number; unit_cost: number; currency: string; }
+interface TooltipPOLine { po_number: string; po_date?: string; quantity: number; unit_cost: number; currency: string; ctx?: LineContext; }
 interface UsageTooltipProps {
   quoteLines: TooltipQuoteLine[]; poLines: TooltipPOLine[]; style: React.CSSProperties;
   onMouseEnter?: () => void; onMouseLeave?: () => void;
@@ -469,8 +469,11 @@ interface UsageTooltipProps {
 // Deal Lookup deep link (matches the Spotlight / dashboard convention)
 const dealLookupHref = (n: string) => `/purchasing?tab=lookup&q=${encodeURIComponent(n)}`;
 function UsageTooltip({ quoteLines, poLines, style, onMouseEnter, onMouseLeave }: UsageTooltipProps) {
-  const fmtPrice = (n: number, cur: string) =>
-    `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${cur}`;
+  // Rupiah has no cents worth showing — "1,529,280 IDR" fits one line, "1,529,280.00 IDR" did not.
+  const fmtPrice = (n: number, cur: string) => {
+    const dp = cur === 'IDR' ? 0 : 2;
+    return `${n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })} ${cur}`;
+  };
   const fmtD = (d?: string) =>
     d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
   const content = (
@@ -486,25 +489,23 @@ function UsageTooltip({ quoteLines, poLines, style, onMouseEnter, onMouseLeave }
           <p className="text-slate-600 italic pl-3">No quote line items</p>
         ) : (
           <div>
-            <div className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
+            <div className="grid grid-cols-[1fr_68px_40px_88px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
               <span>PI #</span><span>Date</span><span className="text-right">Qty</span><span className="text-right">Unit Price</span>
             </div>
-            {quoteLines.map((ql, i) => (
-              <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
+            {quoteLines.map((ql, i) => {
+              const ref = dealRef(ql.pi_number, ql.src);
+              return (
+              <div key={i} className="grid grid-cols-[1fr_68px_40px_88px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
                 {ql.pi_number
-                  ? <a href={dealLookupHref(ql.pi_number)} title="Open in Deal Lookup" className="font-mono text-blue-300 truncate hover:text-blue-200 transition-colors">{ql.pi_number}</a>
+                  ? <a href={dealLookupHref(ql.pi_number)} title={ref.chat ? ql.pi_number : 'Open in Deal Lookup'} className={`${ref.chat ? '' : 'font-mono '}text-blue-300 truncate hover:text-blue-200 transition-colors`}>{ref.text}</a>
                   : <span className="font-mono text-slate-600 truncate">—</span>}
                 <span className="text-slate-400">{fmtD(ql.quote_date)}</span>
                 <span className="text-right text-slate-300">{ql.quantity}</span>
-                <span className="text-right text-emerald-300 font-semibold tabular-nums">{fmtPrice(ql.unit_price, ql.currency)}</span>
-                {(ql.src?.source_channel || ql.ctx?.reason || ql.ctx?.reason_note) && (
-                  <span className="col-span-4 text-[10px] inline-flex flex-wrap items-center gap-x-2">
-                    {ql.src && <SourceLine s={ql.src} />}
-                    {ql.ctx && <ReasonChip l={ql.ctx} nameOf={() => undefined} />}
-                  </span>
-                )}
+                <span className="text-right text-emerald-300 font-semibold tabular-nums whitespace-nowrap">{fmtPrice(ql.unit_price, ql.currency)}</span>
+                <DealContextLine s={ql.src} l={ql.ctx} nameOf={() => undefined} rowDate={ql.quote_date ?? null} hideChannel={ref.chat} noteAsIcon className="col-span-4 -mt-0.5" />
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -518,17 +519,18 @@ function UsageTooltip({ quoteLines, poLines, style, onMouseEnter, onMouseLeave }
           <p className="text-slate-600 italic pl-3">No PO line items</p>
         ) : (
           <div>
-            <div className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
+            <div className="grid grid-cols-[1fr_68px_40px_88px] gap-x-2 text-[10px] text-slate-500 pb-1.5 border-b border-slate-800 mb-1">
               <span>PO #</span><span>Date</span><span className="text-right">Qty</span><span className="text-right">Unit Cost</span>
             </div>
             {poLines.map((pl, i) => (
-              <div key={i} className="grid grid-cols-[1fr_72px_44px_90px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
+              <div key={i} className="grid grid-cols-[1fr_68px_40px_88px] gap-x-2 py-1 border-b border-slate-800/40 last:border-0">
                 {pl.po_number
                   ? <a href={dealLookupHref(pl.po_number)} title="Open in Deal Lookup" className="font-mono text-emerald-300 truncate hover:text-emerald-200 transition-colors">{pl.po_number}</a>
                   : <span className="font-mono text-slate-600 truncate">—</span>}
                 <span className="text-slate-400">{fmtD(pl.po_date)}</span>
                 <span className="text-right text-slate-300">{pl.quantity}</span>
-                <span className="text-right text-amber-300 font-semibold tabular-nums">{fmtPrice(pl.unit_cost, pl.currency)}</span>
+                <span className="text-right text-amber-300 font-semibold tabular-nums whitespace-nowrap">{fmtPrice(pl.unit_cost, pl.currency)}</span>
+                <DealContextLine l={pl.ctx} nameOf={() => undefined} noteAsIcon className="col-span-4 -mt-0.5" />
               </div>
             ))}
           </div>
@@ -1326,6 +1328,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
         quantity: item.quantity,
         unit_cost: item.unit_cost,
         currency: item.currency,
+        ctx: item as LineContext,
       });
       const existing = lastMap.get(item.component_id);
       if (!existing || (po.po_date ?? '') > existing.date) {
@@ -2186,7 +2189,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     myPoItems.forEach((item) => {
       const po = poMap.get(item.po_id);
       if (!po) return;
-      allPOLines.push({ po_number: po.po_number, po_date: po.po_date, quantity: item.quantity, unit_cost: item.unit_cost, currency: item.currency });
+      allPOLines.push({ po_number: po.po_number, po_date: po.po_date, quantity: item.quantity, unit_cost: item.unit_cost, currency: item.currency, ctx: item as LineContext });
     });
     allPOLines.sort((a, b) => (b.po_date || '').localeCompare(a.po_date || ''));
 
@@ -5113,12 +5116,14 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-slate-800/60">
-                                {allQuoteLines.map((ql, i) => (
+                                {allQuoteLines.map((ql, i) => {
+                                  const ref = dealRef(ql.pi_number, ql.src);
+                                  return (
                                   <Fragment key={i}>
                                   <tr className="hover:bg-white/[0.02]">
-                                    <td className="px-3 py-1.5 font-mono text-blue-300">
+                                    <td className={`px-3 py-1.5 text-blue-300 ${ref.chat ? '' : 'font-mono'}`}>
                                       {ql.pi_number
-                                        ? <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(ql.pi_number)}`} title="Open in Deal Lookup" className="hover:text-blue-200 transition-colors">{ql.pi_number}</a>
+                                        ? <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(ql.pi_number)}`} title={ref.chat ? ql.pi_number : 'Open in Deal Lookup'} className="hover:text-blue-200 transition-colors">{ref.text}</a>
                                         : '—'}
                                     </td>
                                     <td className="px-3 py-1.5 text-slate-400">{fmtD(ql.quote_date)}</td>
@@ -5126,18 +5131,17 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                     <td className="px-3 py-1.5 text-right text-blue-300 font-semibold tabular-nums">{fmtP(ql.unit_price, ql.currency)}</td>
                                   </tr>
                                   {/* The negotiation context: where it came from, why it was asked */}
-                                  {(ql.src?.source_channel || ql.ctx?.reason || ql.ctx?.reason_note) && (
+                                  {(ql.src?.source_channel || ql.src?.source_at || ql.ctx?.reason || ql.ctx?.reason_note) && (
                                     <tr className="!border-t-0">
-                                      <td colSpan={4} className="px-3 pb-1.5 -mt-1 text-[10px]">
-                                        <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                          {ql.src && <SourceLine s={ql.src} />}
-                                          {ql.ctx && <ReasonChip l={ql.ctx} nameOf={(id) => { const c = components.find((x) => x.component_id === id); return c ? (c.supplier_model || c.internal_description || undefined) : undefined; }} />}
-                                        </span>
+                                      <td colSpan={4} className="px-3 pb-1.5">
+                                        <DealContextLine s={ql.src} l={ql.ctx} rowDate={ql.quote_date ?? null} hideChannel={ref.chat}
+                                          nameOf={(id) => { const c = components.find((x) => x.component_id === id); return c ? (c.supplier_model || c.internal_description || undefined) : undefined; }} />
                                       </td>
                                     </tr>
                                   )}
                                   </Fragment>
-                                ))}
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>
@@ -5165,7 +5169,8 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                               </thead>
                               <tbody className="divide-y divide-slate-800/60">
                                 {allPOLines.map((pl, i) => (
-                                  <tr key={i} className="hover:bg-white/[0.02]">
+                                  <Fragment key={i}>
+                                  <tr className="hover:bg-white/[0.02]">
                                     <td className="px-3 py-1.5 font-mono text-emerald-300">
                                       {pl.po_number
                                         ? <a href={`/purchasing?tab=lookup&q=${encodeURIComponent(pl.po_number)}`} title="Open in Deal Lookup" className="hover:text-emerald-200 transition-colors">{pl.po_number}</a>
@@ -5175,6 +5180,15 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                                     <td className="px-3 py-1.5 text-right text-slate-300 tabular-nums">{pl.quantity}</td>
                                     <td className="px-3 py-1.5 text-right text-amber-300 font-semibold tabular-nums">{fmtP(pl.unit_cost, pl.currency)}</td>
                                   </tr>
+                                  {(pl.ctx?.reason || pl.ctx?.reason_note) && (
+                                    <tr className="!border-t-0">
+                                      <td colSpan={4} className="px-3 pb-1.5">
+                                        <DealContextLine l={pl.ctx}
+                                          nameOf={(id) => { const c = components.find((x) => x.component_id === id); return c ? (c.supplier_model || c.internal_description || undefined) : undefined; }} />
+                                      </td>
+                                    </tr>
+                                  )}
+                                  </Fragment>
                                 ))}
                               </tbody>
                             </table>

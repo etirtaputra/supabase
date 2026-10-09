@@ -162,6 +162,37 @@ export function parseLegacySource(text: string | null | undefined, staff: string
   return { source_channel: channel, source_at, source_contact, received_by };
 }
 
+/**
+ * What to show in a "PI #" column. A real supplier document number shows as
+ * itself; a reference that is only a chat note — the 52 hand-typed "WA Joe
+ * Trisindo 2026-…" ones, or the generated "WhatsApp · Joe · 2026-10-09 09:15" —
+ * shows as "WhatsApp · Joe", because the time is already said elsewhere on the
+ * row. `chat` tells the caller not to repeat the channel beside it.
+ */
+export function dealRef(pi: string | null | undefined, s: SourceFields = {}): { text: string; chat: boolean } {
+  const raw = (pi ?? '').trim();
+  const short = [channelLabel(s.source_channel), (s.source_contact ?? '').trim()].filter(Boolean).join(' · ');
+  if (!raw) return { text: short, chat: !!short };
+  if (s.source_channel && short && parseLegacySource(raw, []) !== null) return { text: short, chat: true };
+  return { text: raw, chat: false };
+}
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * When it arrived, said as briefly as the row allows: just "12:46" when the
+ * row's own date is the same day, "24 Sep 12:46" when it is not, "" when the
+ * day matches and no time was recorded.
+ */
+export function fmtSourceAtShort(iso: string | null | undefined, rowDate?: string | null): string {
+  const full = fmtSourceAt(iso);
+  if (!full) return '';
+  const [date, hm = ''] = full.split(' ');
+  if (rowDate && date === rowDate.slice(0, 10)) return hm;
+  const [, m, d] = date.split('-');
+  return [`${Number(d)} ${MON[Number(m) - 1]}`, hm].filter(Boolean).join(' ');
+}
+
 export interface LineContext {
   reason?: string | null;
   reason_note?: string | null;

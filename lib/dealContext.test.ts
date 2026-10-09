@@ -96,3 +96,24 @@ test('project-only suppliers and the Jembo brand default a line to "for a projec
   assert.equal(defaultLineReason('EPEVER', null), null);
   assert.equal(defaultLineReason(null, undefined), null);
 });
+
+import { dealRef, fmtSourceAtShort } from './dealContext.ts';
+
+test('a chat-note reference shows as channel and contact; a real document number as itself', () => {
+  const wa = { source_channel: 'whatsapp', source_contact: 'Joe' };
+  assert.deepEqual(dealRef('WA Joe Trisindo 2026-10-08 17:12', wa), { text: 'WhatsApp · Joe', chat: true });
+  assert.deepEqual(dealRef('WhatsApp · Joe · 2026-10-09 09:15', wa), { text: 'WhatsApp · Joe', chat: true });
+  assert.deepEqual(dealRef('EST-000240', wa), { text: 'EST-000240', chat: false });
+  assert.deepEqual(dealRef('', wa), { text: 'WhatsApp · Joe', chat: true });
+  assert.deepEqual(dealRef('WA Joe 2026-10-08', {}), { text: 'WA Joe 2026-10-08', chat: false }, 'no recorded source: leave the text alone');
+  assert.deepEqual(dealRef(null, {}), { text: '', chat: false });
+});
+
+test('the arrival time drops what the row already says', () => {
+  const at = '2026-10-08T10:12:00.000Z';   // 17:12 in Jakarta
+  assert.equal(fmtSourceAtShort(at, '2026-10-08'), '17:12');
+  assert.equal(fmtSourceAtShort(at, '2026-10-07'), '8 Oct 17:12');
+  assert.equal(fmtSourceAtShort('2026-09-23T17:00:00.000Z', '2026-09-23'), '24 Sep', 'midnight Jakarta = date only');
+  assert.equal(fmtSourceAtShort('2026-09-23T17:00:00.000Z', '2026-09-24'), '');
+  assert.equal(fmtSourceAtShort(null, '2026-09-24'), '');
+});

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-09** · last change: *Project-only suppliers (ANUGRAH, ESA, JJLAPP, LAPP, PERSADA, SUPREME) and the Jembo brand default each line to "For a project"; 149 quote + 58 PO lines marked; purchasing runbook v4* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-09** · last change: *Deal context made quiet — one line per row, chat-note references read "WhatsApp · Joe"; project-only supplier default before it* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,30 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-09 (latest) — project-only suppliers default to "For a project"
+### 2026-10-09 (latest) — deal context made quiet (owner: "this is too messy")
+
+The Item Editor's last-price popup grew to four lines per quote: the chat note
+as "PI #" ("WA Joe Trisindo 20…") AND the same source again in a boxed chip,
+a boxed reason chip, and the note in full. Owner picked "one quiet line,
+everywhere".
+
+- `lib/dealContext.ts` (tested): `dealRef(pi, src)` — a chat-note or generated
+  reference reads "WhatsApp · Joe" (`chat: true`, the footnote then drops the
+  channel); a real document number shows as itself; no recorded source = text
+  untouched. `fmtSourceAtShort(iso, rowDate)` — "12:46" on the row's own day,
+  "24 Sep 12:46" otherwise. Display only; `pi_number` data unchanged.
+- `components/ui/DealContext.tsx`: SourceLine and ReasonChip lose their boxes
+  (coloured text, `·` separators); notes truncate to one line or 📝 with the
+  text on hover; new `DealContextLine` = source + reason on one line.
+- Used in the popup and the Costs list (`ComponentEditor`, PO lines now carry
+  `ctx` and show their reason), Item Hub cost history (`ItemCostForensics`,
+  `DealLink` gained `label`), and Deal Lookup (restyled automatically). The
+  popup prints IDR without decimals so every price fits one line.
+- Verified on the production build with locally compiled Tailwind injected in
+  place of the CDN (rig `rig3.mjs`): see §5 — note Chromium needs
+  `proxy.bypass: 'localhost'` or the app itself is routed to the proxy.
+
+### 2026-10-09 — project-only suppliers default to "For a project"
 
 Owner: "for items ordered from PT Anugrah and PT Energi Surya Anugrah, and PT
 JJLAPP or LAPP, PT Supreme, Jembo Cables, this is all for projects" → backfill
@@ -3543,6 +3566,17 @@ has not decided.
 - Chromium's first launch takes over two minutes here. Run the measuring script
   with `run_in_background: true` and wait on its output file, rather than
   watching a foreground command time out.
+- **The real app, styled** (2026-10-09): `next build` + `next start -p 3100`
+  with placeholder Supabase env; compile Tailwind locally (colors from
+  `TAILWIND_COLORS_JS` via `node --experimental-strip-types`, content = app,
+  components, lib, constants) and `page.route('https://cdn.tailwindcss.com/**')`
+  to a script that sets `window.tailwind = {}` and appends the CSS. Sign in by
+  putting a session with an unexpired fake JWT in `localStorage['sb-fake-auth-token']`
+  (URL `https://fake.supabase.co`) and fake `/auth/v1/*`, `user_profiles` and the
+  REST tables with `page.route`. With the proxy set, pass
+  `proxy: { server, bypass: 'localhost,127.0.0.1' }` or the app page itself
+  goes to the proxy and fails. Re-run Tailwind after any class change — the
+  local CSS only holds classes that existed when it was compiled.
 
 ---
 

@@ -26,7 +26,8 @@ import { fmtCcy, fmtDay, fmtIdr, fmtInt, fmtMoneyCell, moneyUnit } from '@/lib/f
 import { priceMovement, PRICE_ARROW, PRICE_TONE } from '@/lib/priceMovement';
 import DealLink from './DealLink';
 import { useT } from '@/hooks/useT';
-import { SourceLine, ReasonChip } from './DealContext';
+import { DealContextLine } from './DealContext';
+import { dealRef } from '@/lib/dealContext';
 
 const COST_LABELS: Record<string, string> = {
   down_payment: 'Down Payment', balance_payment: 'Balance Payment',
@@ -355,13 +356,14 @@ export default function ItemCostForensics({
                       const rate = cur === 'IDR' ? 1 : fxRateOf(fx, cur);
                       const obs = fx[cur];
                       const stale = cur !== 'IDR' && (obs ? fxAgeDays(fx, cur) > FX_STALE_DAYS : true);
+                      const ref = dealRef(qt?.pi_number, qt ?? {});
                       return (
                         <tr key={qi.quote_line_id} className="hover:bg-slate-800/30 transition-colors">
-                          <td className="px-3 py-2 text-emerald-400/90 font-mono">
-                            {qt?.pi_number ? <DealLink number={qt.pi_number} className="hover:text-emerald-300" /> : `#${qi.quote_id}`}
-                            {/* Where it came from and why it was asked — the negotiation context */}
-                            {qt && <SourceLine s={qt} className="font-sans text-[10px] mt-0.5 flex" />}
-                            <ReasonChip l={qi} nameOf={(id) => { const c = components.find((x) => String(x.component_id) === id); return c ? (c.supplier_model || c.internal_description || undefined) : undefined; }} className="font-sans mt-0.5 flex" />
+                          <td className={`px-3 py-2 text-emerald-400/90 ${ref.chat ? '' : 'font-mono'}`}>
+                            {qt?.pi_number ? <DealLink number={qt.pi_number} label={ref.text} title={ref.chat ? qt.pi_number : undefined} className="hover:text-emerald-300" /> : `#${qi.quote_id}`}
+                            {/* Where it came from and why it was asked — one quiet line */}
+                            <DealContextLine s={qt} l={qi} rowDate={qt?.quote_date ?? null} hideChannel={ref.chat} className="font-sans mt-0.5"
+                              nameOf={(id) => { const c = components.find((x) => String(x.component_id) === id); return c ? (c.supplier_model || c.internal_description || undefined) : undefined; }} />
                           </td>
                           <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{fmtDay(qt?.quote_date)}</td>
                           <td className="px-3 py-2 text-slate-300 truncate max-w-[160px]">{supName(qt?.supplier_id)}</td>

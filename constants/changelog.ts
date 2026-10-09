@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-09T10:27:20Z",
+    title: "Riwayat harga lebih rapi: sumber dan alasan kini satu baris kecil",
+    details: [
+      "Penawaran lewat chat tidak lagi menampilkan catatan panjang yang terpotong (“WA Joe Trisindo 20…”) — kolom PI # kini menulis “WhatsApp · Joe”. Nomor dokumen supplier yang asli tetap tampil apa adanya.",
+      "Sumber, jam dan alasan menjadi satu baris kecil berwarna lembut di bawah setiap baris, tanpa kotak. Jam saja jika tanggalnya sama dengan baris itu.",
+      "Catatan panjang tampil sebagai 📝 — arahkan kursor untuk membacanya. Alasan baris PO kini juga tampil.",
+      "Harga rupiah tanpa “.00”, sehingga setiap harga muat dalam satu baris. Berlaku di popup harga terakhir, daftar Biaya di Editor Barang, Telusur Transaksi, dan Pusat Barang.",
+    ],
+  },
+  {
     at: "2026-10-09T02:16:53Z",
     title: "Barang dari supplier proyek otomatis beralasan “Untuk proyek”",
     details: [
