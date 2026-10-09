@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-09** · last change: *Deal context — quote source (channel, time, contact) and a reason per quote/PO line; 52 chat-note quotes converted* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-09** · last change: *Project-only suppliers (ANUGRAH, ESA, JJLAPP, LAPP, PERSADA, SUPREME) and the Jembo brand default each line to "For a project"; 149 quote + 58 PO lines marked; purchasing runbook v4* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,30 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-09 (latest) — deal context: where a quote came from, why each line
+### 2026-10-09 (latest) — project-only suppliers default to "For a project"
+
+Owner: "for items ordered from PT Anugrah and PT Energi Surya Anugrah, and PT
+JJLAPP or LAPP, PT Supreme, Jembo Cables, this is all for projects" → backfill
+yes, default on new lines yes, and "everything from Persada too".
+
+- **Rule** `lib/dealContext.ts` `defaultLineReason` (tested): supplier codes
+  ANUGRAH, ESA, JJLAPP, LAPP, PERSADA, SUPREME, or an item whose brand contains
+  JEMBO (Jembo has no supplier row; it comes via PERSADA, GLOBAL, SINARMONAS —
+  only the Jembo items of GLOBAL/SINARMONAS are covered).
+- **New Deal** shows the default as "For a project · Auto" on every untouched
+  line with content; it is derived at render, written at save, and a hand pick
+  (even "— reason —") sets `reason_set` and wins. Supplier codes come in as
+  `supplierCodes` from the purchasing page. Verified on the production build:
+  ESA lines default, a line switched to Stock saves as stock, GLOBAL+Jembo
+  defaults, GLOBAL+KMI stays empty.
+- **Data (approved):** 149 rows of 4.1 and 58 of 5.1 with no reason set to
+  `project`, `reason_note` "Aturan pemilik 2026-10-09: pemasok/merek ini selalu
+  untuk proyek", no project link. Checked first: 5.1's `recalculate_po_total`
+  fires on any update — no affected PO had a null total, so totals unchanged
+  (asserted in the same DO block).
+- **Packs:** PURCHASING-RUNBOOK v4 (rule 6 + §3 exception table); v3 removed.
+
+### 2026-10-09 — deal context: where a quote came from, why each line
 
 Owner: "add context to why we ask for quotes, or order things … Source:
 WhatsApp, WeChat, Email; then with Dates and Times … each line item also have

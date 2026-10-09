@@ -525,6 +525,11 @@ function MasterInsertPage() {
     ...reasonOrders.map((o) => [o.id, [o.label, o.sub].filter(Boolean).join(' · ')] as [string, string]),
   ]), [reasonProjects, reasonOrders]);
 
+  // For the project-only default reason on New Deal lines (lib/dealContext.ts).
+  const supplierCodes = useMemo(() => Object.fromEntries(
+    (data.suppliers as { supplier_id: string; supplier_code?: string | null }[])
+      .filter((s) => s.supplier_code).map((s) => [String(s.supplier_id), String(s.supplier_code)])), [data.suppliers]);
+
   // People already named on quotes — "From" suggests them, "Received by" too.
   const contactSuggestions = useMemo(
     () => [...new Set((data.quotes as { source_contact?: string | null }[]).map((q) => q.source_contact).filter((x): x is string => !!x))].sort(),
@@ -1549,6 +1554,7 @@ function MasterInsertPage() {
                       loading={loading}
                       projects={reasonProjects}
                       salesOrders={reasonOrders}
+                      supplierCodes={supplierCodes}
                     />
                     {withPo && storedQuoteSel && (
                       <p className="text-[11px] text-violet-300/70">

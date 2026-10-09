@@ -2010,6 +2010,7 @@ export const ID: Record<string, string> = {
   'Which sales order?': 'Pesanan penjualan yang mana?',
   'Why': 'Alasan',
   'Why — all lines': 'Alasan — semua baris',
+  'Filled in: everything from this supplier or brand is for a project': 'Terisi otomatis: semua barang dari supplier atau merek ini untuk proyek',
   '— reason —': '— alasan —',
 };
 

@@ -188,6 +188,25 @@ export function lineContextFields(l: LineContext, doc: 'quote' | 'po'): Required
   };
 }
 
+/**
+ * Lines whose reason is known before anyone types it (owner, 2026-10-09: "for
+ * items ordered from PT Anugrah and PT Energi Surya Anugrah, and PT JJLAPP or
+ * LAPP, PT Supreme, Jembo Cables, this is all for projects" — and everything
+ * from PT Persada, the Jembo distributor). Jembo is a brand bought through
+ * several distributors, so it is matched on the item, wherever it is bought.
+ * The same rule marked the 149 quote lines and 58 PO lines already on file.
+ */
+export const PROJECT_ONLY_SUPPLIER_CODES: readonly string[] = ['ANUGRAH', 'ESA', 'JJLAPP', 'LAPP', 'PERSADA', 'SUPREME'];
+export const PROJECT_ONLY_BRANDS: readonly string[] = ['JEMBO'];
+
+/** "project" when the supplier or the item's brand is project-only; otherwise null (ask). */
+export function defaultLineReason(supplierCode: string | null | undefined, brand: string | null | undefined): LineReason | null {
+  const up = (s: string | null | undefined) => (s ?? '').trim().toUpperCase();
+  if (PROJECT_ONLY_SUPPLIER_CODES.includes(up(supplierCode))) return 'project';
+  const b = up(brand);
+  return b && PROJECT_ONLY_BRANDS.some((x) => b.includes(x)) ? 'project' : null;
+}
+
 /** Normalise the four header fields as typed in the form (datetime-local, blanks). */
 export function sourceFieldsFromForm(h: Record<string, unknown>): Required<SourceFields> {
   const s = (v: unknown) => (typeof v === 'string' ? v.trim() : '') || null;

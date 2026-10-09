@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-09T02:16:53Z",
+    title: "Barang dari supplier proyek otomatis beralasan “Untuk proyek”",
+    details: [
+      "Setiap baris dari PT Anugrah Megateratai, PT Energi Surya Anugerah, PT JJLAPP, PT Lapp Kabel, PT Persada Permata Mandiri dan PT Supreme Power — serta setiap kabel merek Jembo dari supplier mana pun — kini terisi “Untuk proyek” di Transaksi Baru, ditandai “Otomatis”.",
+      "Alasannya tetap bisa diganti per baris; pilihan manual tidak akan ditimpa. Proyeknya tetap dipilih sendiri.",
+      "149 baris penawaran dan 58 baris PO lama dari supplier dan merek ini sudah ditandai “Untuk proyek”.",
+    ],
+  },
+  {
     at: "2026-10-09T01:14:12Z",
     title: "Transaksi Baru: dari mana penawaran datang, dan alasan setiap barang diminta atau dipesan",
     details: [

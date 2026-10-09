@@ -3,6 +3,10 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v4, 2026-10-09** — project-only suppliers: every line from ANUGRAH, ESA,
+> JJLAPP, LAPP, PERSADA or SUPREME, and every JEMBO-brand item from any supplier,
+> has the reason "For a project" (owner's rule). Rule 6 and §3 changed.
+>
 > **v3, 2026-10-09** — the deal context: a quote records WHERE it came from
 > (Source · Date & time received · Supplier contact · Our contact), "Quote Ref"
 > is now "Document No." and holds only the supplier's document number, and every
@@ -42,8 +46,8 @@ An agent that remembers nothing else from this document must still obey these si
    Deal Lookup. See §7.
 6. **Record the context; never invent it.** Every quote gets its source (channel, time,
    who sent it, who received it) when you know it. Every line gets a reason only when
-   the request says why. A guessed reason is worse than none — it is read later as fact
-   in a negotiation. See §3.
+   the request says why — or when the owner's project-only rule covers it (§3). A guessed
+   reason is worse than none — it is read later as fact in a negotiation. See §3.
 
 ## Escalate to a human, do not guess
 
@@ -202,6 +206,28 @@ Each line also takes a short **note** ("customer needs it before Lebaran").
 
 **Leave the reason empty when nobody said why.** Ask the person who sent the request;
 do not infer "stock" because no project was named.
+
+**Exception — project-only suppliers (owner, 2026-10-09).** These are always for a
+project. Write `reason = project` on every line, quote and PO:
+
+| Supplier code | Supplier |
+|---|---|
+| `ANUGRAH` | PT Anugrah Megateratai |
+| `ESA` | PT Energi Surya Anugerah |
+| `JJLAPP` | PT JJLAPP Cable Indonesia |
+| `LAPP` | PT Lapp Kabel Indonesia |
+| `PERSADA` | PT Persada Permata Mandiri |
+| `SUPREME` | PT Supreme Power |
+
+Also every item whose `3.0_components.brand` is **JEMBO**, from any supplier (Jembo is
+bought through PERSADA, GLOBAL and SINARMONAS; other items from GLOBAL and SINARMONAS
+are not covered). New Deal fills this in by itself ("For a project · Auto"). Add the
+project link (`reason_project_quote_id`) only when the request names the project. If the
+person says a line is for something else, their word wins. The 149 quote lines and 58 PO lines
+already on file were marked the same day, with `reason_note` "Aturan pemilik 2026-10-09:
+pemasok/merek ini selalu untuk proyek" — so a `project` line with that note and no project
+link came from the rule, not from a request. The rule lives in
+`lib/dealContext.ts` (`PROJECT_ONLY_SUPPLIER_CODES`, `PROJECT_ONLY_BRANDS`).
 
 ### There is no Total field, and that is deliberate
 The deal's total is **items + freight**, computed at save. You cannot type it.

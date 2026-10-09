@@ -85,3 +85,14 @@ test('a reason renders with what it points at and the note', () => {
   assert.equal(reasonParts({}, () => undefined), null);
   assert.deepEqual(reasonParts({ reason_note: 'just a note' }, () => undefined), { label: '', target: '', note: 'just a note' });
 });
+
+import { defaultLineReason } from './dealContext.ts';
+
+test('project-only suppliers and the Jembo brand default a line to "for a project" (owner, 2026-10-09)', () => {
+  for (const code of ['ANUGRAH', 'ESA', 'JJLAPP', 'LAPP', 'PERSADA', 'SUPREME', ' esa ']) assert.equal(defaultLineReason(code, null), 'project', code);
+  assert.equal(defaultLineReason('GLOBAL', 'JEMBO'), 'project', 'Jembo wherever it is bought');
+  assert.equal(defaultLineReason('SINARMONAS', 'Jembo Cable'), 'project');
+  assert.equal(defaultLineReason('GLOBAL', 'KMI'), null, 'other items from a Jembo distributor are asked');
+  assert.equal(defaultLineReason('EPEVER', null), null);
+  assert.equal(defaultLineReason(null, undefined), null);
+});

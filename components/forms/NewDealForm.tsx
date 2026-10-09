@@ -28,7 +28,7 @@ import { Spinner } from '../ui/LoadingSkeleton';
 import { fmtInt } from '@/lib/formatters';
 import { evalCell } from '@/lib/formula';
 import { useT } from '@/hooks/useT';
-import { reasonsFor, reasonDef } from '@/lib/dealContext';
+import { reasonsFor, reasonDef, defaultLineReason } from '@/lib/dealContext';
 import type { FieldConfig } from '../../types/forms';
 
 export interface DealLine {
@@ -46,6 +46,8 @@ export interface DealLine {
   reason_replaces_component_id?: string;
   /** Replacement lines: also record the new item as the old one's successor. */
   make_successor?: boolean;
+  /** Someone picked the reason by hand (even "— reason —") — the default stops applying. */
+  reason_set?: boolean;
 }
 
 let lineSeq = 0;
@@ -93,12 +95,14 @@ interface Props {
   /** EPC proposals and sales orders a line can be "for" (empty = role cannot read them). */
   projects?: ReasonTarget[];
   salesOrders?: ReasonTarget[];
+  /** supplier_id → supplier_code, for the project-only default reason (lib/dealContext.ts). */
+  supplierCodes?: Record<string, string>;
 }
 
 export default function NewDealForm({
   title, withPo, headerFields, onFieldChange, components, currencies,
   itemsLocked = false, seedLines = null, sourceKey = null, headerAction, onSubmit, loading,
-  projects = [], salesOrders = [],
+  projects = [], salesOrders = [], supplierCodes = {},
 }: Props) {
   const { t } = useT();
   // Quote + PO: the lines are ORDERED, so "price check only" is not offered.
@@ -295,6 +299,14 @@ export default function NewDealForm({
     });
   };
 
+  // A line from a project-only supplier, or of a project-only brand, reads
+  // "For a project" until someone picks otherwise. Derived, not stored: picking
+  // the supplier after the lines, or changing it, re-decides every untouched line.
+  const autoReason = (l: DealLine) => (!l.reason && !l.reason_set && hasContent(l)
+    ? defaultLineReason(supplierCodes[String(header.supplier_id ?? '')], compById.get(String(l.component_id))?.brand)
+    : null);
+  const reasonOf = (l: DealLine) => l.reason || autoReason(l) || '';
+
   const clearDraft = () => {
     try {
       localStorage.removeItem(DRAFT_KEY);
@@ -342,7 +354,7 @@ export default function NewDealForm({
       const [ccy, sum] = [...itemTotals.entries()][0];
       if (!out.currency || ccy === out.currency) out.total_value = sum + (Number(out.freight_charges_intl) || 0);
     }
-    const ok = await onSubmit(out, itemsLocked ? [] : rows);
+    const ok = await onSubmit(out, itemsLocked ? [] : rows.map((l) => ({ ...l, reason: reasonOf(l) })));
     if (ok === false) return;   // failed insert — keep the draft, keep the typing
     clearDraft();
   };
@@ -395,7 +407,7 @@ export default function NewDealForm({
             {/* One reason for the whole deal is the common case — set it once. */}
             <label className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-500">
               {t('Why — all lines')}
-              <select value="" onChange={(e) => { const v = e.target.value; if (v) setLines((ls) => { const next = ls.map((l) => ({ ...l, reason: v })); persist(header, next); return next; }); }}
+              <select value="" onChange={(e) => { const v = e.target.value; if (v) setLines((ls) => { const next = ls.map((l) => ({ ...l, reason: v, reason_set: true })); persist(header, next); return next; }); }}
                 className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500/60">
                 <option value="">{t('Set…')}</option>
                 {reasonOpts.map((r) => <option key={r.value} value={r.value}>{t(r.label)}</option>)}
@@ -475,18 +487,22 @@ export default function NewDealForm({
                 {/* Why this line — the context a later negotiation needs. Shown
                     once the line has content, so the blank last row stays quiet. */}
                 {movable && (() => {
-                  const def = reasonDef(l.reason);
+                  const reason = reasonOf(l);
+                  const auto = !l.reason && !!reason;
+                  const def = reasonDef(reason);
                   const target = def?.needs === 'project' ? { list: projects, key: 'reason_project_quote_id' as const, ph: t('Which project?') }
                     : def?.needs === 'sales_order' ? { list: salesOrders, key: 'reason_sales_quote_id' as const, ph: t('Which sales order?') }
                     : null;
                   return (
                     <div className="col-span-6 md:col-[2/-1] flex flex-wrap items-center gap-1.5 md:pb-1.5">
                       <span className="text-[10px] uppercase tracking-wider text-slate-600">{t('Why')}</span>
-                      <select value={l.reason ?? ''} onChange={(e) => setLine(l.key, { reason: e.target.value })}
-                        className={`${lineInpBase} !w-auto ${l.reason ? 'text-slate-200' : 'text-slate-600'}`}>
+                      <select value={reason} onChange={(e) => setLine(l.key, { reason: e.target.value, reason_set: true })}
+                        title={auto ? t('Filled in: everything from this supplier or brand is for a project') : undefined}
+                        className={`${lineInpBase} !w-auto ${reason ? 'text-slate-200' : 'text-slate-600'}`}>
                         <option value="">{t('— reason —')}</option>
                         {reasonOpts.map((r) => <option key={r.value} value={r.value}>{t(r.label)}</option>)}
                       </select>
+                      {auto && <span className="text-[10px] text-slate-500">{t('Auto')}</span>}
                       {target && (
                         <select value={(l[target.key] as string) ?? ''} onChange={(e) => setLine(l.key, { [target.key]: e.target.value })}
                           className={`${lineInpBase} !w-auto max-w-[280px] ${l[target.key] ? 'text-slate-200' : 'text-slate-600'}`}>
