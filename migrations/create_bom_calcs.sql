@@ -14,7 +14,9 @@
 -- Access = the EPC module's: owner, engineer and the legacy data_entry /
 -- finance roles (can_view_epc()). Costs and margins are inside the document,
 -- and those are exactly the roles that may see them (canEditQuotes).
--- Idempotent.
+-- Idempotent. Applied 2026-10-11 (ledger 20261011225941) through execute_sql
+-- WITHOUT the DROP POLICY lines: the Supabase MCP holds statements it reads as
+-- destructive for a confirmation the sandbox never shows (see HANDOFF §4).
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS "10.6_bom_calcs" (

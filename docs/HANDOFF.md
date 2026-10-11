@@ -169,10 +169,14 @@ must not affect the existing proposals.
   `cap: canEditQuotes` (owner, engineer). Gate `useQuotesGate(false, '/proposals/bom')`.
 - **Schema**: `migrations/create_bom_calcs.sql` → `10.6_bom_calcs` (calc_id, title,
   doc jsonb, project_quote_id → 10.0 SET NULL, audit emails, timestamps), RLS =
-  `can_view_epc()` for all four verbs. **Approved by the owner 2026-10-11 but NOT YET
-  APPLIED**: `apply_migration` timed out twice at its approval prompt (nothing was
-  created — checked). Until it is applied, /proposals/bom shows a load error.
-  Next thread: apply it first (same SQL, idempotent), then confirm the page loads.
+  `can_view_epc()` for all four verbs. Applied 2026-10-11 with the owner's OK, ledger
+  20261011225941. **How:** `apply_migration` timed out 4× and so did `execute_sql`
+  with the `DROP POLICY IF EXISTS` lines — the Supabase MCP holds anything that
+  reads as destructive for a confirmation this sandbox never shows. Without the
+  DROP lines (the table was new) `execute_sql` ran it in one transaction plus a
+  ledger insert (owner approved that route). RLS tested as owner (insert + read)
+  and as sales (0 rows), rolled back. Lesson: keep DROP out of a create-only
+  migration, or expect the hang.
 - **Packs**: ICAPROC-SCHEMA v9 (§2, §9 list 10.6); registry + INDEX.
 - Verified on the production build (rig `rig4.mjs`, Hon Chuan document built by
   `mkdoc.mts`): 3,523.50 kWp · 180 strings · DC/AC 1.19; module row
