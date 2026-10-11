@@ -2,9 +2,17 @@
 
 > **Read this before your first query. Never guess a table name.**
 >
-> Written 2026-09-06, revised 2026-09-07, 2026-09-09, 2026-09-11, 2026-09-19 and
-> 2026-10-09, against `main` @ the commit that carries it. Row counts are from
+> Written 2026-09-06, revised 2026-09-07, 2026-09-09, 2026-09-11, 2026-09-19,
+> 2026-10-09 and 2026-10-11, against `main` @ the commit that carries it. Row counts are from
 > those days and drift; the NAMES and the RULES are what matter.
+>
+> **v9 (2026-10-11) adds one table, `10.6_bom_calcs`** — the BOM Calculator
+> (beta) at `/proposals/bom`: an engineer's EPC costing, one row per
+> calculation, the whole calculation in one `doc` jsonb (inputs only). It sits
+> BESIDE the EPC proposals and never feeds them. §2 and §9 list it. Read-only
+> for agents: there is no API for it yet, and its numbers are recomputed by the
+> app from `doc`, so a figure read straight out of the jsonb is an input, not a
+> total.
 >
 > **v8 (2026-10-09) adds the deal context — §5f.** A supplier quote now records
 > WHERE it came from (`source_channel`, `source_at`, `source_contact`,
@@ -100,6 +108,7 @@ designer for two days.
 | `10.3_quote_activity` | 571 | the audit log |
 | `10.4_description_library` | 0 | reusable line descriptions for the EPC quote editor |
 | `10.5_quote_notes` | 7 | internal notes on a quote — **`cleared_at IS NULL` = still open** |
+| `10.6_bom_calcs` | 0 | BOM Calculator (beta): one engineer's costing per row, `doc` jsonb = inputs only (lib/bomCalc). **Not a proposal** and not linked to one unless `project_quote_id` says so; totals are recomputed by the app, never stored |
 
 Header columns worth knowing: `quote_number`, `quote_date`, `customer_name`,
 `project_description` (the capacity is prose in here, not a number column),
@@ -550,8 +559,8 @@ attribution is the point of the account, not a side effect.
 
 ## 9. Every table, once
 
-**This is the whole database — 59 tables, read from `information_schema` on
-2026-09-19.** It exists so that "I could not find a table for X" is always a
+**This is the whole database — 60 tables, read from `information_schema` on
+2026-09-19, plus `10.6_bom_calcs` added 2026-10-11.** It exists so that "I could not find a table for X" is always a
 checkable claim. Nothing outside this list exists; if you need something that
 is not here, the answer is that ICAPROC does not store it yet.
 
@@ -585,6 +594,7 @@ Counts drift. Names do not.
 | `10.3_quote_activity` | 2 | audit log |
 | `10.4_description_library` | 2 | reusable descriptions |
 | `10.5_quote_notes` | 2 | `cleared_at IS NULL` = open |
+| `10.6_bom_calcs` | 2 | BOM Calculator (beta) — inputs only; not a proposal |
 
 ### Sell side — §3
 

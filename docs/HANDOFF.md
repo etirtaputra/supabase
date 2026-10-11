@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-09** · last change: *Epsivo lines default to "Stock / restock" (31 quote + 19 PO lines marked); purchasing runbook v5* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-11** · last change: *BOM Calculator (beta) — strings, DC/AC cable and the priced BOM from one set of inputs, with checks; new table 10.6_bom_calcs; schema pack v9* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,48 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-09 (latest) — Epsivo is stock-only
+### 2026-10-11 (latest) — BOM Calculator (beta): the engineers' Excel BOM, calculated
+
+Owner uploaded four EPC BOM workbooks (Hon Chuan R1, DMST 1&3, Mulia Part 6,
+Foxconn): "study the way quotes are derived from the multiple sheets … the goal
+eventually is for the engineers to move into this new web based ICAPROC
+module … when manually linked, my engineers often missed linking". Decisions
+(his picks): inside ICAPROC, Hon Chuan layout first, electrical core first,
+must not affect the existing proposals.
+
+- **Study**: `docs/epc-bom/WORKBOOK_STUDY.md` — both layouts (Template S = Hon
+  Chuan, Template X = Xurya RFQ), the method behind every calculation sheet, and
+  the errors with IDR impact (Hon Chuan: SLO typed Rp 250 m vs 28 m cost; DC tray
+  double-counted and unpriced; NA2XY designed vs NYY priced ≈ Rp 2.06 bn; Mulia
+  sub-totals −Rp 266 m; DMST −36.5 m; Foxconn −39.5 m and unpriced tray).
+- **Engine** `lib/bomCalc/` (pure TS, 13 golden tests from the Hon Chuan sheets):
+  `dc.ts` strings + cold Voc / MPPT / current checks + DC cable per roof
+  ((distance + run) × 2 × strings to buy; VD over 2·distance + run; auto size);
+  `ac.ts` AC segments → phase/neutral/PE metres, lugs, ampacity with k-factors
+  and 125 %, VD with X·sinφ; `cables.ts` IEC 60228 resistance (ampacity is an
+  input, never invented); `bom.ts` rows typed or linked by key, sell = cost ÷
+  (1 − m), totals over every row, unpriced/install-only/broken-link checks;
+  `template.ts` Hon Chuan categories and rows; `index.ts` document, compute,
+  Cu/Al description check, link options; `exportHtml.ts` customer .xls without
+  cost/margin; `specs.ts` catalogue specs → module/inverter.
+- **UI** `/proposals/bom` (list) and `/proposals/bom/[id]` (tabs: Strings &
+  inverters · DC cable · AC cable · Bill of Material · Checks; summary strip;
+  Ctrl+S; catalogue fill for module/inverter; catalogue pick + cost on BOM rows
+  via the EPC cost rule `getComponentCost`). Menu: Projects → BOM Calculator,
+  `cap: canEditQuotes` (owner, engineer). Gate `useQuotesGate(false, '/proposals/bom')`.
+- **Schema**: `migrations/create_bom_calcs.sql` → `10.6_bom_calcs` (calc_id, title,
+  doc jsonb, project_quote_id → 10.0 SET NULL, audit emails, timestamps), RLS =
+  `can_view_epc()` for all four verbs. **Approved by the owner 2026-10-11 but NOT YET
+  APPLIED**: `apply_migration` timed out twice at its approval prompt (nothing was
+  created — checked). Until it is applied, /proposals/bom shows a load error.
+  Next thread: apply it first (same SQL, idempotent), then confirm the page loads.
+- **Packs**: ICAPROC-SCHEMA v9 (§2, §9 list 10.6); registry + INDEX.
+- Verified on the production build (rig `rig4.mjs`, Hon Chuan document built by
+  `mkdoc.mts`): 3,523.50 kWp · 180 strings · DC/AC 1.19; module row
+  Rp 9,249,463,645 (= workbook J6); feeder flagged 0.3 % short; the NYY-row-on-
+  NA2XY-design error shows on the row; Save PATCHes only 10.6.
+
+### 2026-10-09 — Epsivo is stock-only
 
 Owner: "For all Dongguan Epsivo's PI or PO they are for Stock."
 
@@ -3595,6 +3636,18 @@ has not decided.
 ---
 
 ## 6. NEXT MODULE — the Shop (icasolar.com storefront), continued
+
+### 6.00 BOM Calculator — next steps (owner's current track, 2026-10-11)
+
+Roadmap in `docs/epc-bom/WORKBOOK_STUDY.md` §5, one step per thread:
+1. Raceway — tray by fill ratio + stick-price table; conduit, glands, labels,
+   ties, clips from string/inverter counts.
+2. Civil / O&M — walkway, lifeline, water cleaning, grounding pits, inverter
+   stations from per-metre recipes; O&M years with escalation.
+3. Project works + manpower (Jasa) as the installation cross-check.
+4. Template X (Xurya): sections A–P, man-day installation, TOP, FS.
+5. "Make a proposal from this" → write 10.0/10.1/10.2 (needs the owner's OK).
+Ask the engineers what they hit first before starting step 1.
 
 ### 6.0 OPEN ITEMS from the 2026-09-11 → 27 thread — clear these FIRST
 

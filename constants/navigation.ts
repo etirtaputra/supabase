@@ -240,6 +240,12 @@ export const DESTINATIONS: Destination[] = [
   { href: '/proposals', label: 'Proposals', group: 'Projects', section: 'projects', inNav: true,
     hint: 'EPC project proposals',
     keywords: 'epc project quote solar pv' },
+  // The advanced EPC costing (beta, owner 2026-10-11): strings, cables and the
+  // priced BOM from one set of inputs. Beside the proposals, never inside them.
+  // Costs and margins are on every row, so it is canEditQuotes' door.
+  { href: '/proposals/bom', label: 'BOM Calculator', group: 'Projects', section: 'projects', cap: 'canEditQuotes', inNav: true,
+    hint: 'Strings, DC/AC cable and the priced Bill of Material, calculated and checked',
+    keywords: 'bom bill of material calculator kalkulator epc kabel cable string tray hon chuan excel' },
   // Owner-only: the page itself says so to everybody else.
   { href: '/proposals/library', label: 'Proposals · Description Library', group: 'Projects', section: 'projects', cap: 'canManageUsers', inNav: false,
     hint: 'Curated proposal line texts and default costs',

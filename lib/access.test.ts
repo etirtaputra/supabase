@@ -74,7 +74,7 @@ const EXPECTED: Record<UserRole, string[]> = {
     '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
     '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials', '/aftersales',
     '/support-letters', '/banks', '/spend-cash', '/profitability', '/items', '/specs',
-    '/purchasing?tab=market-intel', '/pricing', '/proposals', '/settings', '/import-export',
+    '/purchasing?tab=market-intel', '/pricing', '/proposals', '/proposals/bom', '/settings', '/import-export',
   ],
   buy_admin: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
@@ -92,7 +92,7 @@ const EXPECTED: Record<UserRole, string[]> = {
   ],
   engineer: [
     '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
-    '/aftersales', '/support-letters', '/proposals',
+    '/aftersales', '/support-letters', '/proposals', '/proposals/bom',
   ],
   warehouse: ['/', '/stock', '/stock/receive', '/delivery', '/serials'],
   aftersales: ['/', '/customers', '/serials', '/aftersales'],
@@ -195,6 +195,12 @@ test('the EPC screens are guarded by the path they actually are', () => {
   assert.ok(list.includes('useQuotesGate()'), 'the proposal list guards /proposals');
   assert.ok(lib.includes("'/proposals/library'"), 'the library guards its own path');
   assert.ok(dir.includes("'/proposals/directory'"), 'the directory guards its own path');
+  for (const f of ['app/proposals/bom/page.tsx', 'app/proposals/bom/[id]/page.tsx']) {
+    assert.ok(readFileSync(f, 'utf8').includes("useQuotesGate(false, '/proposals/bom')"), `${f} guards /proposals/bom`);
+  }
+  // Costs and margins on every row: the same roles that see them on proposals.
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.engineer, '/proposals/bom'), true);
+  assert.equal(canOpenPath(ROLE_PERMISSIONS.sales, '/proposals/bom'), false);
   // Owner-only library, any projects role may review the directory
   assert.equal(canOpenPath(ROLE_PERMISSIONS.engineer, '/proposals/library'), false);
   assert.equal(canOpenPath(ROLE_PERMISSIONS.owner, '/proposals/library'), true);

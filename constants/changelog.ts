@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-11T08:33:58Z",
+    title: "Kalkulator BOM (beta): string, kabel, dan Bill of Material berharga dari satu set input",
+    details: [
+      "Menu baru di Proyek → Kalkulator BOM, untuk owner dan engineer. Terpisah dari Proposal EPC — tidak ada proposal yang berubah.",
+      "Isi modul dan inverter (bisa langsung dari katalog), atap dengan jarak dan panjang string, serta segmen kabel AC. Jumlah kabel PV, konektor, kabel AC, kabel pembumian, dan skun dihitung otomatis dan dibawa ke baris BOM — tanpa tautan manual antar-sheet.",
+      "Pemeriksaan otomatis: tegangan string saat dingin, rentang MPPT, arus per MPPT, drop tegangan DC per atap (ukuran kabel bisa dipilih otomatis), kemampuan arus dan drop tegangan kabel AC, baris yang belum ada harganya, instalasi tanpa harga material, dan baris yang menyebut kabel tembaga padahal desainnya aluminium.",
+      "Harga jual = biaya ÷ (1 − margin) di setiap baris, total selalu mencakup semua baris, dan biaya bisa diambil dari katalog dengan aturan yang sama seperti Proposal EPC.",
+      "Ekspor Excel dalam format Hon Chuan, tanpa kolom biaya dan margin.",
+    ],
+  },
+  {
     at: "2026-10-09T22:14:03Z",
     title: "Barang dari Dongguan Epsivo otomatis beralasan “Stok”",
     details: [
