@@ -84,7 +84,7 @@ export default function BomCalcListPage() {
         <p className="text-xs text-slate-500">{t('Loading…')}</p>
       ) : shown.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-700 p-8 text-center text-sm text-slate-400">
-          {rows.length ? t('Nothing matches the search.') : t('No calculations yet. Start one — it opens with the Hon Chuan layout and every row ready to price.')}
+          {rows.length ? t('Nothing matches the search.') : t('No calculations yet. Start one — it opens with the standard layout and every row ready to price.')}
         </div>
       ) : (
         <div className="rounded-2xl border border-slate-800 overflow-hidden">

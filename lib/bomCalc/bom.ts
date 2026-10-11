@@ -14,9 +14,9 @@
  * produced; an unknown key is an error on the row, never a silent zero.
  *
  * What the checks catch were real money in the four workbooks (2026-10):
- * Hon Chuan's 1,159 m of cable tray with installation but no material price;
- * a permit row typed at Rp 250 m against its own Rp 28 m cost; subtotals in
- * Mulia, DMST and Foxconn that dropped Rp 37–266 m of rows.
+ * 1,159 m of cable tray with installation but no material price; a permit
+ * row typed at Rp 250 m against its own Rp 28 m cost; subtotals that dropped
+ * Rp 37–266 m of rows (docs/epc-bom/WORKBOOK_STUDY.md).
  */
 import type { Check } from './dc.ts';
 

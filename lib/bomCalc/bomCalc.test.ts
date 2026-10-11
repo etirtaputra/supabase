@@ -162,3 +162,31 @@ test('Catalogue specs arrive as text and are read as numbers, or left unknown', 
   assert.deepEqual(specRange('200~1500'), [200, 1500]);
   assert.equal(inverterFromSpecs('x', {}).maxDcV, null);
 });
+
+import { explainKey, usageByKey } from './links.ts';
+
+test('Every link explains itself: the rule, and the parts that add up to it', () => {
+  const doc = newBomCalcDoc();
+  doc.module = { ...TRINA_725, componentId: null };
+  doc.inverterGroups = groups.map((g) => ({ ...g, componentId: null }));
+  doc.roofs = HC_ROOFS;
+  const res = computeBomCalc(doc);
+  const e = explainKey(doc, res.values, res.dc, res.ac, 'dc.cable.6')!;
+  assert.equal(e.tab, 'dc');
+  assert.equal(e.parts.length, 4);
+  assert.equal(e.parts.reduce((s, p) => s + p.value, 0), e.value, 'the parts add up to the value');
+  assert.equal(e.parts[0].detail, '(340 + 56) × 2 × 13');
+  const used = usageByKey(doc.rows).get('dc.cable.6') ?? [];
+  assert.equal(used.length, 1);
+  assert.equal(used[0].description, 'Solar cable 6 mm²');
+});
+
+test('A result no BOM row takes is flagged — cable designed but never priced', () => {
+  const doc = newBomCalcDoc();
+  doc.module = { ...TRINA_725, componentId: null };
+  doc.inverterGroups = groups.map((g) => ({ ...g, componentId: null }));
+  doc.roofs = [...HC_ROOFS.slice(0, 7), { ...HC_ROOFS[7], size: 10 }];
+  const res = computeBomCalc(doc);
+  assert.ok(res.checks.some((c) => c.where === 'PV cable 10 mm²' && /no BOM row takes it/.test(c.message)));
+  assert.ok(!res.checks.some((c) => c.where === 'PV cable 6 mm²' && /no BOM row/.test(c.message)));
+});

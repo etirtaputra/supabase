@@ -12,13 +12,15 @@ import { calculateDc, DC_DEFAULTS, type Check, type DcResult, type DcSettings, t
 import { calculateAc, AC_DEFAULTS, type AcResult, type AcSegment, type AcSettings } from './ac.ts';
 import { priceBom, type BomRow, type BomTotals, type PricedRow } from './bom.ts';
 import { CABLE_TYPES, type CableType } from './cables.ts';
-import { honChuanRows } from './template.ts';
+import { standardRows } from './template.ts';
+import { describeKey, unusedKeys, type SourceTab } from './links.ts';
 
 export type { Check, ModuleSpec, InverterGroup, RoofRun, AcSegment, BomRow, PricedRow, BomTotals, DcResult, AcResult };
 
 export interface BomCalcDoc {
   version: 1;
-  template: 'hon_chuan';
+  /** 'standard' (older documents may still say 'hon_chuan' — the same layout). */
+  template: 'standard' | 'hon_chuan';
   project: { customer: string; location: string; defaultMargin: number; ppnPct: number; targetPerWp: number | null };
   module: ModuleSpec & { componentId: string | null };
   inverterGroups: (InverterGroup & { componentId: string | null })[];
@@ -50,11 +52,11 @@ const segment = (id: string, label: string, over: Partial<AcSegment>): AcSegment
   pe: null, reactanceOhmKm: 0.08, ...over,
 });
 
-/** A new, empty calculation in the Hon Chuan layout. */
+/** A new, empty calculation in the standard layout. */
 export function newBomCalcDoc(): BomCalcDoc {
   return {
     version: 1,
-    template: 'hon_chuan',
+    template: 'standard',
     project: { customer: '', location: '', defaultMargin: 0.11, ppnPct: 11, targetPerWp: null },
     module: { ...EMPTY_MODULE },
     inverterGroups: [],
@@ -66,7 +68,7 @@ export function newBomCalcDoc(): BomCalcDoc {
       segment('mv', 'MV transformer → cubicle', { cableType: 'N2XSY', sizeMm2: 50, voltageV: 20000, circuits: 0 }),
     ],
     ac: { ...AC_DEFAULTS },
-    rows: honChuanRows(),
+    rows: standardRows(),
   };
 }
 
@@ -103,7 +105,7 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   const bom = priceBom(doc.rows, values, { defaultMargin: doc.project.defaultMargin, plantWp, ppnPct: doc.project.ppnPct });
 
   // A row that says one cable but is linked to another — the copper-vs-aluminium
-  // mistake that swung Hon Chuan R1 by about Rp 2 billion.
+  // mistake that swung one 2026-10 rooftop bid by about Rp 2 billion.
   const checks: Check[] = [...dc.checks, ...ac.checks, ...bom.checks];
   for (const r of doc.rows) {
     if (r.qty.mode !== 'link') continue;
@@ -121,6 +123,11 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
       checks.push({ level: 'error', where: r.description, message: `The row says ${written} but the design uses ${linkedType} (${CABLE_TYPES[linkedType].material === 'al' ? 'aluminium' : 'copper'}). Price the cable that is designed.` });
     }
   }
+  // Designed but never priced: a result no BOM row reads.
+  for (const k of unusedKeys(doc, values)) {
+    const info = describeKey(doc, k);
+    if (info) checks.push({ level: 'warn', where: info.label, message: `${Math.round(values[k] * 100) / 100} ${info.unit} calculated, but no BOM row takes it. Add a row and link it, or it is not in the price.` });
+  }
   if (doc.project.targetPerWp && bom.totals.perWp != null) {
     const gap = bom.totals.perWp - doc.project.targetPerWp;
     if (Math.abs(gap) > 0.005 * doc.project.targetPerWp) {
@@ -132,26 +139,14 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   return { dc, ac, values, rows: bom.rows, totals: bom.totals, plantWp, checks };
 }
 
-/** What a BOM row can link its quantity to — in words, with today's value. */
-export function linkOptions(doc: BomCalcDoc, res: BomCalcResult): { key: string; label: string; value: number }[] {
-  const out: { key: string; label: string; value: number }[] = [];
-  const push = (key: string, label: string) => { if (key in res.values) out.push({ key, label, value: res.values[key] }); };
-  push('pv.modules', 'Modules (pcs)');
-  push('pv.wp', 'Plant size (Wp)');
-  push('pv.strings', 'Strings');
-  push('inv.count', 'Inverters (all)');
-  for (const g of doc.inverterGroups) push(`inv.${g.id}`, `Inverters: ${g.label || g.inverter.model}`);
-  for (const s of [4, 6, 10, 16]) {
-    if (res.values[`dc.cable.${s}`] > 0 || s === 4 || s === 6) {
-      push(`dc.cable.${s}`, `PV cable ${s} mm² (m)`);
-      push(`dc.connectors.${s}`, `PV connectors ${s} mm (pairs)`);
-    }
-  }
-  for (const s of doc.acSegments) {
-    push(`ac.seg.${s.id}.phase`, `${s.label}: ${s.cableType} ${s.sizeMm2} (m)`);
-    if (s.pe) push(`ac.seg.${s.id}.pe`, `${s.label}: earth ${s.pe.cableType} ${s.pe.sizeMm2} (m)`);
-    push(`ac.seg.${s.id}.lugs`, `${s.label}: cable lugs (pcs)`);
-  }
-  for (const k of Object.keys(res.ac.lugsBySize)) push(`ac.lugs.${k}`, `Cable lugs ${k} mm² incl. spares (pcs)`);
-  return out;
+/** What a BOM row can link its quantity to — name, source tab, unit and today's value. */
+export function linkOptions(doc: BomCalcDoc, res: BomCalcResult): { key: string; label: string; tab: SourceTab; unit: string; value: number }[] {
+  const keys = ['pv.modules', 'pv.wp', 'pv.strings', 'inv.count', ...doc.inverterGroups.map((g) => `inv.${g.id}`)];
+  for (const s of [4, 6, 10, 16]) if (res.values[`dc.cable.${s}`] > 0 || s === 4 || s === 6) keys.push(`dc.cable.${s}`, `dc.connectors.${s}`);
+  for (const s of doc.acSegments) keys.push(`ac.seg.${s.id}.phase`, `ac.seg.${s.id}.pe`, `ac.seg.${s.id}.lugs`);
+  keys.push(...Object.keys(res.ac.metresByCable).map((k) => `ac.cable.${k}`), ...Object.keys(res.ac.lugsBySize).map((k) => `ac.lugs.${k}`));
+  return keys.flatMap((key) => {
+    const info = key in res.values ? describeKey(doc, key) : null;
+    return info ? [{ key, label: info.label, tab: info.tab, unit: info.unit, value: res.values[key] }] : [];
+  });
 }

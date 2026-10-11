@@ -28,13 +28,16 @@ import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
 import { computeBomCalc, linkOptions, type BomCalcDoc, type BomRow, type AcSegment, type RoofRun, type InverterGroup } from '@/lib/bomCalc';
 import { moduleFromSpecs, inverterFromSpecs } from '@/lib/bomCalc/specs';
-import { HON_CHUAN_CATEGORIES, typedRow } from '@/lib/bomCalc/template';
+import { STANDARD_CATEGORIES, typedRow } from '@/lib/bomCalc/template';
 import { CABLE_TYPES, AC_SIZES_MM2, type CableType } from '@/lib/bomCalc/cables';
 import { bomExportHtml } from '@/lib/bomCalc/exportHtml';
+import { explainKey, usageByKey, type Explanation, type SourceTab } from '@/lib/bomCalc/links';
 import { NumField, TextField, Labeled, Card, CELL, SMALL_BTN, DEL_BTN } from '@/components/bomCalc/Fields';
 import type { Component } from '@/types/database';
 
-type Tab = 'strings' | 'dc' | 'ac' | 'bom' | 'checks';
+type Tab = 'strings' | 'dc' | 'ac' | 'bom' | 'links' | 'checks';
+/** The tab each calculated value lives on — English, translated where shown. */
+const TAB_LABEL: Record<SourceTab, string> = { strings: 'Strings & inverters', dc: 'DC cable', ac: 'AC cable' };
 interface SpecItem { component_id: string; supplier_model: string; internal_description: string | null; category: string; specifications: Record<string, unknown> | null }
 
 let uid = 0;
@@ -99,6 +102,17 @@ export default function BomCalcEditorPage() {
 
   const res = useMemo(() => (doc ? computeBomCalc(doc) : null), [doc]);
   const links = useMemo(() => (doc && res ? linkOptions(doc, res) : []), [doc, res]);
+  // Both directions of every link: a key's explanation, and the BOM rows that read it.
+  const usage = useMemo(() => usageByKey(doc?.rows ?? []), [doc]);
+  const explain = useCallback((key: string) => (doc && res ? explainKey(doc, res.values, res.dc, res.ac, key) : null), [doc, res]);
+  const [focusRow, setFocusRow] = useState<string | null>(null);
+  const goToRow = (rowId: string) => {
+    setTab('bom'); setFocusRow(rowId);
+    setTimeout(() => document.getElementById(`row-${rowId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+  };
+  /** BOM rows that take a segment's cable, directly or through the per-cable total. */
+  const segUsage = (segId: string, part: 'phase' | 'pe', cable: string | null) =>
+    [...(usage.get(`ac.seg.${segId}.${part}`) ?? []), ...(cable ? usage.get(`ac.cable.${cable}`) ?? [] : [])];
 
   // ── Edit helpers ──
   const edit = (fn: (d: BomCalcDoc) => BomCalcDoc) => { setDoc((d) => (d ? fn(d) : d)); setDirty(true); };
@@ -157,6 +171,7 @@ export default function BomCalcEditorPage() {
     { key: 'dc', label: t('DC cable') },
     { key: 'ac', label: t('AC cable') },
     { key: 'bom', label: 'Bill of Material' },
+    { key: 'links', label: t('Links') },
     { key: 'checks', label: errors ? tf('Checks ({n})', { n: errors }) : t('Checks') },
   ];
   const modules = specItems.filter((s) => s.category === 'pv_module');
@@ -281,6 +296,7 @@ export default function BomCalcEditorPage() {
                 </div>
               </div>
             ))}
+            <LinkLines keys={['pv.modules', 'pv.wp', 'pv.strings', 'inv.count']} explain={explain} usage={usage} onGo={goToRow} mustUse={['pv.modules']} />
           </Card>
         </div>
       )}
@@ -328,9 +344,10 @@ export default function BomCalcEditorPage() {
             </table>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-slate-400">
-            {Object.entries(res.dc.cableBySize).map(([s, m]) => <span key={s}>{tf('{s} mm²: {m} m cable · {p} connector pairs', { s, m: fmtN(m), p: fmtN(res.dc.connectorsBySize[Number(s)] ?? 0) })}</span>)}
             <span>{tf('Roofs: {a} strings — inverters: {b}', { a: fmtN(doc.roofs.reduce((x, r) => x + r.strings, 0)), b: fmtN(res.dc.strings) })}</span>
           </div>
+          <LinkLines keys={Object.keys(res.dc.cableBySize).flatMap((z) => [`dc.cable.${z}`, `dc.connectors.${z}`])} explain={explain} usage={usage} onGo={goToRow}
+            mustUse={Object.keys(res.dc.cableBySize).flatMap((z) => [`dc.cable.${z}`, `dc.connectors.${z}`])} />
         </Card>
       )}
 
@@ -395,8 +412,8 @@ export default function BomCalcEditorPage() {
                   </>}
                   {sr && (
                     <div className="text-[11px] text-slate-400 pb-1.5 flex flex-wrap gap-x-4">
-                      <span>{`${sr.cable}: ${fmtN(sr.phaseM + sr.neutralM, 1)} m`}</span>
-                      {sr.peCable && <span>{`${sr.peCable}: ${fmtN(sr.peM, 1)} m`}</span>}
+                      <span>{`${sr.cable}: ${fmtN(sr.phaseM + sr.neutralM, 1)} m`} {sr.phaseM + sr.neutralM > 0 && <UsedBy rows={segUsage(s.id, 'phase', sr.cable)} onGo={goToRow} />}</span>
+                      {sr.peCable && <span>{`${sr.peCable}: ${fmtN(sr.peM, 1)} m`} {sr.peM > 0 && <UsedBy rows={segUsage(s.id, 'pe', sr.peCable)} onGo={goToRow} />}</span>}
                       <span>{tf('{a} A needed', { a: fmtN(sr.designCurrentA, 1) })}{sr.capacityA != null && <> · <span className={sr.capacityA < sr.designCurrentA ? 'text-red-300' : 'text-emerald-300'}>{tf('{a} A available', { a: fmtN(sr.capacityA, 1) })}</span></>}</span>
                       {sr.vdPct != null && <span className={sr.vdPct > doc.ac.maxVdPct ? 'text-red-300' : ''}>{tf('voltage drop {v} %', { v: sr.vdPct })}</span>}
                       <span>{tf('{n} lugs', { n: sr.lugs })}</span>
@@ -412,7 +429,52 @@ export default function BomCalcEditorPage() {
       {/* ── Bill of Material ── */}
       {tab === 'bom' && (
         <BomTable doc={doc} res={res} links={links} setRow={setRow} edit={edit}
-          offerable={offerable} costFor={costFor} />
+          offerable={offerable} costFor={costFor} explain={explain} onGoTab={setTab} focusRow={focusRow} />
+      )}
+
+      {/* ── Links: what is linked to what, and how ── */}
+      {tab === 'links' && (
+        <Card title={t('What is linked to what')}>
+          <p className="text-[11px] text-slate-500">{t('Every result the calculation produces: the tab it is calculated on, the rule, the value now, and the Bill of Material rows that use it. Click a tab or a row to go there.')}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs min-w-[900px]">
+              <thead><tr className="text-[10px] uppercase tracking-wider text-slate-500">
+                <th className="text-left py-1 pr-2">{t('Result')}</th><th className="text-left px-2">{t('Source tab')}</th><th className="text-left px-2">{t('Rule')}</th>
+                <th className="text-right px-2">{t('Value')}</th><th className="text-left px-2">{t('Used in BOM rows')}</th>
+              </tr></thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {links.filter((l) => l.value > 0 || usage.has(l.key)).map((l) => {
+                  const ex = explain(l.key);
+                  return (
+                    <tr key={l.key} className="align-top">
+                      <td className="py-1.5 pr-2 text-slate-200">{l.label}</td>
+                      <td className="px-2 whitespace-nowrap"><button onClick={() => setTab(l.tab)} className="text-sky-300 hover:text-sky-200">{t(TAB_LABEL[l.tab])}</button></td>
+                      <td className="px-2 text-slate-400">{ex ? t(ex.rule) : ''}</td>
+                      <td className="px-2 text-right tabular-nums text-white whitespace-nowrap">{fmtN(l.value, l.value % 1 ? 2 : 0)} {l.unit}</td>
+                      <td className="px-2"><UsedBy rows={usage.get(l.key) ?? []} onGo={goToRow} quiet={!['pv.modules'].includes(l.key) && !/^(dc\.(cable|connectors)|ac\.seg\.[^.]+\.(phase|pe))/.test(l.key)} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {(() => {
+            const typed = doc.rows.filter((r) => r.qty.mode === 'typed' && (r.qty.value ?? 0) > 0);
+            return typed.length > 0 && (
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold text-white">{tf('Rows with a typed quantity ({n})', { n: typed.length })}</h4>
+                <p className="text-[11px] text-slate-500">{t('These quantities are typed by hand, not calculated — check them against the drawings.')}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {typed.map((r) => (
+                    <button key={r.id} onClick={() => goToRow(r.id)} className="px-2 py-0.5 rounded-md border border-slate-700 text-[11px] text-slate-300 hover:text-white hover:border-slate-500">
+                      {r.description || t('Untitled')} · {fmtN(r.qty.mode === 'typed' ? r.qty.value ?? 0 : 0)} {r.unit}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </Card>
       )}
 
       {/* ── Checks ── */}
@@ -433,12 +495,15 @@ export default function BomCalcEditorPage() {
 }
 
 // ── The priced BOM ───────────────────────────────────────────────────────────
-function BomTable({ doc, res, links, setRow, edit, offerable, costFor }: {
+function BomTable({ doc, res, links, setRow, edit, offerable, costFor, explain, onGoTab, focusRow }: {
   doc: BomCalcDoc; res: ReturnType<typeof computeBomCalc>; links: ReturnType<typeof linkOptions>;
   setRow: (id: string, p: Partial<BomRow>) => void; edit: (fn: (d: BomCalcDoc) => BomCalcDoc) => void;
   offerable: Component[]; costFor: (componentId: string) => { cost: number } | null;
+  explain: (key: string) => Explanation | null; onGoTab: (tab: Tab) => void; focusRow: string | null;
 }) {
   const { t, tf } = useT();
+  const [howOpen, setHowOpen] = useState<Set<string>>(new Set());
+  const toggleHow = (id: string) => setHowOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const priced = new Map(res.rows.map((r) => [r.id, r]));
   const rowChecks = new Map<string, string>();
   for (const c of res.checks) if (c.level !== 'ok') { const r = doc.rows.find((x) => x.description === c.where); if (r && !rowChecks.has(r.id)) rowChecks.set(r.id, c.message); }
@@ -454,7 +519,7 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor }: {
 
   return (
     <div className="space-y-4">
-      {HON_CHUAN_CATEGORIES.map((cat) => {
+      {STANDARD_CATEGORIES.map((cat) => {
         const rows = doc.rows.filter((r) => r.category === cat.key);
         const tot = res.totals.byCategory[cat.key];
         return (
@@ -477,7 +542,7 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor }: {
                     const problem = rowChecks.get(r.id);
                     return (
                       <React.Fragment key={r.id}>
-                        <tr className="align-top">
+                        <tr id={`row-${r.id}`} className={`align-top ${focusRow === r.id ? 'bg-sky-500/10' : ''}`}>
                           <td className="py-1 pr-2 relative">
                             <TextField value={r.description} title={r.componentId ? t('Linked to a catalogue item') : undefined}
                               onChange={(v) => { setRow(r.id, { description: v }); setPickFor(r.id); setQuery(v); }} />
@@ -498,29 +563,25 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor }: {
                             {r.qty.mode === 'typed' ? (
                               <div className="flex gap-1">
                                 <NumField value={r.qty.value} onChange={(v) => setRow(r.id, { qty: { mode: 'typed', value: v } })} />
-                                <select value="" title={t('Link the quantity to the calculation')} className={`${CELL} !w-8 !px-0.5 text-slate-500`}
-                                  onChange={(e) => e.target.value && setRow(r.id, { qty: { mode: 'link', key: e.target.value, factor: 1, add: 0, roundUp: false } })}>
-                                  <option value="">↔</option>
-                                  {links.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
-                                </select>
+                                <LinkSelect links={links} value="" placeholder="↔" title={t('Link the quantity to the calculation')} className="!w-8 !px-0.5 text-slate-500"
+                                  onChange={(k) => k && setRow(r.id, { qty: { mode: 'link', key: k, factor: 1, add: 0, roundUp: false } })} />
                               </div>
-                            ) : (
-                              <div className="space-y-0.5">
-                                <div className="flex items-center gap-1">
-                                  <span className="flex-1 text-right tabular-nums text-sky-300 font-semibold">{fmtN(p?.qty ?? 0, (p?.qty ?? 0) % 1 ? 2 : 0)}</span>
-                                  <button className="text-[10px] text-slate-500 hover:text-white" title={t('Type the quantity instead')} onClick={() => setRow(r.id, { qty: { mode: 'typed', value: p?.qty ?? null } })}>✎</button>
+                            ) : (() => {
+                              const ex = explain(r.qty.key);
+                              return (
+                                <div className="space-y-0.5 text-right">
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <span className="tabular-nums text-sky-300 font-semibold">{fmtN(p?.qty ?? 0, (p?.qty ?? 0) % 1 ? 2 : 0)}</span>
+                                    <button className="text-[10px] text-slate-500 hover:text-white" title={t('Type the quantity instead')} onClick={() => setRow(r.id, { qty: { mode: 'typed', value: p?.qty ?? null } })}>✎</button>
+                                  </div>
+                                  {ex ? (
+                                    <button onClick={() => onGoTab(ex.tab)} title={tf('Calculated on the {tab} tab', { tab: t(TAB_LABEL[ex.tab]) })}
+                                      className="block w-full text-right text-[10px] text-sky-400/90 hover:text-sky-300 truncate">← {ex.label}</button>
+                                  ) : <span className="block text-[10px] text-red-300">{r.qty.key}</span>}
+                                  <button onClick={() => toggleHow(r.id)} className="text-[10px] text-slate-500 hover:text-white">{howOpen.has(r.id) ? t('Hide') : t('How?')}</button>
                                 </div>
-                                <select value={r.qty.key} className={`${CELL} !text-[10px] !py-0.5 text-sky-300`}
-                                  onChange={(e) => r.qty.mode === 'link' && setRow(r.id, { qty: { ...r.qty, key: e.target.value } })}>
-                                  {!links.some((l) => l.key === (r.qty.mode === 'link' ? r.qty.key : '')) && <option value={r.qty.key}>{r.qty.key}</option>}
-                                  {links.map((l) => <option key={l.key} value={l.key}>{l.label}</option>)}
-                                </select>
-                                <div className="flex gap-1 items-center text-[10px] text-slate-500">
-                                  ×<NumField value={r.qty.factor} className="!py-0.5 !text-[10px]" onChange={(v) => r.qty.mode === 'link' && setRow(r.id, { qty: { ...r.qty, factor: v ?? 1 } })} />
-                                  +<NumField value={r.qty.add} className="!py-0.5 !text-[10px]" onChange={(v) => r.qty.mode === 'link' && setRow(r.id, { qty: { ...r.qty, add: v ?? 0 } })} />
-                                </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                           </td>
                           <td className="px-1"><TextField value={r.unit} onChange={(v) => setRow(r.id, { unit: v })} /></td>
                           <td className="px-1">
@@ -539,6 +600,51 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor }: {
                           <td className="px-1 text-right tabular-nums text-slate-400 pt-1.5">{p?.perWp ? fmtN(p.perWp, 1) : ''}</td>
                           <td><button className={DEL_BTN} title={t('Remove')} onClick={() => edit((d) => ({ ...d, rows: d.rows.filter((x) => x.id !== r.id) }))}>×</button></td>
                         </tr>
+                        {r.qty.mode === 'link' && howOpen.has(r.id) && (() => {
+                          const q = r.qty;
+                          const ex = explain(q.key);
+                          return (
+                            <tr><td colSpan={10} className="pb-2">
+                              <div className="rounded-lg border border-sky-500/25 bg-sky-500/5 p-3 space-y-2 text-[11px]">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-slate-400">{t('Source of the quantity')}</span>
+                                  <LinkSelect links={links} value={q.key} className="!w-auto max-w-[360px] text-sky-300" onChange={(k) => k && setRow(r.id, { qty: { ...q, key: k } })} />
+                                  <span className="text-slate-500">×</span>
+                                  <NumField value={q.factor} className="!w-16" onChange={(v) => setRow(r.id, { qty: { ...q, factor: v ?? 1 } })} />
+                                  <span className="text-slate-500">+</span>
+                                  <NumField value={q.add} className="!w-16" onChange={(v) => setRow(r.id, { qty: { ...q, add: v ?? 0 } })} />
+                                  <label className="flex items-center gap-1 text-slate-400">
+                                    <input type="checkbox" checked={q.roundUp} onChange={(e) => setRow(r.id, { qty: { ...q, roundUp: e.target.checked } })} className="accent-sky-500" />
+                                    {t('Round up')}
+                                  </label>
+                                </div>
+                                {ex && <>
+                                  <div className="text-slate-300">
+                                    {tf('Calculated on the {tab} tab: {rule}', { tab: t(TAB_LABEL[ex.tab]), rule: t(ex.rule) })}{' '}
+                                    <button onClick={() => onGoTab(ex.tab)} className="text-sky-300 hover:text-sky-200">{t('Open it')} →</button>
+                                  </div>
+                                  {ex.parts.length > 0 && (
+                                    <table className="text-[11px]">
+                                      <tbody>
+                                        {ex.parts.map((pt, i) => (
+                                          <tr key={i}>
+                                            <td className="pr-3 text-slate-400">{pt.label}</td>
+                                            <td className="pr-3 text-slate-500 tabular-nums">{pt.detail}</td>
+                                            <td className="text-right tabular-nums text-slate-200">{fmtN(pt.value, pt.value % 1 ? 2 : 0)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                  <div className="tabular-nums text-slate-200">
+                                    {`${fmtN(ex.value, ex.value % 1 ? 2 : 0)} ${ex.unit} × ${q.factor} + ${q.add}${q.roundUp ? ' ↑' : ''} = `}
+                                    <b className="text-sky-300">{fmtN(p?.qty ?? 0, (p?.qty ?? 0) % 1 ? 2 : 0)} {r.unit}</b>
+                                  </div>
+                                </>}
+                              </div>
+                            </td></tr>
+                          );
+                        })()}
                       </React.Fragment>
                     );
                   })}
@@ -561,5 +667,63 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor }: {
         </div>
       </Card>
     </div>
+  );
+}
+
+// ── Link helpers ─────────────────────────────────────────────────────────────
+/** "→ Solar cable 6 mm²" — the BOM rows that read a result; amber when none does. */
+function UsedBy({ rows, onGo, quiet = false }: { rows: BomRow[]; onGo: (rowId: string) => void; quiet?: boolean }) {
+  const { t } = useT();
+  if (!rows.length) return quiet ? <span className="text-slate-600">—</span> : <span className="text-amber-300">{t('→ not in the Bill of Material')}</span>;
+  return (
+    <span className="inline-flex flex-wrap gap-x-1.5">
+      <span className="text-slate-500">→</span>
+      {rows.map((r) => (
+        <button key={r.id} onClick={() => onGo(r.id)} title={t('Go to the row')}
+          className="text-sky-300 hover:text-sky-200 underline decoration-dotted underline-offset-2">{r.description || t('Untitled')}</button>
+      ))}
+    </span>
+  );
+}
+
+/** One line per result on a calculation tab: value, then where the BOM uses it. */
+function LinkLines({ keys, explain, usage, onGo, mustUse = [] }: {
+  keys: string[]; explain: (key: string) => Explanation | null; usage: Map<string, BomRow[]>;
+  onGo: (rowId: string) => void; mustUse?: string[];
+}) {
+  const shown = keys.map((k) => explain(k)).filter((e): e is Explanation => !!e && e.value > 0);
+  if (!shown.length) return null;
+  return (
+    <div className="rounded-xl border border-slate-800 px-3 py-2 space-y-1 text-[11px]">
+      {shown.map((e) => (
+        <div key={e.key} className="flex flex-wrap gap-x-2">
+          <span className="text-slate-300">{e.label}</span>
+          <span className="tabular-nums text-white">{fmtN(e.value, e.value % 1 ? 2 : 0)} {e.unit}</span>
+          <UsedBy rows={usage.get(e.key) ?? []} onGo={onGo} quiet={!mustUse.includes(e.key)} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A link picker grouped by the tab each value is calculated on. */
+function LinkSelect({ links, value, onChange, placeholder, title, className = '' }: {
+  links: ReturnType<typeof linkOptions>; value: string; onChange: (key: string) => void;
+  placeholder?: string; title?: string; className?: string;
+}) {
+  const { t } = useT();
+  const known = links.some((l) => l.key === value);
+  return (
+    <select value={value} title={title} onChange={(e) => onChange(e.target.value)} className={`${CELL} ${className}`}>
+      {placeholder !== undefined && <option value="">{placeholder}</option>}
+      {!known && value && <option value={value}>{value}</option>}
+      {(['strings', 'dc', 'ac'] as SourceTab[]).map((tb) => (
+        <optgroup key={tb} label={t(TAB_LABEL[tb])}>
+          {links.filter((l) => l.tab === tb).map((l) => (
+            <option key={l.key} value={l.key}>{l.label} — {fmtN(l.value, l.value % 1 ? 2 : 0)} {l.unit}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   );
 }

@@ -1,7 +1,9 @@
 /**
- * The "Hon Chuan" BOM layout — 11 numbered categories, material and
- * installation priced in separate columns. Row list = the union of what the
- * Hon Chuan R1 workbook (2026-10) carried, minus its empty per-model variants;
+ * The STANDARD BOM layout — 11 numbered categories, material and
+ * installation priced in separate columns. Neutral by design: nothing on screen
+ * or in an export names a customer (owner, 2026-10-12). The row list was taken
+ * from the engineers' newest rooftop workbook (2026-10), minus its empty
+ * per-model variants;
  * quantities the calculator knows are linked, the rest start typed.
  *
  * Prices are NOT seeded: they move every month ("Update okt 2026" on half the
@@ -9,7 +11,7 @@
  */
 import type { BomCategory, BomRow } from './bom.ts';
 
-export const HON_CHUAN_CATEGORIES: BomCategory[] = [
+export const STANDARD_CATEGORIES: BomCategory[] = [
   { key: 'modules', label: '1. Modules' },
   { key: 'inverters', label: '2. Inverters' },
   { key: 'mounting', label: '3. Mounting system' },
@@ -35,8 +37,8 @@ export const linkedRow = (category: string, description: string, unit: string, k
   cost: null, margin: null, install: null, componentId: null, brand: '', remarks: '',
 });
 
-/** A fresh Hon Chuan-layout row list, linked to the default AC segments ('inv', 'feeder', 'mv'). */
-export function honChuanRows(): BomRow[] {
+/** A fresh standard-layout row list, linked to the default AC segments ('inv', 'feeder', 'mv'). */
+export function standardRows(): BomRow[] {
   return [
     linkedRow('modules', 'Solar Photovoltaic (PV) Module', 'pcs', 'pv.modules'),
     linkedRow('inverters', 'Inverter', 'sets', 'inv.count'),

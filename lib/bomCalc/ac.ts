@@ -7,7 +7,7 @@
  * lugs, and two checks the workbooks only ever wrote out by hand:
  *
  *  - ampacity: runs × catalogue rating × k1·k2·k3 ≥ 1.25 × circuit current.
- *    Hon Chuan's feeder conclusion was typed as "sufficient" against the
+ *    One 2026-10 workbook typed its feeder as "sufficient" against the
  *    under-rated figure; here the comparison is arithmetic, not prose.
  *  - voltage drop: ΔV = √3 · I · (R·cosφ + X·sinφ) · L / runs. The sheets
  *    left out sinφ on X (slightly pessimistic) and only ever checked the short

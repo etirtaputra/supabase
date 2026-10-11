@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-11** · last change: *BOM Calculator (beta) — strings, DC/AC cable and the priced BOM from one set of inputs, with checks; new table 10.6_bom_calcs; schema pack v9* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-12** · last change: *BOM Calculator — neutral text (standard layout) and every link explained both ways (How? panels, used-by markers, Links tab, unused-result check)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,34 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-11 (latest) — BOM Calculator (beta): the engineers' Excel BOM, calculated
+### 2026-10-12 (latest) — BOM Calculator: neutral text, and every link shown both ways
+
+Owner: "should be neutral in its text description … it has 'Hon Chuan' writing
+… it is important that the engineers knows what linked to what and how for
+easier review".
+
+- **Neutral**: the layout is the *standard* layout (`STANDARD_CATEGORIES`,
+  `standardRows`, `template: 'standard'`; old `'hon_chuan'` documents still
+  read). No customer name on screen, in exports or in lib comments; the golden
+  tests keep their source workbook's name on purpose (the numbers must stay
+  traceable — CLAUDE.md).
+- **`lib/bomCalc/links.ts`** (tested): `describeKey` (name, source tab, unit),
+  `explainKey` (rule in words + the parts that add up to it — per roof, per
+  segment, per inverter group; the parts are asserted to sum to the value),
+  `usageByKey` (reverse: key → BOM rows), `unusedKeys` (designed but not in any
+  BOM row → a new warning; lugs and per-cable aggregates excluded, a segment is
+  covered when its per-cable total is linked).
+- **UI**: a linked BOM row shows "← source" (jumps to its tab) and "How?" — the
+  link picker grouped by tab, factor / add / round-up, the rule, each part, and
+  `value × factor + add = qty`. Strings, DC and AC tabs show "→ BOM row" (click
+  goes to the row, highlighted) or "→ not in the Bill of Material". New **Links**
+  tab: every result with source tab, rule, value and the rows using it, plus the
+  rows whose quantity is typed by hand.
+- Verified on the production build (`rig5.mjs`): the 6 mm² row's panel lists the
+  four roofs `(340 + 56) × 2 × 13 = 10,296` …; the Links tab; a used-by click
+  lands on the BOM row.
+
+### 2026-10-11 — BOM Calculator (beta): the engineers' Excel BOM, calculated
 
 Owner uploaded four EPC BOM workbooks (Hon Chuan R1, DMST 1&3, Mulia Part 6,
 Foxconn): "study the way quotes are derived from the multiple sheets … the goal

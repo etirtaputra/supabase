@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-11T23:14:21Z",
+    title: "Kalkulator BOM: setiap tautan kini terlihat — dari mana angka datang dan bagaimana dihitung",
+    details: [
+      "Baris BOM yang tertaut menampilkan sumbernya (“← Kabel PV 6 mm²”, klik untuk ke tab itu) dan tombol “Bagaimana?”: aturan perhitungan, bagian per atap atau per segmen, lalu × faktor + tambahan = jumlah.",
+      "Tab String, Kabel DC, dan Kabel AC menampilkan arah sebaliknya: setiap hasil diikuti baris BOM yang memakainya, atau peringatan “belum ada di Bill of Material”.",
+      "Tab baru “Tautan”: peta lengkap — hasil, tab sumber, aturan, nilai, dan baris BOM yang memakainya — serta daftar baris yang jumlahnya diketik manual untuk dicek dengan gambar kerja.",
+      "Pemeriksaan baru: kabel atau konektor yang dihitung tetapi tidak diambil baris BOM mana pun (terhitung tetapi tidak ada harganya).",
+      "Teks kalkulator kini netral: formatnya disebut “format standar”, tanpa nama pelanggan.",
+    ],
+  },
+  {
     at: "2026-10-11T08:33:58Z",
     title: "Kalkulator BOM (beta): string, kabel, dan Bill of Material berharga dari satu set input",
     details: [
@@ -27,7 +38,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Isi modul dan inverter (bisa langsung dari katalog), atap dengan jarak dan panjang string, serta segmen kabel AC. Jumlah kabel PV, konektor, kabel AC, kabel pembumian, dan skun dihitung otomatis dan dibawa ke baris BOM — tanpa tautan manual antar-sheet.",
       "Pemeriksaan otomatis: tegangan string saat dingin, rentang MPPT, arus per MPPT, drop tegangan DC per atap (ukuran kabel bisa dipilih otomatis), kemampuan arus dan drop tegangan kabel AC, baris yang belum ada harganya, instalasi tanpa harga material, dan baris yang menyebut kabel tembaga padahal desainnya aluminium.",
       "Harga jual = biaya ÷ (1 − margin) di setiap baris, total selalu mencakup semua baris, dan biaya bisa diambil dari katalog dengan aturan yang sama seperti Proposal EPC.",
-      "Ekspor Excel dalam format Hon Chuan, tanpa kolom biaya dan margin.",
+      "Ekspor Excel dalam format standar, tanpa kolom biaya dan margin.",
     ],
   },
   {

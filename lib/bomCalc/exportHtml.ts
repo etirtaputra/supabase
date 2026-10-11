@@ -1,5 +1,5 @@
 /**
- * The BOM as the customer's file — Hon Chuan layout: category, description,
+ * The BOM as the customer's file — the standard layout: category, description,
  * qty, unit, material unit/total, installation unit/total, total, per Wp,
  * remarks. Cost and margin never leave ICAPROC: they are not columns here.
  *
@@ -7,7 +7,7 @@
  * without a library, and every figure is the one the screen shows.
  */
 import type { BomCalcDoc, BomCalcResult } from './index.ts';
-import { HON_CHUAN_CATEGORIES } from './template.ts';
+import { STANDARD_CATEGORIES } from './template.ts';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const num = (n: number, dp = 0) => n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
@@ -15,7 +15,7 @@ const num = (n: number, dp = 0) => n.toLocaleString('en-US', { minimumFractionDi
 export function bomExportHtml(doc: BomCalcDoc, res: BomCalcResult, title: string): string {
   const byId = new Map(res.rows.map((r) => [r.id, r]));
   let body = '';
-  for (const cat of HON_CHUAN_CATEGORIES) {
+  for (const cat of STANDARD_CATEGORIES) {
     const rows = doc.rows.filter((r) => r.category === cat.key && (byId.get(r.id)?.qty ?? 0) > 0);
     if (!rows.length) continue;
     const t = res.totals.byCategory[cat.key];

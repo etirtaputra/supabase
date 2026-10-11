@@ -3,9 +3,9 @@
  * PV connectors — the 'String' and 'Kabel DC' sheets of the EPC workbooks.
  *
  * ONE source of truth for strings. In the workbooks the inverter sheet and the
- * cable sheet each typed their own string counts and drifted apart (Hon Chuan
- * 'String' listed 18 inverters for a 9-inverter plant; 'Kabel DC' cabled 198
- * strings for 180). Here the roofs are checked against the inverters, and the
+ * cable sheet each typed their own string counts and drifted apart (one
+ * 'String' sheet listed 18 inverters for a 9-inverter plant; its 'Kabel DC'
+ * cabled 198 strings for 180). Here the roofs are checked against the inverters, and the
  * BOM reads quantities only from this calculation.
  */
 import { pvResistance, PV_SIZES_MM2 } from './cables.ts';
@@ -73,7 +73,7 @@ export interface DcSettings {
   maxVdPct: number;
   /** Extra cable on top of the measured routes, % (sheets: 0, 5, 10, 14). */
   slackPct: number;
-  /** Connector pairs per string besides its own end pair (Hon Chuan: 2 jumpers). */
+  /** Connector pairs per string besides its own end pair (the 2026-10 rooftop workbook used 2). */
   jumpersPerString: number;
 }
 
