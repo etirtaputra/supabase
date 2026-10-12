@@ -20,8 +20,9 @@ import type { BomCalcDoc } from './index.ts';
 import type { DcResult } from './dc.ts';
 import type { AcResult } from './ac.ts';
 import type { BomRow } from './bom.ts';
+import { sizeLabel, type RacewayResult } from './raceway.ts';
 
-export type SourceTab = 'strings' | 'dc' | 'ac';
+export type SourceTab = 'strings' | 'dc' | 'ac' | 'raceway';
 
 export interface KeyInfo {
   key: string;
@@ -67,11 +68,21 @@ export function describeKey(doc: BomCalcDoc, key: string): KeyInfo | null {
   if (m) return k(`${m[1]} (all AC segments)`, 'ac', 'm');
   m = /^ac\.lugs\.(\d+)$/.exec(key);
   if (m) return k(`Cable lugs ${m[1]} mm² incl. spares`, 'ac', 'pcs');
+  const rw: Record<string, [string, string]> = {
+    'rw.tray.m': ['Cable tray (all sizes)', 'm'], 'rw.tray.pieces': ['Tray pieces (all sizes)', 'pcs'],
+    'rw.tray.covers': ['Tray covers', 'pcs'], 'rw.tray.clamps': ['Tray cover clamps', 'pcs'],
+    'rw.tray.joints': ['Tray joints', 'pcs'], 'rw.tray.bolts': ['Tray joint bolts', 'pcs'],
+    'rw.conduit': ['Flexible conduit', 'm'], 'rw.glands': ['Cable glands', 'pcs'], 'rw.labels': ['Labels', 'pcs'],
+    'rw.ties': ['Cable ties', 'pcs'], 'rw.clips': ['Cable clips', 'pcs'],
+  };
+  if (rw[key]) return k(rw[key][0], 'raceway', rw[key][1]);
+  m = /^rw\.tray\.(\d+x\d+)\.(m|pieces)$/.exec(key);
+  if (m) return m[2] === 'm' ? k(`Cable tray ${sizeLabel(m[1])}`, 'raceway', 'm') : k(`Tray pieces ${sizeLabel(m[1])}`, 'raceway', 'pcs');
   return null;
 }
 
 /** The rule and the parts behind one key, with today's value. */
-export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: DcResult, ac: AcResult, key: string): Explanation | null {
+export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: DcResult, ac: AcResult, key: string, rw?: RacewayResult): Explanation | null {
   const info = describeKey(doc, key);
   if (!info) return null;
   const value = values[key] ?? 0;
@@ -136,6 +147,46 @@ export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: 
     parts.push({ label: 'Spares', detail: `+${doc.ac.spareLugs}`, value: doc.ac.spareLugs });
     return out('Σ conductors of this size × 2 ends, plus spares', parts);
   }
+  if (key.startsWith('rw.') && rw) return explainRaceway(rw, key, out);
+  return out('');
+}
+
+/** The raceway keys: the rule, and one part per tray run or per count. */
+function explainRaceway(rw: RacewayResult, key: string, out: (rule: string, parts?: Explanation['parts']) => Explanation): Explanation {
+  const st = rw.settings;
+  const stick = st.stickM;
+  const label = (r: { label: string }) => r.label || 'Tray run';
+  const bySize = /^rw\.tray\.(\d+x\d+)\.(m|pieces)$/.exec(key);
+  const runs = rw.trays.filter((r) => r.lengthM > 0 && (!bySize || r.size === bySize[1]));
+  if (key === 'rw.tray.m' || bySize?.[2] === 'm') {
+    return out(bySize ? 'Σ tray runs of this size: route length' : 'Σ tray runs: route length',
+      runs.map((r) => ({ label: label(r), detail: r.size ? sizeLabel(r.size) : '—', value: r.lengthM })));
+  }
+  if (key === 'rw.tray.pieces' || bySize?.[2] === 'pieces') {
+    return out(bySize ? 'Σ tray runs of this size: ROUNDUP(length ÷ stick length)' : 'Σ tray runs: ROUNDUP(length ÷ stick length)',
+      runs.map((r) => ({ label: label(r), detail: `ROUNDUP(${r.lengthM} ÷ ${stick})`, value: r.pieces })));
+  }
+  if (key === 'rw.tray.covers') return out('One cover per tray piece', runs.map((r) => ({ label: label(r), detail: `${r.pieces}`, value: r.covers })));
+  if (key === 'rw.tray.clamps') return out('Covers × clamps per cover', runs.map((r) => ({ label: label(r), detail: `${r.covers} × ${st.clampsPerCover}`, value: r.clamps })));
+  if (key === 'rw.tray.joints') return out('Tray pieces × joints per piece', runs.map((r) => ({ label: label(r), detail: `${r.pieces} × ${st.jointsPerPiece}`, value: r.joints })));
+  if (key === 'rw.tray.bolts') return out('Joints × bolts per joint', runs.map((r) => ({ label: label(r), detail: `${r.joints} × ${st.boltsPerJoint}`, value: r.bolts })));
+  const strings = rw.counts.strings, inverters = rw.counts.inverters, modules = rw.counts.modules;
+  if (key === 'rw.conduit') return out('Strings × metres per string + inverters × metres per inverter', [
+    { label: 'Strings', detail: `${strings} × ${st.conduitPerStringM} m`, value: r2(strings * st.conduitPerStringM) },
+    { label: 'Inverters', detail: `${inverters} × ${st.conduitPerInverterM} m`, value: r2(inverters * st.conduitPerInverterM) },
+  ]);
+  if (key === 'rw.glands') return out('ROUNDUP(strings × glands per string) + inverters × glands per inverter', [
+    { label: 'Strings', detail: `ROUNDUP(${strings} × ${st.glandsPerString})`, value: Math.ceil(strings * st.glandsPerString - 1e-9) },
+    { label: 'Inverters', detail: `${inverters} × ${st.glandsPerInverter}`, value: Math.ceil(inverters * st.glandsPerInverter - 1e-9) },
+  ]);
+  if (key === 'rw.labels') return out('Strings × labels per string + inverters × labels per inverter + AC circuits × labels per circuit + extra', [
+    { label: 'Strings', detail: `${strings} × ${st.labelsPerString}`, value: r2(strings * st.labelsPerString) },
+    { label: 'Inverters', detail: `${inverters} × ${st.labelsPerInverter}`, value: r2(inverters * st.labelsPerInverter) },
+    { label: 'AC circuits', detail: `${rw.acCircuits} × ${st.labelsPerAcCircuit}`, value: r2(rw.acCircuits * st.labelsPerAcCircuit) },
+    { label: 'Extra', detail: `+${st.labelsExtra}`, value: st.labelsExtra },
+  ]);
+  if (key === 'rw.ties') return out('ROUNDUP(modules × ties per module)', [{ label: 'Modules', detail: `${modules} × ${st.tiesPerModule}`, value: rw.ties }]);
+  if (key === 'rw.clips') return out('ROUNDUP(modules × clips per module)', [{ label: 'Modules', detail: `${modules} × ${st.clipsPerModule}`, value: rw.clips }]);
   return out('');
 }
 
@@ -161,7 +212,8 @@ export function unusedKeys(doc: BomCalcDoc, values: Record<string, number>): str
   const used = usageByKey(doc.rows);
   const out: string[] = [];
   const wanted = ['pv.modules', ...[4, 6, 10, 16].flatMap((s) => [`dc.cable.${s}`, `dc.connectors.${s}`]),
-    ...doc.acSegments.flatMap((s) => [`ac.seg.${s.id}.phase`, `ac.seg.${s.id}.pe`])];
+    ...doc.acSegments.flatMap((s) => [`ac.seg.${s.id}.phase`, `ac.seg.${s.id}.pe`]),
+    'rw.tray.m', 'rw.conduit', 'rw.glands', 'rw.labels', 'rw.ties', 'rw.clips'];
   for (const k of wanted) {
     if ((values[k] ?? 0) <= 0) continue;
     if (used.has(k)) continue;
@@ -171,6 +223,12 @@ export function unusedKeys(doc: BomCalcDoc, values: Record<string, number>): str
       const s = doc.acSegments.find((x) => x.id === seg[1]);
       const cable = seg[2] === 'pe' ? (s?.pe ? `${s.pe.cableType} ${s.pe.sizeMm2}` : '') : (s ? `${s.cableType} ${s.sizeMm2}` : '');
       if (cable && used.has(`ac.cable.${cable}`)) continue;
+    }
+    // Tray metres are also covered when every size in use is read by a per-size row.
+    if (k === 'rw.tray.m') {
+      const sized = Object.keys(values).filter((v) => /^rw\.tray\.\d+x\d+\.m$/.test(v) && values[v] > 0);
+      const sizedM = sized.reduce((a, v) => a + values[v], 0);
+      if (sized.length && sized.every((v) => used.has(v)) && Math.abs(sizedM - values[k]) < 0.01) continue;
     }
     out.push(k);
   }

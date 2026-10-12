@@ -13,9 +13,10 @@ import { calculateAc, AC_DEFAULTS, type AcResult, type AcSegment, type AcSetting
 import { priceBom, type BomRow, type BomTotals, type PricedRow } from './bom.ts';
 import { CABLE_TYPES, type CableType } from './cables.ts';
 import { standardRows } from './template.ts';
+import { calculateRaceway, newRacewayDoc, type RacewayDoc, type RacewayResult } from './raceway.ts';
 import { describeKey, unusedKeys, type SourceTab } from './links.ts';
 
-export type { Check, ModuleSpec, InverterGroup, RoofRun, AcSegment, BomRow, PricedRow, BomTotals, DcResult, AcResult };
+export type { Check, ModuleSpec, InverterGroup, RoofRun, AcSegment, BomRow, PricedRow, BomTotals, DcResult, AcResult, RacewayDoc, RacewayResult };
 
 export interface BomCalcDoc {
   version: 1;
@@ -28,12 +29,15 @@ export interface BomCalcDoc {
   dc: DcSettings;
   acSegments: AcSegment[];
   ac: AcSettings;
+  /** Cable trays and the raceway counts. Absent on calculations saved before 2026-10-12 — read it through racewayOf(). */
+  raceway?: RacewayDoc;
   rows: BomRow[];
 }
 
 export interface BomCalcResult {
   dc: DcResult;
   ac: AcResult;
+  raceway: RacewayResult;
   /** Every value a BOM row can link to, by key. */
   values: Record<string, number>;
   rows: PricedRow[];
@@ -68,6 +72,7 @@ export function newBomCalcDoc(): BomCalcDoc {
       segment('mv', 'MV transformer → cubicle', { cableType: 'N2XSY', sizeMm2: 50, voltageV: 20000, circuits: 0 }),
     ],
     ac: { ...AC_DEFAULTS },
+    raceway: newRacewayDoc(),
     rows: standardRows(),
   };
 }
@@ -80,9 +85,19 @@ function familyIn(text: string): CableType | null {
   return null;
 }
 
+/** The raceway inputs, with defaults for a calculation saved before the raceway existed. */
+export function racewayOf(doc: BomCalcDoc): RacewayDoc {
+  const rw = doc.raceway ?? newRacewayDoc();
+  return { ...rw, settings: { ...newRacewayDoc().settings, ...rw.settings } };
+}
+
 export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   const dc = calculateDc(doc.module, doc.inverterGroups, doc.roofs, doc.dc);
   const ac = calculateAc(doc.acSegments, doc.ac);
+  const raceway = calculateRaceway(racewayOf(doc), {
+    strings: dc.strings, inverters: dc.inverters, modules: dc.modules,
+    roofs: doc.roofs, acSegments: doc.acSegments,
+  });
 
   const values: Record<string, number> = {
     'pv.modules': dc.modules, 'pv.strings': dc.strings, 'pv.wp': dc.wp, 'pv.kwp': dc.wp / 1000,
@@ -100,13 +115,23 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   }
   for (const [k, m] of Object.entries(ac.metresByCable)) values[`ac.cable.${k}`] = m;
   for (const [size, n] of Object.entries(ac.lugsBySize)) values[`ac.lugs.${size}`] = n;
+  Object.assign(values, {
+    'rw.tray.m': raceway.trayM, 'rw.tray.pieces': raceway.pieces, 'rw.tray.covers': raceway.covers,
+    'rw.tray.clamps': raceway.clamps, 'rw.tray.joints': raceway.joints, 'rw.tray.bolts': raceway.bolts,
+    'rw.conduit': raceway.conduitM, 'rw.glands': raceway.glands, 'rw.labels': raceway.labels,
+    'rw.ties': raceway.ties, 'rw.clips': raceway.clips,
+  });
+  for (const [size, b] of Object.entries(raceway.bySize)) {
+    values[`rw.tray.${size}.m`] = b.m;
+    values[`rw.tray.${size}.pieces`] = b.pieces;
+  }
 
   const plantWp = dc.wp;
   const bom = priceBom(doc.rows, values, { defaultMargin: doc.project.defaultMargin, plantWp, ppnPct: doc.project.ppnPct });
 
   // A row that says one cable but is linked to another — the copper-vs-aluminium
   // mistake that swung one 2026-10 rooftop bid by about Rp 2 billion.
-  const checks: Check[] = [...dc.checks, ...ac.checks, ...bom.checks];
+  const checks: Check[] = [...dc.checks, ...ac.checks, ...raceway.checks, ...bom.checks];
   for (const r of doc.rows) {
     if (r.qty.mode !== 'link') continue;
     let linkedType: CableType | null = null;
@@ -136,7 +161,7 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   }
   const order = { error: 0, warn: 1, ok: 2 } as const;
   checks.sort((a, b) => order[a.level] - order[b.level]);
-  return { dc, ac, values, rows: bom.rows, totals: bom.totals, plantWp, checks };
+  return { dc, ac, raceway, values, rows: bom.rows, totals: bom.totals, plantWp, checks };
 }
 
 /** What a BOM row can link its quantity to — name, source tab, unit and today's value. */
@@ -145,6 +170,10 @@ export function linkOptions(doc: BomCalcDoc, res: BomCalcResult): { key: string;
   for (const s of [4, 6, 10, 16]) if (res.values[`dc.cable.${s}`] > 0 || s === 4 || s === 6) keys.push(`dc.cable.${s}`, `dc.connectors.${s}`);
   for (const s of doc.acSegments) keys.push(`ac.seg.${s.id}.phase`, `ac.seg.${s.id}.pe`, `ac.seg.${s.id}.lugs`);
   keys.push(...Object.keys(res.ac.metresByCable).map((k) => `ac.cable.${k}`), ...Object.keys(res.ac.lugsBySize).map((k) => `ac.lugs.${k}`));
+  keys.push('rw.tray.m', ...Object.keys(res.raceway.bySize).map((z) => `rw.tray.${z}.m`),
+    'rw.tray.pieces', ...Object.keys(res.raceway.bySize).map((z) => `rw.tray.${z}.pieces`),
+    'rw.tray.covers', 'rw.tray.clamps', 'rw.tray.joints', 'rw.tray.bolts',
+    'rw.conduit', 'rw.glands', 'rw.labels', 'rw.ties', 'rw.clips');
   return keys.flatMap((key) => {
     const info = key in res.values ? describeKey(doc, key) : null;
     return info ? [{ key, label: info.label, tab: info.tab, unit: info.unit, value: res.values[key] }] : [];

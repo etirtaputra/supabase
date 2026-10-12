@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-12** · last change: *BOM Calculator — neutral text (standard layout) and every link explained both ways (How? panels, used-by markers, Links tab, unused-result check)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-12** · last change: *BOM Calculator — Cable raceway tab (trays by fill ratio, stick-price table → blended Rp/m, conduit/glands/labels/ties/clips from the counts)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,50 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-12 (latest) — BOM Calculator: neutral text, and every link shown both ways
+### 2026-10-12 (latest) — BOM Calculator: Cable raceway (roadmap step 2)
+
+Owner: "go ahead" on the recommended next step (raceway). Engineers' real-use
+feedback was not available yet (only the owner's empty test calc is saved).
+
+- **Engine** `lib/bomCalc/raceway.ts` (pure TS, 8 tests in `raceway.test.ts`):
+  tray RUNS with the cables they carry; fill = Σ n·π(OD/2)² ÷ (W×H) ≤ limit
+  (default 40 %); `auto` = smallest size in the doc's size table (11 common
+  HDG sizes, unpriced); pieces = ROUNDUP(m ÷ 3), covers = pieces, clamps 2 /
+  cover, joints 2 / piece, bolts 8 / joint; stick-price table (stick + cover
+  per size, clamp/joint/bolt each — blank = included) → `costPerM`. A tray
+  cable's count is typed or READ from a roof (2 per string) or an AC segment
+  (phase+neutral or PE). OD is an input (catalogue) — never invented. Counts:
+  conduit = strings × 2 m + inverters × 2 m, glands = ROUNDUP(strings × 1.2) +
+  inverters × 6, labels = strings × 14 + inverters × 10 + AC circuits × 2 + 50,
+  ties = modules × 2, clips = ROUNDUP(modules × 1.2). **Labels per inverter
+  (10), per AC circuit (2) and ties per module (2) are working figures** — not
+  recorded from the sheets; the owner was asked to have the engineers confirm.
+- **Tests are method tests**, not cell reads: the four workbooks were not in
+  this session (not on Drive either), so the numbers are the rules recorded in
+  WORKBOOK_STUDY §2 applied to the recorded Hon Chuan quantities (180 strings,
+  9 inverters, 4,860 modules, 1,159 + 40 m DC tray → 401 pieces, conduit 378 m,
+  glands 270, clips 5,832). When the workbooks come back, check them cell by
+  cell against 'Tray DCAC' / 'DC Tray' / 'Tray AC'.
+- **Keys** `rw.tray.m`, `rw.tray.<W>x<H>.m|pieces`, `rw.tray.pieces|covers|clamps|joints|bolts`,
+  `rw.conduit|glands|labels|ties|clips` — all in `describeKey` / `explainKey`
+  (parts asserted to sum) / `linkOptions` / Links tab; `unusedKeys` now wants
+  tray metres, conduit, glands, labels, ties, clips (tray metres also covered
+  when every size in use is read per size). `SourceTab` gained `'raceway'`;
+  `explainKey` takes the raceway result as a 6th argument.
+- **Doc**: `BomCalcDoc.raceway?` (optional — calcs saved before it read
+  defaults through `racewayOf(doc)`; no migration, no data change). Template:
+  the tray, conduit, labels, ties, clips and glands rows are now LINKED
+  (new calcs only; the saved test calc keeps its typed rows).
+- **UI**: new tab "Cable raceway" (`components/bomCalc/RacewayTab.tsx`); the
+  link helpers moved to `components/bomCalc/LinkBits.tsx` (TAB_LABEL, fmtN,
+  UsedBy, LinkLines, LinkSelect). "Use as the tray row cost" writes the
+  blended Rp/m into every BOM row that reads `rw.tray.m`.
+- Verified on the production build (rig): auto-size 300 × 100 at 33.37 %,
+  overfilled AC run at 59.45 % flagged, blended Rp 324,412/m → tray row
+  1,199 m × 364,508 = Rp 437,044,936; phone width no sideways scroll; no page
+  errors.
+
+### 2026-10-12 — BOM Calculator: neutral text, and every link shown both ways
 
 Owner: "should be neutral in its text description … it has 'Hon Chuan' writing
 … it is important that the engineers knows what linked to what and how for
@@ -3671,14 +3714,15 @@ has not decided.
 ### 6.00 BOM Calculator — next steps (owner's current track, 2026-10-11)
 
 Roadmap in `docs/epc-bom/WORKBOOK_STUDY.md` §5, one step per thread:
-1. Raceway — tray by fill ratio + stick-price table; conduit, glands, labels,
-   ties, clips from string/inverter counts.
+1. ✅ Raceway (2026-10-12, §4). Open: engineers to confirm labels per inverter
+   (10), per AC circuit (2), ties per module (2); re-upload the workbooks so
+   the raceway tests can be checked against the tray sheets cell by cell.
 2. Civil / O&M — walkway, lifeline, water cleaning, grounding pits, inverter
    stations from per-metre recipes; O&M years with escalation.
 3. Project works + manpower (Jasa) as the installation cross-check.
 4. Template X (Xurya): sections A–P, man-day installation, TOP, FS.
 5. "Make a proposal from this" → write 10.0/10.1/10.2 (needs the owner's OK).
-Ask the engineers what they hit first before starting step 1.
+Next: ask the owner which of 2–5 to build (default suggestion: 2, civil / O&M).
 
 ### 6.0 OPEN ITEMS from the 2026-09-11 → 27 thread — clear these FIRST
 

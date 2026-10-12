@@ -31,18 +31,20 @@ import { moduleFromSpecs, inverterFromSpecs } from '@/lib/bomCalc/specs';
 import { STANDARD_CATEGORIES, typedRow } from '@/lib/bomCalc/template';
 import { CABLE_TYPES, AC_SIZES_MM2, type CableType } from '@/lib/bomCalc/cables';
 import { bomExportHtml } from '@/lib/bomCalc/exportHtml';
-import { explainKey, usageByKey, type Explanation, type SourceTab } from '@/lib/bomCalc/links';
+import { explainKey, usageByKey, type Explanation } from '@/lib/bomCalc/links';
 import { NumField, TextField, Labeled, Card, CELL, SMALL_BTN, DEL_BTN } from '@/components/bomCalc/Fields';
+import { TAB_LABEL, fmtN, UsedBy, LinkLines, LinkSelect } from '@/components/bomCalc/LinkBits';
+import { RacewayTab } from '@/components/bomCalc/RacewayTab';
 import type { Component } from '@/types/database';
 
-type Tab = 'strings' | 'dc' | 'ac' | 'bom' | 'links' | 'checks';
-/** The tab each calculated value lives on — English, translated where shown. */
-const TAB_LABEL: Record<SourceTab, string> = { strings: 'Strings & inverters', dc: 'DC cable', ac: 'AC cable' };
+type Tab = 'strings' | 'dc' | 'ac' | 'raceway' | 'bom' | 'links' | 'checks';
 interface SpecItem { component_id: string; supplier_model: string; internal_description: string | null; category: string; specifications: Record<string, unknown> | null }
+
+/** Results that must land in a BOM row (the same list unusedKeys checks). */
+const MUST_USE = /^(pv\.modules|dc\.(cable|connectors)\.\d+|ac\.seg\.[^.]+\.(phase|pe)|rw\.(tray\.m|conduit|glands|labels|ties|clips))$/;
 
 let uid = 0;
 const newId = (p: string) => `${p}${Date.now().toString(36)}${(uid++).toString(36)}`;
-const fmtN = (n: number, dp = 0) => n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 
 export default function BomCalcEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -104,7 +106,7 @@ export default function BomCalcEditorPage() {
   const links = useMemo(() => (doc && res ? linkOptions(doc, res) : []), [doc, res]);
   // Both directions of every link: a key's explanation, and the BOM rows that read it.
   const usage = useMemo(() => usageByKey(doc?.rows ?? []), [doc]);
-  const explain = useCallback((key: string) => (doc && res ? explainKey(doc, res.values, res.dc, res.ac, key) : null), [doc, res]);
+  const explain = useCallback((key: string) => (doc && res ? explainKey(doc, res.values, res.dc, res.ac, key, res.raceway) : null), [doc, res]);
   const [focusRow, setFocusRow] = useState<string | null>(null);
   const goToRow = (rowId: string) => {
     setTab('bom'); setFocusRow(rowId);
@@ -170,6 +172,7 @@ export default function BomCalcEditorPage() {
     { key: 'strings', label: t('Strings & inverters') },
     { key: 'dc', label: t('DC cable') },
     { key: 'ac', label: t('AC cable') },
+    { key: 'raceway', label: t('Cable raceway') },
     { key: 'bom', label: 'Bill of Material' },
     { key: 'links', label: t('Links') },
     { key: 'checks', label: errors ? tf('Checks ({n})', { n: errors }) : t('Checks') },
@@ -426,6 +429,9 @@ export default function BomCalcEditorPage() {
         </Card>
       )}
 
+      {/* ── Cable raceway ── */}
+      {tab === 'raceway' && <RacewayTab doc={doc} res={res} edit={edit} explain={explain} usage={usage} onGo={goToRow} />}
+
       {/* ── Bill of Material ── */}
       {tab === 'bom' && (
         <BomTable doc={doc} res={res} links={links} setRow={setRow} edit={edit}
@@ -451,7 +457,7 @@ export default function BomCalcEditorPage() {
                       <td className="px-2 whitespace-nowrap"><button onClick={() => setTab(l.tab)} className="text-sky-300 hover:text-sky-200">{t(TAB_LABEL[l.tab])}</button></td>
                       <td className="px-2 text-slate-400">{ex ? t(ex.rule) : ''}</td>
                       <td className="px-2 text-right tabular-nums text-white whitespace-nowrap">{fmtN(l.value, l.value % 1 ? 2 : 0)} {l.unit}</td>
-                      <td className="px-2"><UsedBy rows={usage.get(l.key) ?? []} onGo={goToRow} quiet={!['pv.modules'].includes(l.key) && !/^(dc\.(cable|connectors)|ac\.seg\.[^.]+\.(phase|pe))/.test(l.key)} /></td>
+                      <td className="px-2"><UsedBy rows={usage.get(l.key) ?? []} onGo={goToRow} quiet={!MUST_USE.test(l.key)} /></td>
                     </tr>
                   );
                 })}
@@ -667,63 +673,5 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor, explain, 
         </div>
       </Card>
     </div>
-  );
-}
-
-// ── Link helpers ─────────────────────────────────────────────────────────────
-/** "→ Solar cable 6 mm²" — the BOM rows that read a result; amber when none does. */
-function UsedBy({ rows, onGo, quiet = false }: { rows: BomRow[]; onGo: (rowId: string) => void; quiet?: boolean }) {
-  const { t } = useT();
-  if (!rows.length) return quiet ? <span className="text-slate-600">—</span> : <span className="text-amber-300">{t('→ not in the Bill of Material')}</span>;
-  return (
-    <span className="inline-flex flex-wrap gap-x-1.5">
-      <span className="text-slate-500">→</span>
-      {rows.map((r) => (
-        <button key={r.id} onClick={() => onGo(r.id)} title={t('Go to the row')}
-          className="text-sky-300 hover:text-sky-200 underline decoration-dotted underline-offset-2">{r.description || t('Untitled')}</button>
-      ))}
-    </span>
-  );
-}
-
-/** One line per result on a calculation tab: value, then where the BOM uses it. */
-function LinkLines({ keys, explain, usage, onGo, mustUse = [] }: {
-  keys: string[]; explain: (key: string) => Explanation | null; usage: Map<string, BomRow[]>;
-  onGo: (rowId: string) => void; mustUse?: string[];
-}) {
-  const shown = keys.map((k) => explain(k)).filter((e): e is Explanation => !!e && e.value > 0);
-  if (!shown.length) return null;
-  return (
-    <div className="rounded-xl border border-slate-800 px-3 py-2 space-y-1 text-[11px]">
-      {shown.map((e) => (
-        <div key={e.key} className="flex flex-wrap gap-x-2">
-          <span className="text-slate-300">{e.label}</span>
-          <span className="tabular-nums text-white">{fmtN(e.value, e.value % 1 ? 2 : 0)} {e.unit}</span>
-          <UsedBy rows={usage.get(e.key) ?? []} onGo={onGo} quiet={!mustUse.includes(e.key)} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** A link picker grouped by the tab each value is calculated on. */
-function LinkSelect({ links, value, onChange, placeholder, title, className = '' }: {
-  links: ReturnType<typeof linkOptions>; value: string; onChange: (key: string) => void;
-  placeholder?: string; title?: string; className?: string;
-}) {
-  const { t } = useT();
-  const known = links.some((l) => l.key === value);
-  return (
-    <select value={value} title={title} onChange={(e) => onChange(e.target.value)} className={`${CELL} ${className}`}>
-      {placeholder !== undefined && <option value="">{placeholder}</option>}
-      {!known && value && <option value={value}>{value}</option>}
-      {(['strings', 'dc', 'ac'] as SourceTab[]).map((tb) => (
-        <optgroup key={tb} label={t(TAB_LABEL[tb])}>
-          {links.filter((l) => l.tab === tb).map((l) => (
-            <option key={l.key} value={l.key}>{l.label} — {fmtN(l.value, l.value % 1 ? 2 : 0)} {l.unit}</option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
   );
 }

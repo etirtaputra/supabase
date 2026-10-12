@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-12T00:08:10Z",
+    title: "Kalkulator BOM: tab baru “Jalur kabel” — cable tray, konduit, gland, label, cable tie, dan klip dihitung otomatis",
+    details: [
+      "Cable tray per jalur: isi kabel yang dibawanya, ukuran tray dipilih otomatis dengan batas isi 40 % (Σ kabel × π × (OD ÷ 2)² ÷ lebar × tinggi). Jumlah kabel bisa diambil langsung dari atap (2 per string) atau segmen AC, jadi isi tray ikut berubah bila desain berubah.",
+      "Dari panjang jalur: batang tray (3 m), tutup, klem, sambungan, dan baut. Tabel ukuran dengan harga per batang menghasilkan satu biaya gabungan per meter, yang bisa langsung dipakai di baris tray Bill of Material dengan satu klik.",
+      "Konduit fleksibel, gland, label, cable tie, dan klip dihitung dari jumlah string, inverter, modul, dan sirkuit AC — faktornya bisa diubah. Baris-baris ini di Bill of Material kini tertaut ke hasil hitungan.",
+      "Pemeriksaan baru: tray yang terlalu penuh, tidak ada ukuran yang cukup, diameter kabel belum diisi, ukuran tray tanpa harga, dan hasil tray/konduit/label yang belum diambil baris BOM mana pun.",
+    ],
+  },
+  {
     at: "2026-10-11T23:14:21Z",
     title: "Kalkulator BOM: setiap tautan kini terlihat — dari mana angka datang dan bagaimana dihitung",
     details: [

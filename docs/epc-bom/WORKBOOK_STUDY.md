@@ -117,8 +117,12 @@ wrong column (6.57 yr, correct ≈ 5.62).
 
 1. ✅ Electrical core — strings, DC cable, AC cable, the priced BOM in the Hon
    Chuan layout, checks, Excel export (2026-10-11).
-2. Raceway — tray sizing by fill ratio and a stick-price table; conduit, glands,
-   labels, ties, clips from string and inverter counts.
+2. ✅ Raceway — tray sizing by fill ratio and a stick-price table; conduit, glands,
+   labels, ties, clips from string and inverter counts (2026-10-12,
+   `lib/bomCalc/raceway.ts`). Labels per inverter (10), per AC circuit (2) and
+   ties per module (2) were not recorded from the sheets — working figures the
+   engineers must confirm; the tests are the recorded rules applied to the
+   recorded quantities, to be checked cell by cell when the workbooks are back.
 3. Civil / O&M — walkway, lifeline, water cleaning, grounding pits, inverter
    stations from per-metre recipes; O&M years with escalation (no double count
    with a long-term O&M contract).
