@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-12** · last change: *BOM Calculator — Cable raceway tab (trays by fill ratio, stick-price table → blended Rp/m, conduit/glands/labels/ties/clips from the counts)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-12** · last change: *BOM Calculator — delete a calculation (list row + editor header, two-step, no confirm())* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,22 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-12 (latest) — BOM Calculator: Cable raceway (roadmap step 2)
+### 2026-10-12 (latest) — BOM Calculator: delete a calculation
+
+Owner: "for the BoM Calculator allow user to Delete."
+
+- `components/bomCalc/DeleteCalc.tsx`: two-step "Delete" → "Delete X? Yes / No"
+  (house rule: no browser `confirm()`), on every list row and in the editor
+  header (`bar` = toolbar size from `constants/controls.ts`). Hard delete of
+  the one `10.6_bom_calcs` row — the existing RLS policy "bom calcs delete"
+  (`can_view_epc()`, owner + engineer) already allowed it; no schema change.
+  RLS refuses silently (0 rows, no error), so the row count is checked and a
+  refused delete says so. Editor → back to the list after deleting.
+- Verified on the production build (rig): list row removed; refused delete
+  shows the message and keeps the row; editor No keeps it, Yes deletes and
+  returns to the list; phone width no sideways scroll; no page errors.
+
+### 2026-10-12 — BOM Calculator: Cable raceway (roadmap step 2)
 
 Owner: "go ahead" on the recommended next step (raceway). Engineers' real-use
 feedback was not available yet (only the owner's empty test calc is saved).

@@ -12,7 +12,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { selectAll } from '@/lib/fetchAllRows';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
@@ -35,6 +35,7 @@ import { explainKey, usageByKey, type Explanation } from '@/lib/bomCalc/links';
 import { NumField, TextField, Labeled, Card, CELL, SMALL_BTN, DEL_BTN } from '@/components/bomCalc/Fields';
 import { TAB_LABEL, fmtN, UsedBy, LinkLines, LinkSelect } from '@/components/bomCalc/LinkBits';
 import { RacewayTab } from '@/components/bomCalc/RacewayTab';
+import { DeleteCalc } from '@/components/bomCalc/DeleteCalc';
 import type { Component } from '@/types/database';
 
 type Tab = 'strings' | 'dc' | 'ac' | 'raceway' | 'bom' | 'links' | 'checks';
@@ -51,6 +52,7 @@ export default function BomCalcEditorPage() {
   const { ready, user } = useQuotesGate(false, '/proposals/bom');
   const { t, tf } = useT();
   const supabase = createSupabaseClient();
+  const router = useRouter();
 
   const [title, setTitle] = useState('');
   usePageTitle(title || undefined);
@@ -188,6 +190,8 @@ export default function BomCalcEditorPage() {
         <input value={title} onChange={(e) => { setTitle(e.target.value); setDirty(true); }} placeholder={t('Calculation title')}
           className="flex-1 min-w-[200px] bg-transparent text-lg font-bold text-white border-b border-transparent focus:border-slate-600 outline-none" />
         <span className="text-[11px] text-slate-500">{dirty ? t('Unsaved changes') : savedAt ? tf('Saved {when}', { when: new Date(savedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) }) : ''}</span>
+        <DeleteCalc bar calcId={id} name={title} onError={setError}
+          onDeleted={() => { dirtyRef.current = false; router.push('/proposals/bom'); }} />
         <button onClick={exportXls} className={`${BAR_BTN} ${BAR_BTN_OFF} px-3`}>{t('Export Excel')}</button>
         <button onClick={save} disabled={!dirty || saving} className={`${BAR_BTN} ${BAR_BTN_ON} px-3 disabled:opacity-40`}>{saving ? t('Saving…') : t('Save')}</button>
       </div>

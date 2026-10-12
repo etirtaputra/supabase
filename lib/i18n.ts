@@ -2014,6 +2014,7 @@ export const ID: Record<string, string> = {
   'Filled in: everything from this supplier is for stock': 'Terisi otomatis: semua barang dari supplier ini untuk stok',
   '— reason —': '— alasan —',
   // BOM Calculator (app/proposals/bom)
+  'The calculation was not deleted. You may not have permission to delete it.': 'Kalkulasi tidak terhapus. Anda mungkin tidak punya izin untuk menghapusnya.',
   'Cable raceway': 'Jalur kabel',
   'Cable trays': 'Cable tray',
   '+ Tray run': '+ Jalur tray',

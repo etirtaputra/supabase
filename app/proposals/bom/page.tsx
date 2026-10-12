@@ -18,6 +18,7 @@ import { useT } from '@/hooks/useT';
 import { fmtRp } from '@/lib/formatters';
 import { BAR_BTN, BAR_BTN_ON, BAR_INPUT } from '@/constants/controls';
 import { computeBomCalc, newBomCalcDoc, type BomCalcDoc } from '@/lib/bomCalc';
+import { DeleteCalc } from '@/components/bomCalc/DeleteCalc';
 
 interface CalcRow { calc_id: string; title: string; doc: BomCalcDoc; updated_at: string; updated_by_email: string | null }
 
@@ -96,6 +97,7 @@ export default function BomCalcListPage() {
                 <th className="px-3 py-2 text-right">{t('Total (excl. PPN)')}</th>
                 <th className="px-3 py-2 text-right">Rp/Wp</th>
                 <th className="px-3 py-2 text-left">{t('Updated')}</th>
+                <th className="px-3 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -110,6 +112,10 @@ export default function BomCalcListPage() {
                   <td className="px-3 py-2 text-right tabular-nums text-white">{r.total ? fmtRp(r.total) : '—'}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-slate-300">{r.perWp ? Math.round(r.perWp).toLocaleString('en-US') : '—'}</td>
                   <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{new Date(r.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}<div className="text-[10px]">{r.updated_by_email?.split('@')[0]}</div></td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <DeleteCalc calcId={r.calc_id} name={r.title} onError={setError}
+                      onDeleted={() => { setError(null); setRows((rs) => (rs ?? []).filter((x) => x.calc_id !== r.calc_id)); }} />
+                  </td>
                 </tr>
               ))}
             </tbody>

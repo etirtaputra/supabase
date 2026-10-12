@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-12T08:05:39Z",
+    title: "Kalkulator BOM: kalkulasi kini bisa dihapus",
+    details: [
+      "Tombol “Hapus” di setiap baris daftar Kalkulator BOM dan di bagian atas layar kalkulasi. Dua langkah: “Hapus …?” lalu “Ya” — tanpa jendela pop-up browser.",
+      "Hanya kalkulasi itu yang terhapus; Proposal EPC tidak tersentuh. Bila penghapusan ditolak (tanpa izin), layar mengatakannya, bukan diam-diam.",
+    ],
+  },
+  {
     at: "2026-10-12T00:08:10Z",
     title: "Kalkulator BOM: tab baru “Jalur kabel” — cable tray, konduit, gland, label, cable tie, dan klip dihitung otomatis",
     details: [
