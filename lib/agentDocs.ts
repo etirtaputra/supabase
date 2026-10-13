@@ -70,6 +70,13 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
     first: false,
   },
   {
+    id: 'purchasing-sync',
+    title: 'Purchasing sync: ICAPROC, Drive, Basecamp, Dolibarr',
+    file: 'PURCHASING-SYNC-RUNBOOK_v1_2026-10-13.md',
+    audience: 'MIRA: keeping one order the same in all four places, propose-first',
+    first: false,
+  },
+  {
     id: 'writing-style',
     title: 'How every agent writes (ASD-STE100 English, plain Indonesian)',
     file: 'WRITING-STYLE_v1_2026-10-08.md',
