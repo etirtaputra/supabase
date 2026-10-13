@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp connection — server URL, her Hermes v0.20.6 can do it, snapshot 399320 (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA connected to Basecamp as user MIRA (OAuth done; §8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4319,7 +4319,21 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    DCR and CIMD — no upgrade needed. Connect from a PRIVATE browser window
    (else Basecamp signs in as the owner) and log in as MIRA. Snapshot
    **399320** taken 2026-10-13 08:47 UTC for it (expires 2026-10-14 08:47
-   UTC); (c) whether MIRA's Drive service
+   UTC). **CONNECTED 2026-10-13:** first try hit `400 invalid_redirect_uri`
+   (the callback was built as `http://`) — fixed by setting
+   `dashboard.public_url` to the https dashboard address in MIRA's
+   config.yaml; a half-finished attempt then answered `409 … already in
+   progress` until the gateway restarted. Basecamp's consent page showed
+   "Signed in as MIRA (mira@icasolar.com)", account ICASolar, and the callback
+   page said "Authorization received". The grant is **full read and write**
+   (Basecamp offers no read-only scope) — propose-first is held by the
+   runbook, not by the token. Read from the owner's side the same day: MIRA
+   (person 53382412) is not an admin, but has `can_manage_projects` and
+   `can_manage_people` — turn both off in Adminland if she should not create
+   projects or invite people. PROGRESS IMPOR (5435538121) at that moment:
+   PO SENT 5, BALANCE PAID 1, Done 175, every other column 0 — the yardstick
+   for her read-only check. Rollback: delete the `basecamp` server on her
+   MCP page; (c) whether MIRA's Drive service
    account can read the purchasing shared drive; (d) Dolibarr's purchasing
    role — her first report says what it holds. Snapshot 389803 has expired:
    take a fresh one before the Drive file is copied into his data folder.
