@@ -55,8 +55,9 @@ ICAPROC RECORDS it. Dolibarr BOOKS it. Basecamp SHOWS it. A fix flows down
 that line, never up: Basecamp never corrects ICAPROC, ICAPROC never corrects
 Drive. The one exception: a DOCUMENT that is missing from Drive but attached
 somewhere else (a Basecamp card, an ICAPROC document link, Dolibarr) is
-copied INTO Drive — the evidence belongs in the evidence folder (§5-A). When the evidence and the record disagree, and §5 does not cover it,
-ask Eric — you do not choose.
+copied INTO Drive — the evidence belongs in the evidence folder (§5-A).
+When the evidence and the record disagree, and §5 does not cover it, ask
+Eric — you do not choose.
 
 ## 2. Matching one order across the four
 
@@ -72,7 +73,8 @@ Two numbering schemes exist side by side — `PIO-017-ISL-09-2026` and
   `?po_number=` before you call it missing (13 Oct: TRISINDO PO-038 and
   EPSIVO PIO/014 were "missing" until looked up — both Fully Received).
 - A PI field that is not a PI number (an email subject, a file name, the PO
-  number repeated) is a data fault: report it, match by PO.
+  number repeated) is a data fault: match by PO, then fix it if the PI file
+  on Drive shows the real number (§5-A).
 - Domestic orders (PO numbers with `-MBS-`) never get a PROGRESS IMPOR card.
 
 ## 3. The run — always in this order
