@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; fix is an image update (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA's image updated, re-authenticate next (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4346,7 +4346,13 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    `ghcr.io/hostinger/hvps-hermes-agent:latest` (image
    `sha256:51f52f80…`); MAX (`hermes-agent-ezd3`, v0.21.5) has the fix. Fix =
    pull `:latest` for r33y and recreate; data is the bind mount
-   `./data:/opt/data`, so SOUL.md, config.yaml, sessions and keys stay. The
+   `./data:/opt/data`, so SOUL.md, config.yaml, sessions and keys stay.
+   **UPDATED 2026-10-13 09:33 UTC** by the owner (hPanel → Docker Manager →
+   r33y → Update; the API call was blocked by this sandbox's permission
+   check). Read back: image `hvps-hermes-agent:latest`, gateway + dashboard
+   under s6, Telegram connected 09:33:54, config schema migrated 39 → 46 with
+   backups in `/opt/data/backups/config/*.pre-docker-migrate.20261013-093315`
+   (the second rollback path, besides snapshot 399320). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
