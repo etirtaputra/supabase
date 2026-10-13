@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA's image updated, re-authenticate next (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5 (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4319,7 +4319,7 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    DCR and CIMD — no upgrade needed. Connect from a PRIVATE browser window
    (else Basecamp signs in as the owner) and log in as MIRA. Snapshot
    **399320** taken 2026-10-13 08:47 UTC for it (expires 2026-10-14 08:47
-   UTC). **NOT YET CONNECTED (2026-10-13, corrected the same day):** first try hit `400 invalid_redirect_uri`
+   UTC). **Connected 2026-10-13 09:40 UTC after an image update — history:** first try hit `400 invalid_redirect_uri`
    (the callback was built as `http://`) — fixed by setting
    `dashboard.public_url` to the https dashboard address in MIRA's
    config.yaml; a half-finished attempt then answered `409 … already in
@@ -4352,7 +4352,13 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    check). Read back: image `hvps-hermes-agent:latest`, gateway + dashboard
    under s6, Telegram connected 09:33:54, config schema migrated 39 → 46 with
    backups in `/opt/data/backups/config/*.pre-docker-migrate.20261013-093315`
-   (the second rollback path, besides snapshot 399320). The
+   (the second rollback path, besides snapshot 399320). **CONNECTED
+   09:40 UTC:** dashboard shows v0.21.5; Authenticate → Authorize completed
+   and Test connection lists Basecamp's full tool set (read AND write: incl.
+   `trash_project`, `update_project_access`, `move_card`, `create_comment`).
+   `dashboard.public_url` survived the 39 → 46 migration. Open: narrow her
+   tools with Hermes' per-server tool filter (`hermes mcp list` shows "all")
+   to the reads + `move_card` + `create_comment` the runbook needs. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
