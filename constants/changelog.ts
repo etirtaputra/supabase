@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-13T08:19:11Z",
+    title: "Asisten AI kini bisa membaca papan Progres pembelian",
+    details: [
+      "MIRA dapat membaca tahap setiap PO di papan Pembelian → Progres, dihitung dengan aturan yang sama seperti di layar. Ia memakainya untuk mencocokkan papan PROGRESS IMPOR di Basecamp dengan ICAPROC, lalu mengusulkan perbaikan kepada Anda sebelum mengubah apa pun.",
+      "Hanya untuk dibaca, dan hanya untuk peran sisi pembelian.",
+    ],
+  },
+  {
     at: "2026-10-12T08:05:39Z",
     title: "Kalkulator BOM: kalkulasi kini bisa dihapus",
     details: [

@@ -93,6 +93,7 @@ export const AGENT_ENDPOINTS = [
   { method: 'GET', path: '/api/agent/attention/summary', purpose: 'counts and totals per signal, for a daily message' },
   { method: 'POST', path: '/api/agent/design/mounting', purpose: 'the v11 mounting engine, with catalogue and prices' },
   { method: 'POST', path: '/api/agent/design/system', purpose: 'the v9 system engine, with catalogue and prices' },
+  { method: 'GET', path: '/api/agent/purchasing/progress', purpose: "the Progress board as data — each tracked PO's stage computed by the board's own functions, and the Basecamp PROGRESS IMPOR column its card belongs in. ?po_number= or ?pi_number= for any PO. Buy-side roles" },
   { method: 'POST', path: '/api/agent/sales/mirror', purpose: 'record a sales order taken in another system (Dolibarr) — computes the totals the way the editor does, and posts NO stock' },
   { method: 'POST', path: '/api/agent/sales/stock', purpose: "a mirrored order's goods have LEFT — takes them off stock from where they are, once, priced at moving-average cost. dry_run: true first; action: 'reverse' to put them back (owner only)" },
 ] as const;
