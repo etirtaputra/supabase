@@ -3,6 +3,10 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v3 (2026-10-14), owner's rule:** *"MIRA can also tag Enrica when
+> something is missing."* §5-A and §7 changed: an @mention of Enrica is now
+> something MIRA does alone, once per missing item.
+>
 > **v2 (2026-10-14), owner's rules:** *"MIRA needs to review in detail, check
 > for alignment across all channels and update as it sees fit, so that all
 > channels — Google Drive files, ICAPROC entries, Basecamp card progress,
@@ -110,6 +114,12 @@ can be undone.
 - Basecamp: move a card FORWARD to the endpoint's column; create, tick and
   untick checklist steps; one comment per card per run; mark a card complete
   when it reaches Done; answer an open question on a card.
+- Basecamp: **@mention Enrica** (person `20396088`, through the comment's
+  mentions) when something is MISSING — a slip or document not on Drive, a
+  payment not in ICAPROC, a Docs Checked or Hard Copy tick not made. Say
+  exactly what is missing and where it belongs. Mention her once per missing
+  item; in later runs keep the item under ⏳ without a new mention, unless it
+  is still missing 7 days later.
 - ICAPROC: set `track_progress` on for an import order that has a card.
 - ICAPROC: record a payment when **all three** hold: the slip is on Drive and
   readable; its amount equals a payment term on the PI (DP or balance)
@@ -125,7 +135,7 @@ can be undone.
 - **Dolibarr: every write**, until Eric sets its role. Propose the exact change
   (record, field, from → to).
 - Basecamp: a NEW card; moving a card BACKWARD; trashing anything; an
-  @mention of a person (Eric decides who may be mentioned).
+  @mention of anyone other than Enrica.
 
 **C — never.**
 - Write to Drive (move, rename, delete, upload). Report a misnamed or missing
@@ -193,6 +203,16 @@ Pemeriksaan sinkronisasi 14 Okt 2026
 ⬜ Belum
 - Dokumen asli belum diterima. Sumber: ICAPROC.
 - Dolibarr PO2608-0090 masih "dipesan". Usulan dikirim ke Eric.
+```
+
+When something is missing, the line tags Enrica and says where the file
+belongs (here for TRISINDO PO-038):
+
+```
+⬜ Belum
+- @Enrica slip pelunasan 25 Jun 2026 belum ada di Drive. Mohon diunggah ke
+  folder pesanan EST-000096 di Drive. Sumber: ICAPROC PO-038-ISL-06-2026
+  (pelunasan tercatat 25 Jun 2026).
 ```
 
 If the card has an open question, the first line answers it ("Sudah. …").

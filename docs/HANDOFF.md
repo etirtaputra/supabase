@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; purchasing sync runbook v2 — MIRA acts where evidence is clear, Indonesian checklist per card (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; purchasing sync runbook v3 — MIRA acts where evidence is clear, Indonesian checklist per card, tags Enrica for missing items (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4413,7 +4413,10 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    (sizes match the repo byte for byte); v1 and the old INDEX trashed.
    Telegram cards for MIRA (v2 + first v2 run) and MANDA (information) are
    in the briefing; the "answer to the first sync report" card is marked
-   superseded. The
+   superseded. **v3 the same day** (owner: *"MIRA can also tag Enrica when
+   something is missing"*): @mentioning Enrica (Basecamp person 20396088)
+   moved to §5-A — once per missing item, again only after 7 days; anyone
+   else still needs Eric's yes. v2 retired before MIRA was sent it. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
