@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's purchasing sync — progress endpoint, sync runbook, Basecamp mapped (§4, §8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp connection — server URL, her Hermes v0.20.6 can do it, snapshot 399320 (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4310,11 +4310,16 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    **Purchasing sync (2026-10-13, §4):** MIRA to keep ICAPROC, Drive, Basecamp
    and Dolibarr in step, propose-first. Owner's choices: a separate Basecamp
    user "MIRA" on the two purchasing projects only (not his account); propose,
-   he approves. **Open:** (a) Basecamp user MIRA — owner creates it; (b) MIRA's
-   Hermes needs a Basecamp connection — the session's connector is Basecamp's,
-   its URL to be read from claude.ai connector settings (a web search found no
-   documented first-party URL); Hermes ≥ v0.21.5 does MCP OAuth from its
-   dashboard, MIRA's older image may not; (c) whether MIRA's Drive service
+   he approves. **Open:** (a) Basecamp user MIRA — owner has its login; (b)
+   MIRA's Basecamp connection: Basecamp's own MCP server is
+   **`https://mcp.basecamp.com/mcp`** (owner, from claude.ai's connector; the
+   sandbox proxy blocks it, so untested from here). MIRA runs **Hermes
+   v0.20.6** (build 2026-08-27, upstream `01740f35`), which already has the
+   dashboard MCP OAuth flow (`POST /api/mcp/servers/{name}/auth`), RFC 7591
+   DCR and CIMD — no upgrade needed. Connect from a PRIVATE browser window
+   (else Basecamp signs in as the owner) and log in as MIRA. Snapshot
+   **399320** taken 2026-10-13 08:47 UTC for it (expires 2026-10-14 08:47
+   UTC); (c) whether MIRA's Drive service
    account can read the purchasing shared drive; (d) Dolibarr's purchasing
    role — her first report says what it holds. Snapshot 389803 has expired:
    take a fresh one before the Drive file is copied into his data folder.
