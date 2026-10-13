@@ -3,6 +3,12 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v6 (2026-10-14), owner's rule:** *"Yes, the accounting folder should use
+> the same naming convention."* §11.4 rewritten: an accounting copy carries
+> the SAME name as its file in the order folder; MIRA renames there and adds
+> a missing PI, PO or slip copy herself (§5-A). §5-B no longer holds the
+> accounting folder.
+>
 > **v5 (2026-10-14), owner's rule:** *"For the files in Google Drive, it is
 > also important for MIRA to check if the same file exists (duplicates). If it
 > does, just make sure it is using the right naming conventions."* New §11:
@@ -187,7 +193,7 @@ can be undone.
   (revised PI — it changes line items, PURCHASING-RUNBOOK §4 and §7); a new
   PO; any delete.
 - Drive: moving a DUPLICATE (§11.3) to the trash — name both files; renaming
-  a FOLDER; any change inside the accounting folder (§11.4).
+  a FOLDER.
 - **Dolibarr: every write**, until Eric sets its role. Propose the exact change
   (record, field, from → to).
 - Basecamp: moving a card BACKWARD; trashing anything; an @mention of anyone
@@ -369,8 +375,7 @@ orders use the PO number where an import uses the PI.
 
 ### 11.2 What counts as wrong, and what you do
 
-This applies to the ORDER folders. The accounting folder has its own short
-names — §11.4.
+This applies to the order folders AND the accounting folder (§11.4).
 
 | Wrong | Example seen | Fix (§5-A) |
 |---|---|---|
@@ -398,19 +403,34 @@ hint, not proof.
 - **Two copies in the SAME order folder:** keep the one with the right name
   (rename the better one if neither is right). Propose the other for the trash
   (§5-B): both names, both links, and "same checksum".
-- **A copy in another folder** (the accounting folder, §11.4; another order's
-  folder by mistake): report it; do not move or trash it.
+- **A copy in the accounting folder** is not a duplicate (§11.4).
+- **A copy in another order's folder** (filed by mistake): report it; do not
+  move or trash it.
 
 ### 11.4 The accounting copies
 
-`0 Pembelian Impor - Accounting ISL / 2026 / <nn> <SUPPLIER>` (e.g.
-`15 MIBET` for PIO-015) holds a second copy of an order's PI, PO and slips
-for accounting, with short names — `PI`, `PO`, `DP (USD).png`,
-`DP (IDR).png`, `BALANCE PAYMENT #1.jpg`. On 14 Oct, `DP (USD).png` there
-and `2. DP30_USD_PJ-260827-22 V02_2026-09-03.png` in the order folder were
-the same size (30,325 bytes) — almost certainly the same slip, copied on
-purpose.
+`0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` (e.g.
+`2026 / 15 MIBET` for PIO-015) holds a second copy of an order's PI, PO and
+payment slips for accounting. The copies are deliberate — never a duplicate
+to clean up.
 
-These copies are deliberate, not duplicates to clean up. Until Eric decides
-whether the accounting folder uses the same names, change nothing there:
-report a missing accounting copy, and propose renames (§5-B).
+**Owner, 14 Oct: the accounting folder uses the same naming convention.** An
+accounting copy carries **exactly the same name** as its file in the order
+folder, number included, so the two match at a glance:
+
+| Order folder | Accounting folder — before | Accounting folder — after |
+|---|---|---|
+| `2. DP30_USD_PJ-260827-22 V02_2026-09-03.png` | `DP (USD).png` | `2. DP30_USD_PJ-260827-22 V02_2026-09-03.png` |
+| `2. DP30_IDR_PJ-260827-22 V02_2026-09-03.png` | `DP (IDR).png` | `2. DP30_IDR_PJ-260827-22 V02_2026-09-03.png` |
+
+(On 14 Oct these pairs were the same size — 30,325 and 31,067 bytes. Confirm
+with the checksum before you rename: the name follows the CONTENT.)
+
+What you do there (§5-A, read back, `old → new` in the Telegram report —
+accounting has no Basecamp card):
+- **Rename** a copy to its order-folder twin's name once the checksums match.
+  A copy with no twin in the order folder: copy it INTO the order folder
+  first (it is evidence the order folder is missing), then name both.
+- **Add** a missing PI, PO or payment-slip copy from the order folder.
+- **Never** move, trash or overwrite anything there, and never rename the
+  `<nn> <SUPPLIER>` folders.

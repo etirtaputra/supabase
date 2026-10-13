@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; purchasing sync runbook v3 — MIRA acts where evidence is clear, v5 — Drive naming convention and duplicate check (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; purchasing sync runbook v3 — MIRA acts where evidence is clear, v6 — one naming convention for order and accounting folders (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4441,8 +4441,9 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    purchasing drive holds deliberate accounting copies with short names
    (`15 MIBET`: `PI`, `PO`, `DP (USD).png` = the order folder's
    `2. DP30_USD_PJ-260827-22 V02_2026-09-03.png`, same 30,325 bytes).
-   **Open for the owner:** should the accounting folder use the same names?
-   Until then MIRA changes nothing there. The
+   **v6:** owner decided the accounting folder uses the same names — an
+   accounting copy is named exactly like its order-folder twin (checksum
+   first); MIRA renames and adds missing PI/PO/slip copies there herself. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
