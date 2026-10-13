@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; purchasing sync runbook v3 — MIRA acts where evidence is clear, v4 — MIRA fills gaps herself first, tags Enrica only for what needs a person (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; purchasing sync runbook v3 — MIRA acts where evidence is clear, v5 — Drive naming convention and duplicate check (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4428,7 +4428,21 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    manager)** on the purchasing shared drive, so she can add files. **Open
    (Part B):** MAX uses a copy of the SAME gdrive.json, so MAX has Content
    manager on purchasing too, though his boot prompt says read-only — give
-   him his own service account with Viewer. The
+   him his own service account with Viewer.
+   **v5 the same day** (owner: *"check if the same file exists (duplicates);
+   if it does, make sure it uses the right naming convention"*): new §11 —
+   the file convention read off the real purchasing files,
+   `<n>. <TYPE>[ <k>]_[<CUR>_]<PI>_<YYYY-MM-DD>[ (<note>)]` (n = arrival order,
+   never renumbered; USD/IDR slip pairs; BALANCE = BALANCE PAYMENT, DP = DP30);
+   a duplicate = same md5Checksum, revisions and USD/IDR pairs are not;
+   rename-to-convention moved to §5-A with the duty to update ICAPROC notes
+   and her own comments that quote the old name; trashing a duplicate is §5-B.
+   Found: `0 Pembelian Impor - Accounting ISL/2026/<nn> <SUPPLIER>` on the
+   purchasing drive holds deliberate accounting copies with short names
+   (`15 MIBET`: `PI`, `PO`, `DP (USD).png` = the order folder's
+   `2. DP30_USD_PJ-260827-22 V02_2026-09-03.png`, same 30,325 bytes).
+   **Open for the owner:** should the accounting folder use the same names?
+   Until then MIRA changes nothing there. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA

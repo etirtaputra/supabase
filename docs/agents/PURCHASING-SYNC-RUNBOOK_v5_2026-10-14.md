@@ -3,6 +3,15 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v5 (2026-10-14), owner's rule:** *"For the files in Google Drive, it is
+> also important for MIRA to check if the same file exists (duplicates). If it
+> does, just make sure it is using the right naming conventions."* New §11:
+> the naming convention (read off the real files), how to tell a duplicate
+> from a revision, and the accounting copies. Renaming a FILE to the
+> convention moved from §5-B to §5-A, with the duty to update every place that
+> quotes the old name. Before adding a copy, MIRA checks it is not already
+> there.
+>
 > **v4 (2026-10-14), owner's rule:** *"If something is missing and MIRA can
 > do it for Enrica, she should just do it, and then report back."* §5 now
 > starts from "do it yourself": MIRA fills a gap herself when the missing
@@ -45,7 +54,7 @@ write).
 
 | Place | Role | What it holds for one order |
 |---|---|---|
-| **Google Drive** (G) | the EVIDENCE | one folder per order inside one folder per supplier: `YYYYMMDD <PI>, <PO> [items]`. Files: PI, PO or contract, payment slips, revised PI, shipping documents (CI, PL, BL, Form E), customs (PIB). |
+| **Google Drive** (G) | the EVIDENCE | purchasing shared drive only. One folder per order inside one folder per supplier: `YYYYMMDD <PI>, <PO> [items]`. Files: PI, PO or contract, payment slips, revised PI, shipping documents (CI, PL, BL, Form E), customs (PIB). Names: §11. A second, deliberate set of copies lives in `0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` for accounting (§11.4). |
 | **ICAPROC** (I) | the RECORD | `5.0_purchases` (PO, PI, status, received, `track_progress`), `6.0_po_costs` (every payment and fee), `docs_checked_at`, `hard_copy_received_at`. The stage: `GET /api/agent/purchasing/progress`. |
 | **Dolibarr** (D) | the ACCOUNTING ERP | supplier order (`PO26xx-xxxx`), its status (3 = ordered, 4 = partly received, 5 = received) and billed flag; supplier invoices and payments. |
 | **Basecamp** (B) | the TEAM'S VIEW | PROC IMPOR SOLAR → card table **PROGRESS IMPOR**: one card per import, title `SUPPLIER: <PI>, <PO> [items]`. Column = stage. Card steps = checklist. Comments = what changed. Purchasing Import ICL → to-dos per supplier (KSTAR, NINGBO LE, …). |
@@ -116,7 +125,9 @@ minutes later the card was moved — both comments are still on the card).
    Report it. A PERSON ticks Docs Checked and Hard Copy Received.
 8. **Dolibarr.** The supplier order exists; its status matches ICAPROC
    (ICAPROC Fully Received → Dolibarr 5); billed matches the invoices.
-9. **Open questions on the card.** A comment that asks something and has no
+9. **Drive names and duplicates.** Every file in the order folder follows
+   §11; no file is in the folder twice (§11.3).
+10. **Open questions on the card.** A comment that asks something and has no
    answer: answer it in your comment, in the thread's language (13 Oct:
    Eric's "this belum emang?" on EPSIVO PIO/014 was left unanswered).
 
@@ -133,7 +144,13 @@ can be undone.
 - Basecamp: move a card FORWARD to the endpoint's column; create, tick and
   untick checklist steps; one comment per card per run; mark a card complete
   when it reaches Done; answer an open question on a card.
-- Drive: **add a missing document** to the order's folder when the same
+- Drive: **rename a file to the convention** (§11) when its name breaks it.
+  Before you rename, find every place that quotes the old name — ICAPROC
+  payment notes (`6.0_po_costs.notes`), your own Basecamp comments and
+  checklist steps — and update them in the same run. Write `old → new` in the
+  card comment. Never renumber a file that already has a number.
+- Drive: **add a missing document** to the order's folder — first check that
+  it is not already there under another name (§11.3) — when the same
   document is attached somewhere you can reach — a Basecamp card or to-do,
   an ICAPROC document link, a Dolibarr attachment, another folder on the
   purchasing drive. Open it first and decide what it is (PI, slip, BL, …);
@@ -167,16 +184,17 @@ can be undone.
 - ICAPROC: any amount that does not equal a PI term; a changed PO total
   (revised PI — it changes line items, PURCHASING-RUNBOOK §4 and §7); a new
   PO; any delete.
-- Drive: renaming a file (ICAPROC notes and Basecamp comments quote file
-  names; a rename breaks them silently). Propose the new name.
+- Drive: moving a DUPLICATE (§11.3) to the trash — name both files; renaming
+  a FOLDER; any change inside the accounting folder (§11.4).
 - **Dolibarr: every write**, until Eric sets its role. Propose the exact change
   (record, field, from → to).
 - Basecamp: moving a card BACKWARD; trashing anything; an @mention of anyone
   other than Enrica.
 
 **C — never.**
-- Delete, move or overwrite a file on Drive. Upload anything that is not a
-  copy of an existing document (no summaries, no files you made yourself —
+- Delete, move or overwrite a file on Drive (a duplicate goes to the trash
+  only after Eric's yes, §5-B). Upload anything that is not a copy of an
+  existing document (no summaries, no files you made yourself —
   your notes go to 90-OUTPUT on the agents' drive).
 - Tick Docs Checked or Hard Copy Received in ICAPROC.
 - Write an amount, a bank account or a supplier's bank details in Basecamp.
@@ -311,6 +329,76 @@ The template is in Indonesian; reply in the language Eric writes to you.
 ## 10. Never
 
 - Never decide between two disagreeing places outside §5-A. Show both, ask.
-- Never delete, move or overwrite a file on Drive.
+- Never delete, move or overwrite a file on Drive. A duplicate goes to the
+  trash only after Eric's yes.
 - Never put an amount or bank details in Basecamp.
 - Never report a write before you read it back.
+
+## 11. Drive file names and duplicates
+
+Read off the real files on 14 Oct 2026 — this is how the team already names
+them; the rule writes it down, it does not invent a new one.
+
+### 11.1 The file name
+
+```
+<n>. <TYPE>[ <k>]_[<CUR>_]<PI>_<YYYY-MM-DD>[ (<note>)].<ext>
+```
+
+| Part | Meaning | Examples on Drive |
+|---|---|---|
+| `<n>.` | the file's place in the order folder, in the order the documents arrived. 1 is the PI. Not tied to the type. A second file for the same step takes a letter: `2b.`, `7.a.` | `1. PI_…`, `4. PO_…`, `5. DP30_…`, `11. OPS_…`, `2b. PAYMENT_…` |
+| `<TYPE>` | `PI` · `PO` · `SALES CONTRACT` · `DP<percent>` or `DP` · `BALANCE PAYMENT` or `BALANCE` · `REVISED PI` · `CI` · `PL` · `BL` · `FORM E` · `PIB` · `OPS` · `PAYMENT` (domestic) | `DP30`, `BALANCE PAYMENT`, `REVISED PI` |
+| ` <k>` | the part number when a payment is split | `BALANCE PAYMENT 1`, `BALANCE PAYMENT 2` |
+| `<CUR>_` | on a payment slip: `USD` for the transfer, `IDR` for the rupiah debit. One payment often has both files | `DP30_USD_…` and `DP30_IDR_…` |
+| `<PI>` | the PI number exactly as the supplier writes it (hyphens kept); several PIs joined by `, ` | `PJ-260827-22 V02`, `LC26050010, LC26050011, LC26050017` |
+| `<YYYY-MM-DD>` | the date the DOCUMENT shows (PI date, transfer date), with hyphens | `2026-09-03` |
+| ` (<note>)` | optional, for a remark that must stay | `(R2, 20261012 updated - added TCP306)`, `(NOT VALUE TDY)` |
+
+Both `BALANCE` and `BALANCE PAYMENT`, and both `DP` and `DP30`, are correct —
+do not rename a file only to swap one for the other. Domestic (`-MBS-`)
+orders use the PO number where an import uses the PI.
+
+### 11.2 What counts as wrong, and what you do
+
+| Wrong | Example seen | Fix (§5-A) |
+|---|---|---|
+| no number, no type, or no PI | `PI`, `PO`, `DP (USD).png`, `BALANCE PAYMENT #1.jpg`, `ICA PI KST226-6815 UPS.xls` | give it the full name; the next free number in the folder |
+| date without hyphens | `1. PI_LC26020005_20260206.pdf`, `11. OPS_PI2026070901_20260820.jpeg` | `2026-02-06` — keep the number |
+| stray space or symbol | `1. PI_ PJ-251222-18-Rev_2026-03-05.pdf` | remove it |
+| no extension on an uploaded file | `1. PI_KST226-6816_2026-08-14` (a spreadsheet) | leave it if it is a Google Sheet; add the extension if it is an upload |
+
+Never renumber a file that has a number, even out of order: the number is
+its history.
+
+### 11.3 A duplicate, and what is NOT one
+
+A duplicate is **the same file twice**: same content, not just a similar
+name. Check with the file's `md5Checksum` (Drive API v3; Google Docs, Sheets
+and Slides have none — compare their content instead). Same size alone is a
+hint, not proof.
+
+- **Not a duplicate:** a revision (`R1`, `R2`, `Rev`, `V02`, `REVISED PI`),
+  the USD and IDR slips of one payment, the parts of a split payment. Keep
+  them all.
+- **Before you add a copy (§5-A):** look for the same checksum in the order
+  folder. If it is there, do not add another; make sure the one that is there
+  has the right name.
+- **Two copies in the SAME order folder:** keep the one with the right name
+  (rename the better one if neither is right). Propose the other for the trash
+  (§5-B): both names, both links, and "same checksum".
+- **A copy in another folder** (the accounting folder, §11.4; another order's
+  folder by mistake): report it; do not move or trash it.
+
+### 11.4 The accounting copies
+
+`0 Pembelian Impor - Accounting ISL / 2026 / <nn> <SUPPLIER>` (e.g.
+`15 MIBET` for PIO-015) holds a second copy of an order's PI, PO and slips
+for accounting, with short names — `PI`, `PO`, `DP (USD).png`,
+`DP (IDR).png`, `BALANCE PAYMENT #1.jpg`. On 14 Oct, `DP (USD).png` there
+and `2. DP30_USD_PJ-260827-22 V02_2026-09-03.png` in the order folder were
+the same size (30,325 bytes): the same slip, on purpose.
+
+These copies are deliberate, not duplicates to clean up. Until Eric decides
+whether the accounting folder uses the same names, change nothing there:
+report a missing accounting copy, and propose renames (§5-B).
