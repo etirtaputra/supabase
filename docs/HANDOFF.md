@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in not finished — callback received, no token stored (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; fix is an image update (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4334,7 +4334,20 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    from her terminal agreed. Next: the error text from the dashboard's MCP
    page, then re-authenticate; fallback is Hermes' optional skill
    `mcp-oauth-remote-gateway` (manual PKCE, tokens written to
-   `$HERMES_HOME/mcp-tokens/`). The grant is **full read and write**
+   `$HERMES_HOME/mcp-tokens/`). **ROOT CAUSE (MIRA's own agent.log, 09:09 and
+   09:20 UTC):** `OAuthFlowError: Authorization response missing iss
+   parameter advertised by the authorization server`. Basecamp advertises
+   RFC 9207 `iss` and sends it back; Hermes v0.20.6's dashboard callback
+   (`/api/mcp/oauth/callback/{name}`) only takes `code`, `state`, `error`, so
+   it drops `iss` and the MCP SDK refuses the code. Fixed upstream in
+   `1a6503a520` (2026-09-08, "thread RFC 9207 iss through every OAuth
+   callback relay", the 0.21.3 line). So the earlier "v0.20.6 — no upgrade
+   needed" was WRONG: MIRA's project `hermes-agent-r33y` runs an old pull of
+   `ghcr.io/hostinger/hvps-hermes-agent:latest` (image
+   `sha256:51f52f80…`); MAX (`hermes-agent-ezd3`, v0.21.5) has the fix. Fix =
+   pull `:latest` for r33y and recreate; data is the bind mount
+   `./data:/opt/data`, so SOUL.md, config.yaml, sessions and keys stay. The
+   grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
    (person 53382412) is not an admin, but has `can_manage_projects` and
