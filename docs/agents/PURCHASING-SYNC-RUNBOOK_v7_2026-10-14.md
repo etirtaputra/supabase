@@ -3,6 +3,11 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v7 (2026-10-14), owner's rule:** *"Accounting ISL, as the name says, only
+> covers POs of PT Indodaya Surya Lestari."* §11.4: the accounting folder is
+> for ISL orders only; ICL and MBS orders have no accounting folder, and MIRA
+> never puts their documents there.
+>
 > **v6 (2026-10-14), owner's rule:** *"Yes, the accounting folder should use
 > the same naming convention."* §11.4 rewritten: an accounting copy carries
 > the SAME name as its file in the order folder; MIRA renames there and adds
@@ -62,7 +67,7 @@ write).
 
 | Place | Role | What it holds for one order |
 |---|---|---|
-| **Google Drive** (G) | the EVIDENCE | purchasing shared drive only. One folder per order inside one folder per supplier: `YYYYMMDD <PI>, <PO> [items]`. Files: PI, PO or contract, payment slips, revised PI, shipping documents (CI, PL, BL, Form E), customs (PIB). Names: §11. A second, deliberate set of copies lives in `0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` for accounting (§11.4). |
+| **Google Drive** (G) | the EVIDENCE | purchasing shared drive only. One folder per order inside one folder per supplier: `YYYYMMDD <PI>, <PO> [items]`. Files: PI, PO or contract, payment slips, revised PI, shipping documents (CI, PL, BL, Form E), customs (PIB). Names: §11. For PT Indodaya Surya Lestari (ISL) orders only, a second, deliberate set of copies lives in `0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` for accounting (§11.4). |
 | **ICAPROC** (I) | the RECORD | `5.0_purchases` (PO, PI, status, received, `track_progress`), `6.0_po_costs` (every payment and fee), `docs_checked_at`, `hard_copy_received_at`. The stage: `GET /api/agent/purchasing/progress`. |
 | **Dolibarr** (D) | the ACCOUNTING ERP | supplier order (`PO26xx-xxxx`), its status (3 = ordered, 4 = partly received, 5 = received) and billed flag; supplier invoices and payments. |
 | **Basecamp** (B) | the TEAM'S VIEW | PROC IMPOR SOLAR → card table **PROGRESS IMPOR**: one card per import, title `SUPPLIER: <PI>, <PO> [items]`. Column = stage. Card steps = checklist. Comments = what changed. Purchasing Import ICL → to-dos per supplier (KSTAR, NINGBO LE, …). |
@@ -410,9 +415,18 @@ hint, not proof.
 ### 11.4 The accounting copies
 
 `0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` (e.g.
-`2026 / 15 MIBET` for PIO-015) holds a second copy of an order's PI, PO and
-payment slips for accounting. The copies are deliberate — never a duplicate
-to clean up.
+`2026 / 15 MIBET` for PIO-015-ISL-09-2026) holds a second copy of an order's
+PI, PO and payment slips for accounting. The copies are deliberate — never a
+duplicate to clean up.
+
+**Only PT Indodaya Surya Lestari (ISL) orders** (owner, 14 Oct). An order is
+ISL when the endpoint's `company` is `PT Indodaya Surya Lestari`, or — when
+`company` is empty — its PO number carries `-ISL-` (`PIO-015-ISL-09-2026`,
+`PO-038-ISL-06-2026`); `<nn>` is that PO's sequence number. Orders of PT
+Indodaya Cipta Lestari (ICL: `PIO-2026012`, `EB.42324`, …) and PT Mandala
+Bersama Sejahtera (`-MBS-`) have NO accounting folder: never put their
+documents there, and never create one for them. An ICL or MBS document found
+in the ISL accounting folder: report it (filed by mistake); do not move it.
 
 **Owner, 14 Oct: the accounting folder uses the same naming convention.** An
 accounting copy carries **exactly the same name** as its file in the order
@@ -431,6 +445,8 @@ accounting has no Basecamp card):
 - **Rename** a copy to its order-folder twin's name once the checksums match.
   A copy with no twin in the order folder: copy it INTO the order folder
   first (it is evidence the order folder is missing), then name both.
-- **Add** a missing PI, PO or payment-slip copy from the order folder.
+- **Add** a missing PI, PO or payment-slip copy from the order folder — ISL
+  orders only. An ISL order with no `<nn> <SUPPLIER>` folder yet: propose it
+  (§5-B); do not create it.
 - **Never** move, trash or overwrite anything there, and never rename the
   `<nn> <SUPPLIER>` folders.
