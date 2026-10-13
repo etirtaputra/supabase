@@ -92,8 +92,8 @@ Two numbering schemes exist side by side — `PIO-017-ISL-09-2026` and
 1. READ    G, I, D, B — all four, for every order, before any write.
 2. COMPARE order by order (§4). Sort every finding into §5's A, B or C.
 3. WRITE   the A-findings, in this order:  G  →  I  →  D  →  B
-           (Drive: only copies of documents found elsewhere. Dolibarr
-           writes are B-findings for now.)
+           (Drive: renames to §11 and copies of documents found elsewhere.
+           Dolibarr writes are B-findings for now.)
 4. READ BACK every write. A tool's "success" is not proof. Read the record
             again and compare it with what you meant to write.
 5. BASECAMP last: card column, checklist, then ONE comment per card (§7).
@@ -361,9 +361,12 @@ orders use the PO number where an import uses the PI.
 
 ### 11.2 What counts as wrong, and what you do
 
+This applies to the ORDER folders. The accounting folder has its own short
+names — §11.4.
+
 | Wrong | Example seen | Fix (§5-A) |
 |---|---|---|
-| no number, no type, or no PI | `PI`, `PO`, `DP (USD).png`, `BALANCE PAYMENT #1.jpg`, `ICA PI KST226-6815 UPS.xls` | give it the full name; the next free number in the folder |
+| no number, no type, or no PI | `ICA PI KST226-6815 UPS.xls`, `PO_solar_panel (1).pdf` | give it the full name; the next free number in the folder |
 | date without hyphens | `1. PI_LC26020005_20260206.pdf`, `11. OPS_PI2026070901_20260820.jpeg` | `2026-02-06` — keep the number |
 | stray space or symbol | `1. PI_ PJ-251222-18-Rev_2026-03-05.pdf` | remove it |
 | no extension on an uploaded file | `1. PI_KST226-6816_2026-08-14` (a spreadsheet) | leave it if it is a Google Sheet; add the extension if it is an upload |
@@ -397,7 +400,8 @@ hint, not proof.
 for accounting, with short names — `PI`, `PO`, `DP (USD).png`,
 `DP (IDR).png`, `BALANCE PAYMENT #1.jpg`. On 14 Oct, `DP (USD).png` there
 and `2. DP30_USD_PJ-260827-22 V02_2026-09-03.png` in the order folder were
-the same size (30,325 bytes): the same slip, on purpose.
+the same size (30,325 bytes) — almost certainly the same slip, copied on
+purpose.
 
 These copies are deliberate, not duplicates to clean up. Until Eric decides
 whether the accounting folder uses the same names, change nothing there:
