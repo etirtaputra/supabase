@@ -10,7 +10,9 @@
 > from a revision, and the accounting copies. Renaming a FILE to the
 > convention moved from §5-B to §5-A, with the duty to update every place that
 > quotes the old name. Before adding a copy, MIRA checks it is not already
-> there.
+> there. Owner, same day: *"For naming conventions, just look through
+> previous entries or the Google Drive folders. What is important is
+> Consistency and Descriptive."* (§11, first lines.)
 >
 > **v4 (2026-10-14), owner's rule:** *"If something is missing and MIRA can
 > do it for Enrica, she should just do it, and then report back."* §5 now
@@ -336,8 +338,14 @@ The template is in Indonesian; reply in the language Eric writes to you.
 
 ## 11. Drive file names and duplicates
 
-Read off the real files on 14 Oct 2026 — this is how the team already names
-them; the rule writes it down, it does not invent a new one.
+Owner's two tests for every name: **consistent** (it looks like the names
+beside it) and **descriptive** (a person who reads only the name knows what
+the file is, for which order, from when). The pattern below was read off the
+real files on 14 Oct 2026 — the rule writes down how the team already names
+them; it does not invent a new one. For a document type the table does not
+cover, look at the earlier files of the same supplier and copy their pattern;
+if there is none, use the closest pattern below with a plain descriptive type
+(`PACKING LIST`, `INSURANCE`, …).
 
 ### 11.1 The file name
 
@@ -366,7 +374,7 @@ names — §11.4.
 
 | Wrong | Example seen | Fix (§5-A) |
 |---|---|---|
-| no number, no type, or no PI | `ICA PI KST226-6815 UPS.xls`, `PO_solar_panel (1).pdf` | give it the full name; the next free number in the folder |
+| no number, no type, or no PI | `ICA PI KST226-6815 UPS.xls` (folder `20260811 PIO-2026011, EB.42277, EB.42278`) | give it the full name; the next free number in the folder |
 | date without hyphens | `1. PI_LC26020005_20260206.pdf`, `11. OPS_PI2026070901_20260820.jpeg` | `2026-02-06` — keep the number |
 | stray space or symbol | `1. PI_ PJ-251222-18-Rev_2026-03-05.pdf` | remove it |
 | no extension on an uploaded file | `1. PI_KST226-6816_2026-08-14` (a spreadsheet) | leave it if it is a Google Sheet; add the extension if it is an upload |
