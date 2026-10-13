@@ -4408,7 +4408,12 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    card checklist (Basecamp card steps) incl. "Dikirim" (BL, ETD, ETA) — the
    board has no shipping column. Progress stages kept as they are (they are
    ICAPROC's computed milestones and the test pins the column names); the
-   checklist shows the gaps the furthest-stage column hides. The
+   checklist shows the gaps the furthest-stage column hides. Shipped to the
+   drive the same day: v2 in 20-RUNBOOKS and INDEX.md in 00-READ-FIRST
+   (sizes match the repo byte for byte); v1 and the old INDEX trashed.
+   Telegram cards for MIRA (v2 + first v2 run) and MANDA (information) are
+   in the briefing; the "answer to the first sync report" card is marked
+   superseded. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
