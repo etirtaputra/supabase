@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA connected to Basecamp as user MIRA (OAuth done; §8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in not finished — callback received, no token stored (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4319,13 +4319,22 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    DCR and CIMD — no upgrade needed. Connect from a PRIVATE browser window
    (else Basecamp signs in as the owner) and log in as MIRA. Snapshot
    **399320** taken 2026-10-13 08:47 UTC for it (expires 2026-10-14 08:47
-   UTC). **CONNECTED 2026-10-13:** first try hit `400 invalid_redirect_uri`
+   UTC). **NOT YET CONNECTED (2026-10-13, corrected the same day):** first try hit `400 invalid_redirect_uri`
    (the callback was built as `http://`) — fixed by setting
    `dashboard.public_url` to the https dashboard address in MIRA's
    config.yaml; a half-finished attempt then answered `409 … already in
    progress` until the gateway restarted. Basecamp's consent page showed
    "Signed in as MIRA (mira@icasolar.com)", account ICASolar, and the callback
-   page said "Authorization received". The grant is **full read and write**
+   page said "Authorization received" — but that page only means the code
+   reached the dashboard. The dashboard's worker then swaps the code for a
+   token, probes the server, and on ANY failure rolls the token files back
+   and shows the error on the dashboard's MCP page only (it does not log it).
+   MIRA's gateway (restarted 08:56 UTC) re-checks every 5 min and still found
+   no cached tokens at 09:01, 09:06 and 09:11; `hermes mcp test basecamp`
+   from her terminal agreed. Next: the error text from the dashboard's MCP
+   page, then re-authenticate; fallback is Hermes' optional skill
+   `mcp-oauth-remote-gateway` (manual PKCE, tokens written to
+   `$HERMES_HOME/mcp-tokens/`). The grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
    (person 53382412) is not an admin, but has `can_manage_projects` and
