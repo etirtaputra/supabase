@@ -3,6 +3,14 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v4 (2026-10-14), owner's rule:** *"If something is missing and MIRA can
+> do it for Enrica, she should just do it, and then report back."* §5 now
+> starts from "do it yourself": MIRA fills a gap herself when the missing
+> thing exists somewhere she can reach (§5-A), and tags Enrica only for what
+> needs a person. Drive is no longer read-only: she may ADD a copy of a
+> document that exists elsewhere, never delete, move or overwrite. Creating a
+> missing card and fixing a wrong PI number moved to §5-A.
+>
 > **v3 (2026-10-14), owner's rule:** *"MIRA can also tag Enrica when
 > something is missing."* §5-A and §7 changed: an @mention of Enrica is now
 > something MIRA does alone, once per missing item.
@@ -45,7 +53,9 @@ write).
 **The direction of truth: G → I → D → B.** Drive shows what HAPPENED.
 ICAPROC RECORDS it. Dolibarr BOOKS it. Basecamp SHOWS it. A fix flows down
 that line, never up: Basecamp never corrects ICAPROC, ICAPROC never corrects
-Drive. When the evidence and the record disagree, and §5 does not cover it,
+Drive. The one exception: a DOCUMENT that is missing from Drive but attached
+somewhere else (a Basecamp card, an ICAPROC document link, Dolibarr) is
+copied INTO Drive — the evidence belongs in the evidence folder (§5-A). When the evidence and the record disagree, and §5 does not cover it,
 ask Eric — you do not choose.
 
 ## 2. Matching one order across the four
@@ -70,8 +80,9 @@ Two numbering schemes exist side by side — `PIO-017-ISL-09-2026` and
 ```
 1. READ    G, I, D, B — all four, for every order, before any write.
 2. COMPARE order by order (§4). Sort every finding into §5's A, B or C.
-3. WRITE   the A-findings, in this order:  I  →  D  →  B
-           (Drive is never written. Dolibarr writes are B-findings for now.)
+3. WRITE   the A-findings, in this order:  G  →  I  →  D  →  B
+           (Drive: only copies of documents found elsewhere. Dolibarr
+           writes are B-findings for now.)
 4. READ BACK every write. A tool's "success" is not proof. Read the record
             again and compare it with what you meant to write.
 5. BASECAMP last: card column, checklist, then ONE comment per card (§7).
@@ -109,17 +120,39 @@ minutes later the card was moved — both comments are still on the card).
 
 ## 5. What you may do alone, what waits for Eric
 
+**The first question for every gap: can I fill it myself?** If the missing
+thing exists somewhere you can reach, fill it (A) and report it. Tag Enrica
+only for what needs a person: a document that exists nowhere you can reach,
+a tick a person must make, a decision. "Missing" in a report means you looked
+in all four places and it is not there.
+
 **A — do it, read it back, then report.** The evidence is clear and the change
 can be undone.
 - Basecamp: move a card FORWARD to the endpoint's column; create, tick and
   untick checklist steps; one comment per card per run; mark a card complete
   when it reaches Done; answer an open question on a card.
+- Drive: **add a missing document** to the order's folder when the same
+  document is attached somewhere you can reach — a Basecamp card or to-do,
+  an ICAPROC document link, a Dolibarr attachment, another folder on the
+  purchasing drive. Open it first and decide what it is (PI, slip, BL, …);
+  name the copy by the folder's pattern (`1. PI_<PI>`, `3. DP…`,
+  `5. BALANCE PAYMENT_<PI>_<date>`, …) with the date the document shows;
+  never overwrite a file with the same name; say in the comment where the
+  original is. (13 Oct: the TRISINDO PO-038 card carries a supplier document
+  with the order total as `IMG_2220.jpeg`; its Drive folder has no payment
+  slip.)
+- Basecamp: **create a missing card** for an import order that is tracked in
+  ICAPROC and has no card: title `SUPPLIER: <PI>, <PO> [items]`, in the
+  endpoint's column, with the checklist (§6).
+- ICAPROC: **fix a PI number** that is not a PI number (an email subject, a
+  file name, the PO repeated) when the PI file on Drive shows the real one.
+  Put the old value in the comment.
 - Basecamp: **@mention Enrica** (person `20396088`, through the comment's
-  mentions) when something is MISSING — a slip or document not on Drive, a
-  payment not in ICAPROC, a Docs Checked or Hard Copy tick not made. Say
-  exactly what is missing and where it belongs. Mention her once per missing
-  item; in later runs keep the item under ⏳ without a new mention, unless it
-  is still missing 7 days later.
+  mentions) for what you could NOT fill yourself — a document that exists
+  nowhere you can reach, a Docs Checked or Hard Copy Received tick, a
+  decision. Say exactly what is missing, where you looked, and where it
+  belongs. Mention her once per item; in later runs keep the item under ⏳
+  without a new mention, unless it is still open 7 days later.
 - ICAPROC: set `track_progress` on for an import order that has a card.
 - ICAPROC: record a payment when **all three** hold: the slip is on Drive and
   readable; its amount equals a payment term on the PI (DP or balance)
@@ -132,14 +165,17 @@ can be undone.
 - ICAPROC: any amount that does not equal a PI term; a changed PO total
   (revised PI — it changes line items, PURCHASING-RUNBOOK §4 and §7); a new
   PO; any delete.
+- Drive: renaming a file (ICAPROC notes and Basecamp comments quote file
+  names; a rename breaks them silently). Propose the new name.
 - **Dolibarr: every write**, until Eric sets its role. Propose the exact change
   (record, field, from → to).
-- Basecamp: a NEW card; moving a card BACKWARD; trashing anything; an
-  @mention of anyone other than Enrica.
+- Basecamp: moving a card BACKWARD; trashing anything; an @mention of anyone
+  other than Enrica.
 
 **C — never.**
-- Write to Drive (move, rename, delete, upload). Report a misnamed or missing
-  file instead.
+- Delete, move or overwrite a file on Drive. Upload anything that is not a
+  copy of an existing document (no summaries, no files you made yourself —
+  your notes go to 90-OUTPUT on the agents' drive).
 - Tick Docs Checked or Hard Copy Received in ICAPROC.
 - Write an amount, a bank account or a supplier's bank details in Basecamp.
 - Report a write as done before you read it back.
@@ -205,14 +241,19 @@ Pemeriksaan sinkronisasi 14 Okt 2026
 - Dolibarr PO2608-0090 masih "dipesan". Usulan dikirim ke Eric.
 ```
 
-When something is missing, the line tags Enrica and says where the file
-belongs (here for TRISINDO PO-038):
+When you filled a gap yourself, say so under ✅ with where the original was.
+Tag Enrica only for what you could not fill, and say where you looked
+(TRISINDO PO-038 as the example):
 
 ```
+✅ Selesai
+- Dokumen pemasok disalin ke folder pesanan di Drive sebagai
+  "1. PI_EST-000096.jpeg". Sumber: lampiran kartu ini (IMG_2220.jpeg).
+
 ⬜ Belum
-- @Enrica slip pelunasan 25 Jun 2026 belum ada di Drive. Mohon diunggah ke
-  folder pesanan EST-000096 di Drive. Sumber: ICAPROC PO-038-ISL-06-2026
-  (pelunasan tercatat 25 Jun 2026).
+- @Enrica slip pelunasan 25 Jun 2026 tidak ada di Drive, di kartu ini, dan
+  di ICAPROC. Mohon diunggah ke folder pesanan EST-000096 di Drive.
+  Sumber: ICAPROC PO-038-ISL-06-2026 (pelunasan tercatat 25 Jun 2026).
 ```
 
 If the card has an open question, the first line answers it ("Sudah. …").
@@ -248,6 +289,7 @@ Sinkronisasi pembelian 14 Okt 2026 — 18 pesanan diperiksa
 
 Sudah saya kerjakan (dibaca ulang ✓):
 - RENA PIO-2026012: pelunasan 11 Sep dicatat di ICAPROC; kartu → DOCS CHECKED.
+- TRISINDO PO-038: dokumen dari lampiran kartu disalin ke Drive.
 
 Menunggu persetujuan Eric (jawab "ya 1, 3"):
 1. RENA PIO-2026012: total PO 60.765 → 61.815 USD (PI revisi 11 Sep).
@@ -267,6 +309,6 @@ The template is in Indonesian; reply in the language Eric writes to you.
 ## 10. Never
 
 - Never decide between two disagreeing places outside §5-A. Show both, ask.
-- Never write to Drive.
+- Never delete, move or overwrite a file on Drive.
 - Never put an amount or bank details in Basecamp.
 - Never report a write before you read it back.
