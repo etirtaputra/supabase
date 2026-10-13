@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; MIRA's first sync writes checked; runbook v2 lessons listed (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; purchasing sync runbook v2 — MIRA acts where evidence is clear, Indonesian checklist per card (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4396,7 +4396,19 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    after every write; fixed column-id map; one plain-language comment per
    card after the read-back (her first RENA comment says "stays PO SENT",
    the next one moves it); revised-PI check; fresh session per job (her
-   Telegram session is 568 messages long and compressed mid-task). The
+   Telegram session is 568 messages long and compressed mid-task).
+   **Sync runbook v2 (2026-10-14, owner's rules):** MIRA reviews in detail and
+   UPDATES where the evidence is clear (§5-A: card moves forward, checklist,
+   comments, `track_progress`, a payment whose slip equals a PI term); asks
+   for money changes and every Dolibarr write (§5-B); never writes Drive.
+   Run order (owner proposed GIBD; adopted G → I → D → B as the direction of
+   truth, with Basecamp LAST so it is written once, after the read-back):
+   read all four → write I → D → B → read back → Telegram report. Comments in
+   Indonesian, one per card per run, ✅/⏳/⬜ with file and source; a ten-step
+   card checklist (Basecamp card steps) incl. "Dikirim" (BL, ETD, ETA) — the
+   board has no shipping column. Progress stages kept as they are (they are
+   ICAPROC's computed milestones and the test pins the column names); the
+   checklist shows the gaps the furthest-stage column hides. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA

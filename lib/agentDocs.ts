@@ -71,9 +71,9 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   },
   {
     id: 'purchasing-sync',
-    title: 'Purchasing sync: ICAPROC, Drive, Basecamp, Dolibarr',
-    file: 'PURCHASING-SYNC-RUNBOOK_v1_2026-10-13.md',
-    audience: 'MIRA: keeping one order the same in all four places, propose-first',
+    title: 'Purchasing sync: Drive, ICAPROC, Dolibarr, Basecamp',
+    file: 'PURCHASING-SYNC-RUNBOOK_v2_2026-10-14.md',
+    audience: 'MIRA: one order the same in all four places; acts where evidence is clear, Indonesian checklist on every card',
     first: false,
   },
   {

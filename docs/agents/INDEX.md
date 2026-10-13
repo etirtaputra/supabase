@@ -5,10 +5,10 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-10-13** (PURCHASING-SYNC-RUNBOOK v1: MIRA keeps one
-> order the same in ICAPROC, Drive, Basecamp and Dolibarr — Drive is the
-> evidence, ICAPROC the record, Basecamp the view; propose first. New endpoint
-> `/api/agent/purchasing/progress`.)
+> **Last updated: 2026-10-14** (PURCHASING-SYNC-RUNBOOK v2: MIRA reads all
+> four places, then writes ICAPROC → Dolibarr → Basecamp and reads back every
+> write; acts alone where the evidence is clear, asks for money and Dolibarr;
+> a ten-step Indonesian checklist and one Indonesian comment per card.)
 
 ## The one call that beats this page
 
@@ -36,7 +36,7 @@ superseded now and finding out after acting on it.
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` | MANDA's config | v3: boots from `/api/agent/onboarding`, not a hard-coded filename; order of authority; efficiency |
 | **MIRA boot prompt** | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` | MIRA's config | v1: she had none — boot call, order of authority, never guess a table name, token reuse |
 | **MAX boot prompt** | `MAX-BOOT-PROMPT_v6_2026-10-08.md` | MAX's SOUL.md | v6: ends with the shared writing-style block. v5: Drive — the service-account file, the Python that has the Google libraries, the folder ids, read-only except his own 90-OUTPUT folder. v4: drops v3's false claim that the two ICA550-72HMI items differ at Tier-1 (a Tier-1 override is inert). v3: the owner is recognised by his chat (a Hermes per-chat note), not a number; name the exact item; never guess an address; packs are on the shared drive. v2: where his six credentials are (by name) and never printing one; the real Hermes slots. v1: sell_admin, Dolibarr + ICAPROC, the truth table, who may approve what, what never goes in a chat |
-| **Purchasing sync runbook** | `PURCHASING-SYNC-RUNBOOK_v1_2026-10-13.md` | MIRA | v1: the four places and their roles, matching by PI then PO, five checks, the numbered report, what to do after a yes |
+| **Purchasing sync runbook** | `PURCHASING-SYNC-RUNBOOK_v2_2026-10-14.md` | MIRA | v2: run order read-all → write I → D → B → read back; what she does alone (A), asks (B), never (C); ten-step card checklist and Indonesian comment; fixed column ids; nine checks incl. slip names, untracked cards, revised PI. v1: the four places, normalised matching, propose-first |
 | **Writing style** | `WRITING-STYLE_v1_2026-10-08.md` | every agent's SOUL.md | v1: ASD-STE100-style English (≤20/25-word sentences, active voice, one meaning per word, ≤3-noun strings), plain standard Indonesian (KBBI, EYD Edisi V); reply in the asker's language |
 | **Agent platform** | `AGENT-PLATFORM_v3_2026-09-07.md` | the owner and me | v3: onboarding endpoint and the enforced registry |
 
