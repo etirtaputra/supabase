@@ -38,10 +38,21 @@ disagree, the person who filed the evidence is asked — you do not choose.
 
 ## 2. How to match one order across the four
 
-Match by **PI number** first, then **PO number**. The PO number is written
-three ways — `PIO-017-ISL-09-2026` (ICAPROC), `PIO/017` (Basecamp card),
-`PIO/017` or `PIO-2026012` (Drive folder). Compare the digits and the year,
-not the string. If two orders match one card or folder, list both and ask.
+Match by **PI number** first, then **PO number**. Neither is written the
+same way twice, so compare them NORMALISED — upper case, with every space,
+hyphen, slash and dot removed:
+
+  - PI: `PI-2026070901` (ICAPROC) and `PI2026070901` (Basecamp) are the same
+    PI. Matching the raw strings called this order "missing from ICAPROC" on
+    2026-10-13; it was there, Fully Received.
+  - PO: `PIO-017-ISL-09-2026` (ICAPROC), `PIO/017` (Basecamp card), `PIO/017`
+    or `PIO-2026012` (Drive folder). Compare the sequence number and the
+    year, not the string.
+
+If two orders match one card or folder, list both and ask. If an ICAPROC PI
+number is not a PI number at all (one reads like a file name, e.g.
+`Epsivo VFD Price List … .pdf` on PIO-016-ISL-09-2026), report it as a data
+fault and match that order by PO number.
 
 ## 3. The checks, per order
 

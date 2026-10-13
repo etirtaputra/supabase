@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-12** · last change: *BOM Calculator — delete a calculation (list row + editor header, two-step, no confirm())* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's purchasing sync — progress endpoint, sync runbook, Basecamp mapped (§4, §8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -137,6 +137,37 @@ page, and it is how the team learns anything changed.)
 ---
 
 ## 4. What the previous threads did (for context, all shipped to main)
+
+### 2026-10-13 (latest) — agents: MIRA keeps purchasing in sync across four places (§8)
+
+Owner: *"we have multiple places to synchronize purchasing — Basecamp, Google
+Drive folders, ICAPROC, Dolibarr … sometimes someone updated the payment slip
+or documents on Google Drive, but not synced in Basecamp or ICAPROC."*
+
+- `cdee1c8` **`GET /api/agent/purchasing/progress`** — the Progress board as
+  data, computed by the board's own functions (`lib/poProgress.ts` via the new
+  pure `lib/progressExport.ts`), plus `basecamp_column`: the PROGRESS IMPOR
+  column the card belongs in (milestone label in capitals, or "Done"). Tracked
+  POs by default; `?po_number=` / `?pi_number=` for any PO. Buy-side roles.
+  5 tests, one of which fails if the route starts deciding stages itself.
+- `aa7650a` + this commit: `docs/agents/PURCHASING-SYNC-RUNBOOK_v1_2026-10-13.md`
+  — Drive is the EVIDENCE, ICAPROC the RECORD, Basecamp the VIEW, Dolibarr not
+  yet mapped; match by PI then PO, **normalised** (case, spaces, hyphens,
+  slashes, dots removed); five checks; a numbered report the owner answers "yes
+  1, 3"; propose first (owner's choice).
+- Found on the day (read-only): RENA PIO-2026012 — Drive has the balance slip
+  of 2026-09-11, ICAPROC only the DP of 2026-08-14, Basecamp says "PO SENT";
+  TRISINDO PO-038 and EPSIVO PIO-014-ISL-07-2026 both Fully Received in
+  ICAPROC, both "PO SENT" on Basecamp. *Correction:* EPSIVO was first reported
+  missing from ICAPROC — its PI is stored `PI-2026070901`, the card says
+  `PI2026070901`; raw-string matching missed it, hence the normalising rule.
+  Data fault seen: PIO-016-ISL-09-2026's `pi_number` is a file name.
+- Basecamp (account 4068518): PROC IMPOR SOLAR (8789042) — card table
+  PROGRESS IMPOR 5435538121, columns = ICAPROC milestones in capitals;
+  Purchasing Import ICL (23448086) — to-do lists per supplier. Drive purchasing
+  folders: shared drive `0AOyFX_rYVB37Uk9PVA`, folder per supplier, folder per
+  order `YYYYMMDD <PI>, <PO> [items]`, files `1. PI_…` `2. PO_…` `3. DP…`
+  `5. BALANCE PAYMENT_<PI>_<date>`.
 
 ### 2026-10-12 (latest) — BOM Calculator: delete a calculation
 
@@ -4275,7 +4306,17 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    appended to each agent's SOUL.md — MAX via boot prompt v6; MIRA then MANDA
    by a Telegram message asking each to append it (rollback: remove the
    `## How you write` section; SOUL.md is read every message). A model follows
-   STE's writing rules, not its dictionary: STE-style, not certified STE. Snapshot 389803 has expired:
+   STE's writing rules, not its dictionary: STE-style, not certified STE.
+   **Purchasing sync (2026-10-13, §4):** MIRA to keep ICAPROC, Drive, Basecamp
+   and Dolibarr in step, propose-first. Owner's choices: a separate Basecamp
+   user "MIRA" on the two purchasing projects only (not his account); propose,
+   he approves. **Open:** (a) Basecamp user MIRA — owner creates it; (b) MIRA's
+   Hermes needs a Basecamp connection — the session's connector is Basecamp's,
+   its URL to be read from claude.ai connector settings (a web search found no
+   documented first-party URL); Hermes ≥ v0.21.5 does MCP OAuth from its
+   dashboard, MIRA's older image may not; (c) whether MIRA's Drive service
+   account can read the purchasing shared drive; (d) Dolibarr's purchasing
+   role — her first report says what it holds. Snapshot 389803 has expired:
    take a fresh one before the Drive file is copied into his data folder.
 10. Only then: MIRA boot prompt v2 (sell side → Max), pack-shipping rule.
 
