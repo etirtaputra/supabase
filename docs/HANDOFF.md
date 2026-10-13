@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5 (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; first read-only check passed (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4358,7 +4358,14 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    `trash_project`, `update_project_access`, `move_card`, `create_comment`).
    `dashboard.public_url` survived the 39 → 46 migration. Open: narrow her
    tools with Hermes' per-server tool filter (`hermes mcp list` shows "all")
-   to the reads + `move_card` + `create_comment` the runbook needs. The
+   to the reads + `move_card` + `create_comment` the runbook needs.
+   **First-look check PASSED (09:50 UTC, after Restart Gateway + /new):**
+   MIRA reads as MIRA, sees only the two projects, and counted PROGRESS
+   IMPOR exactly as the owner's read (PO SENT 5, BALANCE PAID 1, Done 175,
+   rest 0), with the six open card titles. She quoted "account id 873052"
+   — not the 4068518 in the URLs, but her project ids are 4068518's, so it
+   is the MCP's own identifier, not a second account. Next: her first sync
+   report (briefing card), checked here before the owner approves anything. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
