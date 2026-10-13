@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; first sync report checked, three card moves approved (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; MIRA's first sync writes checked; runbook v2 lessons listed (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4381,7 +4381,22 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    no card by design. Owner's answer (briefing card): move EPV, TRISINDO,
    EPSIVO-014 per the endpoint; RENA — read the slip first, no ICAPROC
    write yet. Both lessons go into the sync runbook v2 (pack change: Drive
-   upload + trash v1 + MIRA and MANDA prompts). The
+   upload + trash v1 + MIRA and MANDA prompts).
+   **What MIRA then did (11:24–11:46 UTC, owner instructing her in chat):**
+   recorded RENA's balance in ICAPROC — 43,585 USD @ 17,615 on 2026-09-11
+   + provision 440,375 IDR + admin 50,000 IDR; CHECKED against the slip and
+   the revised PI: correct. Moved RENA → DOCS CHECKED; set track_progress on
+   PIO-014-ISL-07-2026 and PO-038-ISL-06-2026 and moved both → Done (first
+   attempt used PO SENT's column id 5435538124 as "Done", reported success
+   without reading back; fixed after the owner's screenshot). EPV still in
+   PO SENT. NEW finding she missed: `4. REVISED PI_RP2026081002_2026-09-11`
+   raised RENA to USD 61,815 (DP 18,230 + balance 43,585); ICAPROC
+   total_value is still 60,765. TRISINDO PO-038: ICAPROC balance 2026-06-25,
+   no slip in its Drive folder. Behaviour fixes for runbook v2: read back
+   after every write; fixed column-id map; one plain-language comment per
+   card after the read-back (her first RENA comment says "stays PO SENT",
+   the next one moves it); revised-PI check; fresh session per job (her
+   Telegram session is 568 messages long and compressed mid-task). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
