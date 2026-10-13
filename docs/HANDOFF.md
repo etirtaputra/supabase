@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; first read-only check passed (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; first sync report checked, three card moves approved (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4365,7 +4365,23 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    rest 0), with the six open card titles. She quoted "account id 873052"
    — not the 4068518 in the URLs, but her project ids are 4068518's, so it
    is the MCP's own identifier, not a second account. Next: her first sync
-   report (briefing card), checked here before the owner approves anything. The
+   report (briefing card), checked here before the owner approves anything.
+   **First sync report (2026-10-13), checked against ICAPROC + Drive:** 18
+   tracked POs, Drive shared drive readable, Dolibarr read. RIGHT: RENA
+   (DP only in ICAPROC, balance slip 11 Sep on Drive, card in PO SENT);
+   PI-number faults (EB.42277 = an email subject; PIO-2026014/15/16 = the PO
+   number); Dolibarr holds supplier orders PO2608-0089…PO2610-0094 for six
+   imports only, none for the Kstar/Ningbo or MBS ones. WRONG: "no DP slip"
+   for EPV — it is `5. DP30_USD_LC26090003_2026-10-08.jpg` (numbering and
+   naming drift; match on DP/BALANCE + PI, not the number). MISSED: two
+   cards whose POs are untracked — TRISINDO PO-038-ISL-06-2026 and EPSIVO
+   PIO-014-ISL-07-2026, both Fully Received, both still in PO SENT (she only
+   compared cards with the tracked list). NOT faults: PO-177-MBS's one
+   "down_payment" = total + 11% VAT (stage right); MBS domestic orders have
+   no card by design. Owner's answer (briefing card): move EPV, TRISINDO,
+   EPSIVO-014 per the endpoint; RENA — read the slip first, no ICAPROC
+   write yet. Both lessons go into the sync runbook v2 (pack change: Drive
+   upload + trash v1 + MIRA and MANDA prompts). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
