@@ -4448,7 +4448,16 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    Lestari". ISL = endpoint `company` PT Indodaya Surya Lestari, or `-ISL-`
    in the PO number (18 of 2026's POs have no company set); ICL (`PIO-2026…`,
    `EB.…`) and MBS orders have no accounting folder — the only "Accounting"
-   folder on the purchasing drive is the ISL one. The
+   folder on the purchasing drive is the ISL one.
+   **14 Oct 07:04–08:17 WIB:** MIRA read v7 in her OLD session (no /new was
+   sent), was compacted twice, spent ~72 min rebuilding context, and stopped
+   before any write — citing v7's own /new rule (right call). She cached v7
+   into her Hermes skill `icaproc-procurement` (replacing a stale copy): a
+   second copy of the pack, so every run now starts by comparing the
+   onboarding endpoint's filename with the cached one. The first run is split
+   into two briefing cards (part 1: PROGRESS IMPOR cards; part 2: Purchasing
+   Import ICL to-dos + the ISL accounting folder), each after its own /new.
+   Part B's "MIRA compression threshold" item is now the main cost driver. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
