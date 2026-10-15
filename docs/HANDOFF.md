@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-15** · last change: *BOM Calculator — Civil & O&M tab (walkway/lifeline/water per-metre recipes, pits, stations, O&M with escalation and a non-overlapping long-term contract) + BOM rows can link their COST* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-15** · last change: *Tech Specs — "Copy AI prompt" (lib/specPrompt.ts) and a declared field set for on_grid_inverter* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -169,7 +169,31 @@ or documents on Google Drive, but not synced in Basecamp or ICAPROC."*
   order `YYYYMMDD <PI>, <PO> [items]`, files `1. PI_…` `2. PO_…` `3. DP…`
   `5. BALANCE PAYMENT_<PI>_<date>`.
 
-### 2026-10-15 (latest) — BOM Calculator: Civil & O&M (roadmap step 3), and linked costs
+### 2026-10-15 (latest) — Tech Specs: "Copy AI prompt", and on-grid inverters get a field set
+
+Owner: "do you have prompt on how to enter the json tech spec for products
+the right way?" → "go ahead, build both".
+
+- **`lib/specPrompt.ts`** (3 tests): `buildSpecPrompt(item)` = rules + a FIELD
+  GUIDE (key — label (unit) — kind — example, from `SPEC_FIELD_META`) + the
+  TEMPLATE = the item's CURRENT specs through `conformSpecs` (values on file
+  survive unless the datasheet differs). Built from `CATEGORY_SPEC_FIELDS`, so
+  it can never drift from the form. `/specs` editor: "Copy AI prompt" button
+  (canEdit) copies it (`copyOnly`), switches to JSON, toasts the next step.
+- **`CATEGORY_SPEC_FIELDS.on_grid_inverter`** (38 keys) declared from the keys
+  the catalogue already used (no rename): AC output, PV input incl.
+  `no_of_mppts` / `strings_per_mppt` / `max_*_current_per_mppt_a`,
+  efficiency, protection, physical, environment, warranty, certifications.
+  Metadata in `lib/specFields.ts` (new groups 'Efficiency', 'Protection');
+  strings/current per MPPT are TEXT ("30/30/20" is a real answer). Effects:
+  Tech Specs shows On-Grid Inverters as a form + compare; the shop's
+  generated filters/columns now include on-grid inverters. 14 of 22 on-grid
+  items still lack the MPPT/current fields the BOM Calculator's catalogue
+  fill reads — the prompt is the way to fill them.
+- Form: a list field (certifications) now splits on `;` as well as `,`.
+- No schema or data change; no agent pack changed (packs do not list field sets).
+
+### 2026-10-15 — BOM Calculator: Civil & O&M (roadmap step 3), and linked costs
 
 Owner: "go ahead with civil works and O&M".
 

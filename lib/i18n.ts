@@ -2013,6 +2013,11 @@ export const ID: Record<string, string> = {
   'Filled in: everything from this supplier or brand is for a project': 'Terisi otomatis: semua barang dari supplier atau merek ini untuk proyek',
   'Filled in: everything from this supplier is for stock': 'Terisi otomatis: semua barang dari supplier ini untuk stok',
   '— reason —': '— alasan —',
+  // Tech Specs — the datasheet prompt (app/specs)
+  'Copy AI prompt': 'Salin prompt AI',
+  'Copies a prompt for ChatGPT or Claude with the fields of this category, their units and the current values. Paste it with the datasheet PDF.': 'Menyalin prompt untuk ChatGPT atau Claude berisi field kategori ini, satuannya, dan nilai yang sudah ada. Tempelkan bersama PDF datasheet.',
+  'Prompt copied. Paste it into ChatGPT or Claude with the datasheet, then replace the JSON here with the answer and save.': 'Prompt tersalin. Tempelkan ke ChatGPT atau Claude bersama datasheet, lalu ganti JSON di sini dengan jawabannya dan simpan.',
+  'Could not copy. Allow clipboard access and try again.': 'Tidak dapat menyalin. Izinkan akses clipboard lalu coba lagi.',
   // BOM Calculator (app/proposals/bom)
   'Civil & O&M': 'Sipil & O&M',
   'Walkway, lifeline and water cleaning': 'Walkway, lifeline, dan pembersihan air',

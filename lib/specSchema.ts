@@ -405,6 +405,60 @@ export const CATEGORY_SPEC_FIELDS: Partial<Record<ProductCategory, readonly stri
     'operating_temperature_range_c',
     'storage_temperature_range_c',
   ],
+  /**
+   * Grid-tie (string) inverters. The keys are the ones the catalogue already
+   * carried before this list existed (2026-10-15: 8 of 22 items held the full
+   * set, 14 only rating and AC voltage), so declaring them renames nothing —
+   * it makes every on-grid item answer the same questions, which the BOM
+   * Calculator's catalogue fill (MPPT window, strings and current per MPPT,
+   * max AC current) needs.
+   */
+  on_grid_inverter: [
+    // AC output
+    'rated_output_power_kw',
+    'max_ac_apparent_power_kva',
+    'nominal_ac_voltage_vac',
+    'max_output_current_a',
+    'ac_grid_frequency_range_hz',
+    'power_factor_cos_phi',
+    'thdi_percent',
+    // PV input — what the array may present
+    'max_pv_input_power_kw',
+    'pv_max_voltage_vdc',
+    'pv_start_voltage_vdc',
+    'pv_nominal_voltage_vdc',
+    'pv_mppt_voltage_range_vdc',
+    'no_of_mppts',
+    'strings_per_mppt',
+    'max_input_current_per_mppt_a',
+    'max_short_circuit_current_per_mppt_a',
+    // Efficiency
+    'max_efficiency_percent',
+    'euro_efficiency_percent',
+    // Protection
+    'dc_switch',
+    'dc_reverse_polarity_protection',
+    'insulation_detection',
+    'string_fault_detection',
+    'anti_islanding_protection',
+    'ac_short_circuit_protection',
+    'output_over_current_protection',
+    'surge_protection_dc_ac',
+    // Physical and interface
+    'topology',
+    'cooling_type',
+    'display',
+    'communication_interfaces',
+    'ip_rating',
+    'dimensions_w_h_d_mm',
+    'weight_kg',
+    // Environment and commercial
+    'operating_temperature_range_c',
+    'max_operating_humidity_percent',
+    'max_operating_altitude_m',
+    'product_warranty_years',
+    'certifications',
+  ],
   pv_module: [
     // Cell / construction
     'cell_type',

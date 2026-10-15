@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-15T21:55:48Z",
+    title: "Tech Specs: tombol “Salin prompt AI” dan form untuk Inverter On-Grid",
+    details: [
+      "Di Katalog → Tech Specs, pilih item lalu klik “Salin prompt AI”: prompt untuk ChatGPT atau Claude tersalin — berisi field kategori itu, satuannya, contoh format, dan nilai yang sudah ada (tidak akan terhapus). Tempelkan bersama PDF datasheet, lalu tempel jawabannya di JSON dan simpan.",
+      "Inverter On-Grid kini punya daftar field resmi (38 field: output AC, input PV termasuk MPPT dan string per MPPT, efisiensi, proteksi, fisik, lingkungan) — muncul sebagai form di Tech Specs, bisa dibandingkan, dan menjadi filter di toko.",
+      "Daftar sertifikasi yang dipisah titik koma kini juga dibaca sebagai daftar.",
+    ],
+  },
+  {
     at: "2026-10-15T00:16:16Z",
     title: "Kalkulator BOM: tab baru “Sipil & O&M” — walkway, lifeline, air pembersih, bak grounding, stasiun inverter, dan O&M per tahun",
     details: [

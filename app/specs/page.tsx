@@ -38,6 +38,8 @@ import {
 import {
   fieldMeta, fieldsInGroup, groupsFor, isAnswered, displaySpecValue,
 } from '@/lib/specFields';
+import { buildSpecPrompt } from '@/lib/specPrompt';
+import { copyOnly } from '@/lib/whatsappQuote';
 
 interface Comp {
   component_id: string;
@@ -137,7 +139,8 @@ export default function TechSpecsPage() {
     const kind = fieldMeta(key).kind;
     if (kind === 'number') { const n = Number(s.replace(/,/g, '')); return Number.isFinite(n) ? n : s; }
     if (kind === 'boolean') return /^(yes|true|y|1)$/i.test(s);
-    if (kind === 'list') return s.split(',').map((x) => x.trim()).filter(Boolean);
+    // Datasheets list certifications with commas or semicolons; both separate.
+    if (kind === 'list') return s.split(/[,;]/).map((x) => x.trim()).filter(Boolean);
     return s;
   };
 
@@ -169,6 +172,18 @@ export default function TechSpecsPage() {
     setJson(JSON.stringify(conformed, null, 2));
     setJsonError('');
     flash(`Saved — ${Object.values(conformed).filter(isAnswered).length} of ${fields.length} fields answered`);
+  };
+
+  /**
+   * The datasheet prompt for this item (lib/specPrompt): copied for ChatGPT or
+   * Claude, and the JSON box opened, which is where the answer is pasted.
+   */
+  const copyPrompt = async () => {
+    if (!editing) return;
+    const how = await copyOnly(buildSpecPrompt(editing));
+    if (how !== 'copied') { flash(t('Could not copy. Allow clipboard access and try again.')); return; }
+    setMode('json');
+    flash(t('Prompt copied. Paste it into ChatGPT or Claude with the datasheet, then replace the JSON here with the answer and save.'));
   };
 
   // ── Compare ───────────────────────────────────────────────────────────────
@@ -282,6 +297,13 @@ export default function TechSpecsPage() {
                       </button>
                     ))}
                   </div>
+                  {canEdit && (
+                    <button onClick={copyPrompt}
+                      title={t('Copies a prompt for ChatGPT or Claude with the fields of this category, their units and the current values. Paste it with the datasheet PDF.')}
+                      className="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white text-[12px] font-medium">
+                      {t('Copy AI prompt')}
+                    </button>
+                  )}
                   <button onClick={saveEntry} disabled={saving || !canEdit}
                     className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[12px] font-bold disabled:opacity-40">
                     {saving ? t('Saving…') : t('Save')}
