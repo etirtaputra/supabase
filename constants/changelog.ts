@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-15T00:16:16Z",
+    title: "Kalkulator BOM: tab baru “Sipil & O&M” — walkway, lifeline, air pembersih, bak grounding, stasiun inverter, dan O&M per tahun",
+    details: [
+      "Meter walkway, lifeline, dan pipa air per area (bisa langsung satu area per atap) — faktor susut 1,01, panel walkway 2,4 m dan penyangganya, angkur lifeline ujung setiap 30 m dan antara setiap 6 m. Harga komponen menjadi satu biaya per meter yang dibaca baris BOM, atas meter yang sama dengan yang dibeli.",
+      "Pompa dan tangki otomatis masuk bila ada pipa air; bak grounding dan stasiun inverter dihitung dari jumlah inverter.",
+      "O&M: setiap item dihargai per kunjungan (Rp/Wp × Wp × kunjungan per tahun) atau per tahun, dengan eskalasi tahunan. Tahun yang termasuk harga masuk ke BOM; kontrak O&M jangka panjang terpisah dihitung mulai tahun berikutnya, jadi tidak ada tahun yang dijual dua kali. Item O&M baru langsung membawa baris BOM-nya.",
+      "Baris BOM kini bisa mengambil BIAYA dari kalkulasi, bukan hanya jumlahnya — biaya tray per meter, walkway, lifeline, dan O&M ikut berubah bila desain berubah. Tombol “Bagaimana?” juga menjelaskan asal biayanya.",
+    ],
+  },
+  {
     at: "2026-10-13T08:19:11Z",
     title: "Asisten AI kini bisa membaca papan Progres pembelian",
     details: [

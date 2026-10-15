@@ -123,9 +123,13 @@ wrong column (6.57 yr, correct ≈ 5.62).
    ties per module (2) were not recorded from the sheets — working figures the
    engineers must confirm; the tests are the recorded rules applied to the
    recorded quantities, to be checked cell by cell when the workbooks are back.
-3. Civil / O&M — walkway, lifeline, water cleaning, grounding pits, inverter
+3. ✅ Civil / O&M — walkway, lifeline, water cleaning, grounding pits, inverter
    stations from per-metre recipes; O&M years with escalation (no double count
-   with a long-term O&M contract).
+   with a long-term O&M contract) (2026-10-15, `lib/bomCalc/civil.ts`).
+   Supports per panel (2), pump sets (1), pits per inverter (1) and inverters
+   per station (1) are working figures the engineers must confirm; tests are
+   the recorded rules on the recorded quantities, to be checked against the
+   sheets when the workbooks are back.
 4. Project works and manpower (Jasa) as the cross-check on installation.
 5. Template X (Xurya): sections A–P, responsibility column, man-day installation,
    TOP schedule and FS (reuse `lib/energyEconomics.ts`).

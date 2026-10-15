@@ -21,8 +21,12 @@ import type { DcResult } from './dc.ts';
 import type { AcResult } from './ac.ts';
 import type { BomRow } from './bom.ts';
 import { sizeLabel, type RacewayResult } from './raceway.ts';
+import { STANDARD_OM_ITEMS, type CivilResult } from './civil.ts';
 
-export type SourceTab = 'strings' | 'dc' | 'ac' | 'raceway';
+export type SourceTab = 'strings' | 'dc' | 'ac' | 'raceway' | 'civil';
+
+/** Keys that are a cost per unit (a BOM row's costKey), not a quantity. */
+export const isCostKey = (key: string) => /^(rw\.tray\.costPerM|civil\.(walkway|lifeline)\.costPerM|om\.[^.]+\.perYear)$/.test(key);
 
 export interface KeyInfo {
   key: string;
@@ -78,11 +82,27 @@ export function describeKey(doc: BomCalcDoc, key: string): KeyInfo | null {
   if (rw[key]) return k(rw[key][0], 'raceway', rw[key][1]);
   m = /^rw\.tray\.(\d+x\d+)\.(m|pieces)$/.exec(key);
   if (m) return m[2] === 'm' ? k(`Cable tray ${sizeLabel(m[1])}`, 'raceway', 'm') : k(`Tray pieces ${sizeLabel(m[1])}`, 'raceway', 'pcs');
+  if (key === 'rw.tray.costPerM') return k('Cable tray cost per metre', 'raceway', 'Rp/m');
+  const cv: Record<string, [string, string]> = {
+    'civil.walkway.m': ['Walkway', 'm'], 'civil.walkway.panels': ['Walkway panels', 'pcs'], 'civil.walkway.supports': ['Walkway supports', 'pcs'],
+    'civil.walkway.costPerM': ['Walkway cost per metre', 'Rp/m'],
+    'civil.lifeline.m': ['Lifeline', 'm'], 'civil.lifeline.endAnchors': ['Lifeline end anchors', 'pcs'], 'civil.lifeline.intAnchors': ['Lifeline intermediate anchors', 'pcs'],
+    'civil.lifeline.costPerM': ['Lifeline cost per metre', 'Rp/m'],
+    'civil.pipe.m': ['Water cleaning pipe', 'm'], 'civil.pump': ['Water pump and tank', 'sets'],
+    'civil.pits': ['Grounding pits', 'pcs'], 'civil.stations': ['Inverter stations', 'sets'], 'om.years': ['O&M years in the price', 'years'],
+  };
+  if (cv[key]) return k(cv[key][0], 'civil', cv[key][1]);
+  m = /^om\.([^.]+)\.(perYear|visits)$/.exec(key);
+  if (m) {
+    const it = (doc.civil?.om.items ?? STANDARD_OM_ITEMS).find((x) => x.id === m![1]);
+    const name = it?.label || m[1];
+    return m[2] === 'perYear' ? k(`O&M: ${name}, cost per year`, 'civil', 'Rp/year') : k(`O&M: ${name}, visits`, 'civil', 'visits');
+  }
   return null;
 }
 
 /** The rule and the parts behind one key, with today's value. */
-export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: DcResult, ac: AcResult, key: string, rw?: RacewayResult): Explanation | null {
+export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: DcResult, ac: AcResult, key: string, rw?: RacewayResult, cv?: CivilResult): Explanation | null {
   const info = describeKey(doc, key);
   if (!info) return null;
   const value = values[key] ?? 0;
@@ -148,6 +168,7 @@ export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: 
     return out('Σ conductors of this size × 2 ends, plus spares', parts);
   }
   if (key.startsWith('rw.') && rw) return explainRaceway(rw, key, out);
+  if ((key.startsWith('civil.') || key.startsWith('om.')) && cv) return explainCivil(cv, key, out);
   return out('');
 }
 
@@ -170,6 +191,8 @@ function explainRaceway(rw: RacewayResult, key: string, out: (rule: string, part
   if (key === 'rw.tray.clamps') return out('Covers × clamps per cover', runs.map((r) => ({ label: label(r), detail: `${r.covers} × ${st.clampsPerCover}`, value: r.clamps })));
   if (key === 'rw.tray.joints') return out('Tray pieces × joints per piece', runs.map((r) => ({ label: label(r), detail: `${r.pieces} × ${st.jointsPerPiece}`, value: r.joints })));
   if (key === 'rw.tray.bolts') return out('Joints × bolts per joint', runs.map((r) => ({ label: label(r), detail: `${r.joints} × ${st.boltsPerJoint}`, value: r.bolts })));
+  if (key === 'rw.tray.costPerM') return out('Σ tray runs: pieces × (stick + cover) + clamps, joints and bolts × their cost, ÷ tray metres',
+    runs.map((r) => ({ label: label(r), detail: r.size ? `${r.pieces} × ${sizeLabel(r.size)}` : '—', value: rw.trayM > 0 && r.cost != null ? r2(r.cost / rw.trayM) : 0 })));
   const strings = rw.counts.strings, inverters = rw.counts.inverters, modules = rw.counts.modules;
   if (key === 'rw.conduit') return out('Strings × metres per string + inverters × metres per inverter', [
     { label: 'Strings', detail: `${strings} × ${st.conduitPerStringM} m`, value: r2(strings * st.conduitPerStringM) },
@@ -190,14 +213,68 @@ function explainRaceway(rw: RacewayResult, key: string, out: (rule: string, part
   return out('');
 }
 
-/** key → the BOM rows that read it. */
+/** The civil and O&M keys: the recipe, and one part per area, per part or per year. */
+function explainCivil(cv: CivilResult, key: string, out: (rule: string, parts?: Explanation['parts']) => Explanation): Explanation {
+  const st = cv.settings;
+  const areas = cv.areas;
+  const name = (a: { label: string }) => a.label || 'Area';
+  const w = st.wasteFactor;
+  if (key === 'civil.walkway.m') return out('Σ areas: walkway metres off the layout × waste factor',
+    areas.filter((a) => a.walkwayM > 0).map((a) => ({ label: name(a), detail: `× ${w}`, value: a.walkwayM })));
+  if (key === 'civil.walkway.panels') return out('Σ areas: ROUNDUP(walkway metres ÷ panel length)',
+    areas.filter((a) => a.walkwayM > 0).map((a) => ({ label: name(a), detail: `ROUNDUP(${a.walkwayM} ÷ ${st.walkwayPanelM})`, value: a.walkwayPanels })));
+  if (key === 'civil.walkway.supports') return out('Walkway panels × supports per panel', [{ label: 'Panels', detail: `${cv.walkwayPanels} × ${st.supportsPerPanel}`, value: cv.walkwaySupports }]);
+  if (key === 'civil.walkway.costPerM') {
+    const m = cv.walkwayM || 1;
+    return out('(Panels × panel cost + supports × support cost) ÷ walkway metres', [
+      { label: 'Panels', detail: `${cv.walkwayPanels} × ${st.walkwayPanelCost ?? '—'} ÷ ${cv.walkwayM}`, value: r2(cv.walkwayPanels * (st.walkwayPanelCost ?? 0) / m) },
+      { label: 'Supports', detail: `${cv.walkwaySupports} × ${st.walkwaySupportCost ?? '—'} ÷ ${cv.walkwayM}`, value: r2(cv.walkwaySupports * (st.walkwaySupportCost ?? 0) / m) },
+    ]);
+  }
+  if (key === 'civil.lifeline.m') return out('Σ areas: lifeline metres off the layout × waste factor',
+    areas.filter((a) => a.lifelineM > 0).map((a) => ({ label: name(a), detail: `× ${w}`, value: a.lifelineM })));
+  if (key === 'civil.lifeline.endAnchors') return out('Σ areas: ROUNDUP(layout metres ÷ end-anchor spacing)',
+    areas.filter((a) => a.endAnchors > 0).map((a) => ({ label: name(a), detail: `ROUNDUP(L ÷ ${st.lifelineEndEveryM})`, value: a.endAnchors })));
+  if (key === 'civil.lifeline.intAnchors') return out('Σ areas: ROUNDUP(layout metres ÷ intermediate spacing) − end anchors',
+    areas.filter((a) => a.intAnchors > 0).map((a) => ({ label: name(a), detail: `ROUNDUP(L ÷ ${st.lifelineIntEveryM}) − ${a.endAnchors}`, value: a.intAnchors })));
+  if (key === 'civil.lifeline.costPerM') {
+    const m = cv.lifelineM || 1;
+    return out('(Wire metres × wire cost + anchors × anchor cost) ÷ lifeline metres', [
+      { label: 'Wire', detail: `${cv.lifelineM} × ${st.lifelineWireCostPerM ?? '—'} ÷ ${cv.lifelineM}`, value: r2(cv.lifelineM * (st.lifelineWireCostPerM ?? 0) / m) },
+      { label: 'End anchors', detail: `${cv.endAnchors} × ${st.lifelineEndAnchorCost ?? '—'} ÷ ${cv.lifelineM}`, value: r2(cv.endAnchors * (st.lifelineEndAnchorCost ?? 0) / m) },
+      { label: 'Intermediate anchors', detail: `${cv.intAnchors} × ${st.lifelineIntAnchorCost ?? '—'} ÷ ${cv.lifelineM}`, value: r2(cv.intAnchors * (st.lifelineIntAnchorCost ?? 0) / m) },
+    ]);
+  }
+  if (key === 'civil.pipe.m') return out('Σ areas: pipe metres off the layout × waste factor',
+    areas.filter((a) => a.pipeM > 0).map((a) => ({ label: name(a), detail: `× ${w}`, value: a.pipeM })));
+  if (key === 'civil.pump') return out('Pump and tank sets where there is water pipe', [{ label: 'Sets', detail: cv.pipeM > 0 ? `${st.pumpSets}` : '0 (no pipe)', value: cv.pumps }]);
+  if (key === 'civil.pits') return out('Inverters × pits per inverter + extra pits', [
+    { label: 'Inverters', detail: `${cv.inputs.inverters} × ${st.pitsPerInverter}`, value: r2(cv.inputs.inverters * st.pitsPerInverter) },
+    { label: 'Extra', detail: `+${st.pitsExtra}`, value: st.pitsExtra },
+  ]);
+  if (key === 'civil.stations') return out('ROUNDUP(inverters ÷ inverters per station)', [{ label: 'Inverters', detail: `ROUNDUP(${cv.inputs.inverters} ÷ ${st.invertersPerStation})`, value: cv.stations }]);
+  if (key === 'om.years') return out('Years of O&M included in the price', [{ label: 'Years', detail: `${cv.om.includedYears}`, value: cv.om.includedYears }]);
+  const m = /^om\.([^.]+)\.(perYear|visits)$/.exec(key);
+  const it = m ? cv.om.items.find((x) => x.id === m[1]) : null;
+  if (m && it) {
+    const esc = cv.omSettings.escalationPct;
+    if (m[2] === 'visits') return out('Visits a year × included years', [{ label: it.label, detail: `${it.visits / Math.max(1, cv.om.includedYears)} × ${cv.om.includedYears}`, value: it.visits }]);
+    // The average year: the parts are each year's share, so they add up to it.
+    const n = Math.max(1, it.years.length);
+    return out(esc ? 'Average of the included years, each a year-1 cost raised by the escalation' : 'Average of the included years', it.years.map((y, i) => ({
+      label: `Year ${i + 1}`, detail: `${y.toLocaleString('en-US')} ÷ ${n}`, value: r2(y / n),
+    })));
+  }
+  return out('');
+}
+
+/** key → the BOM rows that read it, for their quantity or their cost. */
 export function usageByKey(rows: BomRow[]): Map<string, BomRow[]> {
   const map = new Map<string, BomRow[]>();
+  const add = (key: string, r: BomRow) => { const list = map.get(key) ?? []; if (!list.includes(r)) list.push(r); map.set(key, list); };
   for (const r of rows) {
-    if (r.qty.mode !== 'link') continue;
-    const list = map.get(r.qty.key) ?? [];
-    list.push(r);
-    map.set(r.qty.key, list);
+    if (r.qty.mode === 'link') add(r.qty.key, r);
+    if (r.costKey) add(r.costKey, r);
   }
   return map;
 }
@@ -213,7 +290,10 @@ export function unusedKeys(doc: BomCalcDoc, values: Record<string, number>): str
   const out: string[] = [];
   const wanted = ['pv.modules', ...[4, 6, 10, 16].flatMap((s) => [`dc.cable.${s}`, `dc.connectors.${s}`]),
     ...doc.acSegments.flatMap((s) => [`ac.seg.${s.id}.phase`, `ac.seg.${s.id}.pe`]),
-    'rw.tray.m', 'rw.conduit', 'rw.glands', 'rw.labels', 'rw.ties', 'rw.clips'];
+    'rw.tray.m', 'rw.conduit', 'rw.glands', 'rw.labels', 'rw.ties', 'rw.clips',
+    'civil.walkway.m', 'civil.lifeline.m', 'civil.pipe.m', 'civil.pump', 'civil.pits',
+    // A priced O&M item must reach a row's cost, or it is offered and never charged.
+    ...(doc.civil?.om.items ?? STANDARD_OM_ITEMS).map((i) => `om.${i.id}.perYear`)];
   for (const k of wanted) {
     if ((values[k] ?? 0) <= 0) continue;
     if (used.has(k)) continue;

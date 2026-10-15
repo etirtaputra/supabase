@@ -32,6 +32,8 @@ export const typedRow = (category: string, description: string, unit: string, va
   id: id(), category, description, unit, qty: { mode: 'typed', value },
   cost: null, margin: null, install: null, componentId: null, brand: '', remarks: '',
 });
+/** A row whose cost per unit is read from the calculation too. */
+export const costLinked = (row: BomRow, costKey: string): BomRow => ({ ...row, costKey });
 export const linkedRow = (category: string, description: string, unit: string, key: string, factor = 1, add = 0, roundUp = false): BomRow => ({
   id: id(), category, description, unit, qty: { mode: 'link', key, factor, add, roundUp },
   cost: null, margin: null, install: null, componentId: null, brand: '', remarks: '',
@@ -60,16 +62,16 @@ export function standardRows(): BomRow[] {
     typedRow('switchgear', 'Transformer step-up 0.8 kV – 20 kV', 'sets'),
     typedRow('switchgear', 'Termination at interconnection point and modification', 'sets'),
     typedRow('switchgear', 'Zero export', 'sets'),
-    linkedRow('switchgear', 'Inverter station (support, canopy, civil)', 'sets', 'inv.count'),
+    linkedRow('switchgear', 'Inverter station (support, canopy, civil)', 'sets', 'civil.stations'),
 
     linkedRow('grounding', 'Grounding cable inverter to AC combiner', 'm', 'ac.seg.inv.pe'),
     linkedRow('grounding', 'Grounding cable AC combiner to grounding rod', 'm', 'ac.seg.feeder.pe'),
     typedRow('grounding', 'Grounding cable (PV) NYA 1×6 mm²', 'm'),
     typedRow('grounding', 'Grounding cable (PV) NYA 1×35 mm²', 'm'),
     typedRow('grounding', 'Accessories grounding cable, grounding test box', 'overall', 1),
-    typedRow('grounding', 'Grounding pit, rod and accessories', 'set'),
+    linkedRow('grounding', 'Grounding pit, rod and accessories', 'set', 'civil.pits'),
 
-    linkedRow('raceway', 'HDG cable tray, cover, clamp, support and accessories', 'm', 'rw.tray.m'),
+    costLinked(linkedRow('raceway', 'HDG cable tray, cover, clamp, support and accessories', 'm', 'rw.tray.m'), 'rw.tray.costPerM'),
     linkedRow('raceway', 'Flexible metal conduit, with accessories', 'm', 'rw.conduit'),
     typedRow('raceway', 'Weatherproof sealant for cable conduits', 'overall', 1),
     typedRow('raceway', 'Sealant for electrical panel', 'overall', 1),
@@ -87,14 +89,16 @@ export function standardRows(): BomRow[] {
     typedRow('monitoring', 'CCTV, NVR and accessories', 'set'),
     typedRow('monitoring', 'Internet installation with router (1 year)', 'set'),
 
-    typedRow('om', 'Steel walkway, and accessories', 'meter'),
-    typedRow('om', 'Stainless permanent safety line, and accessories', 'meter'),
-    typedRow('om', 'Water cleaning system (pipe, taps, pump, water tank)', 'meter'),
+    costLinked(linkedRow('om', 'Steel walkway, and accessories', 'meter', 'civil.walkway.m'), 'civil.walkway.costPerM'),
+    costLinked(linkedRow('om', 'Stainless permanent safety line, and accessories', 'meter', 'civil.lifeline.m'), 'civil.lifeline.costPerM'),
+    linkedRow('om', 'Water cleaning pipe, taps and fittings', 'meter', 'civil.pipe.m'),
+    linkedRow('om', 'Water pump and tank', 'set', 'civil.pump'),
     typedRow('om', 'Fire extinguisher CO2 5 kg', 'overall'),
     typedRow('om', 'Access ladder', 'set'),
-    typedRow('om', 'Preventive and corrective maintenance', 'year'),
-    typedRow('om', 'Periodic inspection AC combiner box (K3L)', 'year'),
-    typedRow('om', 'Monthly report including performance analysis', 'year'),
+    costLinked(linkedRow('om', 'Periodic module cleaning', 'year', 'om.years'), 'om.cleaning.perYear'),
+    costLinked(linkedRow('om', 'Preventive and corrective maintenance', 'year', 'om.years'), 'om.pm.perYear'),
+    costLinked(linkedRow('om', 'Periodic inspection AC combiner box (K3L)', 'year', 'om.years'), 'om.k3l.perYear'),
+    costLinked(linkedRow('om', 'Monthly report including performance analysis', 'year', 'om.years'), 'om.report.perYear'),
 
     typedRow('project', 'Site survey', 'overall', 1),
     typedRow('project', 'HSE, safety signs, safety equipment, temporary walkway', 'overall', 1),

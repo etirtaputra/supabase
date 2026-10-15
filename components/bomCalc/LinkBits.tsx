@@ -12,7 +12,7 @@ import type { Explanation, SourceTab } from '@/lib/bomCalc/links';
 import { CELL } from './Fields';
 
 /** The tab each calculated value lives on — English, translated where shown. */
-export const TAB_LABEL: Record<SourceTab, string> = { strings: 'Strings & inverters', dc: 'DC cable', ac: 'AC cable', raceway: 'Cable raceway' };
+export const TAB_LABEL: Record<SourceTab, string> = { strings: 'Strings & inverters', dc: 'DC cable', ac: 'AC cable', raceway: 'Cable raceway', civil: 'Civil & O&M' };
 export const fmtN = (n: number, dp = 0) => n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 
 // ── Link helpers ─────────────────────────────────────────────────────────────
@@ -52,18 +52,21 @@ export function LinkLines({ keys, explain, usage, onGo, mustUse = [] }: {
 }
 
 /** A link picker grouped by the tab each value is calculated on. */
-export function LinkSelect({ links, value, onChange, placeholder, title, className = '' }: {
+export function LinkSelect({ links: all, value, onChange, placeholder, title, className = '', costs = false }: {
   links: ReturnType<typeof linkOptions>; value: string; onChange: (key: string) => void;
   placeholder?: string; title?: string; className?: string;
+  /** Offer the cost-per-unit results (a row's cost) instead of the quantities. */
+  costs?: boolean;
 }) {
   const { t } = useT();
+  const links = all.filter((l) => l.cost === costs);
   const known = links.some((l) => l.key === value);
   return (
     <select value={value} title={title} onChange={(e) => onChange(e.target.value)} className={`${CELL} ${className}`}>
       {placeholder !== undefined && <option value="">{placeholder}</option>}
       {!known && value && <option value={value}>{value}</option>}
-      {(['strings', 'dc', 'ac', 'raceway'] as SourceTab[]).map((tb) => (
-        <optgroup key={tb} label={t(TAB_LABEL[tb])}>
+      {(['strings', 'dc', 'ac', 'raceway', 'civil'] as SourceTab[]).map((tb) => (
+        links.some((l) => l.tab === tb) && <optgroup key={tb} label={t(TAB_LABEL[tb])}>
           {links.filter((l) => l.tab === tb).map((l) => (
             <option key={l.key} value={l.key}>{l.label} — {fmtN(l.value, l.value % 1 ? 2 : 0)} {l.unit}</option>
           ))}

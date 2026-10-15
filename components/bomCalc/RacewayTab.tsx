@@ -11,7 +11,7 @@ import { racewayOf, type BomCalcDoc, type BomCalcResult, type BomRow } from '@/l
 import { sizeKey, sizeLabel, type RacewayDoc, type RacewaySettings, type TrayCable, type TrayCableSource, type TrayRun } from '@/lib/bomCalc/raceway';
 import type { Explanation } from '@/lib/bomCalc/links';
 import { NumField, TextField, Labeled, Card, CELL, SMALL_BTN, DEL_BTN } from './Fields';
-import { fmtN, LinkLines } from './LinkBits';
+import { fmtN, LinkLines, UsedBy } from './LinkBits';
 
 let uid = 0;
 const newId = (p: string) => `${p}${Date.now().toString(36)}${(uid++).toString(36)}`;
@@ -190,12 +190,16 @@ export function RacewayTab({ doc, res, edit, explain, usage, onGo }: {
             {rr.costPerM != null ? (
               <>
                 <span className="text-slate-300">{tf('Blended cost: {c} per m ({total} ÷ {m} m)', { c: fmtRp(rr.costPerM), total: fmtRp(rr.trayCost ?? 0), m: fmtN(rr.trayM, rr.trayM % 1 ? 2 : 0) })}</span>
-                {trayRows.length > 0 && (
-                  <button className={SMALL_BTN} title={t('Sets the cost per unit of every BOM row that reads the tray metres')}
-                    onClick={() => edit((d) => ({ ...d, rows: d.rows.map((x) => (x.qty.mode === 'link' && x.qty.key === 'rw.tray.m' ? { ...x, cost: Math.round(rr.costPerM!) } : x)) }))}>
-                    {t('Use as the tray row cost')}
-                  </button>
-                )}
+                {(() => {
+                  const linked = usage.get('rw.tray.costPerM') ?? [];
+                  if (linked.length) return <UsedBy rows={linked} onGo={onGo} />;
+                  return trayRows.length > 0 && (
+                    <button className={SMALL_BTN} title={t('Every BOM row that reads the tray metres then reads this cost too, and follows it when the trays change')}
+                      onClick={() => edit((d) => ({ ...d, rows: d.rows.map((x) => (x.qty.mode === 'link' && x.qty.key === 'rw.tray.m' ? { ...x, costKey: 'rw.tray.costPerM' } : x)) }))}>
+                      {t('Link the tray row cost')}
+                    </button>
+                  );
+                })()}
               </>
             ) : <span className="text-amber-300">{t('Size every tray run and give every size in use a stick cost to get the blended cost per metre.')}</span>}
           </div>

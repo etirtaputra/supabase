@@ -14,9 +14,10 @@ import { priceBom, type BomRow, type BomTotals, type PricedRow } from './bom.ts'
 import { CABLE_TYPES, type CableType } from './cables.ts';
 import { standardRows } from './template.ts';
 import { calculateRaceway, newRacewayDoc, type RacewayDoc, type RacewayResult } from './raceway.ts';
-import { describeKey, unusedKeys, type SourceTab } from './links.ts';
+import { calculateCivil, newCivilDoc, type CivilDoc, type CivilResult } from './civil.ts';
+import { describeKey, unusedKeys, isCostKey, type SourceTab } from './links.ts';
 
-export type { Check, ModuleSpec, InverterGroup, RoofRun, AcSegment, BomRow, PricedRow, BomTotals, DcResult, AcResult, RacewayDoc, RacewayResult };
+export type { Check, ModuleSpec, InverterGroup, RoofRun, AcSegment, BomRow, PricedRow, BomTotals, DcResult, AcResult, RacewayDoc, RacewayResult, CivilDoc, CivilResult };
 
 export interface BomCalcDoc {
   version: 1;
@@ -31,6 +32,8 @@ export interface BomCalcDoc {
   ac: AcSettings;
   /** Cable trays and the raceway counts. Absent on calculations saved before 2026-10-12 — read it through racewayOf(). */
   raceway?: RacewayDoc;
+  /** Civil works and O&M. Absent on calculations saved before 2026-10-15 — read it through civilOf(). */
+  civil?: CivilDoc;
   rows: BomRow[];
 }
 
@@ -38,6 +41,7 @@ export interface BomCalcResult {
   dc: DcResult;
   ac: AcResult;
   raceway: RacewayResult;
+  civil: CivilResult;
   /** Every value a BOM row can link to, by key. */
   values: Record<string, number>;
   rows: PricedRow[];
@@ -73,6 +77,7 @@ export function newBomCalcDoc(): BomCalcDoc {
     ],
     ac: { ...AC_DEFAULTS },
     raceway: newRacewayDoc(),
+    civil: newCivilDoc(),
     rows: standardRows(),
   };
 }
@@ -91,6 +96,13 @@ export function racewayOf(doc: BomCalcDoc): RacewayDoc {
   return { ...rw, settings: { ...newRacewayDoc().settings, ...rw.settings } };
 }
 
+/** The civil and O&M inputs, with defaults for a calculation saved before they existed. */
+export function civilOf(doc: BomCalcDoc): CivilDoc {
+  const d = newCivilDoc();
+  const cv = doc.civil ?? d;
+  return { ...cv, settings: { ...d.settings, ...cv.settings }, om: { items: cv.om?.items ?? d.om.items, settings: { ...d.om.settings, ...cv.om?.settings } } };
+}
+
 export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   const dc = calculateDc(doc.module, doc.inverterGroups, doc.roofs, doc.dc);
   const ac = calculateAc(doc.acSegments, doc.ac);
@@ -98,6 +110,7 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
     strings: dc.strings, inverters: dc.inverters, modules: dc.modules,
     roofs: doc.roofs, acSegments: doc.acSegments,
   });
+  const civil = calculateCivil(civilOf(doc), { inverters: dc.inverters, plantWp: dc.wp });
 
   const values: Record<string, number> = {
     'pv.modules': dc.modules, 'pv.strings': dc.strings, 'pv.wp': dc.wp, 'pv.kwp': dc.wp / 1000,
@@ -120,7 +133,19 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
     'rw.tray.clamps': raceway.clamps, 'rw.tray.joints': raceway.joints, 'rw.tray.bolts': raceway.bolts,
     'rw.conduit': raceway.conduitM, 'rw.glands': raceway.glands, 'rw.labels': raceway.labels,
     'rw.ties': raceway.ties, 'rw.clips': raceway.clips,
+    // A cost key with no price yet reads 0, so its row says "not priced" rather than "broken link".
+    'rw.tray.costPerM': raceway.costPerM ?? 0,
+    'civil.walkway.m': civil.walkwayM, 'civil.walkway.panels': civil.walkwayPanels, 'civil.walkway.supports': civil.walkwaySupports,
+    'civil.walkway.costPerM': civil.walkwayCostPerM ?? 0,
+    'civil.lifeline.m': civil.lifelineM, 'civil.lifeline.endAnchors': civil.endAnchors, 'civil.lifeline.intAnchors': civil.intAnchors,
+    'civil.lifeline.costPerM': civil.lifelineCostPerM ?? 0,
+    'civil.pipe.m': civil.pipeM, 'civil.pump': civil.pumps, 'civil.pits': civil.pits, 'civil.stations': civil.stations,
+    'om.years': civil.om.includedYears,
   });
+  for (const it of civil.om.items) {
+    values[`om.${it.id}.perYear`] = it.perYear;
+    if (it.visits > 0) values[`om.${it.id}.visits`] = it.visits;
+  }
   for (const [size, b] of Object.entries(raceway.bySize)) {
     values[`rw.tray.${size}.m`] = b.m;
     values[`rw.tray.${size}.pieces`] = b.pieces;
@@ -131,7 +156,7 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
 
   // A row that says one cable but is linked to another — the copper-vs-aluminium
   // mistake that swung one 2026-10 rooftop bid by about Rp 2 billion.
-  const checks: Check[] = [...dc.checks, ...ac.checks, ...raceway.checks, ...bom.checks];
+  const checks: Check[] = [...dc.checks, ...ac.checks, ...raceway.checks, ...civil.checks, ...bom.checks];
   for (const r of doc.rows) {
     if (r.qty.mode !== 'link') continue;
     let linkedType: CableType | null = null;
@@ -161,11 +186,11 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   }
   const order = { error: 0, warn: 1, ok: 2 } as const;
   checks.sort((a, b) => order[a.level] - order[b.level]);
-  return { dc, ac, raceway, values, rows: bom.rows, totals: bom.totals, plantWp, checks };
+  return { dc, ac, raceway, civil, values, rows: bom.rows, totals: bom.totals, plantWp, checks };
 }
 
-/** What a BOM row can link its quantity to — name, source tab, unit and today's value. */
-export function linkOptions(doc: BomCalcDoc, res: BomCalcResult): { key: string; label: string; tab: SourceTab; unit: string; value: number }[] {
+/** What a BOM row can link its quantity (or, for cost keys, its cost) to — name, source tab, unit and today's value. */
+export function linkOptions(doc: BomCalcDoc, res: BomCalcResult): { key: string; label: string; tab: SourceTab; unit: string; value: number; cost: boolean }[] {
   const keys = ['pv.modules', 'pv.wp', 'pv.strings', 'inv.count', ...doc.inverterGroups.map((g) => `inv.${g.id}`)];
   for (const s of [4, 6, 10, 16]) if (res.values[`dc.cable.${s}`] > 0 || s === 4 || s === 6) keys.push(`dc.cable.${s}`, `dc.connectors.${s}`);
   for (const s of doc.acSegments) keys.push(`ac.seg.${s.id}.phase`, `ac.seg.${s.id}.pe`, `ac.seg.${s.id}.lugs`);
@@ -173,9 +198,13 @@ export function linkOptions(doc: BomCalcDoc, res: BomCalcResult): { key: string;
   keys.push('rw.tray.m', ...Object.keys(res.raceway.bySize).map((z) => `rw.tray.${z}.m`),
     'rw.tray.pieces', ...Object.keys(res.raceway.bySize).map((z) => `rw.tray.${z}.pieces`),
     'rw.tray.covers', 'rw.tray.clamps', 'rw.tray.joints', 'rw.tray.bolts',
-    'rw.conduit', 'rw.glands', 'rw.labels', 'rw.ties', 'rw.clips');
+    'rw.conduit', 'rw.glands', 'rw.labels', 'rw.ties', 'rw.clips', 'rw.tray.costPerM');
+  keys.push('civil.walkway.m', 'civil.walkway.panels', 'civil.walkway.supports', 'civil.walkway.costPerM',
+    'civil.lifeline.m', 'civil.lifeline.endAnchors', 'civil.lifeline.intAnchors', 'civil.lifeline.costPerM',
+    'civil.pipe.m', 'civil.pump', 'civil.pits', 'civil.stations', 'om.years',
+    ...res.civil.om.items.flatMap((i) => [`om.${i.id}.visits`, `om.${i.id}.perYear`]));
   return keys.flatMap((key) => {
     const info = key in res.values ? describeKey(doc, key) : null;
-    return info ? [{ key, label: info.label, tab: info.tab, unit: info.unit, value: res.values[key] }] : [];
+    return info ? [{ key, label: info.label, tab: info.tab, unit: info.unit, value: res.values[key], cost: isCostKey(key) }] : [];
   });
 }

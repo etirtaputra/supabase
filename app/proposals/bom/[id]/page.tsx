@@ -35,14 +35,15 @@ import { explainKey, usageByKey, type Explanation } from '@/lib/bomCalc/links';
 import { NumField, TextField, Labeled, Card, CELL, SMALL_BTN, DEL_BTN } from '@/components/bomCalc/Fields';
 import { TAB_LABEL, fmtN, UsedBy, LinkLines, LinkSelect } from '@/components/bomCalc/LinkBits';
 import { RacewayTab } from '@/components/bomCalc/RacewayTab';
+import { CivilTab } from '@/components/bomCalc/CivilTab';
 import { DeleteCalc } from '@/components/bomCalc/DeleteCalc';
 import type { Component } from '@/types/database';
 
-type Tab = 'strings' | 'dc' | 'ac' | 'raceway' | 'bom' | 'links' | 'checks';
+type Tab = 'strings' | 'dc' | 'ac' | 'raceway' | 'civil' | 'bom' | 'links' | 'checks';
 interface SpecItem { component_id: string; supplier_model: string; internal_description: string | null; category: string; specifications: Record<string, unknown> | null }
 
 /** Results that must land in a BOM row (the same list unusedKeys checks). */
-const MUST_USE = /^(pv\.modules|dc\.(cable|connectors)\.\d+|ac\.seg\.[^.]+\.(phase|pe)|rw\.(tray\.m|conduit|glands|labels|ties|clips))$/;
+const MUST_USE = /^(pv\.modules|dc\.(cable|connectors)\.\d+|ac\.seg\.[^.]+\.(phase|pe)|rw\.(tray\.m|conduit|glands|labels|ties|clips)|civil\.(walkway\.m|lifeline\.m|pipe\.m|pump|pits)|om\.[^.]+\.perYear)$/;
 
 let uid = 0;
 const newId = (p: string) => `${p}${Date.now().toString(36)}${(uid++).toString(36)}`;
@@ -108,7 +109,7 @@ export default function BomCalcEditorPage() {
   const links = useMemo(() => (doc && res ? linkOptions(doc, res) : []), [doc, res]);
   // Both directions of every link: a key's explanation, and the BOM rows that read it.
   const usage = useMemo(() => usageByKey(doc?.rows ?? []), [doc]);
-  const explain = useCallback((key: string) => (doc && res ? explainKey(doc, res.values, res.dc, res.ac, key, res.raceway) : null), [doc, res]);
+  const explain = useCallback((key: string) => (doc && res ? explainKey(doc, res.values, res.dc, res.ac, key, res.raceway, res.civil) : null), [doc, res]);
   const [focusRow, setFocusRow] = useState<string | null>(null);
   const goToRow = (rowId: string) => {
     setTab('bom'); setFocusRow(rowId);
@@ -175,6 +176,7 @@ export default function BomCalcEditorPage() {
     { key: 'dc', label: t('DC cable') },
     { key: 'ac', label: t('AC cable') },
     { key: 'raceway', label: t('Cable raceway') },
+    { key: 'civil', label: t('Civil & O&M') },
     { key: 'bom', label: 'Bill of Material' },
     { key: 'links', label: t('Links') },
     { key: 'checks', label: errors ? tf('Checks ({n})', { n: errors }) : t('Checks') },
@@ -436,6 +438,9 @@ export default function BomCalcEditorPage() {
       {/* ── Cable raceway ── */}
       {tab === 'raceway' && <RacewayTab doc={doc} res={res} edit={edit} explain={explain} usage={usage} onGo={goToRow} />}
 
+      {/* ── Civil works and O&M ── */}
+      {tab === 'civil' && <CivilTab doc={doc} res={res} edit={edit} explain={explain} usage={usage} onGo={goToRow} />}
+
       {/* ── Bill of Material ── */}
       {tab === 'bom' && (
         <BomTable doc={doc} res={res} links={links} setRow={setRow} edit={edit}
@@ -523,7 +528,7 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor, explain, 
 
   const pick = (rowId: string, c: Component) => {
     const cost = costFor(String(c.component_id));
-    setRow(rowId, { componentId: String(c.component_id), description: c.internal_description || c.supplier_model, brand: c.brand ?? '', cost: cost ? Math.round(cost.cost) : null });
+    setRow(rowId, { componentId: String(c.component_id), description: c.internal_description || c.supplier_model, brand: c.brand ?? '', cost: cost ? Math.round(cost.cost) : null, costKey: null });
     setPickFor(null); setQuery('');
   };
 
@@ -595,8 +600,30 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor, explain, 
                           </td>
                           <td className="px-1"><TextField value={r.unit} onChange={(v) => setRow(r.id, { unit: v })} /></td>
                           <td className="px-1">
-                            <NumField value={r.cost} onChange={(v) => setRow(r.id, { cost: v })} />
-                            {r.componentId && (
+                            {r.costKey ? (() => {
+                              const ex = explain(r.costKey);
+                              return (
+                                <div className="text-right space-y-0.5">
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <span className="tabular-nums text-sky-300 font-semibold">{fmtN(res.values[r.costKey] ?? 0)}</span>
+                                    <button className="text-[10px] text-slate-500 hover:text-white" title={t('Type the cost instead')} onClick={() => setRow(r.id, { costKey: null, cost: Math.round(res.values[r.costKey!] ?? 0) || null })}>✎</button>
+                                  </div>
+                                  {ex ? (
+                                    <button onClick={() => onGoTab(ex.tab)} title={tf('Calculated on the {tab} tab', { tab: t(TAB_LABEL[ex.tab]) })}
+                                      className="block w-full text-right text-[10px] text-sky-400/90 hover:text-sky-300 truncate">← {ex.label}</button>
+                                  ) : <span className="block text-[10px] text-red-300">{r.costKey}</span>}
+                                </div>
+                              );
+                            })() : (
+                              <div className="flex gap-1">
+                                <NumField value={r.cost} onChange={(v) => setRow(r.id, { cost: v })} />
+                                {links.some((l) => l.cost) && (
+                                  <LinkSelect links={links} costs value="" placeholder="↔" title={t('Link the cost to the calculation')} className="!w-8 !px-0.5 text-slate-500"
+                                    onChange={(k) => k && setRow(r.id, { costKey: k })} />
+                                )}
+                              </div>
+                            )}
+                            {r.componentId && !r.costKey && (
                               <button className="text-[10px] text-slate-500 hover:text-emerald-300" title={t('Take the cost from the catalogue again (paid POs first, then the latest supplier quote)')}
                                 onClick={() => { const c = costFor(r.componentId!); if (c) setRow(r.id, { cost: Math.round(c.cost) }); }}>
                                 {t('↻ catalogue')}
@@ -651,6 +678,27 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor, explain, 
                                     <b className="text-sky-300">{fmtN(p?.qty ?? 0, (p?.qty ?? 0) % 1 ? 2 : 0)} {r.unit}</b>
                                   </div>
                                 </>}
+                                {r.costKey && (() => {
+                                  const cx = explain(r.costKey);
+                                  return cx && (
+                                    <div className="pt-2 border-t border-sky-500/15 space-y-1">
+                                      <div className="text-slate-300">
+                                        {tf('Cost per unit, calculated on the {tab} tab: {rule}', { tab: t(TAB_LABEL[cx.tab]), rule: t(cx.rule) })}{' '}
+                                        <button onClick={() => onGoTab(cx.tab)} className="text-sky-300 hover:text-sky-200">{t('Open it')} →</button>
+                                      </div>
+                                      <table className="text-[11px]"><tbody>
+                                        {cx.parts.map((pt, i) => (
+                                          <tr key={i}>
+                                            <td className="pr-3 text-slate-400">{pt.label}</td>
+                                            <td className="pr-3 text-slate-500 tabular-nums">{pt.detail}</td>
+                                            <td className="text-right tabular-nums text-slate-200">{fmtN(pt.value, pt.value % 1 ? 2 : 0)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody></table>
+                                      <div className="tabular-nums text-slate-200">= <b className="text-sky-300">{fmtN(cx.value, cx.value % 1 ? 2 : 0)} {cx.unit}</b></div>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </td></tr>
                           );

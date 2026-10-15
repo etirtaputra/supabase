@@ -10,8 +10,9 @@
  *
  * A row's quantity is either typed or LINKED to the calculation (e.g.
  * 'dc.cable.6' = metres of 6 mm² PV cable), with an optional factor and
- * addition for spares. A link can only point at a value the calculation
- * produced; an unknown key is an error on the row, never a silent zero.
+ * addition for spares. Its cost can be linked the same way (costKey). A
+ * link can only point at a value the calculation produced; an unknown key is
+ * an error on the row, never a silent zero.
  *
  * What the checks catch were real money in the four workbooks (2026-10):
  * 1,159 m of cable tray with installation but no material price; a permit
@@ -29,6 +30,12 @@ export interface BomRow {
   qty: { mode: 'typed'; value: number | null } | { mode: 'link'; key: string; factor: number; add: number; roundUp: boolean };
   /** Material cost per unit, IDR. */
   cost: number | null;
+  /**
+   * Cost per unit READ from the calculation instead of typed (e.g.
+   * 'rw.tray.costPerM', 'om.cleaning.perYear') — a copied figure goes stale
+   * when the design changes, a linked one cannot. Absent / null = typed.
+   */
+  costKey?: string | null;
   /** Gross margin on the material price, fraction (0.11). Null = the project's default. */
   margin: number | null;
   /** Installation price per unit, IDR (sold as-is — the template prices labour without margin). */
@@ -84,9 +91,15 @@ export function priceBom(rows: BomRow[], values: Record<string, number>, opts: {
     const where = r.description || 'Row';
     const { qty, error } = rowQty(r, values);
     if (error) checks.push({ level: 'error', where, message: error });
+    let linkedCost: number | null = null;
+    if (r.costKey) {
+      const v = values[r.costKey];
+      if (v == null || !Number.isFinite(v)) checks.push({ level: 'error', where, message: `Cost linked to "${r.costKey}", which this calculation does not produce.` });
+      else linkedCost = round2(v);
+    }
     const margin = r.margin ?? opts.defaultMargin;
     if (!(margin < 1)) checks.push({ level: 'error', where, message: `Margin ${Math.round(margin * 100)} % is not possible — a margin must be below 100 %.` });
-    const cost = Math.max(0, r.cost ?? 0);
+    const cost = Math.max(0, r.costKey ? linkedCost ?? 0 : r.cost ?? 0);
     const materialUnit = margin < 1 ? round2(cost / (1 - margin)) : 0;
     const install = Math.max(0, r.install ?? 0);
     const materialTotal = round2(qty * materialUnit);

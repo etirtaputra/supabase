@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-13** · last change: *Agents track: MIRA's Basecamp sign-in — root cause is Hermes v0.20.6 dropping RFC 9207 `iss`; MIRA connected to Basecamp on Hermes v0.21.5; purchasing sync runbook v3 — MIRA acts where evidence is clear, v7 — accounting folder is for ISL orders only (§8.6)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-15** · last change: *BOM Calculator — Civil & O&M tab (walkway/lifeline/water per-metre recipes, pits, stations, O&M with escalation and a non-overlapping long-term contract) + BOM rows can link their COST* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -169,7 +169,48 @@ or documents on Google Drive, but not synced in Basecamp or ICAPROC."*
   order `YYYYMMDD <PI>, <PO> [items]`, files `1. PI_…` `2. PO_…` `3. DP…`
   `5. BALANCE PAYMENT_<PI>_<date>`.
 
-### 2026-10-12 (latest) — BOM Calculator: delete a calculation
+### 2026-10-15 (latest) — BOM Calculator: Civil & O&M (roadmap step 3), and linked costs
+
+Owner: "go ahead with civil works and O&M".
+
+- **Engine** `lib/bomCalc/civil.ts` (7 tests in `civil.test.ts`): areas with
+  walkway / lifeline / pipe metres off the layout × waste 1.01; walkway
+  panels = ROUNDUP(m ÷ 2.4), supports = panels × 2; lifeline anchors end =
+  ROUNDUP(L ÷ 30), intermediate = ROUNDUP(L ÷ 6) − end (from the layout L);
+  recipe parts → `costPerM` over the SAME bought metres (null while a part is
+  unpriced → warn). Pump + tank sets where there is pipe; pits = inverters ×
+  1 + extra; stations = ROUNDUP(inverters ÷ per station). O&M items `basis`
+  'wpVisit' (Rp/Wp × plant Wp × visits) or 'year'; escalation per year;
+  `includedYears` → BOM (qty = years, cost = average escalated year, so qty ×
+  cost = the escalated total); `contractYears` = separate contract starting
+  year includedYears + 1 at the escalated price (shown, not in the BOM).
+- **Working figures to confirm** with the engineers: supports per panel (2),
+  pump sets (1), pits per inverter (1), inverters per station (1). Tests are
+  method tests (recorded rules × recorded quantities: Mulia lifeline 3,008 m
+  → 101 + 401 anchors; DMST walkway 969 m; Hon Chuan cleaning visits and
+  17-yr O&M at Rp 195 m/yr → 3,315 m flat, 4,243.5 m at 3 %).
+- **Linked cost** (`BomRow.costKey`, optional): `priceBom` reads the row's
+  cost from the values (broken link = error, never the stale typed cost).
+  Cost keys: `rw.tray.costPerM`, `civil.walkway.costPerM`,
+  `civil.lifeline.costPerM`, `om.<id>.perYear` (`isCostKey` in links.ts;
+  `linkOptions` rows carry `cost`). `usageByKey` counts cost links;
+  `unusedKeys` now also wants walkway/lifeline/pipe metres, pump, pits and
+  every priced `om.<id>.perYear`. The raceway tab's "Use as the tray row
+  cost" copy button became "Link the tray row cost" (template tray row is
+  cost-linked already).
+- **Template**: walkway, lifeline (qty + cost linked), "Water cleaning pipe,
+  taps and fittings" (was "…system (pipe, taps, pump, water tank)") + new
+  "Water pump and tank" row, new "Periodic module cleaning" O&M row, PM /
+  K3L / report rows qty `om.years` + cost `om.<id>.perYear`, grounding pits →
+  `civil.pits`, inverter station → `civil.stations` (was `inv.count`).
+- **Doc**: `BomCalcDoc.civil?` optional, read through `civilOf(doc)`; no
+  schema or data change. "+ O&M item" adds its own linked BOM row; removing
+  the item removes the rows that read its cost.
+- **UI**: new tab "Civil & O&M" (`components/bomCalc/CivilTab.tsx`); BOM cost
+  cell shows a linked cost (← source, ✎ to type) or a "↔" cost-link picker;
+  How? panel explains the cost too. Verified on the production build (rig).
+
+### 2026-10-12 — BOM Calculator: delete a calculation
 
 Owner: "for the BoM Calculator allow user to Delete."
 
@@ -3763,12 +3804,12 @@ Roadmap in `docs/epc-bom/WORKBOOK_STUDY.md` §5, one step per thread:
 1. ✅ Raceway (2026-10-12, §4). Open: engineers to confirm labels per inverter
    (10), per AC circuit (2), ties per module (2); re-upload the workbooks so
    the raceway tests can be checked against the tray sheets cell by cell.
-2. Civil / O&M — walkway, lifeline, water cleaning, grounding pits, inverter
-   stations from per-metre recipes; O&M years with escalation.
+2. ✅ Civil / O&M (2026-10-15, §4). Open: engineers to confirm supports per
+   panel (2), pump sets (1), pits per inverter (1), inverters per station (1).
 3. Project works + manpower (Jasa) as the installation cross-check.
 4. Template X (Xurya): sections A–P, man-day installation, TOP, FS.
 5. "Make a proposal from this" → write 10.0/10.1/10.2 (needs the owner's OK).
-Next: ask the owner which of 2–5 to build (default suggestion: 2, civil / O&M).
+Next: ask the owner which of 3–5 to build (default suggestion: 3, project works + manpower).
 
 ### 6.0 OPEN ITEMS from the 2026-09-11 → 27 thread — clear these FIRST
 
