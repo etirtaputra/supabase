@@ -77,7 +77,8 @@ export default function SuppliersPage() {
   }, [canView]);
   const leadBySupplier = useMemo(() => new Map(supplierLeadTimes({
     pos: data.pos.map((p) => ({ po_id: p.po_id, po_number: p.po_number, status: p.status ?? null, po_date: p.po_date ?? null, quote_id: p.quote_id ?? null,
-      supplier_id: p.supplier_id ?? null, actual_received_date: p.actual_received_date ?? null, currency: p.currency ?? null })),
+      supplier_id: p.supplier_id ?? null, actual_received_date: p.actual_received_date ?? null, currency: p.currency ?? null,
+      method_of_shipment: p.method_of_shipment ?? null })),
     quotes: data.quotes.map((q) => ({ quote_id: q.quote_id, quote_date: q.quote_date ?? null, supplier_id: q.supplier_id ?? null, estimated_lead_time_days: q.estimated_lead_time_days ?? null })),
     costs: data.poCosts.map((c) => ({ po_id: c.po_id, cost_category: String(c.cost_category), payment_date: c.payment_date ?? null })),
     grns, today: new Date().toISOString().slice(0, 10),

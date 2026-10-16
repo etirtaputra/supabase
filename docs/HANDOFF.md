@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-16** · last change: *Supplier Lead Times dashboard (/suppliers/lead-times): quote → PO → payment → fully received per supplier* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-16** · last change: *Supplier Lead Times split by shipping (Sea / Air / Local)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -204,6 +204,14 @@ suppliers across the whole chain).
   (several "Confirmed" POs long past due — either late or received and never
   updated: worth a look), 17 POs with backwards dates, 8 Fully Received with
   no received date.
+- **Shipping** (owner: "each PO also has delivery via, Sea, Air, Local. These
+  need to be separated or indicated too"): `5.0.method_of_shipment` → `via`
+  ('Sea' | 'Air' | 'Local', null = not set; 9 of 98 POs unset); per supplier
+  `byVia` (counts + median PO → received); an open PO is late against the
+  same supplier's history FOR ITS OWN VIA (overall median only as fallback).
+  Page: the import/local filter became a shipping filter, a "by shipping"
+  chip row (Sea 66.5 d · Air 33 d · Local 2 d on production), per-supplier
+  via chips, a "Shipped via" column per PO. 1 test added.
 - No schema or data change.
 
 ### 2026-10-16 — BOM Calculator: Project works & manpower (roadmap step 4)

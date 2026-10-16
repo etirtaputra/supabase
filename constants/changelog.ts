@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-16T23:49:05Z",
+    title: "Lead Time Pemasok: dipisah menurut pengiriman — Laut, Udara, Lokal",
+    details: [
+      "Ringkasan PO → diterima lengkap per cara kirim (Laut, Udara, Lokal, dan yang belum diisi); klik salah satunya untuk menampilkan hanya PO itu. Filter impor/lokal diganti filter pengiriman.",
+      "Setiap pemasok menampilkan lead time-nya per cara kirim, dan setiap PO menampilkan cara kirimnya.",
+      "PO berjalan dinilai terlambat menurut riwayat pemasok untuk cara kirim yang SAMA — pesanan udara tidak lagi dinilai dengan median laut.",
+    ],
+  },
+  {
     at: "2026-10-16T23:20:34Z",
     title: "Baru: Lead Time Pemasok — berapa lama setiap pemasok, dari penawaran sampai barang diterima lengkap",
     details: [

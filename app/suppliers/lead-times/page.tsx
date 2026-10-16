@@ -24,7 +24,7 @@ import { BAR_INPUT, BAR_SELECT } from '@/constants/controls';
 import { LIGHT_THEMES } from '@/lib/theme';
 import { fmtDay } from '@/lib/formatters';
 import BrandMenu from '@/components/ui/BrandMenu';
-import { supplierLeadTimes, type LtGrn, type LtPo, type PoTimeline, type Stage, type StageStats, type SupplierLead } from '@/lib/supplierLeadTimes';
+import { supplierLeadTimes, shipVia, SHIP_VIAS, stageStats, type LtGrn, type LtPo, type PoTimeline, type ShipVia, type Stage, type StageStats, type SupplierLead } from '@/lib/supplierLeadTimes';
 
 /** "1 day", "12 days". */
 const dayLabel = (t: (s: string) => string, tf: (s: string, v: Record<string, string | number>) => string, d: number) =>
@@ -43,7 +43,10 @@ const BAR_CSS = `.lt-s1{background:#3987e5}.lt-s2{background:#d95926}.lt-s3{back
 ${lightSel('lt-s1')}{background:#2a78d6}${lightSel('lt-s2')}{background:#eb6834}${lightSel('lt-s3')}{background:#1baf7a}`;
 
 type Period = 'all' | '12' | '6';
-type Origin = 'all' | 'import' | 'local';
+type ViaFilter = 'all' | ShipVia | 'none';
+/** Shipping, as people say it — English, translated where shown. */
+const VIA_LABEL: Record<ShipVia, string> = { Sea: 'Sea', Air: 'Air', Local: 'Local' };
+const viaName = (v: ShipVia | null) => (v ? VIA_LABEL[v] : 'Not set');
 
 export default function SupplierLeadTimesPage() {
   const { t, tf } = useT();
@@ -70,7 +73,7 @@ export default function SupplierLeadTimesPage() {
 
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState<Period>('all');
-  const [origin, setOrigin] = useState<Origin>('all');
+  const [via, setVia] = useState<ViaFilter>('all');
   const [open, setOpen] = useState<string | null>(null);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -80,10 +83,11 @@ export default function SupplierLeadTimesPage() {
     const since = period === 'all' ? null : (() => { const d = new Date(); d.setMonth(d.getMonth() - Number(period)); return d.toISOString().slice(0, 10); })();
     const pos: LtPo[] = data.pos
       .filter((p) => !since || (p.po_date ?? '') >= since)
-      .filter((p) => origin === 'all' || (origin === 'local' ? p.currency === 'IDR' : p.currency !== 'IDR'))
+      .filter((p) => via === 'all' || (via === 'none' ? !shipVia(p.method_of_shipment) : shipVia(p.method_of_shipment) === via))
       .map((p) => ({
         po_id: p.po_id, po_number: p.po_number, status: p.status ?? null, po_date: p.po_date ?? null, quote_id: p.quote_id ?? null,
         supplier_id: p.supplier_id ?? null, actual_received_date: p.actual_received_date ?? null, currency: p.currency ?? null,
+        method_of_shipment: p.method_of_shipment ?? null,
       }));
     return supplierLeadTimes({
       pos,
@@ -91,7 +95,7 @@ export default function SupplierLeadTimesPage() {
       costs: data.poCosts.map((c) => ({ po_id: c.po_id, cost_category: String(c.cost_category), payment_date: c.payment_date ?? null })),
       grns, today,
     });
-  }, [data.pos, data.quotes, data.poCosts, grns, period, origin, today]);
+  }, [data.pos, data.quotes, data.poCosts, grns, period, via, today]);
 
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -111,6 +115,10 @@ export default function SupplierLeadTimesPage() {
   const overdue = shown.reduce((a, l) => a + l.overdue, 0);
   const odd = shown.reduce((a, l) => a + l.odd, 0);
   const noDate = shown.reduce((a, l) => a + l.noDate, 0);
+  const byVia = [...SHIP_VIAS, null].map((v) => {
+    const mine = received.filter((p) => p.via === v);
+    return { via: v, count: all.filter((p) => p.via === v).length, stats: stageStats(mine.map((p) => p.stages.poToReceived).filter((x): x is number => x != null)) };
+  }).filter((b) => b.count > 0);
   // One scale for every bar, so suppliers compare by length.
   const barMax = Math.max(1, ...shown.map((l) => l.split?.total ?? 0));
 
@@ -136,10 +144,10 @@ export default function SupplierLeadTimesPage() {
             <option value="12">{t('Last 12 months')}</option>
             <option value="6">{t('Last 6 months')}</option>
           </select>
-          <select value={origin} onChange={(e) => setOrigin(e.target.value as Origin)} className={BAR_SELECT}>
-            <option value="all">{t('Import and local')}</option>
-            <option value="import">{t('Import (foreign currency)')}</option>
-            <option value="local">{t('Local (IDR)')}</option>
+          <select value={via} onChange={(e) => setVia(e.target.value as ViaFilter)} className={BAR_SELECT} title={t('How the goods were shipped, as set on the PO')}>
+            <option value="all">{t('Sea, air and local')}</option>
+            {SHIP_VIAS.map((v) => <option key={v} value={v}>{t(VIA_LABEL[v])}</option>)}
+            <option value="none">{t('Shipping not set')}</option>
           </select>
         </div>
 
@@ -158,6 +166,19 @@ export default function SupplierLeadTimesPage() {
             </div>
           ))}
         </div>
+
+        {/* ── By shipping — sea and air are never averaged together ── */}
+        {byVia.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="text-slate-500">{t('PO → fully received by shipping')}</span>
+            {byVia.map((b) => (
+              <button key={b.via ?? 'none'} onClick={() => setVia(b.via ?? 'none')} title={t('Show only these POs')}
+                className={`px-2 py-0.5 rounded-md border transition-colors ${(via === (b.via ?? 'none')) ? 'border-sky-500/50 bg-sky-500/10 text-sky-200' : 'border-slate-700 text-slate-300 hover:border-slate-500'}`}>
+                <b>{t(viaName(b.via))}</b> {b.stats ? dayLabel(t, tf, b.stats.median) : '—'} <span className="text-slate-500">· {tf('{n} POs', { n: b.count })}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ── Legend ── */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
@@ -195,6 +216,14 @@ export default function SupplierLeadTimesPage() {
                         <td className="px-3 py-2">
                           <div className="text-slate-100 font-semibold">{s?.supplier_name ?? t('Unknown supplier')}</div>
                           <div className="text-[10px] text-slate-500">{[s?.supplier_code, l.lastPoDate && tf('last PO {d}', { d: fmtDay(l.lastPoDate) })].filter(Boolean).join(' · ')}</div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {l.byVia.map((b) => (
+                              <span key={b.via ?? 'none'} className={`px-1.5 py-px rounded border text-[10px] tabular-nums ${b.via ? 'border-slate-700 text-slate-300' : 'border-amber-500/30 text-amber-300'}`}
+                                title={tf('{via}: {done} received, {open} open', { via: t(viaName(b.via)), done: b.completed, open: b.open })}>
+                                {t(viaName(b.via))}{b.poToReceived ? ` ${dayLabel(t, tf, b.poToReceived.median)}` : ` · ${b.completed + b.open}`}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-300 whitespace-nowrap">{tf('{done} in · {open} open', { done: l.completed, open: l.open })}</td>
                         <td className="px-3 py-2"><StageBar lead={l} max={barMax} /></td>
@@ -288,7 +317,7 @@ function PoList({ pos, today }: { pos: PoTimeline[]; today: string }) {
     <div className="overflow-x-auto">
       <table className="w-full text-[11px] min-w-[960px] mt-2">
         <thead><tr className="text-[10px] uppercase tracking-wider text-slate-500">
-          <th className="text-left py-1 pr-2">PO</th><th className="text-left px-2">{t('Quote')}</th><th className="text-left px-2">{t('PO date')}</th>
+          <th className="text-left py-1 pr-2">PO</th><th className="text-left px-2">{t('Shipped via')}</th><th className="text-left px-2">{t('Quote')}</th><th className="text-left px-2">{t('PO date')}</th>
           <th className="text-left px-2">{t('First payment')}</th><th className="text-left px-2">{t('Last payment')}</th><th className="text-left px-2">{t('Fully received')}</th>
           <th className="text-right px-2">{t('PO → received')}</th><th className="text-left px-2">{t('Quoted lead time')}</th>
         </tr></thead>
@@ -299,6 +328,7 @@ function PoList({ pos, today }: { pos: PoTimeline[]; today: string }) {
                 <Link href={lookupHref(p.poNumber)} className="text-sky-300 hover:text-sky-200 font-mono">{p.poNumber || '—'}</Link>
                 <div className="text-[10px] text-slate-500">{p.status}{p.currency ? ` · ${p.currency}` : ''}</div>
               </td>
+              <td className={`px-2 whitespace-nowrap ${p.via ? 'text-slate-300' : 'text-amber-300'}`}>{t(viaName(p.via))}</td>
               <td className="px-2 whitespace-nowrap text-slate-300">{d(p.quoteDate)}<div className={`text-[10px] ${p.odd.includes('quoteToPo') ? 'text-amber-300' : 'text-slate-500'}`}>{p.odd.includes('quoteToPo') ? t('after the PO') : days(p.stages.quoteToPo)}</div></td>
               <td className="px-2 whitespace-nowrap text-slate-300">{d(p.poDate)}</td>
               <td className="px-2 whitespace-nowrap text-slate-300">{d(p.firstPay)}<div className={`text-[10px] ${p.odd.includes('poToPay') ? 'text-amber-300' : 'text-slate-500'}`}>{p.odd.includes('poToPay') ? t('before the PO') : days(p.stages.poToPay)}</div></td>

@@ -97,3 +97,21 @@ test('The bar: the typical end-to-end time, split by where the days actually go'
   assert.equal(noPay.split?.total, 100, 'with no payment recorded the total still stands');
   assert.equal(noPay.split?.shares, null);
 });
+
+test('Sea, air and local are kept apart: an air order is late against air history, not the sea median', () => {
+  const pos: LtPo[] = [
+    po({ po_id: 's1', method_of_shipment: 'Sea', po_date: '2026-01-01', actual_received_date: '2026-03-02' }),  // 60
+    po({ po_id: 's2', method_of_shipment: 'Sea', po_date: '2026-02-01', actual_received_date: '2026-04-02' }),  // 60
+    po({ po_id: 's3', method_of_shipment: 'Sea', po_date: '2026-02-10', actual_received_date: '2026-04-11' }),  // 60
+    po({ po_id: 'a1', method_of_shipment: 'Air', po_date: '2026-03-01', actual_received_date: '2026-03-11' }),  // 10
+    po({ po_id: 'a2', method_of_shipment: 'Air', status: 'Confirmed', po_date: '2026-09-26', actual_received_date: null }), // 20 days waiting > 10 → late
+    po({ po_id: 'l1', method_of_shipment: 'Local Delivery', po_date: '2026-03-01', actual_received_date: '2026-03-03' }),
+    po({ po_id: 'n1', method_of_shipment: null, po_date: '2026-03-05', actual_received_date: '2026-03-09' }),
+  ];
+  const [s] = supplierLeadTimes({ pos, quotes: [], costs: [], grns: [], today: TODAY });
+  assert.deepEqual(s.byVia.map((b) => [b.via, b.completed, b.open, b.poToReceived?.median ?? null]),
+    [['Sea', 3, 0, 60], ['Air', 1, 1, 10], ['Local', 1, 0, 2], [null, 1, 0, 4]]);
+  assert.equal(s.stages.poToReceived?.median, 35, 'the overall median, which would call a 20-day air wait on time');
+  assert.equal(s.overdue, 1, 'judged against air (10 d), so it is late');
+  assert.equal(s.pos.find((p) => p.poId === 'l1')?.via, 'Local');
+});

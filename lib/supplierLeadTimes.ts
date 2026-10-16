@@ -29,6 +29,10 @@
  * "50-60 days after deposit") counted from the first payment (factories start
  * on the deposit), else from the PO date. Late = received − promised.
  *
+ * Shipping (5.0.method_of_shipment — Sea, Air, Local Delivery) is carried on
+ * every PO and summarised per supplier per way of shipping: an air order is
+ * judged late against the supplier's AIR history, never its sea median.
+ *
  * Pure: no fetch, no React. `today` is an argument so the tests are stable.
  */
 import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
@@ -49,10 +53,18 @@ export interface LtPo {
   supplier_id?: string | null;
   actual_received_date?: string | null;
   currency?: string | null;
+  /** 5.0.method_of_shipment: 'Sea' | 'Air' | 'Local Delivery' | null. */
+  method_of_shipment?: string | null;
 }
 export interface LtQuote { quote_id: string | number; quote_date: string | null; supplier_id?: string | null; estimated_lead_time_days?: string | null }
 export interface LtCost { po_id: string | number; cost_category: string; payment_date: string | null }
 export interface LtGrn { po_id: string | number; received_at: string | null }
+
+/** How the goods travel — air and sea take very different times, so they are never averaged together. */
+export type ShipVia = 'Sea' | 'Air' | 'Local';
+export const SHIP_VIAS: ShipVia[] = ['Sea', 'Air', 'Local'];
+export const shipVia = (m: string | null | undefined): ShipVia | null =>
+  m === 'Sea' ? 'Sea' : m === 'Air' ? 'Air' : m === 'Local Delivery' || m === 'Local' ? 'Local' : null;
 
 export interface PoTimeline {
   poId: string;
@@ -60,6 +72,8 @@ export interface PoTimeline {
   supplierId: string | null;
   status: string;
   currency: string | null;
+  /** Null = not set on the PO. */
+  via: ShipVia | null;
   quoteDate: string | null;
   poDate: string | null;
   firstPay: string | null;
@@ -104,6 +118,8 @@ export interface SupplierLead {
   split: { total: number; shares: Record<'quoteToPo' | 'poToPay' | 'payToReceived', number> | null; basis: number } | null;
   /** Marked Fully Received with no received date anywhere — cannot be measured. */
   noDate: number;
+  /** The same supplier, per way of shipping — a sea median says nothing about an air order. */
+  byVia: { via: ShipVia | null; completed: number; open: number; poToReceived: StageStats | null }[];
   lastPoDate: string | null;
   pos: PoTimeline[];
 }
@@ -168,7 +184,7 @@ export function poTimeline(po: LtPo, quote: LtQuote | null, costs: LtCost[], grn
 
   return {
     poId: String(po.po_id), poNumber: po.po_number ?? '', supplierId: po.supplier_id ?? quote?.supplier_id ?? null,
-    status, currency: po.currency ?? null, quoteDate, poDate, firstPay, lastPay, received, receivedFrom,
+    status, currency: po.currency ?? null, via: shipVia(po.method_of_shipment), quoteDate, poDate, firstPay, lastPay, received, receivedFrom,
     stages, odd, statedText, promised,
     lateDays: promised && received ? daysBetween(promised, received) : null,
     open, waitingDays: open && poDate ? daysBetween(poDate, today) : null,
@@ -213,9 +229,19 @@ export function supplierLeadTimes(input: { pos: LtPo[]; quotes: LtQuote[]; costs
     } : null;
     const promisedDone = done.filter((p) => p.lateDays != null);
     const late = promisedDone.map((p) => p.lateDays!);
-    const typical = stages.poToReceived?.median ?? null;
+    const viaKeys = [...SHIP_VIAS, null].filter((v) => pos.some((p) => p.via === v));
+    const byVia = viaKeys.map((via) => {
+      const mine = pos.filter((p) => p.via === via);
+      return {
+        via, completed: mine.filter((p) => p.received).length, open: mine.filter((p) => p.open).length,
+        poToReceived: stageStats(mine.filter((p) => p.received).map((p) => p.stages.poToReceived).filter((v): v is number => v != null)),
+      };
+    });
+    // "Usual" means this supplier, this way of shipping; only without that history the supplier overall.
+    const overall = stages.poToReceived?.median ?? null;
     const overdue = pos.filter((p) => {
       if (!p.open || !p.poDate) return false;
+      const typical = byVia.find((b) => b.via === p.via)?.poToReceived?.median ?? overall;
       const due = p.promised ?? (typical != null ? addDays(p.poDate, Math.round(typical)) : null);
       return due != null && input.today > due;
     }).length;
@@ -224,7 +250,7 @@ export function supplierLeadTimes(input: { pos: LtPo[]; quotes: LtQuote[]; costs
       promise: promisedDone.length ? { measured: promisedDone.length, onTime: late.filter((d) => d <= 0).length, medianLateDays: stageStats(late)!.median } : null,
       overdue, odd: pos.filter((p) => p.odd.length).length,
       noDate: pos.filter((p) => p.status === 'Fully Received' && !p.received).length,
-      lastPoDate: pos[0]?.poDate ?? null, pos,
+      byVia, lastPoDate: pos[0]?.poDate ?? null, pos,
     });
   }
   return out.sort((a, b) => (b.completed + b.open) - (a.completed + a.open) || (b.lastPoDate ?? '').localeCompare(a.lastPoDate ?? ''));
