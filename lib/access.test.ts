@@ -71,14 +71,14 @@ test('an unregistered path is open — registering it is how a page gets a gate'
 const EXPECTED: Record<UserRole, string[]> = {
   owner: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
-    '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
+    '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile',
     '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials', '/aftersales',
     '/support-letters', '/banks', '/spend-cash', '/profitability', '/items', '/specs',
     '/purchasing?tab=market-intel', '/pricing', '/proposals', '/proposals/bom', '/settings', '/import-export',
   ],
   buy_admin: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
-    '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/receive', '/stock/reconcile',
+    '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile',
     '/products', '/delivery', '/serials', '/banks', '/specs',
     '/purchasing?tab=market-intel', '/import-export',
   ],
@@ -99,12 +99,12 @@ const EXPECTED: Record<UserRole, string[]> = {
   viewer: ['/'],
   data_entry: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=lookup',
-    '/suppliers', '/stock', '/stock/receive', '/stock/reconcile', '/delivery', '/serials',
+    '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile', '/delivery', '/serials',
     '/specs', '/purchasing?tab=market-intel',
   ],
   finance: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
-    '/purchasing?tab=lookup', '/suppliers', '/stock', '/stock/reconcile', '/invoices',
+    '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/reconcile', '/invoices',
     '/banks', '/specs', '/purchasing?tab=market-intel', '/import-export',
   ],
 };

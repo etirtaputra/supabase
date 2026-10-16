@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-16T23:20:34Z",
+    title: "Baru: Lead Time Pemasok — berapa lama setiap pemasok, dari penawaran sampai barang diterima lengkap",
+    details: [
+      "Menu Pembelian → Lead Time Pemasok. Satu baris per pemasok: waktu biasa penawaran → diterima lengkap (batang berwarna menunjukkan berapa lama di tahap penawaran → PO, PO → pembayaran pertama, dan pembayaran → diterima), median PO → diterima, DP → pelunasan, catatan tepat waktu dibanding lead time di penawaran, dan PO berjalan yang kini terlambat.",
+      "Klik pemasok untuk melihat setiap PO di balik angkanya — tanggal penawaran, PO, pembayaran pertama dan terakhir, diterima, jatuh tempo menurut penawaran — dengan tautan ke Deal Lookup.",
+      "Filter periode (semua, 12 atau 6 bulan) dan impor/lokal. Profil pemasok di halaman Pemasok kini juga menampilkan lead time-nya.",
+      "Tanggal yang terbalik (mis. penawaran setelah PO) dan PO diterima tanpa tanggal ditandai dan tidak ikut dihitung.",
+    ],
+  },
+  {
     at: "2026-10-16T22:33:13Z",
     title: "Kalkulator BOM: tab baru “Pekerjaan proyek & tenaga kerja” — biaya proyek terhubung ke BOM, dan biaya tim sebagai pemeriksa instalasi",
     details: [

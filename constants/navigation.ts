@@ -105,6 +105,9 @@ export const DESTINATIONS: Destination[] = [
   { href: '/suppliers', label: 'Suppliers', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Vendor profiles, purchase volume, outstanding payables',
     keywords: 'vendors payables' },
+  { href: '/suppliers/lead-times', label: 'Lead Times', group: 'Purchasing', section: 'buySide', inNav: true,
+    hint: 'How long each supplier takes: quote → PO → payment → fully received',
+    keywords: 'lead time delivery speed late on time supplier performance waktu tunggu terlambat' },
   // Buy-side roles keep Stock; the warehouse reaches it through the capability
   // that names its job, without being handed the buy prices next door.
   { href: '/stock', label: 'Stock', group: 'Purchasing', section: null, caps: ['buySide', 'canManageStock'], inNav: true,

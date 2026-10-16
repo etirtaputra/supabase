@@ -17,6 +17,10 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import type { Supplier, PriceQuote, PurchaseOrder, POCost, PurchaseLineItem, Component } from '@/types/database';
 import { fmtDay, fmtInt, fmtRupiah as fmtIdr, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import LayoutToggle from '@/components/ui/LayoutToggle';
+import Link from 'next/link';
+import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAllRows';
+import { supplierLeadTimes, type LtGrn, type SupplierLead } from '@/lib/supplierLeadTimes';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useT } from '@/hooks/useT';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -62,6 +66,22 @@ export default function SuppliersPage() {
   }, [authLoading, user, profile, router]);
 
   const quoteById = useMemo(() => new Map(data.quotes.map((q) => [String(q.quote_id), q])), [data.quotes]);
+
+  // Lead times per supplier (lib/supplierLeadTimes) — the same figures the Lead Times page shows.
+  const [grns, setGrns] = useState<LtGrn[]>([]);
+  useEffect(() => {
+    if (!canView) return;
+    const supabase = createSupabaseClient();
+    fetchAllRows<LtGrn>((f, to) => supabase.from('30.2_goods_receipts').select('po_id, received_at').order('grn_id').range(f, to))
+      .then((r) => setGrns(r.rows ?? []));
+  }, [canView]);
+  const leadBySupplier = useMemo(() => new Map(supplierLeadTimes({
+    pos: data.pos.map((p) => ({ po_id: p.po_id, po_number: p.po_number, status: p.status ?? null, po_date: p.po_date ?? null, quote_id: p.quote_id ?? null,
+      supplier_id: p.supplier_id ?? null, actual_received_date: p.actual_received_date ?? null, currency: p.currency ?? null })),
+    quotes: data.quotes.map((q) => ({ quote_id: q.quote_id, quote_date: q.quote_date ?? null, supplier_id: q.supplier_id ?? null, estimated_lead_time_days: q.estimated_lead_time_days ?? null })),
+    costs: data.poCosts.map((c) => ({ po_id: c.po_id, cost_category: String(c.cost_category), payment_date: c.payment_date ?? null })),
+    grns, today: new Date().toISOString().slice(0, 10),
+  }).map((l) => [l.supplierId, l])), [data.pos, data.quotes, data.poCosts, grns]);
 
   // Supplier for a PO: direct supplier_id, else via its linked quote
   const poSupplierId = useMemo(() => {
@@ -135,7 +155,10 @@ export default function SuppliersPage() {
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between sm:flex-wrap gap-2.5 sm:gap-x-4 sm:gap-y-2.5">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" />
-          <span className="text-[11px] text-slate-500 whitespace-nowrap">{t('Vendors are created in Catalog → Supplier Quotes')}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-slate-500 whitespace-nowrap">{t('Vendors are created in Catalog → Supplier Quotes')}</span>
+            <Link href="/suppliers/lead-times" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">{t('Lead Times')} →</Link>
+          </div>
         </div>
       </div>
 
@@ -196,6 +219,7 @@ export default function SuppliersPage() {
                         components={data.components}
                         poPaidIdr={poPaidIdr}
                         poIdr={poIdr}
+                        lead={leadBySupplier.get(s.supplier_id) ?? null}
                         onClose={() => setProfileFor(null)}
                       />
                     )}
@@ -228,8 +252,9 @@ function Head({ label, right, active, dir, onClick }: { label: ReactNode; right?
 }
 
 // ── Supplier profile drawer ─────────────────────────────────────────────────
-function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poIdr, onClose }: {
+function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poIdr, lead, onClose }: {
   supplier: Supplier;
+  lead: SupplierLead | null;
   stats: SupplierStats;
   poItems: PurchaseLineItem[];
   components: Component[];
@@ -237,7 +262,7 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
   poIdr: (po: PurchaseOrder) => number;
   onClose: () => void;
 }) {
-  const { t } = useT();
+  const { t, tf } = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -311,6 +336,17 @@ function SupplierProfile({ supplier, stats, poItems, components, poPaidIdr, poId
             <Kpi label="Outstanding payables" value={fmtIdr(stats.outstandingIdr)} sub="unpaid on POs" cls={stats.outstandingIdr > 0.5 ? 'text-amber-300' : 'text-emerald-400'} />
             <Kpi label="Quotes → POs" value={stats.quotes.length > 0 ? `${Math.round((stats.pos.length / stats.quotes.length) * 100)}%` : '—'} sub={`${stats.pos.length} of ${stats.quotes.length} quotes`} cls="text-slate-200" />
           </div>
+
+          {/* Lead time — the supplier's own history, one click from the full comparison */}
+          {lead && (lead.completed > 0 || lead.open > 0) && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2">
+              <span className="text-slate-400">{t('Lead time')}</span>
+              {lead.stages.poToReceived && <span className="text-slate-200 tabular-nums">{tf('PO → fully received: {d} days (median of {n})', { d: lead.stages.poToReceived.median, n: lead.stages.poToReceived.n })}</span>}
+              {lead.promise && <span className="text-slate-300 tabular-nums">{tf('{a} of {b} on time', { a: lead.promise.onTime, b: lead.promise.measured })}</span>}
+              {lead.overdue > 0 && <span className="text-red-300 tabular-nums">{tf('{n} open PO late', { n: lead.overdue })}</span>}
+              <Link href="/suppliers/lead-times" className="ml-auto text-sky-300 hover:text-sky-200">{t('All lead times')} →</Link>
+            </div>
+          )}
 
           {/* Documents — every quote & PO, linked to Deal Lookup */}
           <section>

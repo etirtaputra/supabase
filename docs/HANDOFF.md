@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-16** · last change: *BOM Calculator — Project works & manpower tab (works items cost-linked to the BOM, insurance as % of the other rows, crew cross-check on installation)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-16** · last change: *Supplier Lead Times dashboard (/suppliers/lead-times): quote → PO → payment → fully received per supplier* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -169,7 +169,44 @@ or documents on Google Drive, but not synced in Basecamp or ICAPROC."*
   order `YYYYMMDD <PI>, <PO> [items]`, files `1. PI_…` `2. PO_…` `3. DP…`
   `5. BALANCE PAYMENT_<PI>_<date>`.
 
-### 2026-10-16 (latest) — BOM Calculator: Project works & manpower (roadmap step 4)
+### 2026-10-16 (latest) — Supplier Lead Times dashboard
+
+Owner: "create a new dashboard module where you can track each supplier's lead
+time summary of previous POs from quote, payment to actually fully received"
+(asked "or it already exists?" — partly: `lib/inTransit.measureLead` averages
+PO → receipt per supplier internally for ETAs/reorder, the item hub shows
+per-item lead times, the Progress board tracks OPEN POs; nothing compared
+suppliers across the whole chain).
+
+- **`lib/supplierLeadTimes.ts`** (7 tests): `poTimeline` per PO — quote_date
+  (linked quote), po_date, first/last PRINCIPAL payment (6.0), received =
+  `5.0.actual_received_date` else last 30.2 receipt only when status is Fully
+  Received (receipts were keyed weeks/months late — one 2025-12 arrival has a
+  2026-09 GRN). Stages in calendar days; a backwards stage is `odd` and left
+  out of stats. Stated lead time (`statedLead`, a range held to its longer
+  end) counted from the first payment, else PO date → `promised`, `lateDays`.
+  `supplierLeadTimes` → per supplier: median/avg/min/max per stage, `split`
+  (typical median quote → received, split by each stage's share of the days
+  over complete POs — medians are not additive: Epever pays half its POs on
+  the PO date and half 40–70 days later), promise record, open POs overdue
+  (past promised, else past PO date + the supplier's median), `odd`, `noDate`
+  (Fully Received with no date). Drafts/Replaced/Cancelled excluded.
+- **Page `/suppliers/lead-times`** ("Lead Times", Purchasing, buySide; menu +
+  `lib/access.test.ts` EXPECTED updated for owner, buy_admin, data_entry,
+  finance): tiles, legend, one row per supplier with the split bar (3
+  categorical slots validated light + dark with the dataviz validator; colours
+  switch on `LIGHT_THEMES` data-theme), PO → received, deposit → balance,
+  against the quote, open late; click → every PO with dates and a Deal Lookup
+  link. Filters: period (PO date) and import/local (currency). Suppliers page:
+  header link + a lead-time line in each profile (same computation).
+- On production data (read-only export, rig): 61 POs fully received, 25 open,
+  median PO → received 31 days, 25/35 on time vs quote, **18 open POs late**
+  (several "Confirmed" POs long past due — either late or received and never
+  updated: worth a look), 17 POs with backwards dates, 8 Fully Received with
+  no received date.
+- No schema or data change.
+
+### 2026-10-16 — BOM Calculator: Project works & manpower (roadmap step 4)
 
 Owner: "go ahead with project works and manpower".
 
