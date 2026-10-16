@@ -4522,7 +4522,16 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    onboarding endpoint's filename with the cached one. The first run is split
    into two briefing cards (part 1: PROGRESS IMPOR cards; part 2: Purchasing
    Import ICL to-dos + the ISL accounting folder), each after its own /new.
-   Part B's "MIRA compression threshold" item is now the main cost driver. The
+   Part B's "MIRA compression threshold" item is now the main cost driver.
+   **16 Oct:** rollback card in the briefing ("MIRA compression · 16 Oct"):
+   `compression.threshold_tokens: 150000` (same as MAX), one line, Save,
+   Restart Gateway; rollback = delete the line or paste back the owner's copy
+   of config.yaml. LOWER, not higher — the 14 Oct chat message to the owner
+   said "raise" and was wrong. Checked in Hermes source: `threshold` 0.50 of
+   the window decides unless `threshold_tokens` is set (cap = the lower of
+   the two); config migration 46→47 removes only a seeded 256000, so MIRA's
+   schema-46 config may already carry 256000 — the card reads the block
+   first. The aux compression model is left alone (one change at a time). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
