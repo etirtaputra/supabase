@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-16T22:33:13Z",
+    title: "Kalkulator BOM: tab baru “Pekerjaan proyek & tenaga kerja” — biaya proyek terhubung ke BOM, dan biaya tim sebagai pemeriksa instalasi",
+    details: [
+      "Pekerjaan proyek (survei, kantor dan gudang sementara, scaffolding, manajemen lokasi, asuransi CAR, desain, commissioning …): setiap item dihargai borongan, per bulan × lama proyek, per Wp × kapasitas, atau persen dari baris lain. Baris BOM “Pekerjaan proyek” membaca biayanya; item baru langsung membawa barisnya.",
+      "Asuransi CAR dihitung sebagai persen dari semua baris LAIN — tidak pernah dari dirinya sendiri, jadi tidak berputar — dan bila tarifnya kosong muncul sebagai “belum ada harga”, bukan nol diam-diam.",
+      "Tenaga kerja: peran × orang × hari × upah harian (hari kosong = seluruh proyek). Tidak menambah harga — dibandingkan dengan instalasi yang dijual di BOM, total dan per kategori. Bila instalasi dijual di bawah biaya tim, muncul sebagai masalah.",
+    ],
+  },
+  {
     at: "2026-10-15T21:55:48Z",
     title: "Tech Specs: tombol “Salin prompt AI” dan form untuk Inverter On-Grid",
     details: [

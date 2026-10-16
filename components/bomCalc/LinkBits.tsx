@@ -12,7 +12,7 @@ import type { Explanation, SourceTab } from '@/lib/bomCalc/links';
 import { CELL } from './Fields';
 
 /** The tab each calculated value lives on — English, translated where shown. */
-export const TAB_LABEL: Record<SourceTab, string> = { strings: 'Strings & inverters', dc: 'DC cable', ac: 'AC cable', raceway: 'Cable raceway', civil: 'Civil & O&M' };
+export const TAB_LABEL: Record<SourceTab, string> = { strings: 'Strings & inverters', dc: 'DC cable', ac: 'AC cable', raceway: 'Cable raceway', civil: 'Civil & O&M', works: 'Project works & manpower' };
 export const fmtN = (n: number, dp = 0) => n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 
 // ── Link helpers ─────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ export function LinkSelect({ links: all, value, onChange, placeholder, title, cl
     <select value={value} title={title} onChange={(e) => onChange(e.target.value)} className={`${CELL} ${className}`}>
       {placeholder !== undefined && <option value="">{placeholder}</option>}
       {!known && value && <option value={value}>{value}</option>}
-      {(['strings', 'dc', 'ac', 'raceway', 'civil'] as SourceTab[]).map((tb) => (
+      {(['strings', 'dc', 'ac', 'raceway', 'civil', 'works'] as SourceTab[]).map((tb) => (
         links.some((l) => l.tab === tb) && <optgroup key={tb} label={t(TAB_LABEL[tb])}>
           {links.filter((l) => l.tab === tb).map((l) => (
             <option key={l.key} value={l.key}>{l.label} — {fmtN(l.value, l.value % 1 ? 2 : 0)} {l.unit}</option>

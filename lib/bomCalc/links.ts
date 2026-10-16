@@ -22,11 +22,12 @@ import type { AcResult } from './ac.ts';
 import type { BomRow } from './bom.ts';
 import { sizeLabel, type RacewayResult } from './raceway.ts';
 import { STANDARD_OM_ITEMS, type CivilResult } from './civil.ts';
+import { STANDARD_WORKS_ITEMS, type WorksResult } from './works.ts';
 
-export type SourceTab = 'strings' | 'dc' | 'ac' | 'raceway' | 'civil';
+export type SourceTab = 'strings' | 'dc' | 'ac' | 'raceway' | 'civil' | 'works';
 
 /** Keys that are a cost per unit (a BOM row's costKey), not a quantity. */
-export const isCostKey = (key: string) => /^(rw\.tray\.costPerM|civil\.(walkway|lifeline)\.costPerM|om\.[^.]+\.perYear)$/.test(key);
+export const isCostKey = (key: string) => /^(rw\.tray\.costPerM|civil\.(walkway|lifeline)\.costPerM|om\.[^.]+\.perYear|works\.[^.]+\.cost)$/.test(key);
 
 export interface KeyInfo {
   key: string;
@@ -95,14 +96,21 @@ export function describeKey(doc: BomCalcDoc, key: string): KeyInfo | null {
   m = /^om\.([^.]+)\.(perYear|visits)$/.exec(key);
   if (m) {
     const it = (doc.civil?.om.items ?? STANDARD_OM_ITEMS).find((x) => x.id === m![1]);
-    const name = it?.label || m[1];
+    const name = it?.label || 'new item';
     return m[2] === 'perYear' ? k(`O&M: ${name}, cost per year`, 'civil', 'Rp/year') : k(`O&M: ${name}, visits`, 'civil', 'visits');
+  }
+  if (key === 'works.months') return k('Project duration', 'works', 'months');
+  if (key === 'mp.mandays') return k('Crew man-days', 'works', 'man-days');
+  m = /^works\.([^.]+)\.cost$/.exec(key);
+  if (m) {
+    const it = (doc.works?.items ?? STANDARD_WORKS_ITEMS).find((x) => x.id === m![1]);
+    return k(`Project works: ${it?.label || 'new item'}`, 'works', 'Rp');
   }
   return null;
 }
 
 /** The rule and the parts behind one key, with today's value. */
-export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: DcResult, ac: AcResult, key: string, rw?: RacewayResult, cv?: CivilResult): Explanation | null {
+export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: DcResult, ac: AcResult, key: string, rw?: RacewayResult, cv?: CivilResult, wk?: WorksResult): Explanation | null {
   const info = describeKey(doc, key);
   if (!info) return null;
   const value = values[key] ?? 0;
@@ -169,6 +177,7 @@ export function explainKey(doc: BomCalcDoc, values: Record<string, number>, dc: 
   }
   if (key.startsWith('rw.') && rw) return explainRaceway(rw, key, out);
   if ((key.startsWith('civil.') || key.startsWith('om.')) && cv) return explainCivil(cv, key, out);
+  if ((key.startsWith('works.') || key.startsWith('mp.')) && wk) return explainWorks(doc, wk, values, key, out);
   return out('');
 }
 
@@ -268,6 +277,24 @@ function explainCivil(cv: CivilResult, key: string, out: (rule: string, parts?: 
   return out('');
 }
 
+/** The project-works and crew keys: the basis of each item, the roles behind the man-days. */
+function explainWorks(doc: BomCalcDoc, wk: WorksResult, values: Record<string, number>, key: string, out: (rule: string, parts?: Explanation['parts']) => Explanation): Explanation {
+  if (key === 'works.months') return out('Project duration in months', [{ label: 'Months', detail: `${wk.months}`, value: wk.months }]);
+  if (key === 'mp.mandays') return out('Σ crew roles: people × days', wk.crew.filter((c) => c.manDays > 0).map((c) => ({
+    label: c.label || 'Role', detail: `× ${c.days} days`, value: c.manDays,
+  })));
+  const m = /^works\.([^.]+)\.cost$/.exec(key);
+  const it = m ? (doc.works?.items ?? STANDARD_WORKS_ITEMS).find((x) => x.id === m[1]) : null;
+  if (!it) return out('');
+  const r = it.rate ?? 0;
+  const v = values[key] ?? 0;
+  const label = it.label || 'Item';
+  if (it.basis === 'month') return out('Rate a month × project months', [{ label, detail: `${r.toLocaleString('en-US')} × ${wk.months}`, value: v }]);
+  if (it.basis === 'wp') return out('Rate per Wp × plant Wp', [{ label, detail: `${r} × ${wk.inputs.plantWp.toLocaleString('en-US')}`, value: v }]);
+  if (it.basis === 'percent') return out('Rate % × the total of every row that is not itself a percentage', [{ label, detail: `${r} %`, value: v }]);
+  return out('Lump sum', [{ label, detail: '', value: v }]);
+}
+
 /** key → the BOM rows that read it, for their quantity or their cost. */
 export function usageByKey(rows: BomRow[]): Map<string, BomRow[]> {
   const map = new Map<string, BomRow[]>();
@@ -293,7 +320,9 @@ export function unusedKeys(doc: BomCalcDoc, values: Record<string, number>): str
     'rw.tray.m', 'rw.conduit', 'rw.glands', 'rw.labels', 'rw.ties', 'rw.clips',
     'civil.walkway.m', 'civil.lifeline.m', 'civil.pipe.m', 'civil.pump', 'civil.pits',
     // A priced O&M item must reach a row's cost, or it is offered and never charged.
-    ...(doc.civil?.om.items ?? STANDARD_OM_ITEMS).map((i) => `om.${i.id}.perYear`)];
+    ...(doc.civil?.om.items ?? STANDARD_OM_ITEMS).map((i) => `om.${i.id}.perYear`),
+    // A priced project-works item must reach a row, or it is costed and never sold.
+    ...(doc.works?.items ?? STANDARD_WORKS_ITEMS).map((i) => `works.${i.id}.cost`)];
   for (const k of wanted) {
     if ((values[k] ?? 0) <= 0) continue;
     if (used.has(k)) continue;

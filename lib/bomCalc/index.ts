@@ -12,12 +12,13 @@ import { calculateDc, DC_DEFAULTS, type Check, type DcResult, type DcSettings, t
 import { calculateAc, AC_DEFAULTS, type AcResult, type AcSegment, type AcSettings } from './ac.ts';
 import { priceBom, type BomRow, type BomTotals, type PricedRow } from './bom.ts';
 import { CABLE_TYPES, type CableType } from './cables.ts';
-import { standardRows } from './template.ts';
+import { standardRows, STANDARD_CATEGORIES } from './template.ts';
 import { calculateRaceway, newRacewayDoc, type RacewayDoc, type RacewayResult } from './raceway.ts';
 import { calculateCivil, newCivilDoc, type CivilDoc, type CivilResult } from './civil.ts';
+import { calculateWorks, crossCheckLabour, newWorksDoc, priceWorksPercent, type WorksDoc, type WorksResult } from './works.ts';
 import { describeKey, unusedKeys, isCostKey, type SourceTab } from './links.ts';
 
-export type { Check, ModuleSpec, InverterGroup, RoofRun, AcSegment, BomRow, PricedRow, BomTotals, DcResult, AcResult, RacewayDoc, RacewayResult, CivilDoc, CivilResult };
+export type { Check, ModuleSpec, InverterGroup, RoofRun, AcSegment, BomRow, PricedRow, BomTotals, DcResult, AcResult, RacewayDoc, RacewayResult, CivilDoc, CivilResult, WorksDoc, WorksResult };
 
 export interface BomCalcDoc {
   version: 1;
@@ -34,6 +35,8 @@ export interface BomCalcDoc {
   raceway?: RacewayDoc;
   /** Civil works and O&M. Absent on calculations saved before 2026-10-15 — read it through civilOf(). */
   civil?: CivilDoc;
+  /** Project works and manpower. Absent on calculations saved before 2026-10-16 — read it through worksOf(). */
+  works?: WorksDoc;
   rows: BomRow[];
 }
 
@@ -42,6 +45,7 @@ export interface BomCalcResult {
   ac: AcResult;
   raceway: RacewayResult;
   civil: CivilResult;
+  works: WorksResult;
   /** Every value a BOM row can link to, by key. */
   values: Record<string, number>;
   rows: PricedRow[];
@@ -78,6 +82,7 @@ export function newBomCalcDoc(): BomCalcDoc {
     ac: { ...AC_DEFAULTS },
     raceway: newRacewayDoc(),
     civil: newCivilDoc(),
+    works: newWorksDoc(),
     rows: standardRows(),
   };
 }
@@ -103,6 +108,13 @@ export function civilOf(doc: BomCalcDoc): CivilDoc {
   return { ...cv, settings: { ...d.settings, ...cv.settings }, om: { items: cv.om?.items ?? d.om.items, settings: { ...d.om.settings, ...cv.om?.settings } } };
 }
 
+/** The project-works and manpower inputs, with defaults for a calculation saved before they existed. */
+export function worksOf(doc: BomCalcDoc): WorksDoc {
+  const d = newWorksDoc();
+  const w = doc.works ?? d;
+  return { items: w.items ?? d.items, crew: w.crew ?? [], settings: { ...d.settings, ...w.settings } };
+}
+
 export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   const dc = calculateDc(doc.module, doc.inverterGroups, doc.roofs, doc.dc);
   const ac = calculateAc(doc.acSegments, doc.ac);
@@ -111,6 +123,8 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
     roofs: doc.roofs, acSegments: doc.acSegments,
   });
   const civil = calculateCivil(civilOf(doc), { inverters: dc.inverters, plantWp: dc.wp });
+  const worksDoc = worksOf(doc);
+  const works = calculateWorks(worksDoc, { plantWp: dc.wp });
 
   const values: Record<string, number> = {
     'pv.modules': dc.modules, 'pv.strings': dc.strings, 'pv.wp': dc.wp, 'pv.kwp': dc.wp / 1000,
@@ -151,12 +165,33 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
     values[`rw.tray.${size}.pieces`] = b.pieces;
   }
 
+  values['works.months'] = works.months;
+  values['mp.mandays'] = works.manDays;
+  for (const it of works.items) values[`works.${it.id}.cost`] = it.cost;
+
   const plantWp = dc.wp;
-  const bom = priceBom(doc.rows, values, { defaultMargin: doc.project.defaultMargin, plantWp, ppnPct: doc.project.ppnPct });
+  const opts = { defaultMargin: doc.project.defaultMargin, plantWp, ppnPct: doc.project.ppnPct };
+  let bom = priceBom(doc.rows, values, opts);
+  // Percent items (insurance) are a share of every OTHER row — priced on the
+  // first pass's total of rows that do not read one, then the BOM is priced
+  // again. Never on themselves, so never circular.
+  const percentKeys = new Set(works.items.filter((i) => i.basis === 'percent').map((i) => `works.${i.id}.cost`));
+  if (percentKeys.size) {
+    const byId = new Map(bom.rows.map((r) => [r.id, r]));
+    const base = doc.rows.filter((r) => !(r.costKey && percentKeys.has(r.costKey))).reduce((a, r) => a + (byId.get(r.id)?.total ?? 0), 0);
+    priceWorksPercent(worksDoc, works, base);
+    for (const it of works.items) values[`works.${it.id}.cost`] = it.cost;
+    bom = priceBom(doc.rows, values, opts);
+  }
+  const catLabel = (k: string) => STANDARD_CATEGORIES.find((c) => c.key === k)?.label ?? k;
+  crossCheckLabour(works, {
+    total: bom.totals.install,
+    byCategory: Object.fromEntries(Object.entries(bom.totals.byCategory).map(([k, v]) => [k, v.install])),
+  }, catLabel);
 
   // A row that says one cable but is linked to another — the copper-vs-aluminium
   // mistake that swung one 2026-10 rooftop bid by about Rp 2 billion.
-  const checks: Check[] = [...dc.checks, ...ac.checks, ...raceway.checks, ...civil.checks, ...bom.checks];
+  const checks: Check[] = [...dc.checks, ...ac.checks, ...raceway.checks, ...civil.checks, ...works.checks, ...bom.checks];
   for (const r of doc.rows) {
     if (r.qty.mode !== 'link') continue;
     let linkedType: CableType | null = null;
@@ -186,7 +221,7 @@ export function computeBomCalc(doc: BomCalcDoc): BomCalcResult {
   }
   const order = { error: 0, warn: 1, ok: 2 } as const;
   checks.sort((a, b) => order[a.level] - order[b.level]);
-  return { dc, ac, raceway, civil, values, rows: bom.rows, totals: bom.totals, plantWp, checks };
+  return { dc, ac, raceway, civil, works, values, rows: bom.rows, totals: bom.totals, plantWp, checks };
 }
 
 /** What a BOM row can link its quantity (or, for cost keys, its cost) to — name, source tab, unit and today's value. */
@@ -202,7 +237,8 @@ export function linkOptions(doc: BomCalcDoc, res: BomCalcResult): { key: string;
   keys.push('civil.walkway.m', 'civil.walkway.panels', 'civil.walkway.supports', 'civil.walkway.costPerM',
     'civil.lifeline.m', 'civil.lifeline.endAnchors', 'civil.lifeline.intAnchors', 'civil.lifeline.costPerM',
     'civil.pipe.m', 'civil.pump', 'civil.pits', 'civil.stations', 'om.years',
-    ...res.civil.om.items.flatMap((i) => [`om.${i.id}.visits`, `om.${i.id}.perYear`]));
+    ...res.civil.om.items.flatMap((i) => [`om.${i.id}.visits`, `om.${i.id}.perYear`]),
+    'works.months', 'mp.mandays', ...res.works.items.map((i) => `works.${i.id}.cost`));
   return keys.flatMap((key) => {
     const info = key in res.values ? describeKey(doc, key) : null;
     return info ? [{ key, label: info.label, tab: info.tab, unit: info.unit, value: res.values[key], cost: isCostKey(key) }] : [];

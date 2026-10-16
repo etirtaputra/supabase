@@ -36,14 +36,15 @@ import { NumField, TextField, Labeled, Card, CELL, SMALL_BTN, DEL_BTN } from '@/
 import { TAB_LABEL, fmtN, UsedBy, LinkLines, LinkSelect } from '@/components/bomCalc/LinkBits';
 import { RacewayTab } from '@/components/bomCalc/RacewayTab';
 import { CivilTab } from '@/components/bomCalc/CivilTab';
+import { WorksTab } from '@/components/bomCalc/WorksTab';
 import { DeleteCalc } from '@/components/bomCalc/DeleteCalc';
 import type { Component } from '@/types/database';
 
-type Tab = 'strings' | 'dc' | 'ac' | 'raceway' | 'civil' | 'bom' | 'links' | 'checks';
+type Tab = 'strings' | 'dc' | 'ac' | 'raceway' | 'civil' | 'works' | 'bom' | 'links' | 'checks';
 interface SpecItem { component_id: string; supplier_model: string; internal_description: string | null; category: string; specifications: Record<string, unknown> | null }
 
 /** Results that must land in a BOM row (the same list unusedKeys checks). */
-const MUST_USE = /^(pv\.modules|dc\.(cable|connectors)\.\d+|ac\.seg\.[^.]+\.(phase|pe)|rw\.(tray\.m|conduit|glands|labels|ties|clips)|civil\.(walkway\.m|lifeline\.m|pipe\.m|pump|pits)|om\.[^.]+\.perYear)$/;
+const MUST_USE = /^(pv\.modules|dc\.(cable|connectors)\.\d+|ac\.seg\.[^.]+\.(phase|pe)|rw\.(tray\.m|conduit|glands|labels|ties|clips)|civil\.(walkway\.m|lifeline\.m|pipe\.m|pump|pits)|om\.[^.]+\.perYear|works\.[^.]+\.cost)$/;
 
 let uid = 0;
 const newId = (p: string) => `${p}${Date.now().toString(36)}${(uid++).toString(36)}`;
@@ -109,7 +110,7 @@ export default function BomCalcEditorPage() {
   const links = useMemo(() => (doc && res ? linkOptions(doc, res) : []), [doc, res]);
   // Both directions of every link: a key's explanation, and the BOM rows that read it.
   const usage = useMemo(() => usageByKey(doc?.rows ?? []), [doc]);
-  const explain = useCallback((key: string) => (doc && res ? explainKey(doc, res.values, res.dc, res.ac, key, res.raceway, res.civil) : null), [doc, res]);
+  const explain = useCallback((key: string) => (doc && res ? explainKey(doc, res.values, res.dc, res.ac, key, res.raceway, res.civil, res.works) : null), [doc, res]);
   const [focusRow, setFocusRow] = useState<string | null>(null);
   const goToRow = (rowId: string) => {
     setTab('bom'); setFocusRow(rowId);
@@ -177,6 +178,7 @@ export default function BomCalcEditorPage() {
     { key: 'ac', label: t('AC cable') },
     { key: 'raceway', label: t('Cable raceway') },
     { key: 'civil', label: t('Civil & O&M') },
+    { key: 'works', label: t('Project works & manpower') },
     { key: 'bom', label: 'Bill of Material' },
     { key: 'links', label: t('Links') },
     { key: 'checks', label: errors ? tf('Checks ({n})', { n: errors }) : t('Checks') },
@@ -441,6 +443,9 @@ export default function BomCalcEditorPage() {
       {/* ── Civil works and O&M ── */}
       {tab === 'civil' && <CivilTab doc={doc} res={res} edit={edit} explain={explain} usage={usage} onGo={goToRow} />}
 
+      {/* ── Project works and manpower ── */}
+      {tab === 'works' && <WorksTab doc={doc} res={res} edit={edit} explain={explain} usage={usage} onGo={goToRow} />}
+
       {/* ── Bill of Material ── */}
       {tab === 'bom' && (
         <BomTable doc={doc} res={res} links={links} setRow={setRow} edit={edit}
@@ -591,7 +596,7 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor, explain, 
                                   </div>
                                   {ex ? (
                                     <button onClick={() => onGoTab(ex.tab)} title={tf('Calculated on the {tab} tab', { tab: t(TAB_LABEL[ex.tab]) })}
-                                      className="block w-full text-right text-[10px] text-sky-400/90 hover:text-sky-300 truncate">← {ex.label}</button>
+                                      className="block ml-auto max-w-[9rem] text-right text-[10px] text-sky-400/90 hover:text-sky-300 truncate">← {ex.label}</button>
                                   ) : <span className="block text-[10px] text-red-300">{r.qty.key}</span>}
                                   <button onClick={() => toggleHow(r.id)} className="text-[10px] text-slate-500 hover:text-white">{howOpen.has(r.id) ? t('Hide') : t('How?')}</button>
                                 </div>
@@ -609,8 +614,8 @@ function BomTable({ doc, res, links, setRow, edit, offerable, costFor, explain, 
                                     <button className="text-[10px] text-slate-500 hover:text-white" title={t('Type the cost instead')} onClick={() => setRow(r.id, { costKey: null, cost: Math.round(res.values[r.costKey!] ?? 0) || null })}>✎</button>
                                   </div>
                                   {ex ? (
-                                    <button onClick={() => onGoTab(ex.tab)} title={tf('Calculated on the {tab} tab', { tab: t(TAB_LABEL[ex.tab]) })}
-                                      className="block w-full text-right text-[10px] text-sky-400/90 hover:text-sky-300 truncate">← {ex.label}</button>
+                                    <button onClick={() => onGoTab(ex.tab)} title={`${ex.label} — ${tf('Calculated on the {tab} tab', { tab: t(TAB_LABEL[ex.tab]) })}`}
+                                      className="block ml-auto max-w-[9rem] text-right text-[10px] text-sky-400/90 hover:text-sky-300 truncate">← {ex.label}</button>
                                   ) : <span className="block text-[10px] text-red-300">{r.costKey}</span>}
                                 </div>
                               );

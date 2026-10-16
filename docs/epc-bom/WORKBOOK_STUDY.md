@@ -130,7 +130,10 @@ wrong column (6.57 yr, correct ≈ 5.62).
    per station (1) are working figures the engineers must confirm; tests are
    the recorded rules on the recorded quantities, to be checked against the
    sheets when the workbooks are back.
-4. Project works and manpower (Jasa) as the cross-check on installation.
+4. ✅ Project works and manpower (Jasa) as the cross-check on installation
+   (2026-10-16, `lib/bomCalc/works.ts`). Duration 4 months × 26 working days
+   are starting figures; the crew in the tests is a test crew built to cost
+   the recorded Rp 1,762 m.
 5. Template X (Xurya): sections A–P, responsibility column, man-day installation,
    TOP schedule and FS (reuse `lib/energyEconomics.ts`).
 6. "Make a proposal from this" — write a normal 10.0/10.1/10.2 proposal from a

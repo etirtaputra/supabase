@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-15** · last change: *Tech Specs — "Copy AI prompt" (lib/specPrompt.ts) and a declared field set for on_grid_inverter* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-16** · last change: *BOM Calculator — Project works & manpower tab (works items cost-linked to the BOM, insurance as % of the other rows, crew cross-check on installation)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -169,7 +169,33 @@ or documents on Google Drive, but not synced in Basecamp or ICAPROC."*
   order `YYYYMMDD <PI>, <PO> [items]`, files `1. PI_…` `2. PO_…` `3. DP…`
   `5. BALANCE PAYMENT_<PI>_<date>`.
 
-### 2026-10-15 (latest) — Tech Specs: "Copy AI prompt", and on-grid inverters get a field set
+### 2026-10-16 (latest) — BOM Calculator: Project works & manpower (roadmap step 4)
+
+Owner: "go ahead with project works and manpower".
+
+- **Engine** `lib/bomCalc/works.ts` (6 tests in `works.test.ts`): works items
+  with `basis` lump / month (× `durationMonths`) / wp (× plant Wp) / percent
+  (× the total of every row that does NOT read a percent item — two-pass
+  pricing in `computeBomCalc`, so never circular). Values
+  `works.<id>.cost` (cost keys), `works.months`, `mp.mandays`. 13 standard
+  items whose ids the template's project rows read (qty 1, costKey).
+  Crew roles: people × days (null = months × working days) × day rate →
+  man-days, cost; `crossCheckLabour` compares Σ installation sold (BOM
+  totals) with the crew cost, overall (error when sold below cost, ok line
+  otherwise) and per category for roles that name one (warn). Crew never
+  adds to the price.
+- Defaults: 4 months × 26 working days (starting figures). Tests: Hon Chuan
+  'Jasa' 1,841 m vs a test crew of 1,762 m → 4.29 %; CAR insurance 0.2 % of
+  Hon Chuan row 6 = Rp 18,498,927.29, unpriced at 0.
+- `doc.works?` optional (`worksOf`); `SourceTab` + 'works'; `isCostKey`,
+  `describeKey`, `explainKey` (8th arg `wk`), `unusedKeys` (priced works
+  items must reach a row). New tab `components/bomCalc/WorksTab.tsx`;
+  "+ Item" brings its own cost-linked BOM row, × removes both.
+- BOM table: the "← source" labels under qty and cost are capped at 9rem
+  (long cost labels were squeezing the description column).
+- No schema or data change.
+
+### 2026-10-15 — Tech Specs: "Copy AI prompt", and on-grid inverters get a field set
 
 Owner: "do you have prompt on how to enter the json tech spec for products
 the right way?" → "go ahead, build both".
@@ -3830,10 +3856,10 @@ Roadmap in `docs/epc-bom/WORKBOOK_STUDY.md` §5, one step per thread:
    the raceway tests can be checked against the tray sheets cell by cell.
 2. ✅ Civil / O&M (2026-10-15, §4). Open: engineers to confirm supports per
    panel (2), pump sets (1), pits per inverter (1), inverters per station (1).
-3. Project works + manpower (Jasa) as the installation cross-check.
+3. ✅ Project works + manpower (2026-10-16, §4).
 4. Template X (Xurya): sections A–P, man-day installation, TOP, FS.
 5. "Make a proposal from this" → write 10.0/10.1/10.2 (needs the owner's OK).
-Next: ask the owner which of 3–5 to build (default suggestion: 3, project works + manpower).
+Next: ask the owner which of 4–5 to build (Template X + TOP + FS, or "Make a proposal from this").
 
 ### 6.0 OPEN ITEMS from the 2026-09-11 → 27 thread — clear these FIRST
 
