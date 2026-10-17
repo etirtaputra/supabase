@@ -35,7 +35,9 @@
  *
  * Pure: no fetch, no React. `today` is an argument so the tests are stable.
  */
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
+import { fetchAllRows } from './fetchAllRows.ts';
 import { parseLeadDays, addWorkingDays, INCOMING_PO_STATUSES } from './inTransit.ts';
 
 export type Stage = 'quoteToPo' | 'poToPay' | 'payToPaid' | 'payToReceived' | 'poToReceived' | 'quoteToReceived';
@@ -254,4 +256,66 @@ export function supplierLeadTimes(input: { pos: LtPo[]; quotes: LtQuote[]; costs
     });
   }
   return out.sort((a, b) => (b.completed + b.open) - (a.completed + a.open) || (b.lastPoDate ?? '').localeCompare(a.lastPoDate ?? ''));
+}
+
+// ── The headline, shared by the page and the dashboard panel ─────────────────
+
+export interface LeadDigest {
+  /** PO → fully received per way of shipping, over the POs passed in. */
+  byVia: { via: ShipVia | null; count: number; stats: StageStats | null }[];
+  received: number;
+  open: number;
+  /** Median PO → fully received across every supplier. */
+  poToReceived: StageStats | null;
+  promised: number;
+  onTime: number;
+  lateOpen: number;
+  odd: number;
+  noDate: number;
+  /** Suppliers worth a look first: late open POs, then late against their quotes, then busiest. */
+  watch: SupplierLead[];
+}
+
+export function leadDigest(leads: SupplierLead[], watchCount = 5): LeadDigest {
+  const all = leads.flatMap((l) => l.pos);
+  const received = all.filter((p) => p.received);
+  const promised = received.filter((p) => p.lateDays != null);
+  const stats = (ps: PoTimeline[]) => stageStats(ps.map((p) => p.stages.poToReceived).filter((v): v is number => v != null));
+  const late = (l: SupplierLead) => (l.promise ? l.promise.measured - l.promise.onTime : 0);
+  return {
+    byVia: ([...SHIP_VIAS, null] as (ShipVia | null)[])
+      .map((via) => ({ via, count: all.filter((p) => p.via === via).length, stats: stats(received.filter((p) => p.via === via)) }))
+      .filter((b) => b.count > 0),
+    received: received.length, open: all.filter((p) => p.open).length,
+    poToReceived: stats(received),
+    promised: promised.length, onTime: promised.filter((p) => p.lateDays! <= 0).length,
+    lateOpen: leads.reduce((a, l) => a + l.overdue, 0),
+    odd: leads.reduce((a, l) => a + l.odd, 0),
+    noDate: leads.reduce((a, l) => a + l.noDate, 0),
+    watch: [...leads].filter((l) => l.completed + l.open > 0)
+      .sort((a, b) => b.overdue - a.overdue || late(b) - late(a) || (b.completed + b.open) - (a.completed + a.open))
+      .slice(0, watchCount),
+  };
+}
+
+/**
+ * Everything the lead times need, read straight from the tables — for a
+ * screen (the dashboard) that does not hold the shared data hook. Buy-side
+ * only: it reads supplier payments.
+ */
+export async function fetchSupplierLeadTimes(supabase: SupabaseClient, today: string): Promise<{ leads: SupplierLead[]; names: Map<string, string> }> {
+  const page = <T>(table: string, cols: string, order: string) =>
+    fetchAllRows<T>((f, t) => supabase.from(table).select(cols).order(order).range(f, t) as unknown as PromiseLike<{ data: T[] | null; error: { message: string } | null }>)
+      .then((r) => r.rows ?? []);
+  const [pos, quotes, costs, grns, sups] = await Promise.all([
+    page<LtPo>('5.0_purchases', 'po_id, po_number, status, po_date, quote_id, supplier_id, actual_received_date, currency, method_of_shipment', 'po_id'),
+    page<LtQuote>('4.0_price_quotes', 'quote_id, quote_date, supplier_id, estimated_lead_time_days', 'quote_id'),
+    page<LtCost>('6.0_po_costs', 'po_id, cost_category, payment_date', 'cost_id'),
+    page<LtGrn>('30.2_goods_receipts', 'po_id, received_at', 'grn_id'),
+    page<{ supplier_id: string; supplier_name: string | null }>('2.0_suppliers', 'supplier_id, supplier_name', 'supplier_id'),
+  ]);
+  return {
+    leads: supplierLeadTimes({ pos, quotes, costs: costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)), grns, today }),
+    names: new Map(sups.map((s) => [s.supplier_id, s.supplier_name ?? ''])),
+  };
 }

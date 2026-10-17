@@ -7,11 +7,12 @@
  * for every PO behind the numbers, each one a click from its Deal Lookup.
  *
  * Computed from rows ICAPROC already holds (lib/supplierLeadTimes.ts); nothing
- * is stored. Same door as Suppliers (buy side).
+ * is stored. Same door as Suppliers (buy side). `?supplier=<id>` opens that
+ * supplier's row — the dashboard card links each of its suppliers here.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -24,7 +25,7 @@ import { BAR_INPUT, BAR_SELECT } from '@/constants/controls';
 import { LIGHT_THEMES } from '@/lib/theme';
 import { fmtDay } from '@/lib/formatters';
 import BrandMenu from '@/components/ui/BrandMenu';
-import { supplierLeadTimes, shipVia, SHIP_VIAS, stageStats, type LtGrn, type LtPo, type PoTimeline, type ShipVia, type Stage, type StageStats, type SupplierLead } from '@/lib/supplierLeadTimes';
+import { supplierLeadTimes, leadDigest, shipVia, SHIP_VIAS, type LtGrn, type LtPo, type PoTimeline, type ShipVia, type Stage, type StageStats, type SupplierLead } from '@/lib/supplierLeadTimes';
 
 /** "1 day", "12 days". */
 const dayLabel = (t: (s: string) => string, tf: (s: string, v: Record<string, string | number>) => string, d: number) =>
@@ -49,6 +50,10 @@ const VIA_LABEL: Record<ShipVia, string> = { Sea: 'Sea', Air: 'Air', Local: 'Loc
 const viaName = (v: ShipVia | null) => (v ? VIA_LABEL[v] : 'Not set');
 
 export default function SupplierLeadTimesPage() {
+  return <Suspense fallback={null}><LeadTimes /></Suspense>;
+}
+
+function LeadTimes() {
   const { t, tf } = useT();
   const router = useRouter();
   const { user, profile, loading: authLoading } = useAuth();
@@ -74,7 +79,8 @@ export default function SupplierLeadTimesPage() {
   const [search, setSearch] = useState('');
   const [period, setPeriod] = useState<Period>('all');
   const [via, setVia] = useState<ViaFilter>('all');
-  const [open, setOpen] = useState<string | null>(null);
+  const linked = useSearchParams().get('supplier');
+  const [open, setOpen] = useState<string | null>(linked);
 
   const today = new Date().toISOString().slice(0, 10);
   const supplierById = useMemo(() => new Map(data.suppliers.map((s) => [s.supplier_id, s])), [data.suppliers]);
@@ -105,20 +111,18 @@ export default function SupplierLeadTimesPage() {
     });
   }, [leads, search, supplierById]);
 
+  // Arrived from a link to one supplier: bring its row into view once, when it exists.
+  const scrolled = useRef(false);
+  useEffect(() => {
+    if (!linked || scrolled.current || !shown.some((l) => l.supplierId === linked)) return;
+    scrolled.current = true;
+    document.getElementById(`lt-${linked}`)?.scrollIntoView({ block: 'start' });
+  }, [linked, shown]);
+
   // Headline tiles, over what is shown.
-  const all = shown.flatMap((l) => l.pos);
-  const received = all.filter((p) => p.received);
-  const poToRecv = received.map((p) => p.stages.poToReceived).filter((v): v is number => v != null).sort((a, b) => a - b);
-  const medianAll = poToRecv.length ? (poToRecv.length % 2 ? poToRecv[poToRecv.length >> 1] : (poToRecv[poToRecv.length / 2 - 1] + poToRecv[poToRecv.length / 2]) / 2) : null;
-  const promised = received.filter((p) => p.lateDays != null);
-  const onTime = promised.filter((p) => p.lateDays! <= 0).length;
-  const overdue = shown.reduce((a, l) => a + l.overdue, 0);
-  const odd = shown.reduce((a, l) => a + l.odd, 0);
-  const noDate = shown.reduce((a, l) => a + l.noDate, 0);
-  const byVia = [...SHIP_VIAS, null].map((v) => {
-    const mine = received.filter((p) => p.via === v);
-    return { via: v, count: all.filter((p) => p.via === v).length, stats: stageStats(mine.map((p) => p.stages.poToReceived).filter((x): x is number => x != null)) };
-  }).filter((b) => b.count > 0);
+  const digest = leadDigest(shown);
+  const { received: receivedCount, open: openCount, promised: promisedCount, onTime, lateOpen: overdue, odd, noDate, byVia } = digest;
+  const medianAll = digest.poToReceived?.median ?? null;
   // One scale for every bar, so suppliers compare by length.
   const barMax = Math.max(1, ...shown.map((l) => l.split?.total ?? 0));
 
@@ -154,9 +158,9 @@ export default function SupplierLeadTimesPage() {
         {/* ── Headline ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {[
-            [t('POs fully received'), String(received.length), tf('{n} still open', { n: all.filter((p) => p.open).length })],
+            [t('POs fully received'), String(receivedCount), tf('{n} still open', { n: openCount })],
             [t('PO → fully received'), medianAll == null ? '—' : dayLabel(t, tf, medianAll), t('median, all suppliers shown')],
-            [t('On time against the quote'), promised.length ? `${onTime} / ${promised.length}` : '—', t('POs whose quote stated a lead time')],
+            [t('On time against the quote'), promisedCount ? `${onTime} / ${promisedCount}` : '—', t('POs whose quote stated a lead time')],
             [t('Open POs now late'), String(overdue), t('past the quoted date, or past the supplier usual time')],
           ].map(([k, v, sub], i) => (
             <div key={k} className={`rounded-xl border px-3 py-2 ${i === 3 && overdue ? 'border-red-500/40 bg-red-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
@@ -212,7 +216,7 @@ export default function SupplierLeadTimesPage() {
                   const isOpen = open === l.supplierId;
                   return (
                     <React.Fragment key={l.supplierId}>
-                      <tr onClick={() => setOpen(isOpen ? null : l.supplierId)} className={`cursor-pointer align-middle ${isOpen ? 'bg-sky-500/5' : 'hover:bg-white/[0.02]'}`}>
+                      <tr id={`lt-${l.supplierId}`} onClick={() => setOpen(isOpen ? null : l.supplierId)} className={`cursor-pointer align-middle ${isOpen ? 'bg-sky-500/5' : 'hover:bg-white/[0.02]'}`}>
                         <td className="px-3 py-2">
                           <div className="text-slate-100 font-semibold">{s?.supplier_name ?? t('Unknown supplier')}</div>
                           <div className="text-[10px] text-slate-500">{[s?.supplier_code, l.lastPoDate && tf('last PO {d}', { d: fmtDay(l.lastPoDate) })].filter(Boolean).join(' · ')}</div>

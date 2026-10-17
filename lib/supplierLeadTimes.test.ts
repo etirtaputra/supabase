@@ -115,3 +115,21 @@ test('Sea, air and local are kept apart: an air order is late against air histor
   assert.equal(s.overdue, 1, 'judged against air (10 d), so it is late');
   assert.equal(s.pos.find((p) => p.poId === 'l1')?.via, 'Local');
 });
+
+import { leadDigest } from './supplierLeadTimes.ts';
+
+test('The headline shared by the page and the dashboard: per shipping, on time, late, and who to look at first', () => {
+  const pos: LtPo[] = [
+    po({ po_id: 'a', supplier_id: 'calm', method_of_shipment: 'Sea', po_date: '2026-01-01', actual_received_date: '2026-03-02' }),
+    po({ po_id: 'b', supplier_id: 'calm', method_of_shipment: 'Sea', po_date: '2026-02-01', actual_received_date: '2026-04-12' }),
+    po({ po_id: 'c', supplier_id: 'calm', method_of_shipment: 'Sea', po_date: '2026-03-01', actual_received_date: '2026-05-01' }),
+    po({ po_id: 'd', supplier_id: 'late', method_of_shipment: 'Air', po_date: '2026-03-01', actual_received_date: '2026-03-11' }),
+    po({ po_id: 'e', supplier_id: 'late', method_of_shipment: 'Air', status: 'Confirmed', po_date: '2026-09-01', actual_received_date: null }),
+  ];
+  const d = leadDigest(supplierLeadTimes({ pos, quotes: [], costs: [], grns: [], today: TODAY }));
+  assert.deepEqual(d.byVia.map((b) => [b.via, b.count, b.stats?.median ?? null]), [['Sea', 3, 61], ['Air', 2, 10]], 'sea 60, 70, 61 days → median 61');
+  assert.equal(d.received, 4);
+  assert.equal(d.open, 1);
+  assert.equal(d.lateOpen, 1);
+  assert.deepEqual(d.watch.map((l) => l.supplierId), ['late', 'calm'], 'the supplier with a late open PO comes first, though it has fewer POs');
+});

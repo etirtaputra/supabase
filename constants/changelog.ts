@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-17T04:34:15Z",
+    title: "Dashboard: modul baru Lead Time Pemasok",
+    details: [
+      "Di Dashboard: lead time PO → diterima lengkap per cara kirim (Laut, Udara, Lokal, belum diisi), berapa PO tepat waktu dibanding penawaran, dan berapa PO berjalan yang kini terlambat.",
+      "Daftar sampai 5 pemasok yang perlu dicek dulu — yang punya PO terlambat lebih dulu. Klik pemasok untuk langsung membuka barisnya di halaman Lead Time Pemasok.",
+      "Tampil untuk peran pembelian (owner, admin pembelian, data entry, keuangan); bisa disembunyikan atau dipindah lewat Sesuaikan.",
+    ],
+  },
+  {
     at: "2026-10-16T23:49:05Z",
     title: "Lead Time Pemasok: dipisah menurut pengiriman — Laut, Udara, Lokal",
     details: [

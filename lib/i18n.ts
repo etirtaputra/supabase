@@ -2019,6 +2019,13 @@ export const ID: Record<string, string> = {
   'Prompt copied. Paste it into ChatGPT or Claude with the datasheet, then replace the JSON here with the answer and save.': 'Prompt tersalin. Tempelkan ke ChatGPT atau Claude bersama datasheet, lalu ganti JSON di sini dengan jawabannya dan simpan.',
   'Could not copy. Allow clipboard access and try again.': 'Tidak dapat menyalin. Izinkan akses clipboard lalu coba lagi.',
   // Supplier lead times (app/suppliers/lead-times)
+  'Supplier lead times': 'Lead time pemasok',
+  'How long suppliers take, sea, air and local, and who is running late': 'Berapa lama pemasok mengirim, laut, udara dan lokal, dan siapa yang terlambat',
+  '{n} received': '{n} diterima',
+  'Suppliers to look at first': 'Pemasok yang perlu dicek dulu',
+  '{on} of {all} on time': '{on} dari {all} tepat waktu',
+  'No purchase orders to measure yet.': 'Belum ada PO untuk diukur.',
+  '{n} POs have dates to fix, see Lead Times.': '{n} PO punya tanggal yang perlu diperbaiki, lihat Lead Time Pemasok.',
   'Shipped via': 'Dikirim via',
   'How the goods were shipped, as set on the PO': 'Cara barang dikirim, sesuai yang diisi di PO',
   'Sea, air and local': 'Laut, udara, dan lokal',

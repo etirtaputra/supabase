@@ -9,11 +9,11 @@ import { LANGUAGES } from '@/lib/language';
 import { useLanguage } from '@/hooks/useLanguage';
 import {
   mockComponents, mockSuppliers, mockPos, mockPoItems, mockPoCosts, mockQuotes, mockQuoteItems,
-  mockQueue, mockActivity, mockNewArrivals, mockArriving, mockBoard, mockPayments, mockPosition,
+  mockQueue, mockActivity, mockNewArrivals, mockArriving, mockBoard, mockPayments, mockPosition, mockLeadTimes,
 } from '@/lib/dev/mockChartData';
 import {
   ActionQueue, NewArrivals, ArrivingSoon, TopBoard, FeedCard, StockAlerts,
-  PositionStrip, MonthMotion, ActivityStream, KpiTile, QuickActions,
+  PositionStrip, MonthMotion, ActivityStream, KpiTile, QuickActions, LeadTimesCard,
 } from '@/components/dashboard/Widgets';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import WidgetArranger from '@/components/ui/WidgetArranger';
@@ -124,6 +124,7 @@ export default function Harness() {
             <NewArrivals rows={mockNewArrivals as never} days={14} />
             <ArrivingSoon data={mockArriving as never} buySide />
           </div>
+          <LeadTimesCard data={mockLeadTimes} />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiTile label="Paid This Month" value="Rp 1.138.500.000" sub="August" color="text-rose-300" ring="ring-rose-500/20" />
             <KpiTile label="Stock Value" value="Rp 3.100.000.000" sub="on-hand × avg landed cost" color="text-violet-300" ring="ring-violet-500/20" />

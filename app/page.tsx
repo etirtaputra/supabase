@@ -18,8 +18,9 @@ import { fetchPosition, type PositionData } from '@/lib/position';
 import { fetchShortages, fetchReorderAlerts, type ShortageAlert, type ReorderAlert } from '@/lib/reorder';
 import {
   KpiTile, QuickActions, ActionQueue, NewArrivals, ArrivingSoon, FeedCard, TopBoard,
-  StockAlerts, PositionStrip, MonthMotion, NextStepCard, ActivityStream,
+  StockAlerts, PositionStrip, MonthMotion, NextStepCard, ActivityStream, LeadTimesCard,
 } from '@/components/dashboard/Widgets';
+import { fetchSupplierLeadTimes, type SupplierLead } from '@/lib/supplierLeadTimes';
 import { fetchNewArrivals, fetchArrivals, type NewArrival, type ArrivingSummary } from '@/lib/catalogSignals';
 import {
   fetchSalesFacts, fetchLeaderNames, factsInPeriod, rank,
@@ -58,6 +59,7 @@ export default function Home() {
   const [payments, setPayments] = useState<Feed | null>(null);
   const [deliveries, setDeliveries] = useState<Feed | null>(null);
   const [cases, setCases] = useState<Feed | null>(null);
+  const [leadTimes, setLeadTimes] = useState<{ leads: SupplierLead[]; names: Map<string, string> } | null>(null);
   const [leaderNames, setLeaderNames] = useState<{ products: Map<string, string>; customers: Map<string, string> } | null>(null);
   // Which measure each board is ranked by — the person's own choice, kept on
   // this browser. Profit is only ever an option for a role that may see cost.
@@ -95,6 +97,7 @@ export default function Home() {
   const needStockVal = shown.has('kpiStockValue');
   const needArrived  = shown.has('newArrivals');
   const needArriving = shown.has('arriving');
+  const needLeadTimes = shown.has('leadTimes');
   const needLeaders  = shown.has('topProducts') || shown.has('topCustomers');
   const needPayments = shown.has('lastPayments');
   const needDeliv    = shown.has('lastDeliveries');
@@ -183,6 +186,17 @@ export default function Home() {
       .catch(() => { if (live) setArriving({ soon: [], late: [], openPos: 0, posWithoutEta: 0, stalePos: 0, oldestStaleDays: null }); });
     return () => { live = false; };
   }, [user, profile?.role, needArriving]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  // How long each supplier takes — the same engine /suppliers/lead-times
+  // runs. It reads supplier payments, so only for a buy-side role.
+  useEffect(() => {
+    if (!user || !perms?.buySide || !needLeadTimes) return;
+    let live = true;
+    fetchSupplierLeadTimes(supabase, new Date().toISOString().slice(0, 10))
+      .then((r) => { if (live) setLeadTimes(r); })
+      .catch(() => { if (live) setLeadTimes({ leads: [], names: new Map() }); });
+    return () => { live = false; };
+  }, [user, profile?.role, needLeadTimes]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── What sold, and who bought it ──────────────────────────────────────────
   // The same delivered-sales engine /profitability uses, so a figure here and
@@ -320,6 +334,7 @@ export default function Home() {
                                   sub={t('in catalog')} color="text-emerald-300" ring="ring-emerald-500/20" />;
       case 'newArrivals':   return <NewArrivals rows={arrivedItems} days={newArrivalDays} />;
       case 'arriving':      return <ArrivingSoon data={arriving} buySide={!!perms?.buySide} />;
+      case 'leadTimes':     return <LeadTimesCard data={leadTimes} />;
       case 'topProducts':   return <TopBoard title="Top products" board={productBoard} by={rankProducts}
                                   onPick={(b) => pickRank('products', b)} noun="products" period={economicsPeriod}
                                   canProfit={!!perms?.canViewEconomics} href="/profitability" />;

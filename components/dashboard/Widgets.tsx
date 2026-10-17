@@ -12,6 +12,7 @@ import type { ShortageAlert, ReorderAlert } from '@/lib/reorder';
 import type { NewArrival, ArrivingSummary } from '@/lib/catalogSignals';
 import type { RankBy, Leaderboard } from '@/lib/salesFacts';
 import type { Feed } from '@/lib/recentFeeds';
+import { leadDigest, type ShipVia, type SupplierLead } from '@/lib/supplierLeadTimes';
 import type { RolePermissions } from '@/constants/roles';
 
 /**
@@ -375,6 +376,96 @@ export function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; 
               <p className="text-[11px] text-slate-600">{tf('+{n} more on order.', { n: rows!.length - SHOWN })}</p>
             )}
           </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * How long suppliers take — the dashboard face of /suppliers/lead-times, from
+ * the same digest the page heads with, so the two can never disagree.
+ *
+ * Sea, air and local are shown apart and never averaged together: a 66-day sea
+ * median says nothing about an air order. The list is SUPPLIERS to look at,
+ * not items — the late items themselves are Arriving soon's job.
+ */
+const VIA_NAME: Record<ShipVia, string> = { Sea: 'Sea', Air: 'Air', Local: 'Local' };
+export function LeadTimesCard({ data }: { data: { leads: SupplierLead[]; names: Map<string, string> } | null }) {
+  const { t, tf } = useT();
+  const days = (d: number) => (d === 1 ? t('1 day') : tf('{d} days', { d }));
+  const via = (v: ShipVia | null) => t(v ? VIA_NAME[v] : 'Not set');
+  const dg = data ? leadDigest(data.leads) : null;
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
+      <CardHead
+        title={t('Supplier lead times')}
+        meta={dg && dg.received + dg.open > 0
+          ? [tf('{n} received', { n: dg.received }), tf('{n} still open', { n: dg.open })].join(' · ')
+          : ''}
+        right={
+          <Link href="/suppliers/lead-times" className="text-[11px] text-slate-500 hover:text-sky-300 transition-colors">
+            {t('Lead Times')} →
+          </Link>
+        }
+      />
+
+      {dg === null ? (
+        <div className="p-4 sm:p-5 space-y-2">
+          {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-slate-800/40 rounded-xl animate-pulse" />)}
+        </div>
+      ) : dg.received + dg.open === 0 ? (
+        <p className="px-5 py-8 text-center text-xs text-slate-500">{t('No purchase orders to measure yet.')}</p>
+      ) : (
+        <>
+          <div className="px-4 sm:px-5 py-3 flex flex-wrap gap-2 border-b border-slate-800/50">
+            {dg.byVia.map((b) => (
+              <div key={b.via ?? 'none'} className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-1.5 min-w-[7rem]">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500">{via(b.via)}</div>
+                <div className="text-sm font-semibold tabular-nums text-white">{b.stats ? days(b.stats.median) : '—'}</div>
+                <div className="text-[10px] text-slate-500">{tf('{n} POs', { n: b.count })}</div>
+              </div>
+            ))}
+            <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-1.5 min-w-[7rem]">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500">{t('On time against the quote')}</div>
+              <div className="text-sm font-semibold tabular-nums text-white">{dg.promised ? `${dg.onTime} / ${dg.promised}` : '—'}</div>
+              <div className="text-[10px] text-slate-500">{t('POs whose quote stated a lead time')}</div>
+            </div>
+            <div className={`rounded-xl border px-3 py-1.5 min-w-[7rem] ${dg.lateOpen ? 'border-red-500/40 bg-red-500/5' : 'border-slate-800 bg-slate-900/40'}`}>
+              <div className="text-[10px] uppercase tracking-wider text-slate-500">{t('Open POs now late')}</div>
+              <div className={`text-sm font-semibold tabular-nums ${dg.lateOpen ? 'text-red-300' : 'text-white'}`}>{dg.lateOpen}</div>
+              <div className="text-[10px] text-slate-500">{t('past the quoted date, or past the supplier usual time')}</div>
+            </div>
+          </div>
+          <div className="px-4 sm:px-5 pt-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">{t('Suppliers to look at first')}</div>
+          <div className="divide-y divide-slate-800/50">
+            {dg.watch.map((l) => {
+              const late = l.promise ? l.promise.measured - l.promise.onTime : 0;
+              return (
+                <Link key={l.supplierId} href={`/suppliers/lead-times?supplier=${encodeURIComponent(l.supplierId)}`}
+                  className="flex items-center gap-x-2.5 gap-y-1 flex-wrap px-4 sm:px-5 py-2.5 hover:bg-white/[0.02] transition-colors">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${l.overdue ? 'bg-red-400' : late ? 'bg-amber-400' : 'bg-sky-400'}`} />
+                  <span className="min-w-0 flex-1 sm:flex-none sm:max-w-[280px] text-[13px] font-semibold text-slate-100 truncate">
+                    {data!.names.get(l.supplierId) || t('Unknown supplier')}
+                  </span>
+                  <span aria-hidden className="basis-full h-0 sm:hidden" />
+                  <span className="text-[11px] tabular-nums text-slate-400">
+                    {l.byVia.filter((b) => b.poToReceived).map((b) => `${via(b.via)} ${days(b.poToReceived!.median)}`).join(' · ') || tf('{n} still open', { n: l.open })}
+                  </span>
+                  <span className={`ml-auto flex-shrink-0 text-[11px] font-bold tabular-nums ${l.overdue ? 'text-red-300' : late ? 'text-amber-300' : 'text-slate-500'}`}>
+                    {l.overdue ? tf('{n} late', { n: l.overdue })
+                      : l.promise ? tf('{on} of {all} on time', { on: l.promise.onTime, all: l.promise.measured })
+                      : tf('{n} POs', { n: l.completed + l.open })}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+          {dg.odd + dg.noDate > 0 && (
+            <p className="px-4 sm:px-5 py-2.5 border-t border-slate-800/70 text-[11px] text-slate-600">
+              {tf('{n} POs have dates to fix, see Lead Times.', { n: dg.odd + dg.noDate })}
+            </p>
+          )}
         </>
       )}
     </div>

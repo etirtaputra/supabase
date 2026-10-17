@@ -96,6 +96,11 @@ export const DASHBOARD_WIDGETS: DashboardWidget[] = [
   { key: 'arriving', label: 'Arriving soon', width: 'half', defaultOn: true,
     section: null, caps: ['sellSide', 'buySide', 'canManageStock'],
     hint: 'What is on the water and when it should land' },
+  // Supplier performance over the whole chain. It reads supplier payments
+  // (6.0_po_costs), so it is buy-side, full stop. Full width so it never
+  // splits the half-pairs above or below it.
+  { key: 'leadTimes', label: 'Supplier lead times', width: 'full', defaultOn: true,
+    section: 'buySide', hint: 'How long suppliers take, sea, air and local, and who is running late' },
   // The two league tables. Revenue is a sell-side number, so the sell side may
   // rank by it; PROFIT needs what the goods cost us, which is why the profit
   // view is offered only to a role that may already see item economics — and

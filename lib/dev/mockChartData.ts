@@ -9,6 +9,8 @@
  * anyone reading the preview should be able to tell at a glance that these are
  * not real vendors.
  */
+import { supplierLeadTimes, type LtPo } from '../supplierLeadTimes.ts';
+
 const SUPPLIER_NAMES = [
   'Northwind Power', 'Acme Solar', 'Blue Ridge Energy', 'Cobalt Systems', 'Delta Voltaic',
   'Everest Components', 'Fairline Electric', 'Granite Cells', 'Harbour Inverters', 'Ionis Storage',
@@ -142,4 +144,20 @@ export const mockPosition = {
   ccc: { ccc: 118, dio: 96, dso: 41, dpo: 19, stockValue: 3_100_000_000 },
   inTransit: { paidIdr: 2_102_509_390, overdueCount: 16 },
   motion: mockMotion,
+};
+
+/** Supplier lead times — sea, air, local and one PO with no shipping set; one late open air order. */
+const ltPo = (po_id: string, supplier_id: string, via: string | null, po_date: string, recv: string | null, status = 'Fully Received'): LtPo =>
+  ({ po_id, po_number: `PO-MOCK-${po_id}`, status, po_date, quote_id: null, supplier_id, actual_received_date: recv, currency: 'USD', method_of_shipment: via });
+export const mockLeadTimes = {
+  leads: supplierLeadTimes({
+    pos: [
+      ltPo('1', 's1', 'Sea', '2026-01-05', '2026-03-12'), ltPo('2', 's1', 'Sea', '2026-02-02', '2026-04-10'),
+      ltPo('3', 's1', 'Air', '2026-03-01', '2026-04-02'), ltPo('4', 's1', 'Air', '2026-09-01', null, 'Confirmed'),
+      ltPo('5', 's2', 'Local Delivery', '2026-05-04', '2026-05-06'), ltPo('6', 's2', 'Local Delivery', '2026-06-01', '2026-06-03'),
+      ltPo('7', 's3', 'Sea', '2026-04-01', '2026-06-08'), ltPo('8', 's3', null, '2026-05-10', '2026-05-30'),
+    ],
+    quotes: [], costs: [], grns: [], today: '2026-10-16',
+  }),
+  names: new Map([['s1', SUPPLIER_NAMES[0]], ['s2', SUPPLIER_NAMES[1]], ['s3', SUPPLIER_NAMES[2]]]),
 };

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-16** · last change: *Supplier Lead Times split by shipping (Sea / Air / Local)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-17** · last change: *Supplier Lead Times as a home Dashboard widget* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -212,6 +212,20 @@ suppliers across the whole chain).
   Page: the import/local filter became a shipping filter, a "by shipping"
   chip row (Sea 66.5 d · Air 33 d · Local 2 d on production), per-supplier
   via chips, a "Shipped via" column per PO. 1 test added.
+- **Dashboard widget** `leadTimes` (owner: "can it become a Dashboard
+  Module?", 2026-10-17): `constants/dashboardWidgets.ts` — full width,
+  section buySide, defaultOn, after Arriving soon (EXPECTED / EXPECTED_START /
+  BUY_SIDE_DATA updated for owner, buy_admin, data_entry, finance). Card
+  `LeadTimesCard` in `components/dashboard/Widgets.tsx` (+ preview mock):
+  per-shipping medians, on time vs quote, open POs late, and up to 5
+  suppliers to look at first (late open POs, then late vs quote, then
+  busiest) — suppliers, not items, so it does not repeat Arriving soon. Both
+  the card and the page head read ONE `leadDigest()` (1 test); the dashboard
+  fetches through `fetchSupplierLeadTimes()` only when the widget is shown
+  and the role is buy-side. Each supplier row links to
+  `/suppliers/lead-times?supplier=<id>`, which opens and scrolls to that
+  row (page now wrapped in Suspense for `useSearchParams`). The phone-break
+  guard in `lib/dashboardWidgets.test.ts` counts 5 rows now (was 4).
 - No schema or data change.
 
 ### 2026-10-16 — BOM Calculator: Project works & manpower (roadmap step 4)
