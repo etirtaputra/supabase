@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-18T01:35:07Z",
+    title: "Tampilan baru: Grid Spec — gaya situs ica.id, terang dan gelap",
+    details: [
+      "Pilih di Pengaturan → Tampilan: Grid Spec (terang) dan Grid Spec Night (gelap). Tombol matahari/bulan di menu ICAPROC berpindah di antara keduanya.",
+      "Gaya situs ica.id: halaman putih, garis tipis 1px tanpa bayangan, sudut persegi, biru ICA untuk tombol utama, huruf Instrument Sans dengan angka dan label JetBrains Mono.",
+      "Tampilan lain (Corporate, Terminal) tidak berubah, dan Corporate tetap menjadi tampilan bawaan perusahaan.",
+    ],
+  },
+  {
     at: "2026-10-17T04:34:15Z",
     title: "Dashboard: modul baru Lead Time Pemasok",
     details: [

@@ -49,7 +49,7 @@ export const DEFAULT_THEME: ThemeName = 'corporate';
  * picker; the menu became a one-tap switch on 2026-08-28 and the duplicate
  * went with it.)
  */
-export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate', 'terminal', 'terminal-light'];
+export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate', 'terminal', 'terminal-light', 'gridspec-night', 'gridspec'];
 
 /**
  * The offered skins come in PAIRS — one dark, one light, same design — and the
@@ -62,6 +62,9 @@ export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate',
 export const THEME_PAIRS: [dark: ThemeName, light: ThemeName][] = [
   ['corporate-dark', 'corporate'],
   ['terminal', 'terminal-light'],
+  // Grid Spec (owner, 2026-10-18): the ica.id website's design. Last, so a
+  // skin outside every pair still lands on Corporate.
+  ['gridspec-night', 'gridspec'],
 ];
 
 /**
@@ -69,7 +72,7 @@ export const THEME_PAIRS: [dark: ThemeName, light: ThemeName][] = [
  * screen bright or dark" — which is what the one-tap switch in the wordmark
  * menu asks, and what its icon has to be honest about.
  */
-export const LIGHT_THEMES: ThemeName[] = ['light', 'paper', 'terminal-light', 'corporate'];
+export const LIGHT_THEMES: ThemeName[] = ['light', 'paper', 'terminal-light', 'corporate', 'gridspec'];
 export const isLightTheme = (t: ThemeName): boolean => LIGHT_THEMES.includes(t);
 
 /**
@@ -158,11 +161,20 @@ export const THEMES: {
     swatch: { bg: '#1e222a', card: '#232730', ink: '#e8eaee', accent: '#0ecb81' } },
   { value: 'terminal-light', label: 'Terminal Light', blurb: 'Trading-desk light — white cards on soft grey, the same figures',
     swatch: { bg: '#f6f7f9', card: '#ffffff', ink: '#0d0e11', accent: '#089981' } },
+  // The Grid Spec pair (2026-10-18): the ica.id website's own system — white,
+  // 1px lines instead of shadows, square corners, ICA Blue as the one accent,
+  // Instrument Sans with JetBrains Mono figures and labels. Swatches are the
+  // REAL values from GRIDSPEC_SURFACES / BRAND in the generator.
+  { value: 'gridspec', label: 'Grid Spec', blurb: 'The ica.id website look — white, 1px lines, square corners, ICA Blue, mono figures',
+    swatch: { bg: '#ffffff', card: '#f3f5f9', ink: '#0a0f1c', accent: '#0047d8' } },
+  { value: 'gridspec-night', label: 'Grid Spec Night', blurb: 'The same website look on Night blue — for dim rooms',
+    swatch: { bg: '#08142e', card: '#0d1b3a', ink: '#f3f5f9', accent: '#2a63e8' } },
 ];
 
 export const isTheme = (v: unknown): v is ThemeName =>
   v === 'dark' || v === 'light' || v === 'dim' || v === 'paper'
-  || v === 'terminal' || v === 'terminal-light' || v === 'corporate' || v === 'corporate-dark';
+  || v === 'terminal' || v === 'terminal-light' || v === 'corporate' || v === 'corporate-dark'
+  || v === 'gridspec' || v === 'gridspec-night';
 
 /**
  * Runs before first paint, inlined in <head>. Written as a plain string
@@ -172,7 +184,7 @@ export const isTheme = (v: unknown): v is ThemeName =>
  * localStorage access; a throw here would blank the page).
  * Mirrors the resolution order above: personal → cached company default.
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light','corporate','corporate-dark'];var l=window.localStorage;var K=${JSON.stringify(
+export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light','corporate','corporate-dark','gridspec','gridspec-night'];var l=window.localStorage;var K=${JSON.stringify(
   THEME_STORAGE_KEY,
 )};var D=${JSON.stringify(THEME_DEFAULT_KEY)};var t=l.getItem(K);var M=${JSON.stringify(THEME_MIGRATED_KEY)};if(!l.getItem(M)){var m=${JSON.stringify(
   LEGACY_THEME_MIGRATION,

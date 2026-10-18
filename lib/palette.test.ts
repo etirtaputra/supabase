@@ -94,7 +94,7 @@ test('the corporate skins keep every text ink readable (4.5:1) on the page and o
   const inks = ['white', 'slate-200', 'slate-300', 'slate-400', 'slate-500',
     'emerald-400', 'rose-400', 'red-400', 'amber-300', 'amber-400', 'sky-400', 'blue-400', 'violet-400'];
   const low: string[] = [];
-  for (const name of ['corporate', 'corporate-dark']) {
+  for (const name of ['corporate', 'corporate-dark', 'gridspec', 'gridspec-night']) {
     const body = blocks().find((b) => b.name === name && b.body.includes('--c-slate-900'))?.body;
     assert.ok(body, `no ${name} block`);
     for (const bg of ['app-bg', 'slate-900']) {
@@ -118,7 +118,9 @@ test('the corporate skin only ADDS — nothing it defines leaks into another ski
   // `:root[data-theme="corporate-dark"]{font-feature-settings:…}` has the same
   // shape to the scanner.)
   for (const b of blocks().filter((x) => x.body.includes('--c-slate-900'))) {
-    const isCorp = b.name === 'corporate' || b.name === 'corporate-dark' || b.name === '(default)';
+    // Grid Spec (2026-10-18) carries its own brand token — ICA Blue.
+    const isCorp = b.name === 'corporate' || b.name === 'corporate-dark' || b.name === '(default)'
+      || b.name === 'gridspec' || b.name === 'gridspec-night';
     assert.equal(b.body.includes('--c-brand:'), isCorp, `${b.name} ${isCorp ? 'lacks' : 'carries'} the brand token`);
   }
   // …and every rule that re-dresses buttons, labels or corners is scoped to
@@ -130,7 +132,7 @@ test('the corporate skin only ADDS — nothing it defines leaks into another ski
     // assertion above; only STYLING rules need a corporate scope here.
     const selectors = /^:root(\[data-theme="[a-z-]+"\])?\{--c-/.test(r) ? [] : r.split('{')[0].split(',');
     for (const sel of selectors) {
-      assert.match(sel.trim(), /^:root(\[data-theme="corporate(-dark)?"\]|:not\(\[data-theme\]\))/, `unscoped corporate rule: ${sel}`);
+      assert.match(sel.trim(), /^:root(\[data-theme="(corporate(-dark)?|gridspec(-night)?)"\]|:not\(\[data-theme\]\))/, `unscoped corporate rule: ${sel}`);
     }
   }
 });
@@ -221,7 +223,7 @@ test('tone colours, small print and the serial face are corporate-only', () => {
   assert.ok(rules.length >= 5, 'the corporate type/tone rules have gone');
   for (const r of rules) {
     for (const sel of r.split('{')[0].split(',')) {
-      assert.match(sel.trim(), /^:root(\[data-theme="corporate(-dark)?"\]|:not\(\[data-theme\]\))/, `unscoped: ${sel}`);
+      assert.match(sel.trim(), /^:root(\[data-theme="(corporate(-dark)?|gridspec(-night)?)"\]|:not\(\[data-theme\]\))/, `unscoped: ${sel}`);
     }
   }
   // Breakpoint sizes win: the small-print rule must step aside for them.
@@ -232,4 +234,25 @@ test('serial numbers are marked where they are read character by character', () 
   for (const f of ['app/serials/page.tsx', 'app/aftersales/page.tsx']) {
     assert.ok(readFileSync(f, 'utf8').includes('serial-no'), `${f} lost its serial-no markers`);
   }
+});
+
+// ── Grid Spec (owner, 2026-10-18) ───────────────────────────────────────────
+// "Do not change or remove anything that's working": every Grid Spec rule is
+// scoped to the two Grid Spec skins, so the other eight render exactly as before.
+
+test('every Grid Spec rule is scoped to the Grid Spec skins alone', () => {
+  const rules = THEME_VARS_CSS.split('\n').filter((l) => l.includes('gridspec'));
+  assert.ok(rules.length >= 10, 'the Grid Spec rules have gone');
+  for (const r of rules) {
+    for (const sel of r.split('{')[0].split(',')) {
+      assert.match(sel.trim(), /^:root\[data-theme="gridspec(-night)?"\]/, `unscoped Grid Spec rule: ${sel}`);
+    }
+  }
+  const gs = blocks().find((b) => b.name === 'gridspec' && b.body.includes('--c-slate-900'))!.body;
+  // The website's own tokens, not lookalikes.
+  assert.equal(rgbOf(gs, 'brand').join(' '), '0 71 216', 'ICA Blue #0047D8');
+  assert.equal(rgbOf(gs, 'white').join(' '), '10 15 28', 'Ink #0A0F1C');
+  assert.equal(rgbOf(gs, 'slate-800').join(' '), '220 226 236', 'Line #DCE2EC');
+  assert.equal(rgbOf(gs, 'slate-500').join(' '), '74 85 104', 'Steel #4A5568');
+  assert.ok(gs.includes("--font-app:'Instrument Sans'") && gs.includes("--font-mono-app:'JetBrains Mono'"));
 });

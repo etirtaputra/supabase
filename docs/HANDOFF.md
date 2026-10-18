@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-17** · last change: *Supplier Lead Times as a home Dashboard widget* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-18** · last change: *Grid Spec theme (the ica.id website look) added to ICAPROC* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,6 +138,40 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
+### 2026-10-18 (latest) — Grid Spec theme: the ica.id website look, as a third pair
+
+Owner: "taking design direction from our current ica.id website, make a new
+ICAPROC theme. Do not change or remove anything that's working."
+
+- `scripts/generate-palette.js` → `constants/palette.ts`: two NEW skins,
+  `gridspec` (light) and `gridspec-night`, built like the corporate pair
+  (clone + FIX ramps + SURFACES + BRAND + FONTS + a scoped SHELL). Tokens are
+  the website's own, measured from its stylesheet: Ink #0A0F1C (emphasis ink
+  `white`), ICA Blue #0047D8 (`--c-brand`, primary buttons + focus), Steel
+  #4A5568 (slate-500), Line #DCE2EC (slate-800), Mist #F3F5F9 (sunken /
+  raised), Night #08142E (the dark skin's page). White page AND white cards —
+  boxes told apart by 1px lines only. Instrument Sans + JetBrains Mono (a real
+  mono, unlike Corporate). `GRIDSPEC_SHELL_CSS`: 4px corners, 2px for
+  `rounded-full` (spinners excepted), every shadow off, tinted KPI rings off,
+  solid chrome, headings 600 / −3% tracking, uppercase micro-labels in mono
+  +8%, emerald/violet primary buttons → ICA Blue (same exclusions as
+  Corporate), tone-step/tone-wait as Corporate, white fields in the light skin.
+- Verified: all 41 pre-existing CSS lines byte-identical; 24 lines added.
+- `lib/theme.ts`: THEMES (+2), THEME_PAIRS (+1, LAST, so a legacy skin still
+  falls back to Corporate), OFFERED_THEME_VALUES, LIGHT_THEMES, `isTheme`,
+  boot-script list. Not in LEGACY_THEME_MIGRATION (a new choice, nobody
+  moved). DEFAULT_THEME stays `corporate`. `app/layout.tsx`: Instrument Sans
+  added to the Google Fonts link; `gridspec` added to the two light
+  `color-scheme` / chevron selectors. Settings › Appearance copy: "Three
+  designs".
+- Tests: `lib/theme.test.ts` (light list, migration skip, a pair test);
+  `lib/palette.test.ts` (AA contrast now covers the Grid Spec pair, brand
+  token allowed in its blocks, scope regexes accept `gridspec(-night)`, plus
+  a test pinning every Grid Spec rule to its own scope and the exact website
+  tokens).
+- Print collateral (brochure + datasheets in the same system): see the next
+  entry when it ships.
+
 ### 2026-10-13 (latest) — agents: MIRA keeps purchasing in sync across four places (§8)
 
 Owner: *"we have multiple places to synchronize purchasing — Basecamp, Google
@@ -169,7 +203,7 @@ or documents on Google Drive, but not synced in Basecamp or ICAPROC."*
   order `YYYYMMDD <PI>, <PO> [items]`, files `1. PI_…` `2. PO_…` `3. DP…`
   `5. BALANCE PAYMENT_<PI>_<date>`.
 
-### 2026-10-16 (latest) — Supplier Lead Times dashboard
+### 2026-10-16 — Supplier Lead Times dashboard
 
 Owner: "create a new dashboard module where you can track each supplier's lead
 time summary of previous POs from quote, payment to actually fully received"
