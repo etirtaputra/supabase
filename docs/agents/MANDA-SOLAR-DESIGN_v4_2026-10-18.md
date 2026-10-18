@@ -5,8 +5,8 @@
 > MANDA and the ERP produce the same numbers for the same inputs.
 >
 > **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
-> **Version:** written against `main` @ `7395936` + the commit that ships this
-> file, 2026-10-18. System engine **v10**, mounting engine **v12**.
+> **Version:** written against `main` @ `4b2f53a`, 2026-10-18. System engine
+> **v10**, mounting engine **v12**.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
 >
 > **v4 of this pack — ONE rule changed: cut rails** (owner, 2026-10-18). A
