@@ -44,7 +44,7 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'solar-design',
     title: 'Solar system and mounting design',
-    file: 'MANDA-SOLAR-DESIGN_v4_2026-10-18.md',
+    file: 'MANDA-SOLAR-DESIGN_v5_2026-10-18.md',
     audience: 'engineering agents sizing arrays, strings and mounting',
     first: false,
   },

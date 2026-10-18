@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-18T08:47:23Z",
+    title: "Desain Mounting: rel utuh atau dipotong kini dipilih dari total biaya",
+    details: [
+      "Kalkulator membandingkan total biaya (rel + sambungan + dudukan, dengan harga pelanggan) untuk rel utuh dan setiap pilihan potongan, lalu memilih yang paling murah. Bila biayanya sama, rel utuh dipilih.",
+      "Desain Mounting menampilkan keputusannya, mis. \"dipotong, hemat Rp 474.000\". Bila satu harga belum ada di katalog, keputusan memakai jumlah rel dan ada peringatan yang menyebut harga yang kurang.",
+      "Saat ini sambungan rel MD T-slot belum punya harga jual, jadi desain MIBET MD T-slot masih memakai jumlah rel sampai harganya diisi.",
+    ],
+  },
+  {
     at: "2026-10-18T08:25:15Z",
     title: "Desain Mounting: rel 4850 mm kini boleh dipotong jadi 2400 / 1200 mm",
     details: [

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-18** · last change: *Mounting engine v12 — cut rails (4850 → 2400 / 1200); system engine v10; MANDA pack v4* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-18** · last change: *Mounting engine v13 — whole vs cut rails on total cost; system engine v11; MANDA pack v5* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,29 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-18 (latest) — Mounting: cut rails (engine v12 / system v10, MANDA pack v4)
+### 2026-10-18 (latest) — Mounting: whole vs cut on total cost (engine v13 / system v11, MANDA pack v5)
+
+Owner: "make it compare total cost, not just rails".
+- `mounting.ts`: `unitCosts { rail, joint, support }` (+ `cutCostPerPiece`,
+  default 0). With all three: every whole and cut layout (`cutLineOptions`) is
+  costed rails + joints + supports; cheapest wins, tie → whole rails, then
+  shorter line, then fewer pieces. Any price missing → v12 rail-count rule +
+  a warning naming it; no prices at all (website) → v12 silently.
+  `result.layoutDecision`; rail note adds "saves Rp N against whole rails".
+  `COST_PROBE_LINES` + `unitCostsFrom`: callers price one rail, joint and
+  support with the BoM's own shortlist and tier (SELLING prices).
+- Callers: MountingDesigner (shows "Whole or cut rails" row), SystemDesigner,
+  `/api/agent/design/mounting` (returns `geometry.layoutDecision`) and
+  `/design/system` (`SystemOptions.mountingUnitCosts`). Versions 13 / 11.
+- Catalogue 2026-10-18: MD T-slot rail 4850 Rp 205,000, MD splice Rp 8,000,
+  MD L-feet Rp 16,000 — at these, cost and rail count agree on every kickoff
+  case. **The MD T-slot splice kit has NO selling price**, so ICA's standard
+  kit still decides on rail count (with the warning) until it is priced.
+- Tests: today's prices agree; 30/2 flips to whole at support Rp 60,000;
+  tie → whole; missing price → fallback + warning; never dearer than whole
+  (1–60 × 1–3 rows × 3 support prices). All goldens unchanged.
+
+### 2026-10-18 — Mounting: cut rails (engine v12 / system v10, MANDA pack v4)
 
 Owner, from Wendy's test of the website calculator: "It doesn't assume you can
 cut the rails. Maybe need to assume can do 1200 and 2400 rails too." Kickoff

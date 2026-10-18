@@ -2020,6 +2020,10 @@ export const ID: Record<string, string> = {
   'Could not copy. Allow clipboard access and try again.': 'Tidak dapat menyalin. Izinkan akses clipboard lalu coba lagi.',
   // Design Mounting — cut rails (components/ui/MountingDesigner)
   'Rail cuts': 'Potongan rel',
+  'Whole or cut rails': 'Rel utuh atau dipotong',
+  'cut, saves {amount}': 'dipotong, hemat {amount}',
+  'whole rails cost least': 'rel utuh paling murah',
+  'decided on rail count': 'diputuskan dari jumlah rel',
   '{n} cut into {pieces} mm': '{n} dipotong jadi {pieces} mm',
   // Supplier lead times (app/suppliers/lead-times)
   'Supplier lead times': 'Lead time pemasok',

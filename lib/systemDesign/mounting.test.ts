@@ -16,7 +16,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateMounting, planCutLine, supportsForPiece, MOUNTING_ENGINE_VERSION, CUT_RAIL, type MountingInput } from './mounting.ts';
+import { calculateMounting, planCutLine, supportsForPiece, unitCostsFrom, COST_PROBE_LINES, MOUNTING_ENGINE_VERSION, CUT_RAIL, type MountingInput } from './mounting.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -263,12 +263,80 @@ test('supports per piece: 4850 → 4, 2400 → 3, 1200 → 2', () => {
   assert.deepEqual([4850, 2400, 1200].map((p) => supportsForPiece(p)), [4, 3, 2]);
 });
 
-test('the mounting engine version is 12, and no screen restates it', () => {
-  // 12: cut rails (owner, 2026-10-18) — a deliberate rule change.
-  assert.equal(MOUNTING_ENGINE_VERSION, 12);
+test('the mounting engine version is 13, and no screen restates it', () => {
+  // 12: cut rails; 13: whole vs cut decided on total cost (owner, 2026-10-18).
+  assert.equal(MOUNTING_ENGINE_VERSION, 13);
   for (const rel of [['app', 'api', 'agent', 'design', 'mounting', 'route.ts'], ['components', 'ui', 'MountingDesigner.tsx']]) {
     const src = readFileSync(join(process.cwd(), ...rel), 'utf8');
     assert.ok(/MOUNTING_ENGINE_VERSION/.test(src), `${rel.join('/')} must import the version`);
     assert.ok(!/version:\s*\d+/.test(src), `${rel.join('/')} still writes a literal engine version`);
   }
+});
+
+// ── Total cost, not just rails (owner, 2026-10-18; engine v13) ─────────────
+// "make it compare total cost, not just rails". Prices below are the catalog's
+// selling prices on 2026-10-18: MIBET MD T-slot rail 4850 Rp 205,000, MD
+// splice kit Rp 8,000, MD L-feet support Rp 16,000.
+const PRICES = { rail: 205_000, joint: 8_000, support: 16_000 };
+
+test('at today\'s prices cost agrees with rail count: a rail outweighs the joints and supports cutting adds', () => {
+  for (const g of CUT_GOLDEN) {
+    const r = calculateMounting(cutInput(g.panels, g.rows), { unitCosts: PRICES });
+    assert.equal(r.layoutDecision.basis, 'cost');
+    assert.equal(r.totalRails, g.rails, `${g.panels}/${g.rows}`);
+    assert.ok(r.layoutDecision.chosenCostIdr! <= r.layoutDecision.wholeCostIdr!);
+  }
+});
+
+test('when cutting saves a rail but adds more in joints and supports, whole rails win', () => {
+  // 30 panels / 2 rows: cut = 15 rails, 16 joints, 68 supports; whole = 16, 12, 64.
+  const cheap = calculateMounting(cutInput(30, 2), { unitCosts: PRICES });
+  assert.deepEqual([cheap.totalRails, cheap.railJoints, cheap.supports], [15, 16, 68]);
+  assert.equal(cheap.layoutDecision.wholeCostIdr! - cheap.layoutDecision.chosenCostIdr!, 205_000 - 4 * 8_000 - 4 * 16_000);
+  assert.match(cheap.lines.find((l) => l.role === 'rail')!.note ?? '', /saves Rp 109,000 against whole rails/);
+  // Supports at Rp 60,000: 4 × 8,000 + 4 × 60,000 = 272,000 > one rail.
+  const dear = calculateMounting(cutInput(30, 2), { unitCosts: { ...PRICES, support: 60_000 } });
+  assert.equal(dear.cutPlan, null, 'whole rails');
+  assert.deepEqual([dear.totalRails, dear.railJoints, dear.supports], [16, 12, 64]);
+  // ...while the rail-count rule would still have cut.
+  assert.notEqual(calculateMounting(cutInput(30, 2)).cutPlan, null);
+});
+
+test('a cost tie keeps whole rails — fewer parts for the same money', () => {
+  // 4 × (8,000 + 43,250) = 205,000 = the rail cutting saves.
+  const r = calculateMounting(cutInput(30, 2), { unitCosts: { rail: 205_000, joint: 8_000, support: 43_250 } });
+  assert.equal(r.cutPlan, null);
+  assert.equal(r.layoutDecision.chosenCostIdr, r.layoutDecision.wholeCostIdr);
+});
+
+test('a missing price falls back to rail count, and says which price is missing', () => {
+  // The MD T-slot splice kit has no selling price in the catalog (2026-10-18).
+  const r = calculateMounting(cutInput(12, 2), { unitCosts: { ...PRICES, joint: null } });
+  assert.equal(r.layoutDecision.basis, 'rails');
+  assert.deepEqual(r.layoutDecision.missingPrices, ['rail joint']);
+  assert.equal(r.totalRails, 6, 'the v12 rule');
+  assert.ok(r.warnings.some((w) => /rail count only — no catalog price for: rail joint/.test(w)));
+  // No prices at all is the website's case: v12, silently.
+  const none = calculateMounting(cutInput(12, 2));
+  assert.equal(none.layoutDecision.basis, 'rails');
+  assert.ok(!none.warnings.some((w) => /catalog price/.test(w)));
+});
+
+test('cost decisions never buy a dearer job than whole rails, over 1–60 panels × 1–3 rows', () => {
+  for (const support of [16_000, 60_000, 150_000]) {
+    for (let panels = 1; panels <= 60; panels++) {
+      for (const rows of [1, 2, 3]) {
+        const r = calculateMounting(cutInput(panels, rows), { unitCosts: { ...PRICES, support } });
+        assert.ok(r.layoutDecision.chosenCostIdr! <= r.layoutDecision.wholeCostIdr!, `${panels}/${rows} @ ${support}`);
+        assert.ok(r.edgeSpacingMm >= 0);
+      }
+    }
+  }
+});
+
+test('the probe lines ask the resolver for exactly the three prices that decide', () => {
+  const probes = COST_PROBE_LINES(4850, 'roof');
+  assert.deepEqual(probes.map((l) => [l.role, l.param ?? null]), [['rail', 4850], ['rail_joint', null], ['roof_hook', null]]);
+  assert.deepEqual(unitCostsFrom([{ role: 'rail', unitPrice: 205_000 }, { role: 'rail_joint', unitPrice: null }, { role: 'roof_hook', unitPrice: 16_000 }]),
+    { rail: 205_000, joint: null, support: 16_000 });
 });

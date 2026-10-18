@@ -5,9 +5,9 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-10-18** (MANDA-SOLAR-DESIGN v4: cut rails — a 4850
-> rail is cut into 2400 / 1200 pieces, up to two per rail line, when that buys
-> fewer rails; mounting engine v12, system engine v10.
+> **Last updated: 2026-10-18** (MANDA-SOLAR-DESIGN v5: whole vs cut rails is
+> decided on total cost; mounting engine v13, system engine v11. v4: cut rails —
+> a 4850 rail is cut into 2400 / 1200 pieces, up to two per rail line.
 > 2026-10-14: PURCHASING-SYNC-RUNBOOK v7: the accounting
 > folder is for PT Indodaya Surya Lestari (ISL) orders only. v6: the accounting
 > folder uses the same names — an accounting copy is named exactly like its
@@ -43,7 +43,7 @@ superseded now and finding out after acting on it.
 |---|---|---|---|
 | **Schema map** | `ICAPROC-SCHEMA_v9_2026-10-11.md` | every agent, first | v9: one new table, `10.6_bom_calcs` (BOM Calculator beta — inputs only, not a proposal); §2 and §9. v8: §5f deal context — `source_channel/source_at/source_contact/received_by` on 4.0 and 5.0; `reason` + one link + note on 4.1 and 5.1 (5.1 refuses `price_check`). v7: §9 is a census of ALL 59 tables — if a name is not in §9 it does not exist; adds §5d money, §5e settings |
 | **Purchasing runbook** | `PURCHASING-RUNBOOK_v5_2026-10-09.md` | MIRA / Hermes, buy side | v5: EPSIVO is stock-only → every line is "Stock / restock" (§3). v4: project-only suppliers (ANUGRAH, ESA, JJLAPP, LAPP, PERSADA, SUPREME) and the JEMBO brand → every line is "For a project" (rule 6, §3). v3: rule 6 (record the context, never invent it); §3 Source · Date & time received · Supplier contact · Our contact, "Document No." = supplier's number only, the eight line reasons; §4 a stored quote carries source and reasons to the PO. v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
-| **Solar design** | `MANDA-SOLAR-DESIGN_v4_2026-10-18.md` | MANDA, engineering | v4: cut rails — a 4850 rail is cut into 2400 / 1200 pieces (≤ 2 per rail line) when that buys fewer rails; mounting engine v12, system engine v10 (§3.3a, §3.5). v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
+| **Solar design** | `MANDA-SOLAR-DESIGN_v5_2026-10-18.md` | MANDA, engineering | v5: whole vs cut rails decided on TOTAL COST (rails + joints + supports at the customer's prices); a missing price falls back to rail count with a warning; mounting engine v13, system engine v11 (§3.3a). v4: cut rails — a 4850 rail is cut into 2400 / 1200 pieces (≤ 2 per rail line) when that buys fewer rails; mounting engine v12, system engine v10 (§3.3a, §3.5). v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` | MANDA's config | v3: boots from `/api/agent/onboarding`, not a hard-coded filename; order of authority; efficiency |
 | **MIRA boot prompt** | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` | MIRA's config | v1: she had none — boot call, order of authority, never guess a table name, token reuse |
 | **MAX boot prompt** | `MAX-BOOT-PROMPT_v6_2026-10-08.md` | MAX's SOUL.md | v6: ends with the shared writing-style block. v5: Drive — the service-account file, the Python that has the Google libraries, the folder ids, read-only except his own 90-OUTPUT folder. v4: drops v3's false claim that the two ICA550-72HMI items differ at Tier-1 (a Tier-1 override is inert). v3: the owner is recognised by his chat (a Hermes per-chat note), not a number; name the exact item; never guess an address; packs are on the shared drive. v2: where his six credentials are (by name) and never printing one; the real Hermes slots. v1: sell_admin, Dolibarr + ICAPROC, the truth table, who may approve what, what never goes in a chat |

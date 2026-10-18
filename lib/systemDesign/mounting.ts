@@ -19,6 +19,12 @@
  * without doing it. The v11 golden tests run with `allowCutRails: false`, which
  * is exactly the calculator's rule.
  *
+ * AND (owner, 2026-10-18 — engine v13): "make it compare total cost, not just
+ * rails". Given unit prices for the rail, the joint and the support
+ * (`unitCosts`), every whole-rail and cut layout is costed — rails + joints +
+ * supports — and the cheapest wins (a tie keeps whole rails). Without all
+ * three prices the v12 rule stands: cut only when it buys fewer rails.
+ *
  * The engine knows nothing about the catalog: it emits GENERIC lines (a role,
  * its discriminating parameter and a quantity). `resolve.ts` turns those into
  * items and prices.
@@ -46,9 +52,10 @@ export interface MountingInput {
 
 /**
  * The engine's version, stamped on every saved mounting design. 11 was the
- * straight port of the v11 calculator; 12 adds cut rails (2026-10-18).
+ * straight port of the v11 calculator; 12 adds cut rails (2026-10-18); 13
+ * chooses between whole and cut rails on total cost when prices are given.
  */
-export const MOUNTING_ENGINE_VERSION = 12;
+export const MOUNTING_ENGINE_VERSION = 13;
 
 /**
  * Cut rails (owner's decisions, 2026-10-18, from Wendy's test of the website
@@ -79,6 +86,20 @@ export interface MountingOptions {
    * (CUT_RAIL). Default ON since engine v12; `false` is v11's whole-rail rule.
    */
   allowCutRails?: boolean;
+  /**
+   * Unit prices (IDR) the layout choice is costed with — the catalog prices
+   * the quote will carry, looked up by the caller (`COST_PROBE_LINES`). All
+   * three must be known for a cost decision; otherwise rail count decides.
+   */
+  unitCosts?: MountingUnitCosts | null;
+  /** Labour or waste per cut piece, IDR. 0 = not costed. */
+  cutCostPerPiece?: number;
+}
+
+export interface MountingUnitCosts {
+  rail: number | null;
+  joint: number | null;
+  support: number | null;
 }
 
 export const MOUNTING_DEFAULTS: Required<MountingOptions> = {
@@ -86,7 +107,25 @@ export const MOUNTING_DEFAULTS: Required<MountingOptions> = {
   minEdgeSpacingMm: 25,
   overhangThreshold: 0.3,
   allowCutRails: true,
+  unitCosts: null,
+  cutCostPerPiece: 0,
 };
+
+/**
+ * The three parts whose prices decide the layout, as BoM lines a resolver can
+ * price at the customer's tier: the stock rail, one joint, one support.
+ */
+export const COST_PROBE_LINES = (railLengthMm: number, mountType: MountType = 'roof'): BomLine[] => [
+  { role: 'rail', param: railLengthMm, qty: 1, unit: 'pcs', label: `Mounting rail ${railLengthMm} mm` },
+  { role: 'rail_joint', qty: 1, unit: 'pcs', label: 'Rail joint' },
+  { role: 'roof_hook', qty: 1, unit: 'pcs', label: SUPPORT_LABEL[mountType] },
+];
+
+/** Unit prices out of the resolved probe lines (null where the catalog has none). */
+export function unitCostsFrom(resolved: { role: string; unitPrice: number | null }[]): MountingUnitCosts {
+  const price = (role: string) => resolved.find((l) => l.role === role)?.unitPrice ?? null;
+  return { rail: price('rail'), joint: price('rail_joint'), support: price('roof_hook') };
+}
 
 /** Supports a rail piece needs: one per support span plus the end, never under two. */
 export const supportsForPiece = (pieceMm: number, supportSpacingMm = MOUNTING_DEFAULTS.supportSpacingMm): number =>
@@ -126,6 +165,20 @@ export function planCutLine(arrayWidthMm: number, minEdgeSpacingMm = MOUNTING_DE
     }
   }
   return best ?? [CUT_RAIL.stockMm];
+}
+
+/** Every rail line that covers the array (N × 4850 + a cut tail), for the cost comparison. */
+export function cutLineOptions(arrayWidthMm: number, minEdgeSpacingMm = MOUNTING_DEFAULTS.minEdgeSpacingMm): number[][] {
+  const need = arrayWidthMm + 2 * minEdgeSpacingMm;
+  const out: number[][] = [];
+  for (let n = 0; n <= Math.ceil(need / CUT_RAIL.stockMm); n++) {
+    for (const tail of cutTails()) {
+      if (tail.length === 0) continue;
+      const pieces = [...Array(n).fill(CUT_RAIL.stockMm), ...tail];
+      if (pieces.reduce((a, b) => a + b, 0) >= need) out.push(pieces);
+    }
+  }
+  return out;
 }
 
 export interface CutPlan {
@@ -209,6 +262,12 @@ export interface MountingResult {
   supports: number;
   /** Set when the rails are cut (engine v12); null for a whole-rail layout. */
   cutPlan: CutPlan | null;
+  /**
+   * How whole vs cut was decided (engine v13): on total COST when all three
+   * unit prices were given, else on RAIL COUNT. Costs are IDR for rails +
+   * joints + supports (+ cut pieces × cutCostPerPiece); null on 'rails'.
+   */
+  layoutDecision: { basis: 'cost' | 'rails'; wholeCostIdr: number | null; chosenCostIdr: number | null; missingPrices: string[] };
   groundClips: number;
   groundingLugs: number;
   /** Engineering notes for the review step — never silent. */
@@ -221,11 +280,13 @@ const EMPTY: Omit<MountingResult, 'numberOfRows' | 'panelsPerRow' | 'warnings'> 
   ok: false, effectiveWidthMm: 0, effectiveHeightMm: 0, arrayWidthMm: 0,
   railsPerLine: 0, edgeSpacingMm: 0, railUtilPercent: 0, totalRails: 0,
   totalRailLengthM: 0, railJoints: 0, endClamps: 0, midClamps: 0,
-  supportsPerRail: 0, supports: 0, cutPlan: null, groundClips: 0, groundingLugs: 0, lines: [],
+  supportsPerRail: 0, supports: 0, cutPlan: null,
+  layoutDecision: { basis: 'rails', wholeCostIdr: null, chosenCostIdr: null, missingPrices: [] },
+  groundClips: 0, groundingLugs: 0, lines: [],
 };
 
 export function calculateMounting(input: MountingInput, options: MountingOptions = {}): MountingResult {
-  const { supportSpacingMm, minEdgeSpacingMm, overhangThreshold, allowCutRails } = { ...MOUNTING_DEFAULTS, ...options };
+  const { supportSpacingMm, minEdgeSpacingMm, overhangThreshold, allowCutRails, unitCosts, cutCostPerPiece } = { ...MOUNTING_DEFAULTS, ...options };
   const warnings: string[] = [];
 
   const panelCount = Math.max(1, Math.floor(input.panelCount) || 0);
@@ -269,25 +330,66 @@ export function calculateMounting(input: MountingInput, options: MountingOptions
   const wholePerLine = Math.ceil(arrayWidthMm / railLength);
   const wholeRails = wholePerLine * railLines;
 
-  // ── v12: cut the 4850 rail, when that buys fewer rails ─────────────────────
-  let cutPlan: CutPlan | null = null;
-  if (allowCutRails && railLength === CUT_RAIL.stockMm) {
-    const linePiecesMm = planCutLine(arrayWidthMm, minEdgeSpacingMm);
+  // ── v12 / v13: cut the 4850 rail ───────────────────────────────────────────
+  // Every layout is a list of pieces per rail line; the job is that × lines.
+  const layoutOf = (linePiecesMm: number[]) => {
     const whole = linePiecesMm.filter((p) => p === CUT_RAIL.stockMm).length * railLines;
     const counts = new Map<number, number>();
     for (const p of linePiecesMm) if (p !== CUT_RAIL.stockMm) counts.set(p, (counts.get(p) ?? 0) + railLines);
     const patterns = cutPatterns(counts);
     const railsCut = patterns.reduce((a, pt) => a + pt.rails, 0);
-    // Only when it SAVES rails: otherwise whole rails — fewer joints and
-    // supports for the same money.
-    if (whole + railsCut < wholeRails) {
-      cutPlan = {
-        linePiecesMm,
-        pieces: [...counts.entries()].sort((a, b) => b[0] - a[0]).map(([lengthMm, qty]) => ({ lengthMm, qty })),
-        patterns, wholeRails: whole, railsCut,
-      };
+    const cutPieces = [...counts.values()].reduce((a, n) => a + n, 0);
+    return {
+      linePiecesMm, counts, patterns, whole, railsCut, cutPieces,
+      rails: whole + railsCut,
+      joints: Math.max(0, linePiecesMm.length - 1) * railLines,
+      supports: linePiecesMm.reduce((a, p) => a + supportsForPiece(p, supportSpacingMm), 0) * railLines,
+    };
+  };
+  type Layout = ReturnType<typeof layoutOf>;
+  const wholeLayout: Layout = { ...layoutOf(Array(wholePerLine).fill(railLength)), rails: wholeRails, whole: wholeRails };
+
+  const missingPrices = unitCosts
+    ? (['rail', 'joint', 'support'] as const).filter((k) => !(Number.isFinite(unitCosts[k]) && (unitCosts[k] as number) >= 0))
+        .map((k) => ({ rail: 'rail', joint: 'rail joint', support: 'support' })[k])
+    : [];
+  const byCost = !!unitCosts && missingPrices.length === 0;
+  const costOf = (l: Layout) => l.rails * (unitCosts!.rail as number) + l.joints * (unitCosts!.joint as number)
+    + l.supports * (unitCosts!.support as number) + l.cutPieces * Math.max(0, cutCostPerPiece || 0);
+
+  let chosen: Layout = wholeLayout;
+  if (allowCutRails && railLength === CUT_RAIL.stockMm) {
+    if (byCost) {
+      // v13: every line that covers the need, whole rails first; cheapest wins,
+      // a tie keeps whole rails, then the shorter line, then fewer pieces.
+      for (const pieces of cutLineOptions(arrayWidthMm, minEdgeSpacingMm)) {
+        const l = layoutOf(pieces);
+        const dc = costOf(l) - costOf(chosen);
+        const len = (x: Layout) => x.linePiecesMm.reduce((a, b) => a + b, 0);
+        if (dc < 0 || (dc === 0 && chosen !== wholeLayout
+          && (len(l) < len(chosen) || (len(l) === len(chosen) && l.linePiecesMm.length < chosen.linePiecesMm.length)))) chosen = l;
+      }
+    } else {
+      // v12: the shortest line, and only when it buys fewer rails.
+      const l = layoutOf(planCutLine(arrayWidthMm, minEdgeSpacingMm));
+      if (l.rails < wholeLayout.rails) chosen = l;
     }
   }
+  if (missingPrices.length) {
+    warnings.push(`Whole or cut rails was decided on rail count only — no catalog price for: ${missingPrices.join(', ')}.`);
+  }
+  // A "cut" layout made only of whole stock rails is just the whole layout.
+  const isCut = chosen !== wholeLayout && chosen.railsCut > 0;
+  if (!isCut) chosen = wholeLayout;
+
+  const cutPlan: CutPlan | null = isCut ? {
+    linePiecesMm: chosen.linePiecesMm,
+    pieces: [...chosen.counts.entries()].sort((a, b) => b[0] - a[0]).map(([lengthMm, qty]) => ({ lengthMm, qty })),
+    patterns: chosen.patterns, wholeRails: chosen.whole, railsCut: chosen.railsCut,
+  } : null;
+  const layoutDecision: MountingResult['layoutDecision'] = byCost
+    ? { basis: 'cost', wholeCostIdr: costOf(wholeLayout), chosenCostIdr: costOf(chosen), missingPrices: [] }
+    : { basis: 'rails', wholeCostIdr: null, chosenCostIdr: null, missingPrices };
 
   const linePieces = cutPlan ? cutPlan.linePiecesMm : Array(wholePerLine).fill(railLength);
   const lineLengthMm = linePieces.reduce((a: number, b: number) => a + b, 0);
@@ -324,6 +426,9 @@ export function calculateMounting(input: MountingInput, options: MountingOptions
   const railNote = cutPlan
     ? `${totalRails} × ${railLength} mm · ` + cutPlan.patterns.map((pt) => `${pt.rails} cut into ${mmList(pt.piecesMm)}`).join(', ')
       + ` · each rail line ${mmList(linePieces)} · ${railUtilPercent.toFixed(0)}% used`
+      + (layoutDecision.basis === 'cost' && layoutDecision.wholeCostIdr! > layoutDecision.chosenCostIdr!
+        ? ` · saves Rp ${Math.round(layoutDecision.wholeCostIdr! - layoutDecision.chosenCostIdr!).toLocaleString('en-US')} against whole rails`
+        : '')
     : `${railsPerLine} per rail line · ${railUtilPercent.toFixed(0)}% used`;
   const supportNote = cutPlan
     ? `${supportsPerLine} per rail line (${linePieces.map((p: number) => supportsForPiece(p, supportSpacingMm)).join(' + ')}) at ${supportSpacingMm} mm spacing`
@@ -346,7 +451,7 @@ export function calculateMounting(input: MountingInput, options: MountingOptions
     effectiveWidthMm: effectiveWidth, effectiveHeightMm: effectiveHeight,
     arrayWidthMm, railsPerLine, edgeSpacingMm, railUtilPercent,
     totalRails, totalRailLengthM, railJoints, endClamps, midClamps,
-    supportsPerRail, supports, cutPlan, groundClips, groundingLugs,
+    supportsPerRail, supports, cutPlan, layoutDecision, groundClips, groundingLugs,
     warnings, lines,
   };
 }

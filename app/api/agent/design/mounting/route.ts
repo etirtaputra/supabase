@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callerFromRequest, AgentAuthError } from '@/lib/agentApi';
 import { designContext, resolveAndPrice, designNotes, mountingInputFrom } from '@/lib/agentDesign';
-import { calculateMounting, CUT_RAIL, MOUNTING_ENGINE_VERSION, RAIL_LENGTHS_MM, V11_PANEL_PRESETS } from '@/lib/systemDesign/mounting';
+import { calculateMounting, COST_PROBE_LINES, CUT_RAIL, MOUNTING_ENGINE_VERSION, RAIL_LENGTHS_MM, V11_PANEL_PRESETS, unitCostsFrom } from '@/lib/systemDesign/mounting';
 import { mountingSystems, shortlist, type RailProfile } from '@/lib/systemDesign/mountingSystem';
 
 /**
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       mount_types: ['roof', 'ground', 'flat'],
       orientations: ['portrait', 'landscape'],
       panel_presets: V11_PANEL_PRESETS,
-      cut_rails: { ...CUT_RAIL, rule: 'Up to two cut pieces (2400, 1200 mm) per rail line, best fit, only when that buys fewer 4850 rails. 50 mm per rail goes to the saw.' },
+      cut_rails: { ...CUT_RAIL, rule: 'Up to two cut pieces (2400, 1200 mm) per rail line. Whole vs cut is decided on total cost (rails + joints + supports at the customer\'s prices); if a price is missing, cut only when it buys fewer 4850 rails. 50 mm per rail goes to the saw.' },
       mounting_systems: mountingSystems(ctx.candidates),
       note: 'ICA quotes MIBET MD with the T-slot rail. Parts from different systems do not fit together.',
     });
@@ -56,12 +56,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    const result = calculateMounting(input);
     const ctx = await designContext(client, { customerId: body.customerId, categories: ['mounting'] });
     // A kit is only valid within one system; an unshortlisted run can mix them.
     const scoped = body.series
       ? { ...ctx, candidates: shortlist(ctx.candidates, body.series, body.railProfile) }
       : ctx;
+    // Engine v13: whole vs cut rails is decided on the cost of the rail, joint
+    // and support at THIS customer's prices — the same lookup the screen makes.
+    const unitCosts = unitCostsFrom(resolveAndPrice(COST_PROBE_LINES(input.railLengthMm, input.mountType), scoped).lines);
+    const result = calculateMounting(input, { unitCosts });
     const reply = result.ok ? resolveAndPrice(result.lines, scoped)
                             : { lines: [], summary: { lines: 0, unresolved: 0, unpriced: 0, short: 0, total: 0 }, pricing: ctx.pricing };
 
@@ -77,6 +80,8 @@ export async function POST(request: NextRequest) {
         totalRailLengthM: result.totalRailLengthM,
         // Engine v12: how the 4850 rails are cut, or null for whole rails.
         cutPlan: result.cutPlan,
+        // Engine v13: 'cost' (with both totals) or 'rails' (a price was missing).
+        layoutDecision: result.layoutDecision,
       },
       pricing: reply.pricing,
       summary: reply.summary,

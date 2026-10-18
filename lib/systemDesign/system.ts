@@ -17,7 +17,7 @@
  * contract requires (`specReadiness`), which is what stops a system being
  * sized from missing numbers.
  */
-import { calculateMounting, type MountType, type Orientation } from './mounting.ts';
+import { calculateMounting, type MountType, type Orientation, type MountingUnitCosts } from './mounting.ts';
 import type { BomLine } from './types.ts';
 
 /**
@@ -29,13 +29,15 @@ import type { BomLine } from './types.ts';
  *      inverter headroom, battery string voltage, cable run, PSH provenance.
  * 10 — the structure cuts the 4850 mm rail into 2400 / 1200 pieces when that
  *      buys fewer rails (mounting engine v12, owner 2026-10-18).
+ * 11 — whole vs cut rails is decided on total cost when the caller passes
+ *      the rail / joint / support prices (mounting engine v13).
  *
  * It lives HERE, beside the rules it describes, because it was written out by
  * hand in two places — the API route and the designer screen — and a number
  * copied twice is a number that will disagree with itself. `system.test.ts`
  * fails if either copy comes back.
  */
-export const SYSTEM_ENGINE_VERSION = 10;
+export const SYSTEM_ENGINE_VERSION = 11;
 
 /** Keep a fraction inside its meaningful range. */
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -106,6 +108,12 @@ export interface SystemOptions {
    * is v7's whole-rail structure, which the v7 parity tests pass explicitly.
    */
   allowCutRails?: boolean;
+  /**
+   * Unit prices of the rail, joint and support (engine v11): the structure
+   * then picks whole vs cut rails on total cost. The caller looks them up
+   * with `COST_PROBE_LINES`; null = decide on rail count.
+   */
+  mountingUnitCosts?: MountingUnitCosts | null;
 }
 
 export const SYSTEM_DEFAULTS: Required<SystemOptions> = {
@@ -121,6 +129,7 @@ export const SYSTEM_DEFAULTS: Required<SystemOptions> = {
   minInverterHeadroomPct: 0.30,
   batteryVoltageProximityThreshold: 0.95,
   allowCutRails: true,
+  mountingUnitCosts: null,
 };
 
 // ── The specs each candidate must carry ─────────────────────────────────────
@@ -723,7 +732,7 @@ function buildStructureAndBos(
     panelSpacingMm: input.panelSpacingMm,
     mountType: input.mountType,
     orientation: input.orientation,
-  }, { allowCutRails: opt.allowCutRails });
+  }, { allowCutRails: opt.allowCutRails, unitCosts: opt.mountingUnitCosts });
 
   const lines: BomLine[] = [...mount.lines];
   const bomWarnings = [...mount.warnings];

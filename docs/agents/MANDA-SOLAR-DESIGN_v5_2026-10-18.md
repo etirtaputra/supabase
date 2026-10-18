@@ -5,11 +5,19 @@
 > MANDA and the ERP produce the same numbers for the same inputs.
 >
 > **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
-> **Version:** written against `main` @ `4b2f53a`, 2026-10-18. System engine
-> **v10**, mounting engine **v12**.
+> **Version:** written against `main` @ `8b3b47f` + the cost-rule commit,
+> 2026-10-18. System engine **v11**, mounting engine **v13**.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
 >
-> **v4 of this pack — ONE rule changed: cut rails** (owner, 2026-10-18). A
+> **v5 of this pack — whole vs cut rails is now a COST decision** (owner,
+> 2026-10-18: "make it compare total cost, not just rails"). With the rail,
+> joint and support prices known, the engine costs every whole and cut layout
+> (rails + joints + supports) and takes the cheapest; a tie keeps whole rails.
+> A missing price falls back to v4's rail-count rule, with a warning naming
+> it. **Drop the belief "cut only when it buys fewer rails"** — that is now
+> only the fallback. See §3.3a.
+>
+> **v4 — cut rails** (owner, 2026-10-18). A
 > 4850 mm rail may now be cut into 2400 / 1200 mm pieces, up to two pieces per
 > rail line, when that buys fewer rails. It is ON by default in the Design
 > Mounting screen, `/api/agent/design/mounting` and the system engine's
@@ -128,7 +136,9 @@ the quantity is the wrong order and will disagree with the ERP.
 | `supportSpacingMm` | **1700** | rafter/purlin spacing → supports per rail |
 | `minEdgeSpacingMm` | **25** | below this the rail end is structurally risky |
 | `overhangThreshold` | **0.3** | last rail used under 30 % = wasteful overhang |
-| `allowCutRails` | **true** (v12) | cut the 4850 rail into 2400 / 1200 pieces when that buys fewer rails; `false` = v11's whole rails |
+| `allowCutRails` | **true** (v12) | cut the 4850 rail into 2400 / 1200 pieces; `false` = v11's whole rails |
+| `unitCosts` | **null** (v13) | `{ rail, joint, support }` IDR — whole vs cut is decided on total cost; null or any price missing = rail count |
+| `cutCostPerPiece` | **0** (v13) | labour / waste per cut piece added to a cut layout's cost; not costed today |
 
 Cut-rail constants (`CUT_RAIL`, owner's decisions 2026-10-18): stock **4850**,
 pieces **2400** and **1200**, one rail yields **4800 mm** of pieces (50 mm to
@@ -173,8 +183,15 @@ rail lines     = 2 × numberOfRows
 rails to buy   = N × lines + rails the pieces are cut from     ← 4800 mm of pieces per rail
                  (2 × 2400, or 2400 + 2 × 1200, or 4 × 1200)
 
-ONLY IF rails to buy < the whole-rail answer; otherwise whole rails
-(fewer joints and supports for the same money).
+WHICH LAYOUT (v13):
+  all three prices known → cost(layout) = rails × rail + joints × joint
+                           + supports × support (+ cut pieces × cutCostPerPiece)
+                           over the whole-rail layout and EVERY valid line above;
+                           cheapest wins; a tie keeps whole rails, then the
+                           shorter line, then fewer pieces.
+  a price missing / none → the SHORTEST line, and only if rails to buy < the
+                           whole-rail answer (v12). If prices were passed but one
+                           is missing, a warning names it.
 
 railJoints      = (pieces per line − 1) × lines
 supports        = Σ over a line's pieces of max(2, ceil(piece / 1700) + 1) × lines
@@ -186,9 +203,23 @@ totalRailLengthM = rails to buy × 4.85                        ← material boug
 
 The rail BoM line stays the **4850** stock item; its note carries the cut
 list, e.g. *"6 × 4850 mm · 2 cut into 2 × 2400 mm · each rail line 4850 + 2400 mm
-· 95% used"*. `result.cutPlan` (and `geometry.cutPlan` from the API) holds
-`linePiecesMm`, `pieces`, `patterns`, `wholeRails`, `railsCut`; it is `null`
-for a whole-rail layout.
+· 95% used · saves Rp 474,000 against whole rails"*. `result.cutPlan` (and
+`geometry.cutPlan` from the API) holds `linePiecesMm`, `pieces`, `patterns`,
+`wholeRails`, `railsCut`; it is `null` for a whole-rail layout.
+`result.layoutDecision` (`geometry.layoutDecision`) says `basis: 'cost'` with
+`wholeCostIdr` / `chosenCostIdr`, or `basis: 'rails'` with `missingPrices`.
+
+**Where the prices come from.** The Design Mounting and Design System screens
+and both `/api/agent/design/*` routes resolve `COST_PROBE_LINES(rail, mountType)`
+— one stock rail, one joint, one support — against the same shortlist and
+customer tier as the BoM, and pass the result (`unitCostsFrom`). These are
+SELLING prices at the customer's tier, not ICA's cost.
+
+**As of 2026-10-18 the MD T-slot splice kit has NO selling price**, so a
+MIBET MD T-slot design decides on rail count and says so. Price that item and
+the cost rule takes over. At the catalogue's other prices (rail Rp 205,000,
+joint Rp 8,000, support Rp 16,000) cost and rail count agree on every §3.5
+case — one rail outweighs the joints and supports cutting adds.
 
 **Two warnings, and they are mutually exclusive (edge check wins):**
 - `edgeSpacing < 25 mm` → *"structurally risky"*.
@@ -245,14 +276,16 @@ Also pinned: cutting never buys MORE rails than whole rails (checked for 1–60
 panels × 1–3 rows), a line never ends in more than two cut pieces or two
 alike, and a 3600 rail is never cut.
 
-**Saving rails can add joints and supports.** The rule counts rails only: the
-60-panel, 2-row case in §4.4 buys 15 rails instead of 16 but needs 16 joints
-instead of 12 and 68 supports instead of 64. That is the owner's rule as
-decided — report the trade-off when it matters, do not overrule it.
+**Saving rails can add joints and supports — v13 prices that in.** 30 panels
+in 2 rows (ICA550-72HMI): cut = 15 rails, 16 joints, 68 supports; whole = 16,
+12, 64. At Rp 205,000 / 8,000 / 16,000 cutting saves Rp 109,000; with supports
+at Rp 60,000 it would cost Rp 67,000 more, so whole rails win. Both are
+pinned in `mounting.test.ts`, as are a cost tie (whole wins) and the
+missing-price fallback.
 
 ---
 
-## 4. The system engine (v7 port, engine v10)
+## 4. The system engine (v7 port, engine v11)
 
 `lib/systemDesign/system.ts` · `calculateSystem(input, candidates, options)`
 
@@ -275,7 +308,8 @@ mounting rules, one set of tests.
 | `vocMarginFactor` | **0.95** | the OLD flat margin; used by `vocRule: 'flat'` and as the fallback when a module has no β |
 | `cableMetresPerPanel` | **6** | string cabling — a ROOFTOP figure; see §4.6 |
 | `minInverterHeadroomPct` | **0.30** | least installed-over-required margin before the engine objects (v9) |
-| `allowCutRails` | **true** | the structure cuts 4850 rails when that buys fewer (v10, §3.3a) |
+| `allowCutRails` | **true** | the structure may cut 4850 rails (v10, §3.3a) |
+| `mountingUnitCosts` | **null** | rail / joint / support prices → whole vs cut on cost (v11); the screen and API pass them |
 | `batteryVoltageProximityThreshold` | **0.95** | fraction of the battery port maximum above which a string is called close (v9) |
 
 **One number is no longer a constant.** `continuousSafetyFactor` 1.25 still
@@ -372,8 +406,9 @@ inverter `SNV-GT5023DSC` · 60 panels · 6.00 kWp · 3 strings × max 21 in seri
 **warns**: the inverter supports only 2 strings (2 MPPT × 1) → needs a combiner
 or a second inverter. Structure (v7 whole rails, the parity test): 16 rails,
 12 joints, 64 hooks, 8 end / 116 mid clamps, 360 m cable, 8 MC4 pairs.
-**With the default cut rails (v10): 15 rails, 16 joints, 68 hooks** — each rail
-line 3 × 4850 + 2400 + 1200 mm, "2 cut into 2 × 2400 mm, 1 cut into 4 × 1200 mm".
+**With the default cut rails (v10/v11, no prices): 15 rails, 16 joints, 68
+hooks** — each rail line 3 × 4850 + 2400 + 1200 mm, "2 cut into 2 × 2400 mm, 1
+cut into 4 × 1200 mm". With prices the cost rule decides (§3.3a).
 
 **On-grid, 23000 VA three-phase, DC/AC 1.3, ICA200-72M:** `SNV-GT1033DT`
 (10 kW) · 65 panels · 13.00 kWp · 4 strings × 18 · `ac_distribution` = `triple`.
@@ -761,7 +796,7 @@ been asked to look at, which is exactly the category §4.6 exists to surface.
 | File | What it owns |
 |---|---|
 | `lib/systemDesign/types.ts` | `BomLine`, `ResolvedLine`, `SystemDesign`, `designRoleOf` |
-| `lib/systemDesign/mounting.ts` | the mounting engine (v11 port + cut rails, v12), `CUT_RAIL`, `planCutLine`, `MOUNTING_ENGINE_VERSION` |
+| `lib/systemDesign/mounting.ts` | the mounting engine (v11 port + cut rails v12 + cost choice v13), `CUT_RAIL`, `planCutLine`, `cutLineOptions`, `COST_PROBE_LINES`, `unitCostsFrom`, `MOUNTING_ENGINE_VERSION` |
 | `lib/systemDesign/system.ts` | the v7 system engine, both paths, `sizePvStrings`, `voltageClassOf` / `seriesOnBus` / `isChemistry` |
 | `lib/systemDesign/resolve.ts` | role → catalog item, `specCovers`, ranking |
 | `lib/systemDesign/mountingSystem.ts` | series / rail-profile families |

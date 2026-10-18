@@ -701,9 +701,9 @@ test('provenance changes nothing about the array it describes', () => {
 
 // ── The version, in one place ──────────────────────────────────────────────
 
-test('the engine version is 10', () => {
-  // 10: cut rails in the structure (owner, 2026-10-18) — a deliberate rule change.
-  assert.equal(SYSTEM_ENGINE_VERSION, 10);
+test('the engine version is 11', () => {
+  // 10: cut rails in the structure; 11: whole vs cut on total cost (owner, 2026-10-18).
+  assert.equal(SYSTEM_ENGINE_VERSION, 11);
 });
 
 /**

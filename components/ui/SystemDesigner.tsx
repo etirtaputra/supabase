@@ -23,7 +23,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { fmtInt, fmtRupiah } from '@/lib/formatters';
 import { specNumber, specReadiness } from '@/lib/specSchema';
 import { isOfferable, VISIBILITY_COLUMNS } from '@/lib/itemVisibility';
-import { RAIL_LENGTHS_MM, type MountType, type Orientation } from '@/lib/systemDesign/mounting';
+import { RAIL_LENGTHS_MM, COST_PROBE_LINES, unitCostsFrom, type MountType, type Orientation } from '@/lib/systemDesign/mounting';
 import { resolveBom, summarise, type DesignCandidate } from '@/lib/systemDesign/resolve';
 import { mountingSystems, shortlist, RAIL_PROFILE_LABEL, type RailProfile } from '@/lib/systemDesign/mountingSystem';
 import { designRoleOf, type SystemDesign } from '@/lib/systemDesign/types';
@@ -266,6 +266,11 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
     .filter((l) => Number(l.watts) > 0 && Number(l.qty) > 0)
     .map((l) => ({ name: l.name, watts: Number(l.watts), hoursPerDay: Number(l.hours) || 0, qty: Number(l.qty), inductive: l.inductive })), [loads]);
 
+  // Whole vs cut rails is costed at the prices the structure lines will carry.
+  const mountingUnitCosts = useMemo(
+    () => unitCostsFrom(resolveBom(COST_PROBE_LINES(railLengthMm, mountType), { candidates: resolveCands, priceOf, stockOf })),
+    [railLengthMm, mountType, resolveCands, priceOf, stockOf]);
+
   // ── The engine run — recomputed live on the review step ───────────────────
   const result = useMemo(() => {
     if (!panelSpec || !panelSpec.power_stc_w) return null;
@@ -285,11 +290,11 @@ export default function SystemDesigner({ open, onClose, priceOf, stockOf, onAppl
       onGridInverters: onGridCandidates,
       hybridInverters: hybridCandidates,
       batteries: batteryCandidates,
-    });
+    }, { mountingUnitCosts });
   }, [panelSpec, systemType, gridVA, gridPhase, dcAcRatio, minTemp, loadRows, autonomy, psh, batteryPref,
     demandFactor, lossFactor, cableRun, pshSource,
     numberOfRows, railLengthMm, panelSpacing, mountType, orientation,
-    onGridCandidates, hybridCandidates, batteryCandidates]);
+    onGridCandidates, hybridCandidates, batteryCandidates, mountingUnitCosts]);
 
   const resolved = useMemo(
     () => (result?.ok ? resolveBom(result.lines, { candidates: resolveCands, priceOf, stockOf }) : []),

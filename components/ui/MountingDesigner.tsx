@@ -23,7 +23,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { fmtInt, fmtRupiah } from '@/lib/formatters';
 import { specNumber } from '@/lib/specSchema';
 import {
-  calculateMounting, RAIL_LENGTHS_MM, V11_PANEL_PRESETS, MOUNTING_ENGINE_VERSION,
+  calculateMounting, RAIL_LENGTHS_MM, V11_PANEL_PRESETS, MOUNTING_ENGINE_VERSION, COST_PROBE_LINES, unitCostsFrom,
   type MountingInput, type MountType, type Orientation,
 } from '@/lib/systemDesign/mounting';
 import { resolveBom, summarise, type DesignCandidate } from '@/lib/systemDesign/resolve';
@@ -197,7 +197,13 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
     if (!railChoices.includes(Number(railKey))) setRailKey(String(railChoices[railChoices.length - 1] ?? ''));
   }, [railChoices]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const result = useMemo(() => calculateMounting(input), [input]);
+  // Whole or cut rails is a COST decision (engine v13): price the rail, a
+  // joint and a support exactly as the BoM below will, then let the engine
+  // compare layouts in rupiah.
+  const unitCosts = useMemo(
+    () => unitCostsFrom(resolveBom(COST_PROBE_LINES(input.railLengthMm, input.mountType), { candidates: shortlisted, priceOf, stockOf })),
+    [input.railLengthMm, input.mountType, shortlisted, priceOf, stockOf]);
+  const result = useMemo(() => calculateMounting(input, { unitCosts }), [input, unitCosts]);
   const resolved = useMemo(
     () => (result.ok ? resolveBom(result.lines, { candidates: shortlisted, priceOf, stockOf }) : []),
     [result, shortlisted, priceOf, stockOf]);
@@ -399,6 +405,12 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
                     ? `${result.cutPlan.linePiecesMm.join(' + ')} mm`
                     : result.railsPerLine}</span></p>
                 {/* Cut rails (engine v12): what to saw, so the site cuts what the quote bought. */}
+                <p className="flex justify-between gap-3"><span className="text-slate-500">{t('Whole or cut rails')}</span>
+                  <span className="text-slate-200 text-right">{result.layoutDecision.basis === 'cost'
+                    ? (result.cutPlan && result.layoutDecision.wholeCostIdr! > result.layoutDecision.chosenCostIdr!
+                      ? tf('cut, saves {amount}', { amount: fmtRupiah(result.layoutDecision.wholeCostIdr! - result.layoutDecision.chosenCostIdr!) })
+                      : t('whole rails cost least'))
+                    : t('decided on rail count')}</span></p>
                 {result.cutPlan && (
                   <p className="flex justify-between gap-3"><span className="text-slate-500">{t('Rail cuts')}</span>
                     <span className="text-slate-200 tabular-nums text-right">{result.cutPlan.patterns

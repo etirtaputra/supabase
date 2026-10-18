@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callerFromRequest, AgentAuthError } from '@/lib/agentApi';
 import { designContext, resolveAndPrice, designNotes } from '@/lib/agentDesign';
+import { COST_PROBE_LINES, unitCostsFrom } from '@/lib/systemDesign/mounting';
 import { calculateSystem, SYSTEM_ENGINE_VERSION, type SystemInput, type PanelSpec, type OnGridInverterSpec,
          type HybridInverterSpec, type BatterySpec } from '@/lib/systemDesign/system';
 import { specNumber, specRangeMax } from '@/lib/specSchema';
@@ -124,7 +125,10 @@ export async function POST(request: NextRequest) {
       orientation: (body.orientation as SystemInput['orientation']) ?? 'portrait',
     };
 
-    const result = calculateSystem(input, { onGridInverters, hybridInverters, batteries });
+    // Whole vs cut rails on cost (system engine v11): the rail, joint and
+    // support priced for this customer, as the structure lines will be.
+    const mountingUnitCosts = unitCostsFrom(resolveAndPrice(COST_PROBE_LINES(input.railLengthMm, input.mountType), ctx).lines);
+    const result = calculateSystem(input, { onGridInverters, hybridInverters, batteries }, { mountingUnitCosts });
     const reply = resolveAndPrice(result.lines, ctx);
 
     return NextResponse.json({
