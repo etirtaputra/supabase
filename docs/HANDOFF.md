@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-18** · last change: *Print collateral in the Grid Spec system: company brochure + TP Series datasheet (`print/`)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-18** · last change: *Grid Spec ICAPROC theme removed (owner: "dont look good, undo"); print collateral in `print/` kept* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,40 +138,17 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-18 (latest) — Grid Spec theme: the ica.id website look, as a third pair
+### 2026-10-18 (latest) — Print collateral (brochure + datasheet); Grid Spec theme added and REMOVED
 
-Owner: "taking design direction from our current ica.id website, make a new
-ICAPROC theme. Do not change or remove anything that's working."
+**Theme: removed.** A `gridspec` / `gridspec-night` ICAPROC skin pair (the
+ica.id website look) shipped in `3cdf1b8` and was reverted the same day —
+owner: "dont look good, undo" (asked: undo only the theme, keep the print
+files). The revert restores every theme file exactly; a browser that had
+picked it falls back to the company default because `isTheme` no longer
+knows the name. Do not re-add a website-look skin without showing the owner
+screenshots first.
 
-- `scripts/generate-palette.js` → `constants/palette.ts`: two NEW skins,
-  `gridspec` (light) and `gridspec-night`, built like the corporate pair
-  (clone + FIX ramps + SURFACES + BRAND + FONTS + a scoped SHELL). Tokens are
-  the website's own, measured from its stylesheet: Ink #0A0F1C (emphasis ink
-  `white`), ICA Blue #0047D8 (`--c-brand`, primary buttons + focus), Steel
-  #4A5568 (slate-500), Line #DCE2EC (slate-800), Mist #F3F5F9 (sunken /
-  raised), Night #08142E (the dark skin's page). White page AND white cards —
-  boxes told apart by 1px lines only. Instrument Sans + JetBrains Mono (a real
-  mono, unlike Corporate). `GRIDSPEC_SHELL_CSS`: 4px corners, 2px for
-  `rounded-full` (spinners excepted), every shadow off, tinted KPI rings off,
-  solid chrome, headings 600 / −3% tracking, uppercase micro-labels in mono
-  +8%, emerald/violet primary buttons → ICA Blue (same exclusions as
-  Corporate), tone-step/tone-wait as Corporate, white fields in the light skin.
-- Verified: all 41 pre-existing CSS lines byte-identical; 24 lines added.
-- `lib/theme.ts`: THEMES (+2), THEME_PAIRS (+1, LAST, so a legacy skin still
-  falls back to Corporate), OFFERED_THEME_VALUES, LIGHT_THEMES, `isTheme`,
-  boot-script list. Not in LEGACY_THEME_MIGRATION (a new choice, nobody
-  moved). DEFAULT_THEME stays `corporate`. `app/layout.tsx`: Instrument Sans
-  added to the Google Fonts link; `gridspec` added to the two light
-  `color-scheme` / chevron selectors. Settings › Appearance copy: "Three
-  designs".
-- Tests: `lib/theme.test.ts` (light list, migration skip, a pair test);
-  `lib/palette.test.ts` (AA contrast now covers the Grid Spec pair, brand
-  token allowed in its blocks, scope regexes accept `gridspec(-night)`, plus
-  a test pinning every Grid Spec rule to its own scope and the exact website
-  tokens).
-- Print collateral in the same system: `print/` (next paragraph).
-
-**Print collateral (`print/`, same thread).** Owner: "Design ICA's company
+**Print collateral (`print/`).** Owner: "Design ICA's company
 brochure and product datasheets to match the ica.id website ('Grid Spec'
 design). Same system, adapted for print." Read `print/README.md` first.
 - `print/src/gridspec-print.css` — tokens + one class per brief element

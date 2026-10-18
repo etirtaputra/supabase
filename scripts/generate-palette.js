@@ -324,66 +324,6 @@ const CORPORATE_DARK_SURFACES = {
 };
 for (const [name, hex] of Object.entries(CORPORATE_DARK_SURFACES)) corporateDark[name] = { DEFAULT: hexToRgb(hex) };
 
-// ── Two more skins: GRID SPEC (owner's ask, 2026-10-18) ─────────────────────
-// Owner: "taking design direction from our current ica.id website, make a new
-// ICAPROC theme. Do not change or remove anything that's working."
-//
-// The ica.id website's "Grid Spec" system, worn inside the ERP: engineered,
-// flat and calm — lines instead of shadows, solid colours, square corners,
-// white space, and figures and labels in a monospace face. The tokens are the
-// website's own (measured from its stylesheet, 2026-10-18):
-//
-//   Ink   #0A0F1C  text, headings, emphasis      Line  #DCE2EC  1px dividers
-//   Blue  #0047D8  the ONE accent (actions)      Mist  #F3F5F9  light bands
-//   Steel #4A5568  secondary text and labels     Night #08142E  the dark side
-//
-// The same three decisions as Corporate, in the website's dress: action is
-// ICA Blue while status stays green/amber/red; white cards on a WHITE page,
-// told apart by 1px Line borders only; Instrument Sans for text with
-// JetBrains Mono for figures and the uppercase micro-labels.
-// Nothing in the eight existing skins moves: this section only ADDS blocks.
-const gridspec = clone(light), gridspecNight = clone(dark);
-const GRIDSPEC_FIX = {
-  slate: {
-    950: '#ffffff', 900: '#ffffff', 800: '#dce2ec', 700: '#c7cfdb', 600: '#6b7689',
-    500: '#4a5568', 400: '#343e4f', 300: '#222b3a', 200: '#161d2b', 100: '#0f1522', 50: '#0a0f1c',
-  },
-};
-for (const s of SCALES) {
-  if (s === 'slate') continue;
-  const src = s === 'emerald' || s === 'rose' ? STD(s) : (CUSTOM[s] ?? colors[s]);
-  GRIDSPEC_FIX[s] = deeperInk(src);
-}
-for (const [scale, steps] of Object.entries(GRIDSPEC_FIX)) {
-  for (const [step, hex] of Object.entries(steps)) gridspec[scale][step] = hexToRgb(hex);
-}
-gridspec.white = { DEFAULT: hexToRgb('#0a0f1c') };   // emphasis ink: the website's Ink
-const GRIDSPEC_SURFACES = {
-  chrome: '#ffffff', canvas: '#ffffff', sunken: '#f3f5f9', raised: '#f3f5f9',
-  rail: '#f8f9fb', deep: '#ffffff', navy: '#eef3fd', moss: '#e7f6ef', moss2: '#cdeede',
-};
-for (const [name, hex] of Object.entries(GRIDSPEC_SURFACES)) gridspec[name] = { DEFAULT: hexToRgb(hex) };
-
-// NIGHT: the website's dark band, #08142E, as a whole skin. Cards sit one
-// step lighter than the page, lines a step lighter again; the muted ink (500)
-// clears 4.5:1 on a card, as in Corporate Dark (lib/palette.test.ts).
-const GRIDSPEC_NIGHT_FIX = {
-  slate: {
-    950: '#0a1733', 900: '#0d1b3a', 800: '#1e2e50', 700: '#2b3d63',
-    600: '#5d6e8f', 500: '#94a2bd', 400: '#b6c1d6', 300: '#d3dae7', 200: '#e6ebf3', 100: '#f3f5f9', 50: '#f8fafc',
-  },
-  emerald: Object.fromEntries(STEPS.map((st) => [st, STD('emerald')[st]])),
-  rose: Object.fromEntries(STEPS.map((st) => [st, STD('rose')[st]])),
-};
-for (const [scale, steps] of Object.entries(GRIDSPEC_NIGHT_FIX)) {
-  for (const [step, hex] of Object.entries(steps)) gridspecNight[scale][step] = hexToRgb(hex);
-}
-const GRIDSPEC_NIGHT_SURFACES = {
-  chrome: '#0a1733', canvas: '#08142e', sunken: '#071128', raised: '#13254a',
-  rail: '#0b1834', deep: '#061026', navy: '#10285a', moss: '#0f3a2e', moss2: '#155040',
-};
-for (const [name, hex] of Object.entries(GRIDSPEC_NIGHT_SURFACES)) gridspecNight[name] = { DEFAULT: hexToRgb(hex) };
-
 // The brand navy, as its own tokens — only the corporate skins define them and
 // only CORPORATE_SHELL_CSS reads them. Light: the Shop's #1f5aa8 (white text
 // 6.9:1). Dark: lifted so it separates from the navy-graphite page while white
@@ -391,10 +331,6 @@ for (const [name, hex] of Object.entries(GRIDSPEC_NIGHT_SURFACES)) gridspecNight
 const BRAND = {
   corporate: { brand: '#1f5aa8', hover: '#17457f' },
   'corporate-dark': { brand: '#2f6fc4', hover: '#2a61ad' },
-  // ICA Blue, the website's one accent (white text 7.6:1). On Night it is
-  // lifted so a button separates from the page; white text still clears 5:1.
-  gridspec: { brand: '#0047d8', hover: '#0039ad' },
-  'gridspec-night': { brand: '#2a63e8', hover: '#2457d0' },
 };
 const brandBlock = (b) => `--c-brand:${hexToRgb(b.brand)};--c-brand-hover:${hexToRgb(b.hover)}`;
 
@@ -402,7 +338,6 @@ const APP_BG_EXTRA = {
   dim: hexToRgb('#1e222a'), paper: hexToRgb('#ece6d7'),
   terminal: hexToRgb('#1e222a'), 'terminal-light': hexToRgb('#f6f7f9'),
   corporate: hexToRgb('#f3f5f8'), 'corporate-dark': hexToRgb('#1b2431'),
-  gridspec: hexToRgb('#ffffff'), 'gridspec-night': hexToRgb('#08142e'),
 };
 
 // ── Type, as a theme token ──────────────────────────────────────────────────
@@ -427,12 +362,6 @@ const FONTS = {
   corporate: {
     sans: "'IBM Plex Sans', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
     mono: "'IBM Plex Sans', Inter, system-ui, sans-serif",
-  },
-  // Grid Spec keeps a REAL monospace: on the website every number, capacity,
-  // model code and small label is set in JetBrains Mono — that is the look.
-  gridspec: {
-    sans: "'Instrument Sans', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
-    mono: "'JetBrains Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, monospace",
   },
 };
 const fontBlock = (f) => `--font-app:${f.sans};--font-mono-app:${f.mono}`;
@@ -565,58 +494,6 @@ const CORPORATE_SHELL_CSS = [
   `${lightOnly('[class*="shadow-black"]')}{--tw-shadow-color:rgb(16 24 40 / .10);--tw-shadow:var(--tw-shadow-colored)}`,
 ].join('\n');
 
-/**
- * The Grid Spec skins' geometry and dress, scoped to those two skins alone —
- * the same technique as the terminal and corporate shells.
- */
-const GL = ':root[data-theme="gridspec"]';
-const GN = ':root[data-theme="gridspec-night"]';
-const gs = (sel) => [GL, GN].map((r) => `${r} ${sel}`).join(',');
-const GRIDSPEC_SHELL_CSS = [
-  // Corners: 4px for boxes and buttons, 2px for small round things — the
-  // website has no pills. A spinner keeps its circle: a square one reads as
-  // broken, not as engineered.
-  `${gs('.rounded-2xl')},${gs('.rounded-xl')},${gs('.rounded-lg')},${gs('.rounded-md')}{border-radius:4px}`,
-  `${gs('.rounded-full:not(.animate-spin)')}{border-radius:2px}`,
-  // Lines instead of shadows: every shadow goes, the 1px border stays, and the
-  // decorative inner ring goes with it. Focus rings are a separate variable
-  // (--tw-ring-shadow), so they still show.
-  `${gs('[class*="shadow"]')}{--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000}`,
-  `${gs('[class*="ring-white/5"]')}{--tw-ring-color:transparent}`,
-  // The KPI tiles' tinted outlines (ring-rose-500/20 and friends): on the
-  // website a box is drawn in Line grey only, and Blue is the one accent.
-  `${gs('[class*="ring-"][class*="-500/20"]')}{--tw-ring-color:transparent}`,
-  // Fields are white with a 1px line, as on the website — not a grey fill.
-  // (Light only: on Night the filled field is what separates it from a card.)
-  `${['input', 'select', 'textarea'].map((el) => `${GL} ${el}[class*="bg-slate-8"]`).join(',')}{background-color:#fff;border-color:rgb(var(--c-slate-800))}`,
-  // Solid chrome, never a translucent blur.
-  `${gs('[class*="bg-chrome/80"]')}{background-color:rgb(var(--c-chrome));backdrop-filter:none}`,
-  `${gs('[class*="backdrop-blur"]')}{backdrop-filter:none}`,
-  // Figures line up in every column.
-  `${GL},${GN}{font-feature-settings:"tnum" 1}`,
-  // Headings: weight 600 and tight tracking, as on the website.
-  // (Selectors written out in full, no :is(a,b) — every rule must split
-  // cleanly on its commas for the scope check in lib/palette.test.ts.)
-  `${['h1', 'h2', 'h3'].map(gs).join(',')}{letter-spacing:-0.03em}`,
-  `${['h1', 'h2', 'h3'].flatMap((h) => ['font-bold', 'font-extrabold', 'font-black'].map((w) => gs(`${h}.${w}`))).join(',')}{font-weight:600}`,
-  // The uppercase micro-labels are the website's mono labels: JetBrains Mono,
-  // +8% tracking.
-  `${['tracking-widest', 'tracking-wider', 'tracking-wide'].map((tr) => gs(`.uppercase.${tr}`)).join(',')}{font-family:var(--font-mono-app);letter-spacing:.08em}`,
-  // ACTION IS ICA BLUE — the same signature and exclusions as Corporate's
-  // navy (see CORPORATE_SHELL_CSS for why each part is there).
-  ...['bg-emerald-600', 'bg-violet-600'].flatMap((fill) => [
-    `${gs(`[class~="${fill}"][class~="text-white"]:not(:disabled)`)},${gs(`[class~="${fill}"][class~="text-white"]:disabled:not([class*="disabled:bg-"])`)}{background-color:rgb(var(--c-brand));color:#fff}`,
-    `${gs(`[class~="${fill}"][class~="text-white"]:hover:not(:disabled)`)}{background-color:rgb(var(--c-brand-hover))}`,
-  ]),
-  `${gs('[class*="focus:border-emerald"]:focus')}{border-color:rgb(var(--c-brand) / .7)}`,
-  `${gs('[class*="focus:ring-emerald"]:focus')}{--tw-ring-color:rgb(var(--c-brand) / .35)}`,
-  // Status colour means something, as in Corporate.
-  `${gs('.tone-step')}{color:rgb(var(--c-slate-300))}`,
-  `${gs('.tone-step[class*="bg-"]')}{background-color:rgb(var(--c-slate-500) / .12);border-color:rgb(var(--c-slate-500) / .25)}`,
-  `${gs('.tone-wait')}{color:rgb(var(--c-amber-300))}`,
-  `${gs('.tone-wait[class*="bg-"]')}{background-color:rgb(var(--c-amber-500) / .15);border-color:rgb(var(--c-amber-500) / .3)}`,
-].join('\n');
-
 const varName = (s, step) => step === 'DEFAULT' ? `--c-${s}` : `--c-${s}-${step}`;
 const block = (map, bg) => {
   const lines = [];
@@ -648,12 +525,9 @@ const css = [
   `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)}}`,
   `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])}}`,
-  `:root[data-theme="gridspec"]{${block(gridspec, APP_BG_EXTRA.gridspec)};${fontBlock(FONTS.gridspec)};${brandBlock(BRAND.gridspec)}}`,
-  `:root[data-theme="gridspec-night"]{${block(gridspecNight, APP_BG_EXTRA['gridspec-night'])};${fontBlock(FONTS.gridspec)};${brandBlock(BRAND['gridspec-night'])}}`,
   SHADOW_FIX,
   TERMINAL_SHELL_CSS,
   CORPORATE_SHELL_CSS,
-  GRIDSPEC_SHELL_CSS,
 ].join('\n');
 
 // Colors object for the Tailwind CDN config (raw JS source text).
@@ -688,7 +562,7 @@ export const THEME_VARS_CSS = ${JSON.stringify(css)};
 
 export const TAILWIND_COLORS_JS = ${JSON.stringify(colorsJs)};
 
-export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light' | 'corporate' | 'corporate-dark' | 'gridspec' | 'gridspec-night';
+export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light' | 'corporate' | 'corporate-dark';
 
 /**
  * The scales and steps this palette actually defines. Emitted so anything that

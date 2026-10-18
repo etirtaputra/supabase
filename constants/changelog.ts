@@ -20,20 +20,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-18T03:01:04Z",
+    title: "Tampilan Grid Spec dihapus",
+    details: [
+      "Tampilan Grid Spec dan Grid Spec Night dihapus dari Pengaturan → Tampilan. Siapa pun yang sempat memilihnya kembali ke tampilan bawaan perusahaan. Tampilan lain tidak berubah.",
+    ],
+  },
+  {
     at: "2026-10-18T02:06:59Z",
     title: "Brosur perusahaan dan datasheet produk dengan gaya situs ica.id",
     details: [
       "Brosur perusahaan 12 halaman dan datasheet TP Series 2 halaman, dalam sistem Grid Spec yang sama dengan situs ica.id. Semua teks, angka dan spesifikasi diambil dari ica.id dan katalog ICA.",
       "Tersedia PDF layar (untuk email dan WhatsApp) dan PDF cetak (CMYK, bleed 3 mm, tanda potong). Ini bukan bagian dari tampilan aplikasi.",
-    ],
-  },
-  {
-    at: "2026-10-18T01:35:07Z",
-    title: "Tampilan baru: Grid Spec — gaya situs ica.id, terang dan gelap",
-    details: [
-      "Pilih di Pengaturan → Tampilan: Grid Spec (terang) dan Grid Spec Night (gelap). Tombol matahari/bulan di menu ICAPROC berpindah di antara keduanya.",
-      "Gaya situs ica.id: halaman putih, garis tipis 1px tanpa bayangan, sudut persegi, biru ICA untuk tombol utama, huruf Instrument Sans dengan angka dan label JetBrains Mono.",
-      "Tampilan lain (Corporate, Terminal) tidak berubah, dan Corporate tetap menjadi tampilan bawaan perusahaan.",
     ],
   },
   {

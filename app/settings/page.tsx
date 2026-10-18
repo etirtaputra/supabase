@@ -439,7 +439,7 @@ function AppearanceTab({ companyDefault, onMakeDefault }: {
             keeps it.
           </p>
         </div>
-        {/* The offered pairs (terminal, corporate, grid spec) — plus whatever is in effect
+        {/* The offered pairs (terminal, corporate) — plus whatever is in effect
             here or as the company default, so a skin that is no longer offered
             can still be SEEN when it is the one in force. */}
         <div className="grid sm:grid-cols-2 gap-3 max-w-3xl">
@@ -484,12 +484,11 @@ function AppearanceTab({ companyDefault, onMakeDefault }: {
           })}
         </div>
         <p className="text-[11px] text-slate-600 leading-snug max-w-2xl">
-          Three designs, each with a dark and a light side — the sun/moon switch in the ICAPROC menu flips between the two
+          Two designs, each with a dark and a light side — the sun/moon switch in the ICAPROC menu flips between the two
           sides of whichever design you are on. <span className="text-slate-400">Terminal</span> is the trading-desk
           look (Inter, market green). <span className="text-slate-400">Corporate</span> wears the company navy from our
-          Shop and printed documents, with IBM Plex type: buttons are navy, green is kept for paid and done.{' '}
-          <span className="text-slate-400">Grid Spec</span> is the ica.id website look: white, 1px lines, square
-          corners, ICA Blue buttons, figures and labels in a mono face. Every figure lines up in its column in all three. The older skins (Dark, Dim, Light, Paper) are no longer offered; a
+          Shop and printed documents, with IBM Plex type: buttons are navy, green is kept for paid and done. Every
+          figure lines up in its column in both. The older skins (Dark, Dim, Light, Paper) are no longer offered; a
           browser already on one keeps it until its person changes.
         </p>
       </div>

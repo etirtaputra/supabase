@@ -17,8 +17,8 @@ test('every skin is classified bright or dark — none is left unanswered', () =
   for (const th of THEMES) {
     assert.equal(typeof isLightTheme(th.value), 'boolean', `${th.value} has no answer`);
   }
-  assert.deepEqual([...LIGHT_THEMES].sort(), ['corporate', 'gridspec', 'light', 'paper', 'terminal-light'],
-    'the five lights; everything else is a dark');
+  assert.deepEqual([...LIGHT_THEMES].sort(), ['corporate', 'light', 'paper', 'terminal-light'],
+    'the four lights; everything else is a dark');
 });
 
 test('a tap always flips brightness — the icon can never lie', () => {
@@ -60,11 +60,6 @@ test('every saved older skin moves to Corporate on its own side — dark stays d
   for (const th of THEMES) {
     if (th.value === 'corporate' || th.value === 'corporate-dark') {
       assert.equal(LEGACY_THEME_MIGRATION[th.value], undefined, `${th.value} is already corporate — nothing to move`);
-      continue;
-    }
-    // Grid Spec arrived after the move (2026-10-18): a NEW choice, never migrated.
-    if (th.value === 'gridspec' || th.value === 'gridspec-night') {
-      assert.equal(LEGACY_THEME_MIGRATION[th.value], undefined, `${th.value} is a new skin — nobody is moved onto or off it`);
       continue;
     }
     const to = LEGACY_THEME_MIGRATION[th.value];
@@ -160,16 +155,4 @@ test('the navy button re-dress leaves a greyed-out button grey', () => {
   assert.match(rule!, /:not\(:disabled\)/, 'an enabled button only');
   assert.match(rule!, /:disabled:not\(\[class\*="disabled:bg-"\]\)/,
     'a disabled button keeps its own disabled:bg-… look — Settings’ Save rendered navy while greyed out');
-});
-
-// ── The Grid Spec pair (owner, 2026-10-18) ──────────────────────────────────
-// "Taking design direction from our current ica.id website, make a new ICAPROC
-// theme. Do not change or remove anything that's working."
-
-test('Grid Spec is a third pair: it flips within itself, and the default stays Corporate', () => {
-  assert.equal(nextTheme('gridspec'), 'gridspec-night');
-  assert.equal(nextTheme('gridspec-night'), 'gridspec');
-  assert.deepEqual(pairOf('gridspec'), ['gridspec-night', 'gridspec']);
-  assert.equal(DEFAULT_THEME, 'corporate', 'adding a skin does not move anyone');
-  assert.equal(THEME_PAIRS[0][1], 'corporate', 'a skin outside every pair still lands on Corporate');
 });
