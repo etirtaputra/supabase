@@ -5,7 +5,10 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-10-14** (PURCHASING-SYNC-RUNBOOK v7: the accounting
+> **Last updated: 2026-10-18** (MANDA-SOLAR-DESIGN v4: cut rails — a 4850
+> rail is cut into 2400 / 1200 pieces, up to two per rail line, when that buys
+> fewer rails; mounting engine v12, system engine v10.
+> 2026-10-14: PURCHASING-SYNC-RUNBOOK v7: the accounting
 > folder is for PT Indodaya Surya Lestari (ISL) orders only. v6: the accounting
 > folder uses the same names — an accounting copy is named exactly like its
 > order-folder twin. v5: the Drive file
