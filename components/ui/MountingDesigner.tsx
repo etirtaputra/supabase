@@ -23,7 +23,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { fmtInt, fmtRupiah } from '@/lib/formatters';
 import { specNumber } from '@/lib/specSchema';
 import {
-  calculateMounting, RAIL_LENGTHS_MM, V11_PANEL_PRESETS,
+  calculateMounting, RAIL_LENGTHS_MM, V11_PANEL_PRESETS, MOUNTING_ENGINE_VERSION,
   type MountingInput, type MountType, type Orientation,
 } from '@/lib/systemDesign/mounting';
 import { resolveBom, summarise, type DesignCandidate } from '@/lib/systemDesign/resolve';
@@ -73,7 +73,7 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
   /** Are there already generated lines on this quote? Then this is a REGENERATE. */
   hasExisting: boolean;
 }) {
-  const { t } = useT();
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -217,7 +217,7 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
     }));
     const design: SystemDesign = {
       engine: 'mounting',
-      version: 11,
+      version: MOUNTING_ENGINE_VERSION,
       input: { ...input, panelKey, panelLabel: panel?.label ?? '', railKey, series, profile },
       warnings: result.warnings,
       generated_at: new Date().toISOString(),
@@ -395,7 +395,16 @@ export default function MountingDesigner({ open, onClose, priceOf, stockOf, onAp
                 <p className="flex justify-between"><span className="text-slate-500">Array width</span>
                   <span className="text-slate-200 tabular-nums">{(result.arrayWidthMm / 1000).toFixed(2)} m</span></p>
                 <p className="flex justify-between"><span className="text-slate-500">Rails per line</span>
-                  <span className="text-slate-200 tabular-nums">{result.railsPerLine}</span></p>
+                  <span className="text-slate-200 tabular-nums">{result.cutPlan
+                    ? `${result.cutPlan.linePiecesMm.join(' + ')} mm`
+                    : result.railsPerLine}</span></p>
+                {/* Cut rails (engine v12): what to saw, so the site cuts what the quote bought. */}
+                {result.cutPlan && (
+                  <p className="flex justify-between gap-3"><span className="text-slate-500">{t('Rail cuts')}</span>
+                    <span className="text-slate-200 tabular-nums text-right">{result.cutPlan.patterns
+                      .map((pt) => tf('{n} cut into {pieces} mm', { n: pt.rails, pieces: pt.piecesMm.join(' + ') }))
+                      .join(' · ')}</span></p>
+                )}
                 <p className="flex justify-between"><span className="text-slate-500">Edge spacing (each end)</span>
                   <span className={`tabular-nums ${result.edgeSpacingMm < 25 ? 'text-red-300' : 'text-slate-200'}`}>{result.edgeSpacingMm.toFixed(1)} mm</span></p>
                 <p className="flex justify-between"><span className="text-slate-500">Total rail</span>

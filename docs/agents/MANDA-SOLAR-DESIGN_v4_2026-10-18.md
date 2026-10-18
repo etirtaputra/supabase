@@ -5,10 +5,19 @@
 > MANDA and the ERP produce the same numbers for the same inputs.
 >
 > **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
-> **Version:** written against `main` @ `5ae1ae9`, 2026-09-09. Engine **v9**.
+> **Version:** written against `main` @ `7395936` + the commit that ships this
+> file, 2026-10-18. System engine **v10**, mounting engine **v12**.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
 >
-> **v9 changes nothing that was already computed.** Every golden number in
+> **v4 of this pack — ONE rule changed: cut rails** (owner, 2026-10-18). A
+> 4850 mm rail may now be cut into 2400 / 1200 mm pieces, up to two pieces per
+> rail line, when that buys fewer rails. It is ON by default in the Design
+> Mounting screen, `/api/agent/design/mounting` and the system engine's
+> structure. **Drop the belief "rails per line = ceil(width / 4850), whole
+> rails only"** — that is now `allowCutRails: false`, the v11 / v7 rule the
+> parity tests still pin. See §3.3a and §3.5. Nothing else moved.
+>
+> **v9 changed nothing that was already computed.** Every golden number in
 > §3.4, §4.4 and §5.5 is what it was under v8. What v9 adds is four inputs the
 > site should answer and six places where an unanswered one now says so. If you
 > hold a v8 belief about an ARITHMETIC rule, it is still right; if you hold one
@@ -95,7 +104,7 @@ the quantity is the wrong order and will disagree with the ERP.
 
 ---
 
-## 3. The mounting engine (v11)
+## 3. The mounting engine (v11 port, engine v12)
 
 `lib/systemDesign/mounting.ts` · `calculateMounting(input, options)`
 
@@ -119,6 +128,12 @@ the quantity is the wrong order and will disagree with the ERP.
 | `supportSpacingMm` | **1700** | rafter/purlin spacing → supports per rail |
 | `minEdgeSpacingMm` | **25** | below this the rail end is structurally risky |
 | `overhangThreshold` | **0.3** | last rail used under 30 % = wasteful overhang |
+| `allowCutRails` | **true** (v12) | cut the 4850 rail into 2400 / 1200 pieces when that buys fewer rails; `false` = v11's whole rails |
+
+Cut-rail constants (`CUT_RAIL`, owner's decisions 2026-10-18): stock **4850**,
+pieces **2400** and **1200**, one rail yields **4800 mm** of pieces (50 mm to
+the saw), at most **2** cut pieces per rail line. Only the 4850 rail is cut;
+3600 always keeps whole rails.
 
 ### 3.3 The arithmetic, in order
 
@@ -143,10 +158,43 @@ groundClips     = midClamps                                ← bonding scales wi
 groundingLugs   = ceil(endClamps / 2)
 ```
 
+Those are the WHOLE-RAIL formulas (v11, `allowCutRails: false`). With cut
+rails on, §3.3a decides the layout first; the clamp, bonding and lug lines
+above do not change.
+
+### 3.3a Cut rails (engine v12)
+
+```
+need per line  = arrayWidthMm + 2 × 25                       ← minimum edge both ends
+tails allowed  = none · 1200 · 2400 · 2400 + 1200            ← ≤ 2 pieces, never two alike
+line           = N × 4850 + tail ≥ need, SHORTEST total wins; tie → fewer pieces
+                 (a line shorter than one rail may be pieces only: 2400, 2400 + 1200)
+rail lines     = 2 × numberOfRows
+rails to buy   = N × lines + rails the pieces are cut from     ← 4800 mm of pieces per rail
+                 (2 × 2400, or 2400 + 2 × 1200, or 4 × 1200)
+
+ONLY IF rails to buy < the whole-rail answer; otherwise whole rails
+(fewer joints and supports for the same money).
+
+railJoints      = (pieces per line − 1) × lines
+supports        = Σ over a line's pieces of max(2, ceil(piece / 1700) + 1) × lines
+                  → 4850: 4 · 2400: 3 · 1200: 2
+edgeSpacingMm   = (line length − arrayWidthMm) / 2           ← always ≥ 25 when cut
+railUtil%       = arrayWidthMm / line length × 100
+totalRailLengthM = rails to buy × 4.85                        ← material bought
+```
+
+The rail BoM line stays the **4850** stock item; its note carries the cut
+list, e.g. *"6 × 4850 mm · 2 cut into 2 × 2400 mm · each rail line 4850 + 2400 mm
+· 95% used"*. `result.cutPlan` (and `geometry.cutPlan` from the API) holds
+`linePiecesMm`, `pieces`, `patterns`, `wholeRails`, `railsCut`; it is `null`
+for a whole-rail layout.
+
 **Two warnings, and they are mutually exclusive (edge check wins):**
 - `edgeSpacing < 25 mm` → *"structurally risky"*.
 - else if `railsPerLine > 1` and the last rail is under 30 % used → *"large rail
-  overhang — consider a cut-to-length rail to save material."*
+  overhang — consider a cut-to-length rail to save material."* **Whole-rail
+  layouts only** — a cut layout never shows it.
 
 **Bails out** (`ok: false`) when `effectiveWidth` or `railLength` is 0 — i.e.
 the module has no dimensions on file. It does not guess.
@@ -166,7 +214,10 @@ supportsPerRail = max(2, ceil(4850/1700)+1) = 4  → supports 8
 groundClips 6 · groundingLugs 2
 ```
 
-Other pinned scenarios from `mounting.test.ts` (all read out of the HTML app):
+(This one fits a single rail, so cut mode gives the same answer.)
+
+Other pinned scenarios from `mounting.test.ts` (all read out of the HTML app,
+run with `allowCutRails: false` — the v11 rule):
 
 | Scenario | rails | joints | end | mid | supports | edge mm | util |
 |---|---|---|---|---|---|---|---|
@@ -175,14 +226,40 @@ Other pinned scenarios from `mounting.test.ts` (all read out of the HTML app):
 | 3 panels but 8 rows asked | 6 | 0 | 12 | 0 | 24 | 1924.0 | 21 % (rows→3) |
 | 5 panels, 1 row (spills to rail 2) | 4 | 2 | 4 | 8 | 16 | 1975.0 | 59 % ⚠ overhang |
 
+### 3.5 Cut-rail golden scenarios (engine v12, `mounting.test.ts`)
+
+ICA550-72HMI 2278 × 1134 × 30 · portrait · 20 mm gap · roof · 4850 rail ·
+default options. "Whole" = the v11 answer for the same job.
+
+| Panels / rows | Row width | Each rail line | Used | Rails to buy (whole) | Joints (whole) | Supports (whole) |
+|---|---|---|---|---|---|---|
+| 12 / 2 | 6904 | 4850 + 2400 | 95 % | **6** (8) | 4 (4) | 28 (32) |
+| 10 / 2 | 5750 | 4850 + 1200 | 95 % | **5** (8) | 4 (4) | 24 (32) |
+| 20 / 2 | 11520 | 4850 + 4850 + 2400 | 95 % | **10** (12) | 8 (8) | 44 (48) |
+| 4 / 2 | 2288 | 2400 | 95 % | **2** (4) | 0 (0) | 12 (16) |
+| 7 / 1 | 8058 | 4850 + 4850 — no cut: 4850 + 2400 + 1200 needs 4 rails too | 83 % | **4** (4) | 2 (2) | 16 (16) |
+| 3 / 1 | 3442 | 4850 — no cut: 2400 + 1200 needs 2 rails too | 71 % | **2** (2) | 0 (0) | 8 (8) |
+| 8 / 2 | 4596 | 4850 | 95 % | **4** (4) | 0 (0) | 16 (16) |
+
+Also pinned: cutting never buys MORE rails than whole rails (checked for 1–60
+panels × 1–3 rows), a line never ends in more than two cut pieces or two
+alike, and a 3600 rail is never cut.
+
+**Saving rails can add joints and supports.** The rule counts rails only: the
+60-panel, 2-row case in §4.4 buys 15 rails instead of 16 but needs 16 joints
+instead of 12 and 68 supports instead of 64. That is the owner's rule as
+decided — report the trade-off when it matters, do not overrule it.
+
 ---
 
-## 4. The system engine (v7 port, engine v9)
+## 4. The system engine (v7 port, engine v10)
 
 `lib/systemDesign/system.ts` · `calculateSystem(input, candidates, options)`
 
-Two paths. **The structure block is not re-derived — it calls the v11 mounting
-engine above.** One set of mounting rules, one set of tests.
+Two paths. **The structure block is not re-derived — it calls the mounting
+engine above**, with cut rails ON by default since engine v10
+(`allowCutRails` in the options; `false` = v7's whole rails). One set of
+mounting rules, one set of tests.
 
 ### 4.1 Constants
 
@@ -198,6 +275,7 @@ engine above.** One set of mounting rules, one set of tests.
 | `vocMarginFactor` | **0.95** | the OLD flat margin; used by `vocRule: 'flat'` and as the fallback when a module has no β |
 | `cableMetresPerPanel` | **6** | string cabling — a ROOFTOP figure; see §4.6 |
 | `minInverterHeadroomPct` | **0.30** | least installed-over-required margin before the engine objects (v9) |
+| `allowCutRails` | **true** | the structure cuts 4850 rails when that buys fewer (v10, §3.3a) |
 | `batteryVoltageProximityThreshold` | **0.95** | fraction of the battery port maximum above which a string is called close (v9) |
 
 **One number is no longer a constant.** `continuousSafetyFactor` 1.25 still
@@ -292,8 +370,10 @@ and a warning.
 **On-grid, 5500 VA single-phase, DC/AC 1.2, ICA100-36M (100 W, 26.91 Voc):**
 inverter `SNV-GT5023DSC` · 60 panels · 6.00 kWp · 3 strings × max 21 in series ·
 **warns**: the inverter supports only 2 strings (2 MPPT × 1) → needs a combiner
-or a second inverter. Structure: 16 rails, 12 joints, 64 hooks, 8 end / 116 mid
-clamps, 360 m cable, 8 MC4 pairs.
+or a second inverter. Structure (v7 whole rails, the parity test): 16 rails,
+12 joints, 64 hooks, 8 end / 116 mid clamps, 360 m cable, 8 MC4 pairs.
+**With the default cut rails (v10): 15 rails, 16 joints, 68 hooks** — each rail
+line 3 × 4850 + 2400 + 1200 mm, "2 cut into 2 × 2400 mm, 1 cut into 4 × 1200 mm".
 
 **On-grid, 23000 VA three-phase, DC/AC 1.3, ICA200-72M:** `SNV-GT1033DT`
 (10 kW) · 65 panels · 13.00 kWp · 4 strings × 18 · `ac_distribution` = `triple`.
@@ -681,7 +761,7 @@ been asked to look at, which is exactly the category §4.6 exists to surface.
 | File | What it owns |
 |---|---|
 | `lib/systemDesign/types.ts` | `BomLine`, `ResolvedLine`, `SystemDesign`, `designRoleOf` |
-| `lib/systemDesign/mounting.ts` | the v11 mounting engine + its constants |
+| `lib/systemDesign/mounting.ts` | the mounting engine (v11 port + cut rails, v12), `CUT_RAIL`, `planCutLine`, `MOUNTING_ENGINE_VERSION` |
 | `lib/systemDesign/system.ts` | the v7 system engine, both paths, `sizePvStrings`, `voltageClassOf` / `seriesOnBus` / `isChemistry` |
 | `lib/systemDesign/resolve.ts` | role → catalog item, `specCovers`, ranking |
 | `lib/systemDesign/mountingSystem.ts` | series / rail-profile families |

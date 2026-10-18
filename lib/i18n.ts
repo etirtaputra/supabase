@@ -2018,6 +2018,9 @@ export const ID: Record<string, string> = {
   'Copies a prompt for ChatGPT or Claude with the fields of this category, their units and the current values. Paste it with the datasheet PDF.': 'Menyalin prompt untuk ChatGPT atau Claude berisi field kategori ini, satuannya, dan nilai yang sudah ada. Tempelkan bersama PDF datasheet.',
   'Prompt copied. Paste it into ChatGPT or Claude with the datasheet, then replace the JSON here with the answer and save.': 'Prompt tersalin. Tempelkan ke ChatGPT atau Claude bersama datasheet, lalu ganti JSON di sini dengan jawabannya dan simpan.',
   'Could not copy. Allow clipboard access and try again.': 'Tidak dapat menyalin. Izinkan akses clipboard lalu coba lagi.',
+  // Design Mounting — cut rails (components/ui/MountingDesigner)
+  'Rail cuts': 'Potongan rel',
+  '{n} cut into {pieces} mm': '{n} dipotong jadi {pieces} mm',
   // Supplier lead times (app/suppliers/lead-times)
   'Supplier lead times': 'Lead time pemasok',
   'How long suppliers take, sea, air and local, and who is running late': 'Berapa lama pemasok mengirim, laut, udara dan lokal, dan siapa yang terlambat',

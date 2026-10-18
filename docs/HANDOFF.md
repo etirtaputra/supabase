@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-18** · last change: *Grid Spec ICAPROC theme removed (owner: "dont look good, undo"); print collateral in `print/` kept* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-18** · last change: *Mounting engine v12 — cut rails (4850 → 2400 / 1200); system engine v10; MANDA pack v4* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,38 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-18 (latest) — Print collateral (brochure + datasheet); Grid Spec theme added and REMOVED
+### 2026-10-18 (latest) — Mounting: cut rails (engine v12 / system v10, MANDA pack v4)
+
+Owner, from Wendy's test of the website calculator: "It doesn't assume you can
+cut the rails. Maybe need to assume can do 1200 and 2400 rails too." Kickoff
+`KICKOFF_mounting_cut_rails_2026-10-18.md` (owner's decisions: pieces CUT from
+the 4850 rail; ≤ 2 cut pieces per rail line, best fit). DELIBERATE RULE CHANGE.
+
+- `lib/systemDesign/mounting.ts`: `CUT_RAIL` (4850 → 2400 / 1200, yield 4800,
+  ≤ 2 pieces), `planCutLine` (N × 4850 + tail ∈ {—, 1200, 2400, 2400+1200} ≥
+  width + 2 × 25; shortest, tie → fewer pieces), `cutPatterns` (packs the job's
+  pieces into rails), `supportsForPiece`, `allowCutRails` option (default ON).
+  Cut only when it buys FEWER rails than whole rails. `result.cutPlan`
+  (null = whole rails); rail BoM line stays the 4850 item, note carries the
+  cuts. Overhang warning only for whole-rail layouts. `MOUNTING_ENGINE_VERSION
+  = 12` — MountingDesigner and `/api/agent/design/mounting` import it (they
+  used to write `version: 11`); the API returns `geometry.cutPlan` and GET
+  `cut_rails`.
+- `lib/systemDesign/system.ts`: `SystemOptions.allowCutRails` (default true)
+  → the structure cuts too; `SYSTEM_ENGINE_VERSION` 9 → 10.
+- Golden numbers UNCHANGED: v11 parity runs with `allowCutRails: false`
+  (`V11`), v7 parity via `V7_RULE` (+ `allowCutRails: false`). New: the
+  kickoff's 7 cut scenarios (all reproduced exactly), never-more-rails sweep
+  (1–60 panels × 1–3 rows), ≤ 2 distinct pieces, 3600 never cut, supports
+  4/3/2, version guard.
+- Trade-off to know: the rule counts rails only. The v7 60-panel/2-row case
+  buys 15 rails (was 16) but 16 joints (12) and 68 supports (64).
+- `docs/agents/MANDA-SOLAR-DESIGN_v4_2026-10-18.md` (§3.3a, §3.5, §4),
+  `lib/agentDocs.ts`, `docs/agents/INDEX.md`. Drive upload + MIRA/MANDA prompts.
+- Next (website thread): port the compiled engine into icasolar.com
+  `/support/calculator/` and show the cut note.
+
+### 2026-10-18 — Print collateral (brochure + datasheet); Grid Spec theme added and REMOVED
 
 **Theme: removed.** A `gridspec` / `gridspec-night` ICAPROC skin pair (the
 ica.id website look) shipped in `3cdf1b8` and was reverted the same day —

@@ -27,13 +27,15 @@ import type { BomLine } from './types.ts';
  *  8 — temperature-corrected Voc replaces v7's flat 0.95 string margin.
  *  9 — the six silent defaults are named: demand factor, power loss factor,
  *      inverter headroom, battery string voltage, cable run, PSH provenance.
+ * 10 — the structure cuts the 4850 mm rail into 2400 / 1200 pieces when that
+ *      buys fewer rails (mounting engine v12, owner 2026-10-18).
  *
  * It lives HERE, beside the rules it describes, because it was written out by
  * hand in two places — the API route and the designer screen — and a number
  * copied twice is a number that will disagree with itself. `system.test.ts`
  * fails if either copy comes back.
  */
-export const SYSTEM_ENGINE_VERSION = 9;
+export const SYSTEM_ENGINE_VERSION = 10;
 
 /** Keep a fraction inside its meaningful range. */
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -98,6 +100,12 @@ export interface SystemOptions {
    * is called close. v9: 0.95.
    */
   batteryVoltageProximityThreshold?: number;
+  /**
+   * Cut the 4850 mm rail into 2400 / 1200 pieces when that buys fewer rails —
+   * the mounting engine's `allowCutRails` (engine v10, 2026-10-18). `false`
+   * is v7's whole-rail structure, which the v7 parity tests pass explicitly.
+   */
+  allowCutRails?: boolean;
 }
 
 export const SYSTEM_DEFAULTS: Required<SystemOptions> = {
@@ -112,6 +120,7 @@ export const SYSTEM_DEFAULTS: Required<SystemOptions> = {
   cableMetresPerPanel: 6,
   minInverterHeadroomPct: 0.30,
   batteryVoltageProximityThreshold: 0.95,
+  allowCutRails: true,
 };
 
 // ── The specs each candidate must carry ─────────────────────────────────────
@@ -714,7 +723,7 @@ function buildStructureAndBos(
     panelSpacingMm: input.panelSpacingMm,
     mountType: input.mountType,
     orientation: input.orientation,
-  });
+  }, { allowCutRails: opt.allowCutRails });
 
   const lines: BomLine[] = [...mount.lines];
   const bomWarnings = [...mount.warnings];

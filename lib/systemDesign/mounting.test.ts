@@ -9,10 +9,18 @@
  * A failure here means the port and the calculator disagree. Change these
  * numbers only when the RULE has deliberately changed — never to make a
  * failing build pass.
+ *
+ * v11 lays WHOLE rails only. Cut rails (engine v12, owner 2026-10-18) are a
+ * deliberate rule change, so the parity tests run with `allowCutRails: false`
+ * — the calculator's own rule — and the cut-rail goldens are pinned below.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateMounting, type MountingInput } from './mounting.ts';
+import { calculateMounting, planCutLine, supportsForPiece, MOUNTING_ENGINE_VERSION, CUT_RAIL, type MountingInput } from './mounting.ts';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const V11 = { allowCutRails: false };
 
 interface Golden {
   name: string;
@@ -94,8 +102,9 @@ const GOLDEN: Golden[] = [
 
 for (const g of GOLDEN) {
   test(`v11 parity — ${g.name}`, () => {
-    const r = calculateMounting(g.input);
+    const r = calculateMounting(g.input, V11);
     assert.equal(r.ok, true);
+    assert.equal(r.cutPlan, null, 'v11 never cuts');
     assert.equal(r.panelsPerRow, g.panelsPerRow, 'panels per row');
     assert.equal(Number(r.edgeSpacingMm.toFixed(1)), g.edgeSpacingMm, 'edge spacing');
     assert.equal(r.totalRails, g.totalRails, 'rails');
@@ -137,7 +146,7 @@ test('missing dimensions size nothing and say why', () => {
 
 test('the BoM carries the quantities the results grid shows', () => {
   const g = GOLDEN[1];
-  const qty = (role: string, lines = calculateMounting(g.input).lines) =>
+  const qty = (role: string, lines = calculateMounting(g.input, V11).lines) =>
     lines.find((l) => l.role === role)?.qty ?? 0;
   assert.equal(qty('rail'), g.totalRails);
   assert.equal(qty('rail_joint'), g.railJoints);
@@ -153,4 +162,113 @@ test('clamps carry the frame thickness, rails their length — what resolution n
   assert.equal(r.lines.find((l) => l.role === 'mid_clamp')?.param, 35);
   assert.equal(r.lines.find((l) => l.role === 'end_clamp')?.param, 35);
   assert.equal(r.lines.find((l) => l.role === 'rail')?.param, 4850);
+});
+
+// ── Cut rails (owner, 2026-10-18; engine v12) ───────────────────────────────
+// "It doesn't assume you can cut the rails. Maybe need to assume can do 1200
+// and 2400 rails too." Decisions: pieces are CUT from the 4850 rail, up to two
+// per rail line, best fit, and only when that buys fewer rails.
+//
+// Scenarios and expected numbers from the kickoff (website thread,
+// 2026-10-18): ICA550-72HMI 2278 × 1134 × 30, portrait, 20 mm gap, roof, 4850
+// rail. "today" = the v11 whole-rail answer for the same input.
+
+interface CutGolden {
+  panels: number; rows: number;
+  arrayWidthMm: number; linePiecesMm: number[]; usedPercent: number;
+  pieces: Record<number, number>;   // job total by length, 4850 = whole rails
+  rails: number; joints: number; supports: number;
+  today: { rails: number; joints: number; supports: number };
+}
+const CUT_GOLDEN: CutGolden[] = [
+  { panels: 12, rows: 2, arrayWidthMm: 6904, linePiecesMm: [4850, 2400], usedPercent: 95, pieces: { 4850: 4, 2400: 4 }, rails: 6, joints: 4, supports: 28, today: { rails: 8, joints: 4, supports: 32 } },
+  { panels: 10, rows: 2, arrayWidthMm: 5750, linePiecesMm: [4850, 1200], usedPercent: 95, pieces: { 4850: 4, 1200: 4 }, rails: 5, joints: 4, supports: 24, today: { rails: 8, joints: 4, supports: 32 } },
+  { panels: 20, rows: 2, arrayWidthMm: 11520, linePiecesMm: [4850, 4850, 2400], usedPercent: 95, pieces: { 4850: 8, 2400: 4 }, rails: 10, joints: 8, supports: 44, today: { rails: 12, joints: 8, supports: 48 } },
+  { panels: 4, rows: 2, arrayWidthMm: 2288, linePiecesMm: [2400], usedPercent: 95, pieces: { 2400: 4 }, rails: 2, joints: 0, supports: 12, today: { rails: 4, joints: 0, supports: 16 } },
+  // No saving → whole rails (4850 + 2400 + 1200 would need 4 rails too)
+  { panels: 7, rows: 1, arrayWidthMm: 8058, linePiecesMm: [4850, 4850], usedPercent: 83, pieces: { 4850: 4 }, rails: 4, joints: 2, supports: 16, today: { rails: 4, joints: 2, supports: 16 } },
+  // No saving → whole rail (2400 + 1200 would need 2 rails too)
+  { panels: 3, rows: 1, arrayWidthMm: 3442, linePiecesMm: [4850], usedPercent: 71, pieces: { 4850: 2 }, rails: 2, joints: 0, supports: 8, today: { rails: 2, joints: 0, supports: 8 } },
+  { panels: 8, rows: 2, arrayWidthMm: 4596, linePiecesMm: [4850], usedPercent: 95, pieces: { 4850: 4 }, rails: 4, joints: 0, supports: 16, today: { rails: 4, joints: 0, supports: 16 } },
+];
+const cutInput = (panels: number, rows: number): MountingInput => ({
+  panelCount: panels, numberOfRows: rows, panelLengthMm: 2278, panelWidthMm: 1134, panelThicknessMm: 30,
+  railLengthMm: 4850, panelSpacingMm: 20, mountType: 'roof', orientation: 'portrait',
+});
+
+for (const g of CUT_GOLDEN) {
+  test(`cut rails — ${g.panels} panels / ${g.rows} rows → ${g.rails} rails (whole rails: ${g.today.rails})`, () => {
+    const r = calculateMounting(cutInput(g.panels, g.rows));
+    assert.equal(r.arrayWidthMm, g.arrayWidthMm, 'row width');
+    assert.equal(r.totalRails, g.rails, 'rails to buy');
+    assert.equal(r.railJoints, g.joints, 'joints');
+    assert.equal(r.supports, g.supports, 'supports');
+    assert.equal(Math.round(r.railUtilPercent), g.usedPercent, 'used');
+    const linePieces = r.cutPlan?.linePiecesMm ?? Array(r.railsPerLine).fill(4850);
+    assert.deepEqual(linePieces, g.linePiecesMm, 'pieces per rail line');
+    const lines = 2 * g.rows;
+    const total: Record<number, number> = {};
+    for (const p of linePieces) total[p] = (total[p] ?? 0) + lines;
+    assert.deepEqual(total, g.pieces, 'pieces for the job');
+    assert.ok(r.edgeSpacingMm >= 25, 'edge never under 25 mm');
+    assert.equal(qtyOf(r, 'rail'), g.rails, 'the BoM buys what the result says');
+    assert.equal(qtyOf(r, 'roof_hook'), g.supports);
+    // ...and the v11 rule for the same job is what "today" says it was.
+    const v11 = calculateMounting(cutInput(g.panels, g.rows), V11);
+    assert.deepEqual({ rails: v11.totalRails, joints: v11.railJoints, supports: v11.supports }, g.today, 'whole-rail answer');
+    // Overhang advice only where rails stay whole.
+    if (r.cutPlan) assert.ok(!r.warnings.some((w) => /overhang/i.test(w)), 'a cut layout does not advise cutting');
+  });
+}
+function qtyOf(r: ReturnType<typeof calculateMounting>, role: string) {
+  return r.lines.filter((l) => l.role === role).reduce((a, l) => a + l.qty, 0);
+}
+
+test('the rail line says how to cut: "6 × 4850 mm · 2 cut into 2 × 2400 mm"', () => {
+  const rail = calculateMounting(cutInput(12, 2)).lines.find((l) => l.role === 'rail')!;
+  assert.equal(rail.param, 4850, 'still bought as the 4850 stock item');
+  assert.match(rail.note ?? '', /^6 × 4850 mm · 2 cut into 2 × 2400 mm/);
+  const mixed = calculateMounting(cutInput(10, 2)).lines.find((l) => l.role === 'rail')!;
+  assert.match(mixed.note ?? '', /^5 × 4850 mm · 1 cut into 4 × 1200 mm/);
+});
+
+test('a rail line ends in at most two cut pieces, never two of the same', () => {
+  for (let w = 500; w <= 30000; w += 37) {
+    const ps = planCutLine(w);
+    const cut = ps.filter((p) => p !== CUT_RAIL.stockMm);
+    assert.ok(cut.length <= 2, `${w}: ${ps}`);
+    assert.equal(new Set(cut).size, cut.length, `${w}: ${ps}`);
+    assert.ok(ps.reduce((a, b) => a + b, 0) >= w + 50, `${w}: ${ps} too short`);
+  }
+});
+
+test('cutting never buys MORE rails than whole rails would', () => {
+  for (let panels = 1; panels <= 60; panels++) {
+    for (const rows of [1, 2, 3]) {
+      const cut = calculateMounting(cutInput(panels, rows));
+      const whole = calculateMounting(cutInput(panels, rows), V11);
+      assert.ok(cut.totalRails <= whole.totalRails, `${panels}/${rows}: ${cut.totalRails} > ${whole.totalRails}`);
+      if (!cut.cutPlan) assert.equal(cut.totalRails, whole.totalRails);
+    }
+  }
+});
+
+test('only the 4850 rail is cut — 3600 keeps the whole-rail rule', () => {
+  const r = calculateMounting({ ...cutInput(12, 2), railLengthMm: 3600 });
+  assert.equal(r.cutPlan, null);
+  assert.equal(r.totalRails, calculateMounting({ ...cutInput(12, 2), railLengthMm: 3600 }, V11).totalRails);
+});
+
+test('supports per piece: 4850 → 4, 2400 → 3, 1200 → 2', () => {
+  assert.deepEqual([4850, 2400, 1200].map((p) => supportsForPiece(p)), [4, 3, 2]);
+});
+
+test('the mounting engine version is 12, and no screen restates it', () => {
+  // 12: cut rails (owner, 2026-10-18) — a deliberate rule change.
+  assert.equal(MOUNTING_ENGINE_VERSION, 12);
+  for (const rel of [['app', 'api', 'agent', 'design', 'mounting', 'route.ts'], ['components', 'ui', 'MountingDesigner.tsx']]) {
+    const src = readFileSync(join(process.cwd(), ...rel), 'utf8');
+    assert.ok(/MOUNTING_ENGINE_VERSION/.test(src), `${rel.join('/')} must import the version`);
+    assert.ok(!/version:\s*\d+/.test(src), `${rel.join('/')} still writes a literal engine version`);
+  }
 });

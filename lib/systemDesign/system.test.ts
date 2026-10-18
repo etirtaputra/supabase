@@ -30,8 +30,11 @@ const CANDIDATES = {
  * still matches the original calculator, not to describe current practice.
  * Without this they would pass only by accident, because v7's fixture happens
  * to carry no temperature coefficients.
+ *
+ * The same goes for the structure: v7 lays whole rails only, so the rule
+ * passes `allowCutRails: false` (cut rails arrived in engine v10, 2026-10-18).
  */
-const V7_RULE = { vocRule: 'flat' as const };
+const V7_RULE = { vocRule: 'flat' as const, allowCutRails: false };
 
 const qtyOf = (lines: { role: string; qty: number }[], role: string) =>
   lines.filter((l) => l.role === role).reduce((s, l) => s + l.qty, 0);
@@ -698,8 +701,9 @@ test('provenance changes nothing about the array it describes', () => {
 
 // ── The version, in one place ──────────────────────────────────────────────
 
-test('the engine version is 9', () => {
-  assert.equal(SYSTEM_ENGINE_VERSION, 9);
+test('the engine version is 10', () => {
+  // 10: cut rails in the structure (owner, 2026-10-18) — a deliberate rule change.
+  assert.equal(SYSTEM_ENGINE_VERSION, 10);
 });
 
 /**

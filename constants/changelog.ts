@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-18T08:25:15Z",
+    title: "Desain Mounting: rel 4850 mm kini boleh dipotong jadi 2400 / 1200 mm",
+    details: [
+      "Kalkulator memotong rel 4850 mm menjadi potongan 2400 atau 1200 mm (paling banyak dua potongan per jalur rel) bila itu mengurangi jumlah rel yang dibeli. Contoh: 12 panel dalam 2 baris kini butuh 6 rel, bukan 8.",
+      "Bila memotong tidak menghemat rel, kalkulator tetap memakai rel utuh — sambungan dan dudukan lebih sedikit dengan biaya yang sama.",
+      "Baris rel di daftar barang mencantumkan daftar potongan (mis. \"2 dipotong jadi 2 × 2400 mm\"), dan Desain Mounting menampilkannya. Berlaku juga untuk struktur di Desain Sistem dan untuk agen.",
+    ],
+  },
+  {
     at: "2026-10-18T03:01:04Z",
     title: "Tampilan Grid Spec dihapus",
     details: [
