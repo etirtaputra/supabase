@@ -1,0 +1,269 @@
+{
+ "logo": {
+  "file": "logo.png",
+  "source": "https://ica.id/wp-content/uploads/2025/07/Logo-ICA-copy-1-1.png",
+  "pixels": [
+   500,
+   195
+  ]
+ },
+ "logo2": {
+  "file": "logo2.png",
+  "source": "https://ica.id/wp-content/uploads/2025/07/Logo-ICA-copy-2.png",
+  "pixels": [
+   500,
+   195
+  ]
+ },
+ "cover-mu": {
+  "file": "cover-mu.png",
+  "source": "https://ica.id/wp-content/uploads/2025/09/MU-Series.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "cover-se": {
+  "file": "cover-se.png",
+  "source": "https://ica.id/wp-content/uploads/2025/08/SE-C3-H-Series.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "cover-liplf": {
+  "file": "cover-liplf.png",
+  "source": "https://ica.id/wp-content/uploads/2025/09/LIP48100LF_2.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "cover-sm": {
+  "file": "cover-sm.png",
+  "source": "https://ica.id/wp-content/uploads/2025/08/SM60K3.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "cover-nrs": {
+  "file": "cover-nrs.png",
+  "source": "https://ica.id/wp-content/uploads/2025/07/NRS11042_2.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "cover-pv550": {
+  "file": "cover-pv550.png",
+  "source": "https://ica.id/wp-content/uploads/2026/09/1-3je0cl.png",
+  "pixels": [
+   945,
+   945
+  ]
+ },
+ "fam-ups": {
+  "file": "fam-ups.png",
+  "source": "https://ica.id/wp-content/uploads/2025/08/TP-Series.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "fam-solar": {
+  "file": "fam-solar.png",
+  "source": "https://ica.id/wp-content/uploads/2025/08/SNV-GH2041_2.png",
+  "pixels": [
+   600,
+   600
+  ],
+  "series": "SNV-GH Series"
+ },
+ "fam-batteries": {
+  "file": "fam-batteries.png",
+  "source": "https://ica.id/wp-content/uploads/2025/09/ICAL-IP-LIP.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "fam-racks": {
+  "file": "fam-racks.png",
+  "source": "https://ica.id/wp-content/uploads/2025/07/NWS5006_2.png",
+  "pixels": [
+   600,
+   600
+  ],
+  "series": "NWS Series"
+ },
+ "fam-stabilizers": {
+  "file": "fam-stabilizers.png",
+  "source": "https://ica.id/wp-content/uploads/2025/08/FRc-Series.png",
+  "pixels": [
+   1250,
+   1250
+  ],
+  "series": "FRc Series"
+ },
+ "fam-inverter": {
+  "file": "fam-inverter.png",
+  "source": "https://ica.id/wp-content/uploads/2025/08/INV-Series.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "fam-rectifier": {
+  "file": "fam-rectifier.png",
+  "source": "https://ica.id/wp-content/uploads/2026/10/ica-rectifier-r1jya.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "fam-isolator": {
+  "file": "fam-isolator.png",
+  "source": "https://ica.id/wp-content/uploads/2026/10/ica-ultra-isolator-xx0m6.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "sol-ups": {
+  "file": "sol-ups.jpg",
+  "source": "https://ica.id/wp-content/uploads/2026/10/ups-solutions-for-hospitals.jpg",
+  "pixels": [
+   1600,
+   800
+  ]
+ },
+ "sol-solar": {
+  "file": "sol-solar.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/08/168810406840888ioje-9.webp",
+  "pixels": [
+   1200,
+   600
+  ]
+ },
+ "sol-storage": {
+  "file": "sol-storage.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/09/Remote_-Off-Grid-Power.jpg",
+  "pixels": [
+   2400,
+   1800
+  ]
+ },
+ "sol-sheet": {
+  "file": "sol-sheet.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/08/Laser-Cutting.jpg",
+  "pixels": [
+   2400,
+   1600
+  ]
+ },
+ "tp": {
+  "file": "tp.png",
+  "source": "https://ica.id/wp-content/uploads/2025/08/TP-Series.png",
+  "pixels": [
+   600,
+   600
+  ]
+ },
+ "proj-01": {
+  "file": "proj-01.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/BANDARA.png",
+  "pixels": [
+   1546,
+   1031
+  ]
+ },
+ "proj-02": {
+  "file": "proj-02.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/PDAM-Talisayan_.png",
+  "pixels": [
+   1488,
+   893
+  ]
+ },
+ "proj-03": {
+  "file": "proj-03.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/BANDARA-Nop-Goliat-Dekai.png",
+  "pixels": [
+   1518,
+   1139
+  ]
+ },
+ "proj-04": {
+  "file": "proj-04.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/Unilever-Foods.png",
+  "pixels": [
+   1546,
+   930
+  ]
+ },
+ "proj-05": {
+  "file": "proj-05.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/IMG_0018_.jpg",
+  "pixels": [
+   1170,
+   878
+  ]
+ },
+ "proj-06": {
+  "file": "proj-06.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/BTS-Telkomsel.png",
+  "pixels": [
+   1435,
+   1077
+  ]
+ },
+ "proj-07": {
+  "file": "proj-07.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/Bendungan-Raknamo.png",
+  "pixels": [
+   1432,
+   858
+  ]
+ },
+ "proj-08": {
+  "file": "proj-08.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/07/14_1-1.jpg",
+  "pixels": [
+   1134,
+   550
+  ]
+ },
+ "proj-09": {
+  "file": "proj-09.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/Desa-Katikuwai.png",
+  "pixels": [
+   1629,
+   858
+  ]
+ },
+ "proj-10": {
+  "file": "proj-10.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/Astra-Isuzu-Harapan-Indah.png",
+  "pixels": [
+   1547,
+   1161
+  ]
+ },
+ "proj-11": {
+  "file": "proj-11.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/Bamed-Clinic.png",
+  "pixels": [
+   1432,
+   858
+  ]
+ },
+ "proj-12": {
+  "file": "proj-12.jpg",
+  "source": "https://ica.id/wp-content/uploads/2025/10/Bamboo-Inn-Hotel-_-Cafe-1.jpeg",
+  "pixels": [
+   1280,
+   720
+  ]
+ }
+}

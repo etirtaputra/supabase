@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-18** · last change: *Grid Spec theme (the ica.id website look) added to ICAPROC* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-18** · last change: *Print collateral in the Grid Spec system: company brochure + TP Series datasheet (`print/`)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -169,8 +169,32 @@ ICAPROC theme. Do not change or remove anything that's working."
   token allowed in its blocks, scope regexes accept `gridspec(-night)`, plus
   a test pinning every Grid Spec rule to its own scope and the exact website
   tokens).
-- Print collateral (brochure + datasheets in the same system): see the next
-  entry when it ships.
+- Print collateral in the same system: `print/` (next paragraph).
+
+**Print collateral (`print/`, same thread).** Owner: "Design ICA's company
+brochure and product datasheets to match the ica.id website ('Grid Spec'
+design). Same system, adapted for print." Read `print/README.md` first.
+- `print/src/gridspec-print.css` — tokens + one class per brief element
+  (section label, page head, photo tile, numbers strip, tag, CTA band, spec
+  table …); the README's style map names them for an InDesign/Figma rebuild.
+  `src/brochure.html` — 12 pages, copy inline, every claim sourced in
+  `data/SOURCES.md` (ica.id + its WordPress API, which katalog.ica.id feeds).
+  `data/datasheets/tp-series.json` — 14 TP models' catalog values VERBATIM;
+  `build.py` only reformats (units, `10.000` → `10,000`) and writes a
+  `.values.csv` audit; "common to all models" is refused unless identical.
+- `python3 print/build.py` (Playwright + Chromium, Ghostscript, pikepdf,
+  poppler) → `print/out/` (gitignored): screen PDF (RGB, 200 ppi), print PDF
+  (CMYK, 230 × 317 mm sheet, 3 mm bleed, crop marks, TrimBox/BleedBox, Ink
+  forced to K100), print-RGB PDF (for the printer's own conversion), previews.
+  The build refuses content running into a footer and spec cells wider than
+  their column (both negative-tested).
+- Fonts: Instrument Sans + JetBrains Mono as STATIC TTF instances (Chromium
+  embeds variable fonts as Type 3), plus `ICASymbols-*.ttf` — ± → ≤ ≥ cut
+  from JetBrains Mono, which Google serves in no subset.
+- Open (in README "Before it goes to the printer"): vector logo, product
+  photos at 300 ppi for the datasheet box (catalog cut-outs are 600 px), proof
+  ICA Blue, TKDN tag off for TP (no series certificate found), catalog
+  oddities flagged in SOURCES.md. Indonesian edition not built.
 
 ### 2026-10-13 (latest) — agents: MIRA keeps purchasing in sync across four places (§8)
 

@@ -1,0 +1,206 @@
+/*
+ * ICA "Grid Spec" — print edition.
+ *
+ * The ica.id website system adapted for A4 print. Same tokens, same elements,
+ * no new style. Every class below is named after the element it draws, and the
+ * names are the ones a designer would give the paragraph / character / object
+ * styles when rebuilding the file in InDesign or Figma (see print/README.md,
+ * "Style map").
+ *
+ * Units: mm for geometry, pt for type. "2px" on the website = 1.5pt rule here,
+ * "1px" = 0.75pt.
+ */
+
+/* Static instances of the two variable fonts (Google Fonts, SIL Open Font
+   License): a PDF printer wants TrueType, and Chromium embeds a VARIABLE font
+   as Type 3. See print/README.md. */
+@font-face { font-family: 'Instrument Sans'; src: url('../assets/fonts/InstrumentSans-400.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+@font-face { font-family: 'Instrument Sans'; src: url('../assets/fonts/InstrumentSans-500.ttf') format('truetype'); font-weight: 500; font-style: normal; }
+@font-face { font-family: 'Instrument Sans'; src: url('../assets/fonts/InstrumentSans-600.ttf') format('truetype'); font-weight: 600; font-style: normal; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../assets/fonts/JetBrainsMono-400.ttf') format('truetype'); font-weight: 400; font-style: normal; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../assets/fonts/JetBrainsMono-500.ttf') format('truetype'); font-weight: 500; font-style: normal; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../assets/fonts/JetBrainsMono-600.ttf') format('truetype'); font-weight: 600; font-style: normal; }
+/* ± → ≤ ≥ — Instrument Sans has none but →, and Google's JetBrains Mono files
+   carry them in no subset. These four glyphs are cut from JetBrains Mono. */
+@font-face { font-family: 'ICA Symbols'; src: url('../assets/fonts/ICASymbols-400.ttf') format('truetype'); font-weight: 400; unicode-range: U+00B1, U+2192, U+2264-2265; }
+@font-face { font-family: 'ICA Symbols'; src: url('../assets/fonts/ICASymbols-500.ttf') format('truetype'); font-weight: 500; unicode-range: U+00B1, U+2192, U+2264-2265; }
+@font-face { font-family: 'ICA Symbols'; src: url('../assets/fonts/ICASymbols-600.ttf') format('truetype'); font-weight: 600; unicode-range: U+00B1, U+2192, U+2264-2265; }
+
+/* ── Tokens (solid colours only) ─────────────────────────────────────────── */
+:root {
+  --ink: #0A0F1C;      /* headings, body, 2px rules, dark tags */
+  --blue: #0047D8;     /* the one accent: numbers like "01", links, CTA */
+  --steel: #4A5568;    /* secondary text and labels */
+  --line: #DCE2EC;     /* 1px dividers and box borders */
+  --mist: #F3F5F9;     /* light bands and photo tiles */
+  --night: #08142E;    /* optional dark band */
+  --rail: #F8F9FB;     /* alternate spec-table rows (very light grey) */
+
+  --rule-2: 1.5pt;     /* "2px" ink rule */
+  --rule-1: 0.75pt;    /* "1px" Line divider */
+  --r-box: 1mm;        /* 4px: buttons and boxes */
+  --r-tag: 0.5mm;      /* 2px: small tags */
+
+  --bleed: 3mm;
+  --margin: 15mm;
+  --gutter: 5mm;
+
+  --sans: 'Instrument Sans', 'ICA Symbols', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'ICA Symbols', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { background: #fff; font-family: var(--sans); color: var(--ink); font-size: 9.5pt; line-height: 1.5;
+  font-feature-settings: "tnum" 1; -webkit-font-smoothing: antialiased; }
+img { display: block; }
+
+/* ── The sheet: trim + bleed (+ slug for crop marks in the print PDF) ────── */
+/* html.print → 230 × 317 mm sheet: 10 mm slug around the 210 × 297 trim.
+   html.screen → the trim alone, bleed clipped. */
+.sheet { position: relative; overflow: hidden; break-after: page; background: #fff; margin: 0 auto; }
+html.screen .sheet { width: 210mm; height: 297mm; }
+/* No bleed on screen: an element that crossed the page edge would be split
+   across two PDF pages by the browser and cut short (it was, on page 11). */
+html.screen, html.preview { --bleed: 0mm; }
+html.print .sheet { width: 230mm; height: 317mm; }
+html.preview body { background: #8a93a3; }
+html.preview .sheet { width: 210mm; height: 297mm; margin: 8mm auto; box-shadow: 0 0 0 0.5pt #00000022; }
+.page { position: absolute; width: 210mm; height: 297mm; background: #fff; }
+html.screen .page, html.preview .page { left: 0; top: 0; }
+html.print .page { left: 10mm; top: 10mm; }
+.inner { position: absolute; left: var(--margin); right: var(--margin); top: var(--margin); bottom: 20mm; }
+
+/* Crop marks + slug line, print only. */
+.marks { display: none; position: absolute; inset: 0; pointer-events: none; }
+html.print .marks { display: block; }
+.marks line { stroke: #000; stroke-width: 0.25pt; }
+.slug { display: none; position: absolute; left: 10mm; bottom: 2.5mm; font: 5.5pt/1 var(--mono); color: #000; letter-spacing: .04em; }
+html.print .slug { display: block; }
+
+/* ── 12-column grid, 5 mm gutter ─────────────────────────────────────────── */
+.grid-12 { display: grid; grid-template-columns: repeat(12, 1fr); column-gap: var(--gutter); }
+.span-2 { grid-column: span 2; } .span-3 { grid-column: span 3; } .span-4 { grid-column: span 4; }
+.span-5 { grid-column: span 5; } .span-6 { grid-column: span 6; } .span-7 { grid-column: span 7; }
+.span-8 { grid-column: span 8; } .span-9 { grid-column: span 9; } .span-12 { grid-column: span 12; }
+
+/* ── Paragraph styles ────────────────────────────────────────────────────── */
+.cover-title   { font: 600 66pt/0.98 var(--sans); letter-spacing: -0.045em; }
+.display-title { font: 600 54pt/1 var(--sans); letter-spacing: -0.045em; }
+.section-title { font: 600 30pt/1.08 var(--sans); letter-spacing: -0.035em; }
+.card-title    { font: 600 13.5pt/1.2 var(--sans); letter-spacing: -0.03em; }
+.lead          { font: 400 12pt/1.45 var(--sans); letter-spacing: -0.01em; }
+.body          { font: 400 9.5pt/1.5 var(--sans); }
+.body-steel    { font: 400 9.5pt/1.5 var(--sans); color: var(--steel); }
+.mono-label    { font: 500 7.5pt/1.3 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--steel); }
+.mono-line     { font: 500 8.5pt/1.3 var(--mono); letter-spacing: .02em; color: var(--steel); }
+.breadcrumb    { font: 400 7.5pt/1.3 var(--mono); letter-spacing: .02em; color: var(--steel); }
+.photo-caption { font: 500 7pt/1.3 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--steel); margin-top: 2mm; }
+.small-print   { font: 400 6.5pt/1.45 var(--sans); color: var(--steel); }
+.numbers-figure  { font: 500 22pt/1.05 var(--mono); letter-spacing: -0.02em; color: var(--ink); }
+.numbers-caption { font: 400 7.5pt/1.3 var(--mono); letter-spacing: .02em; color: var(--steel); margin-top: 1.5mm; }
+.contact-block { font: 400 9pt/1.6 var(--sans); }
+
+/* Character styles */
+.mono   { font-family: var(--mono); letter-spacing: .01em; }
+.accent { color: var(--blue); }
+.steel  { color: var(--steel); }
+
+/* ── Rules ───────────────────────────────────────────────────────────────── */
+.rule-2 { border: 0; border-top: var(--rule-2) solid var(--ink); }
+.rule-1 { border: 0; border-top: var(--rule-1) solid var(--line); }
+
+/* ── Section label: "01 —— SECTION NAME" ─────────────────────────────────── */
+.section-label { display: flex; align-items: center; gap: 2.5mm; font: 500 7.5pt/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.section-label .num { color: var(--blue); }
+.section-label .dash { width: 8.5mm; border-top: var(--rule-1) solid #B9C2D0; }
+.section-label .name { color: var(--steel); }
+
+/* ── Page head: breadcrumb, huge title, 2px ink rule ─────────────────────── */
+.page-head .breadcrumb { margin-bottom: 4mm; }
+.page-head .title { margin-bottom: 5mm; }
+.page-head .rule-2 { margin-top: 0; }
+
+/* ── Cells: cards that SHARE 1px borders, like a spec sheet ──────────────── */
+.cells { display: grid; border-top: var(--rule-1) solid var(--line); border-left: var(--rule-1) solid var(--line); }
+.cells > * { border-right: var(--rule-1) solid var(--line); border-bottom: var(--rule-1) solid var(--line); }
+.cells.ruled { border-top: var(--rule-2) solid var(--ink); }
+.cols-2 { grid-template-columns: repeat(2, 1fr); } .cols-3 { grid-template-columns: repeat(3, 1fr); }
+.cols-4 { grid-template-columns: repeat(4, 1fr); } .cols-5 { grid-template-columns: repeat(5, 1fr); }
+
+/* Feature list: 2px ink top rule, numbered items, 1px lines between. */
+.feature-list { border-top: var(--rule-2) solid var(--ink); }
+.feature-list > .item { display: grid; grid-template-columns: 9mm 1fr; padding: 3.2mm 0; border-bottom: var(--rule-1) solid var(--line); }
+.feature-list .num, .feature-num { font: 500 8pt/1.5 var(--mono); color: var(--blue); }
+
+/* ── Photo tile: cut-out on Mist, 1px Line border, mono caption ──────────── */
+.photo-tile { background: var(--mist); border: var(--rule-1) solid var(--line); aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.photo-tile img { width: 78%; height: 78%; object-fit: contain; }
+.photo-tile.white { background: #fff; }
+/* Caption set inside the tile, so a grid of tiles stays square. */
+.photo-tile { position: relative; }
+.photo-tile > .photo-caption.inset { position: absolute; left: 3mm; right: 3mm; bottom: 2.5mm; margin: 0; }
+.photo { width: 100%; object-fit: cover; border-radius: 0; }   /* never round photos */
+.projects .photo { aspect-ratio: 5 / 6; height: auto; }
+
+/* ── Numbers strip ───────────────────────────────────────────────────────── */
+.numbers-strip { display: grid; border-top: var(--rule-1) solid var(--line); border-bottom: var(--rule-1) solid var(--line); }
+.numbers-strip > .cell { padding: 4.5mm 4mm 4.5mm 0; }
+.numbers-strip > .cell + .cell { border-left: var(--rule-1) solid var(--line); padding-left: 4mm; }
+
+/* ── Tag: small black rectangle, white mono uppercase ────────────────────── */
+.tag { display: inline-block; background: var(--ink); color: #fff; font: 500 6.5pt/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 1.3mm 2mm 1.2mm; border-radius: var(--r-tag); }
+
+/* ── Bands: at most one Mist or Night band per spread ────────────────────── */
+.band-mist  { background: var(--mist); }
+.band-night { background: var(--night); color: #fff; }
+/* A band that runs edge to edge carries the 3 mm bleed. */
+.bleed-x { margin-left: calc(-1 * (var(--margin) + var(--bleed))); margin-right: calc(-1 * (var(--margin) + var(--bleed)));
+  padding-left: calc(var(--margin) + var(--bleed)); padding-right: calc(var(--margin) + var(--bleed)); }
+.full-bleed { position: absolute; left: calc(-1 * var(--bleed)); right: calc(-1 * var(--bleed)); top: calc(-1 * var(--bleed)); bottom: calc(-1 * var(--bleed)); }
+
+/* ── Call to action: Mist band, title left, blue button right ────────────── */
+.cta-band { display: flex; align-items: center; justify-content: space-between; gap: 8mm; padding-top: 9mm; padding-bottom: 9mm; }
+.button { display: inline-flex; align-items: center; gap: 2.5mm; background: var(--blue); color: #fff; font: 600 10pt/1 var(--sans); letter-spacing: -0.01em; padding: 3.6mm 5.5mm; border-radius: var(--r-box); white-space: nowrap; }
+.button .arrow { font-family: var(--mono); }
+
+/* ── Spec table: 2px ink top rule, 1px rows, mono values, light alternate rows ─ */
+.spec-table { width: 100%; border-collapse: collapse; border-top: var(--rule-2) solid var(--ink); font-size: 8pt; }
+.spec-table th { font: 500 6.5pt/1.3 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--steel); text-align: left; padding: 2.2mm 2mm 2mm 0; border-bottom: var(--rule-1) solid var(--line); vertical-align: bottom; }
+.spec-table td { font: 400 7.6pt/1.35 var(--mono); padding: 1.9mm 2mm 1.9mm 0; border-bottom: var(--rule-1) solid var(--line); vertical-align: top; }
+.spec-table th:first-child, .spec-table td:first-child { padding-left: 2mm; }
+.spec-table td.model { font-weight: 600; color: var(--ink); white-space: nowrap; }
+.spec-table tbody tr:nth-child(even) td { background: var(--rail); }
+.spec-table .num { text-align: right; }
+
+/* Spec pairs (label / value), for "common to all models". */
+.spec-pairs { border-top: var(--rule-2) solid var(--ink); }
+.spec-pairs > .row { display: grid; grid-template-columns: 38% 1fr; border-bottom: var(--rule-1) solid var(--line); padding: 1.8mm 0; }
+.spec-pairs .k { font: 500 6.5pt/1.5 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--steel); }
+.spec-pairs .v { font: 400 7.6pt/1.45 var(--mono); }
+
+/* ── Running footer ──────────────────────────────────────────────────────── */
+.folio { position: absolute; left: var(--margin); right: var(--margin); bottom: 9mm; display: flex; justify-content: space-between;
+  font: 500 6.5pt/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--steel); }
+.folio .pg { color: var(--ink); }
+
+/* QR */
+.qr { display: block; width: 100%; height: auto; }
+.qr-box { background: #fff; padding: 2.5mm; border: var(--rule-1) solid var(--line); }
+
+/* Logo: the raster wordmark from ica.id, used at its own colour. */
+.logo { height: 9mm; width: auto; }
+
+/* The every-series table: a family is named once, at the top of its group,
+   and the group is separated by an ink hairline. */
+.series-table td { padding-top: 1.35mm; padding-bottom: 1.35mm; font-size: 7.2pt; }
+.series-table td.fam { font-family: var(--sans); font-weight: 600; font-size: 8pt; color: var(--ink); }
+.series-table tr.group-start td { border-top: var(--rule-1) solid var(--steel); }
+.series-table tbody tr:first-child td { border-top: 0; }
+
+/* Product tiles: a caption always takes two lines, so the titles line up. */
+.tile .photo-caption { min-height: 2.6em; }
+
+/* A band placed directly on the page (not inside .inner), edge to edge with bleed. */
+.band-page { position: absolute; left: calc(-1 * var(--bleed)); right: calc(-1 * var(--bleed));
+  padding-left: calc(var(--margin) + var(--bleed)); padding-right: calc(var(--margin) + var(--bleed)); }

@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-18T02:06:59Z",
+    title: "Brosur perusahaan dan datasheet produk dengan gaya situs ica.id",
+    details: [
+      "Brosur perusahaan 12 halaman dan datasheet TP Series 2 halaman, dalam sistem Grid Spec yang sama dengan situs ica.id. Semua teks, angka dan spesifikasi diambil dari ica.id dan katalog ICA.",
+      "Tersedia PDF layar (untuk email dan WhatsApp) dan PDF cetak (CMYK, bleed 3 mm, tanda potong). Ini bukan bagian dari tampilan aplikasi.",
+    ],
+  },
+  {
     at: "2026-10-18T01:35:07Z",
     title: "Tampilan baru: Grid Spec — gaya situs ica.id, terang dan gelap",
     details: [
