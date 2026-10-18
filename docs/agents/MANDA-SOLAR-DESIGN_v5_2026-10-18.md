@@ -5,8 +5,8 @@
 > MANDA and the ERP produce the same numbers for the same inputs.
 >
 > **Source of truth:** `lib/systemDesign/` in `etirtaputra/supabase`.
-> **Version:** written against `main` @ `8b3b47f` + the cost-rule commit,
-> 2026-10-18. System engine **v11**, mounting engine **v13**.
+> **Version:** written against `main` @ `cbf6e1e`, 2026-10-18. System engine
+> **v11**, mounting engine **v13**.
 > **Regenerate this file whenever `lib/systemDesign/*.ts` changes.**
 >
 > **v5 of this pack — whole vs cut rails is now a COST decision** (owner,
