@@ -4758,7 +4758,25 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    the window decides unless `threshold_tokens` is set (cap = the lower of
    the two); config migration 46→47 removes only a seeded 256000, so MIRA's
    schema-46 config may already carry 256000 — the card reads the block
-   first. The aux compression model is left alone (one change at a time). The
+   first. The aux compression model is left alone (one change at a time).
+   **20 Oct — MANDA's spec sources** (owner: make sure MANDA can use the
+   ICAPROC tech-spec JSON, the ica.id and icasolar.com specs, and the
+   datasheet folder). Found: (1) ICAPROC `3.0_components.specifications` —
+   the design endpoints already read it; (2) Drive "(DATASHEET ALL)"
+   `1KGN2jbYlm8nVBYIgWiEdeVYysMDzQk9r` (shared drive `0AJf-GoLpKpZdUk9PVA`),
+   200+ PDFs named `<Category>_<BRAND>-<model>_[lang]_<DS|MN>.pdf` plus an
+   `Archived` subfolder; the agents' service account `hermes-drive-agent-365`
+   is already a READER; (3) icasolar.com — public WordPress REST,
+   `/wp-json/wp/v2/products` (114 items), spec text in
+   `meta.technical_specifications`, datasheet links in
+   `meta._datasheet_amp_collateral`; (4) ica.id — WordPress
+   `/wp-json/wp/v2/produk`, fed by katalog.ica.id; returned **403** to this
+   sandbox (site firewall, even `/wp-json/`), so a datacenter IP may be
+   blocked — MANDA's check says whether his VPS gets through. Read-only check
+   card in the briefing ("MANDA — data sources · 20 Oct"). Next, once access
+   is proven: a source-order rule for MANDA (datasheet → ICAPROC → websites;
+   the engine always computes from ICAPROC; a mismatch is reported and a
+   person fixes ICAPROC). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
