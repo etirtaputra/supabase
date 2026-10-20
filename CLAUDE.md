@@ -74,6 +74,21 @@ focus and does not zoom back), selects and buttons step down half a point at
 because on the desktop browser you would be testing in, the wrong value looks
 tidier — so it is asserted.
 
+## New tables carry their own GRANTs (Supabase, from 2026-10-30)
+
+Supabase stops granting `anon` / `authenticated` / `service_role` on new
+`public` tables and views. Existing tables keep their grants. Any migration in
+`migrations/` that creates a table or view must grant it in the same file —
+`authenticated` (RLS still limits rows) and `service_role` (agent routes);
+`anon` gets nothing unless a page reads it before sign-in. Without it the app
+gets "permission denied" (42501). `lib/migrationGrants.test.ts` fails the
+build otherwise; never add to its grandfathered list.
+
+```sql
+GRANT SELECT, INSERT, UPDATE, DELETE ON public."31.0_example" TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public."31.0_example" TO service_role;
+```
+
 ## Mission (why ICAPROC exists)
 
 ICAPROC is the company's bid to **own its own operating system** — a full ERP

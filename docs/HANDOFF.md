@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-20** · last change: *Lead Times by product (per-item PO → received from PO history)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-20** · last change: *New tables must GRANT their own access (Supabase change, 2026-10-30)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,20 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-20 (latest) — Lead Times by product
+### 2026-10-20 (latest) — Supabase stops auto-granting new tables (2026-10-30)
+
+Owner forwarded Supabase's notice: from 2026-10-30, tables/views created in
+`public` get no automatic grants to `anon` / `authenticated` / `service_role`.
+Checked read-only: `pg_default_acl` today still grants all three on new
+tables, views, sequences and functions; existing tables (e.g. `1.0_companies`,
+`10.6_bom_calcs`, `30.2_goods_receipts`) hold full grants and are unaffected.
+Nothing in the app creates tables at run time. New rule in `CLAUDE.md`; guard
+`lib/migrationGrants.test.ts` — any `migrations/*.sql` not on its 36-file
+grandfathered list that creates a table/view must GRANT it to
+`authenticated` + `service_role` (views: SELECT). `anon`: none unless a page
+reads it before sign-in. No production change was needed or made.
+
+### 2026-10-20 — Lead Times by product
 
 Owner: "can we also get the lead times for individual each products? based on
 historical POs". `lib/supplierLeadTimes.ts`: `poTimelines(input)` (the
