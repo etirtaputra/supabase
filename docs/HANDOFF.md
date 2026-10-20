@@ -4799,7 +4799,20 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    engine rule: the engines still compute from ICAPROC only; MANDA checks the
    engine's input fields against the datasheet before a result goes out and
    leads with any mismatch; websites are compared, never trusted; MANDA never
-   writes a spec. The
+   writes a spec. **MANDA's access check, verified the same day:** ICAPROC,
+   Drive (207 files; the SNV R2 datasheet says Max. Input DC Voltage 900 VDC,
+   Recommended Voc Range 250~900 VDC) and icasolar.com all reachable, and
+   every value he quoted matches the source. ica.id answers **403 to his VPS
+   too** (LiteSpeed WAF); katalog.ica.id answers 200 — it is a Laravel/Filament
+   app whose API 404 says the endpoints are in "dokumentasi API katalog"
+   (not public). To open ica.id: allowlist VPS 1938892's IP in the ica.id
+   firewall, or get the katalog API docs + a read token. Data faults found
+   on the way (a person fixes, Tech Specs page): (a) **two `ICA100-36M` rows
+   disagree** — "…900x585x30mm" has noct 47±2, isc 5.89 A, 5.7 kg; "…Mono"
+   has noct 45±2, isc 4.61 A, 5.9 kg; (b) **SNV-SP4533** (supplier model
+   EPSIVO EPV300-4T45G, `solar_pump_inverter`) has **empty
+   `specifications`**, so no engine can use it — the datasheet gives 900 VDC
+   / 250–900 VDC. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
