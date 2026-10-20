@@ -77,6 +77,13 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
     first: false,
   },
   {
+    id: 'spec-sources',
+    title: 'Spec sources: datasheet, ICAPROC, websites — which number wins',
+    file: 'SPEC-SOURCES-RUNBOOK_v1_2026-10-20.md',
+    audience: 'MANDA (and any agent quoting a technical value): datasheet → ICAPROC → websites; engines compute from ICAPROC; mismatches reported, a person fixes ICAPROC',
+    first: false,
+  },
+  {
     id: 'writing-style',
     title: 'How every agent writes (ASD-STE100 English, plain Indonesian)',
     file: 'WRITING-STYLE_v1_2026-10-08.md',

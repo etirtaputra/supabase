@@ -4776,7 +4776,13 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    card in the briefing ("MANDA — data sources · 20 Oct"). Next, once access
    is proven: a source-order rule for MANDA (datasheet → ICAPROC → websites;
    the engine always computes from ICAPROC; a mismatch is reported and a
-   person fixes ICAPROC). The
+   person fixes ICAPROC). **Owner agreed the order the same day** →
+   `docs/agents/SPEC-SOURCES-RUNBOOK_v1_2026-10-20.md` (registry id
+   `spec-sources`; MANDA loads it after the solar design pack). It changes no
+   engine rule: the engines still compute from ICAPROC only; MANDA checks the
+   engine's input fields against the datasheet before a result goes out and
+   leads with any mismatch; websites are compared, never trusted; MANDA never
+   writes a spec. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
