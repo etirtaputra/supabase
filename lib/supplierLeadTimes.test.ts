@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { poTimeline, supplierLeadTimes, stageStats, statedLead, type LtPo, type LtCost } from './supplierLeadTimes.ts';
+import { poTimeline, poTimelines, productLeadTimes, supplierLeadTimes, stageStats, statedLead, type LtPo, type LtCost } from './supplierLeadTimes.ts';
 
 const TODAY = '2026-10-16';
 const po = (over: Partial<LtPo> = {}): LtPo => ({ po_id: 'p1', po_number: 'PIO-010', status: 'Fully Received', po_date: '2026-05-13', quote_id: 'q1', supplier_id: 's1', actual_received_date: '2026-08-21', currency: 'USD', ...over });
@@ -132,4 +132,35 @@ test('The headline shared by the page and the dashboard: per shipping, on time, 
   assert.equal(d.open, 1);
   assert.equal(d.lateOpen, 1);
   assert.deepEqual(d.watch.map((l) => l.supplierId), ['late', 'calm'], 'the supplier with a late open PO comes first, though it has fewer POs');
+});
+
+test('Per product: each PO that carried the item counts once, with that PO\'s own timeline', () => {
+  const pos: LtPo[] = [
+    po({ po_id: 'a', po_date: '2026-01-10', actual_received_date: '2026-03-01', method_of_shipment: 'Sea' }),          // 50 d
+    po({ po_id: 'b', po_date: '2026-04-01', actual_received_date: '2026-05-01', method_of_shipment: 'Sea', supplier_id: 's2' }), // 30 d
+    po({ po_id: 'c', po_date: '2026-06-01', actual_received_date: '2026-06-08', method_of_shipment: 'Air' }),           // 7 d
+    po({ po_id: 'd', po_date: '2026-08-01', actual_received_date: null, status: 'Sent', method_of_shipment: 'Sea' }),   // open, 76 d waiting
+    po({ po_id: 'x', po_date: '2026-02-01', actual_received_date: '2026-02-02', status: 'Cancelled' }),
+  ];
+  const tls = poTimelines({ pos, quotes: [], costs: [], grns: [], today: TODAY });
+  assert.equal(tls.length, 4, 'a cancelled PO is not an order');
+  const lines = [
+    { po_id: 'a', component_id: 'rail', quantity: 100 }, { po_id: 'a', component_id: 'rail', quantity: 20 }, // two lines, one PO
+    { po_id: 'b', component_id: 'rail', quantity: 50 }, { po_id: 'c', component_id: 'rail', quantity: 5 },
+    { po_id: 'd', component_id: 'rail', quantity: 80 }, { po_id: 'x', component_id: 'rail', quantity: 999 },
+    { po_id: 'a', component_id: 'clamp', quantity: 400 }, { po_id: 'b', component_id: null, quantity: 1 },
+  ];
+  const [rail, clamp] = productLeadTimes(tls, lines, TODAY);
+  assert.equal(rail.componentId, 'rail', 'most measured history first');
+  assert.equal(rail.pos.length, 4, 'PO a counts once although it has two rail lines');
+  assert.equal(rail.qty, 255, 'the cancelled PO\'s quantity is not counted');
+  assert.deepEqual([rail.completed, rail.open], [3, 1]);
+  assert.equal(rail.poToReceived!.median, 30);
+  const sea = rail.byVia.find((b) => b.via === 'Sea')!;
+  assert.equal(sea.poToReceived!.median, 40, 'sea alone: 50 and 30');
+  assert.equal(rail.byVia.find((b) => b.via === 'Air')!.poToReceived!.median, 7);
+  assert.equal(rail.overdue, 1, 'the open sea PO is past PO date + the sea median of 40 days, not the overall 30');
+  assert.deepEqual(rail.suppliers.map((s) => [s.supplierId, s.pos]), [['s1', 3], ['s2', 1]]);
+  assert.equal(clamp.poToReceived!.median, 50);
+  assert.equal(clamp.overdue, 0);
 });

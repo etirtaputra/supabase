@@ -193,19 +193,55 @@ export function poTimeline(po: LtPo, quote: LtQuote | null, costs: LtCost[], grn
   };
 }
 
-/** Every supplier's lead-time summary, biggest buying history first. */
-export function supplierLeadTimes(input: { pos: LtPo[]; quotes: LtQuote[]; costs: LtCost[]; grns: LtGrn[]; today: string }): SupplierLead[] {
+export interface LtInput { pos: LtPo[]; quotes: LtQuote[]; costs: LtCost[]; grns: LtGrn[]; today: string }
+
+/** Every real order's timeline (drafts, replaced and cancelled POs left out). */
+export function poTimelines(input: LtInput): PoTimeline[] {
   const quoteById = new Map(input.quotes.map((q) => [String(q.quote_id), q]));
   const costsByPo = new Map<string, LtCost[]>();
   for (const c of input.costs) (costsByPo.get(String(c.po_id)) ?? costsByPo.set(String(c.po_id), []).get(String(c.po_id))!).push(c);
   const grnsByPo = new Map<string, LtGrn[]>();
   for (const g of input.grns) (grnsByPo.get(String(g.po_id)) ?? grnsByPo.set(String(g.po_id), []).get(String(g.po_id))!).push(g);
-
-  const bySupplier = new Map<string, PoTimeline[]>();
-  for (const po of input.pos) {
-    if (NOT_AN_ORDER.has(po.status ?? '')) continue;
+  return input.pos.filter((po) => !NOT_AN_ORDER.has(po.status ?? '')).map((po) => {
     const quote = po.quote_id != null ? quoteById.get(String(po.quote_id)) ?? null : null;
-    const tl = poTimeline(po, quote, costsByPo.get(String(po.po_id)) ?? [], grnsByPo.get(String(po.po_id)) ?? [], input.today);
+    return poTimeline(po, quote, costsByPo.get(String(po.po_id)) ?? [], grnsByPo.get(String(po.po_id)) ?? [], input.today);
+  });
+}
+
+type ViaStats = { via: ShipVia | null; completed: number; open: number; poToReceived: StageStats | null };
+const poToReceivedOf = (ps: PoTimeline[]) =>
+  stageStats(ps.filter((p) => p.received).map((p) => p.stages.poToReceived).filter((v): v is number => v != null));
+
+function viaStats(pos: PoTimeline[]): ViaStats[] {
+  return ([...SHIP_VIAS, null] as (ShipVia | null)[]).filter((v) => pos.some((p) => p.via === v)).map((via) => {
+    const mine = pos.filter((p) => p.via === via);
+    return { via, completed: mine.filter((p) => p.received).length, open: mine.filter((p) => p.open).length, poToReceived: poToReceivedOf(mine) };
+  });
+}
+
+/**
+ * Open POs past due: past the quote's promised date, else past PO date + the
+ * usual time for this way of shipping (only without that history, the overall
+ * usual time).
+ */
+function overdueCount(pos: PoTimeline[], byVia: ViaStats[], overall: number | null, today: string): number {
+  return pos.filter((p) => {
+    if (!p.open || !p.poDate) return false;
+    const typical = byVia.find((b) => b.via === p.via)?.poToReceived?.median ?? overall;
+    const due = p.promised ?? (typical != null ? addDays(p.poDate, Math.round(typical)) : null);
+    return due != null && today > due;
+  }).length;
+}
+
+function promiseOf(done: PoTimeline[]) {
+  const late = done.filter((p) => p.lateDays != null).map((p) => p.lateDays!);
+  return late.length ? { measured: late.length, onTime: late.filter((d) => d <= 0).length, medianLateDays: stageStats(late)!.median } : null;
+}
+
+/** Every supplier's lead-time summary, biggest buying history first. */
+export function supplierLeadTimes(input: LtInput): SupplierLead[] {
+  const bySupplier = new Map<string, PoTimeline[]>();
+  for (const tl of poTimelines(input)) {
     if (!tl.supplierId) continue;
     (bySupplier.get(tl.supplierId) ?? bySupplier.set(tl.supplierId, []).get(tl.supplierId)!).push(tl);
   }
@@ -229,33 +265,79 @@ export function supplierLeadTimes(input: { pos: LtPo[]; quotes: LtQuote[]; costs
       total: endToEnd.median, basis: complete.length,
       shares: all > 0 ? { quoteToPo: sums.quoteToPo / all, poToPay: sums.poToPay / all, payToReceived: sums.payToReceived / all } : null,
     } : null;
-    const promisedDone = done.filter((p) => p.lateDays != null);
-    const late = promisedDone.map((p) => p.lateDays!);
-    const viaKeys = [...SHIP_VIAS, null].filter((v) => pos.some((p) => p.via === v));
-    const byVia = viaKeys.map((via) => {
-      const mine = pos.filter((p) => p.via === via);
-      return {
-        via, completed: mine.filter((p) => p.received).length, open: mine.filter((p) => p.open).length,
-        poToReceived: stageStats(mine.filter((p) => p.received).map((p) => p.stages.poToReceived).filter((v): v is number => v != null)),
-      };
-    });
-    // "Usual" means this supplier, this way of shipping; only without that history the supplier overall.
-    const overall = stages.poToReceived?.median ?? null;
-    const overdue = pos.filter((p) => {
-      if (!p.open || !p.poDate) return false;
-      const typical = byVia.find((b) => b.via === p.via)?.poToReceived?.median ?? overall;
-      const due = p.promised ?? (typical != null ? addDays(p.poDate, Math.round(typical)) : null);
-      return due != null && input.today > due;
-    }).length;
+    const byVia = viaStats(pos);
+    const overdue = overdueCount(pos, byVia, stages.poToReceived?.median ?? null, input.today);
     out.push({
       supplierId, completed: done.length, open: pos.filter((p) => p.open).length, stages, split,
-      promise: promisedDone.length ? { measured: promisedDone.length, onTime: late.filter((d) => d <= 0).length, medianLateDays: stageStats(late)!.median } : null,
+      promise: promiseOf(done),
       overdue, odd: pos.filter((p) => p.odd.length).length,
       noDate: pos.filter((p) => p.status === 'Fully Received' && !p.received).length,
       byVia, lastPoDate: pos[0]?.poDate ?? null, pos,
     });
   }
   return out.sort((a, b) => (b.completed + b.open) - (a.completed + a.open) || (b.lastPoDate ?? '').localeCompare(a.lastPoDate ?? ''));
+}
+
+// ── Per product ──────────────────────────────────────────────────────────────
+
+/**
+ * One product's lead time (owner, 2026-10-20: "lead times for each product,
+ * based on historical POs"). Every PO that carried the product on a line
+ * counts once, with that PO's own timeline — a PO's goods arrive together, so
+ * a product's lead time is the lead time of the POs it rode on. Same rules as
+ * the supplier view: medians, backwards dates left out, sea and air apart.
+ */
+export interface ProductLead {
+  componentId: string;
+  completed: number;
+  open: number;
+  overdue: number;
+  /** Units ordered over the POs counted (line quantities summed). */
+  qty: number;
+  poToReceived: StageStats | null;
+  quoteToReceived: StageStats | null;
+  promise: { measured: number; onTime: number; medianLateDays: number } | null;
+  byVia: ViaStats[];
+  /** Who it was bought from, most POs first, each with its own PO → received. */
+  suppliers: { supplierId: string; pos: number; poToReceived: StageStats | null }[];
+  lastPoDate: string | null;
+  pos: PoTimeline[];
+}
+
+export interface LtLine { po_id: string | number; component_id: string | null; quantity?: number | null }
+
+export function productLeadTimes(timelines: PoTimeline[], lines: LtLine[], today: string): ProductLead[] {
+  const tlById = new Map(timelines.map((t) => [t.poId, t]));
+  const byComp = new Map<string, { pos: Map<string, PoTimeline>; qty: number }>();
+  for (const li of lines) {
+    if (!li.component_id) continue;
+    const tl = tlById.get(String(li.po_id));
+    if (!tl) continue;                       // a draft, replaced or cancelled PO
+    const cur = byComp.get(li.component_id) ?? byComp.set(li.component_id, { pos: new Map(), qty: 0 }).get(li.component_id)!;
+    cur.pos.set(tl.poId, tl);
+    cur.qty += Number(li.quantity) || 0;
+  }
+  const out: ProductLead[] = [];
+  for (const [componentId, { pos: m, qty }] of byComp) {
+    const pos = [...m.values()].sort((a, b) => (b.poDate ?? '').localeCompare(a.poDate ?? ''));
+    const done = pos.filter((p) => p.received);
+    const poToReceived = poToReceivedOf(pos);
+    const byVia = viaStats(pos);
+    const sups = new Map<string, PoTimeline[]>();
+    for (const p of pos) if (p.supplierId) (sups.get(p.supplierId) ?? sups.set(p.supplierId, []).get(p.supplierId)!).push(p);
+    out.push({
+      componentId, qty, completed: done.length, open: pos.filter((p) => p.open).length,
+      overdue: overdueCount(pos, byVia, poToReceived?.median ?? null, today),
+      poToReceived,
+      quoteToReceived: stageStats(done.map((p) => p.stages.quoteToReceived).filter((v): v is number => v != null)),
+      promise: promiseOf(done), byVia,
+      suppliers: [...sups].map(([supplierId, ps]) => ({ supplierId, pos: ps.length, poToReceived: poToReceivedOf(ps) }))
+        .sort((a, b) => b.pos - a.pos),
+      lastPoDate: pos[0]?.poDate ?? null, pos,
+    });
+  }
+  // Most bought first: measured history, then open orders, then the newest PO.
+  return out.sort((a, b) => b.completed - a.completed || b.open - a.open || (b.lastPoDate ?? '').localeCompare(a.lastPoDate ?? ''));
 }
 
 // ── The headline, shared by the page and the dashboard panel ─────────────────

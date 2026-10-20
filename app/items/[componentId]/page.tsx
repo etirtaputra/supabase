@@ -33,6 +33,7 @@ import SpecRenderer from '@/components/ui/SpecRenderer';
 import { PositionDetail } from '@/components/profitability/PositionPanel';
 import { formatCategory as humanize } from '@/lib/formatCategory';
 import { fmtDay, fmtDate, fmtInt, fmtIdr, fmtCcy, fmtRupiah, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
+import { poTimelines, productLeadTimes, type StageStats } from '@/lib/supplierLeadTimes';
 import { INCOMING_PO_STATUSES, itemArrivals, type ItemArrival, type OpenPo, type ReceivedPo } from '@/lib/inTransit';
 import FitText from '@/components/ui/FitText';
 import { useSettings } from '@/hooks/useSettings';
@@ -311,21 +312,21 @@ export default function ItemHubPage() {
       .sort((a, b) => (b.payment_date ?? '').localeCompare(a.payment_date ?? '')),
     [myPos, myLines, myCosts, quotes]);
 
-  // Measured lead time: PO date → actual goods receipt, per received PO
+  // Measured lead time — the SAME engine as Supplier Lead Times' "By product"
+  // view (lib/supplierLeadTimes): every real PO that carried this item, PO date →
+  // fully received, median headline. This tab links there for the POs behind it.
   const leadTimes = useMemo(() => {
-    const days: number[] = [];
-    const seen = new Set<string>();
-    for (const { po } of myPoLines) {
-      const k = String(po.po_id);
-      if (seen.has(k) || !po.actual_received_date || !po.po_date) continue;
-      seen.add(k);
-      const d = Math.round((new Date(po.actual_received_date).getTime() - new Date(po.po_date).getTime()) / 86_400_000);
-      if (d >= 0) days.push(d);
-    }
-    if (!days.length) return null;
-    const avg = days.reduce((s, d) => s + d, 0) / days.length;
-    return { avg, min: Math.min(...days), max: Math.max(...days), n: days.length };
-  }, [myPoLines]);
+    if (!canBuy) return null;
+    const today = new Date().toISOString().slice(0, 10);
+    const tls = poTimelines({
+      pos: myPos.map((p) => ({ po_id: p.po_id, po_number: p.po_number, status: p.status ?? null, po_date: p.po_date ?? null, quote_id: p.quote_id ?? null,
+        supplier_id: p.supplier_id ?? null, actual_received_date: p.actual_received_date ?? null, currency: p.currency ?? null, method_of_shipment: p.method_of_shipment ?? null })),
+      quotes: quotes.map((q) => ({ quote_id: q.quote_id, quote_date: q.quote_date ?? null, supplier_id: q.supplier_id ?? null, estimated_lead_time_days: q.estimated_lead_time_days ?? null })),
+      costs: myCosts.map((c) => ({ po_id: c.po_id, cost_category: String(c.cost_category), payment_date: c.payment_date ?? null })),
+      grns: [], today,
+    });
+    return productLeadTimes(tls, myLines, today)[0]?.poToReceived ?? null;
+  }, [canBuy, myPos, myLines, myCosts, quotes]);
 
   // ── Sell-side engine: THE canonical tier chain ─────────────────────────────
   const activeTiers = useMemo(() => tiers.filter((t) => t.is_active).sort((a, b) => a.sort_order - b.sort_order), [tiers]);
@@ -500,7 +501,7 @@ export default function ItemHubPage() {
             )}
             {tab === 'buy' && canBuy && (
               <BuyTab compUnit={comp.unit} tucRes={tucRes} fx={fx} myPoLines={myPoLines}
-                incoming={incoming} leadTimes={leadTimes}
+                incoming={incoming} leadTimes={leadTimes} componentId={componentId}
                 forensics={{
                   componentId,
                   components: [comp as CompLite, ...linkedComps],
@@ -746,10 +747,10 @@ interface ForensicsData {
   tucMap: Map<string, TUCResult>;
 }
 
-function BuyTab({ compUnit, tucRes, fx, myPoLines, incoming, leadTimes, forensics }: {
+function BuyTab({ compUnit, tucRes, fx, myPoLines, incoming, leadTimes, componentId, forensics }: {
   compUnit: string | null; tucRes: TUCResult | null; fx: Record<string, FxRate>;
   myPoLines: { item: PurchaseLineItem; po: PurchaseOrder }[];
-  incoming: number; leadTimes: { avg: number; min: number; max: number; n: number } | null;
+  incoming: number; leadTimes: StageStats | null; componentId: string;
   forensics: ForensicsData;
 }) {
   const boughtQty = myPoLines.reduce((s, { item }) => s + (Number(item.quantity) || 0), 0);
@@ -764,8 +765,10 @@ function BuyTab({ compUnit, tucRes, fx, myPoLines, incoming, leadTimes, forensic
           sub={tucRes ? `latest settled PO ${fmtDay(tucRes.latestPoDate)}` : `from ${poCount} PO${poCount !== 1 ? 's' : ''}`} />
         <Kpi label="Bought all-time" value={boughtQty > 0 ? `${fmtInt(boughtQty)}${compUnit ? ` ${compUnit}` : ''}` : '—'}
           sub={incoming > 0 ? `${poCount} PO${poCount !== 1 ? 's' : ''} · ${fmtInt(incoming)} incoming` : `${poCount} purchase order${poCount !== 1 ? 's' : ''}`} />
-        <Kpi label="Lead time (measured)" value={leadTimes ? `${Math.round(leadTimes.avg)}d` : '—'}
-          sub={leadTimes ? `${leadTimes.min}–${leadTimes.max}d over ${leadTimes.n} received PO${leadTimes.n !== 1 ? 's' : ''}` : 'no received POs to measure'} />
+        <Link href={`/suppliers/lead-times?item=${encodeURIComponent(componentId)}`} title="Every PO behind this number, by supplier and shipping" className="block hover:opacity-90">
+          <Kpi label="Lead time (median, PO → received)" value={leadTimes ? `${Math.round(leadTimes.median)}d` : '—'}
+            sub={leadTimes ? `${leadTimes.min}–${leadTimes.max}d over ${leadTimes.n} received PO${leadTimes.n !== 1 ? 's' : ''} →` : 'no received POs to measure'} />
+        </Link>
       </div>
 
       {/* The forensic layer — the same component Cost Lookup's audit trail was

@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-20T07:41:01Z",
+    title: "Lead Time Pemasok: kini juga per barang",
+    details: [
+      "Halaman Lead Time punya tombol baru \"Per barang\". Setiap barang menampilkan berapa lama PO-nya biasanya sampai (median PO → diterima penuh dan penawaran → diterima penuh), dipisah per laut / udara / lokal, dan dari pemasok mana saja beserta waktu masing-masing.",
+      "Ketuk satu barang untuk melihat semua PO yang memuat barang itu, lengkap dengan nama pemasok, tanggal bayar, tanggal diterima, dan janji lead time di penawarannya. Filter periode dan pengiriman berlaku juga di sini.",
+      "Di Halaman Barang (tab Beli), angka lead time kini memakai perhitungan yang sama (median) dan bisa diketuk untuk membuka daftar PO-nya.",
+    ],
+  },
+  {
     at: "2026-10-20T04:17:48Z",
     title: "Telusur Transaksi: tombol salin No. PI / PO kini berfungsi di browser HP",
     details: [

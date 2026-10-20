@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-20** · last change: *Deal Lookup PI / PO copy buttons fixed for phone browsers* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-20** · last change: *Lead Times by product (per-item PO → received from PO history)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,22 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-20 (latest) — Deal Lookup copy buttons work on phones
+### 2026-10-20 (latest) — Lead Times by product
+
+Owner: "can we also get the lead times for individual each products? based on
+historical POs". `lib/supplierLeadTimes.ts`: `poTimelines(input)` (the
+per-PO timelines, now shared) and `productLeadTimes(timelines, poLines,
+today)` — every real PO carrying the item counts once with its own timeline;
+median PO → received and quote → received, per shipping, per supplier, open
+POs late (same `overdueCount` as suppliers, now shared), quantity ordered.
+`/suppliers/lead-times` gets By supplier / By product (`?view=product`,
+`?item=<componentId>` opens and scrolls to one item); the PO list names each
+PO's supplier in that view. Item hub Buy tab: "Lead time" KPI uses the same
+engine (median, not the old average) and links to `?item=`. Checked against
+production rows (read-only): 276 items on POs, 192 with a received PO.
+Not done: sales-side visibility (lead time is buy-side data today).
+
+### 2026-10-20 — Deal Lookup copy buttons work on phones
 
 Owner: "the deal lookup copy button for the pi or po quote not working in
 mobile browser". `DealLookupTab.tsx` `CopyBtn` / `CopyText` called
