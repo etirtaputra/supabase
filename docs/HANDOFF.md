@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-18** · last change: *Mounting engine v13 — whole vs cut rails on total cost; system engine v11; MANDA pack v5* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-20** · last change: *Deal Lookup PI / PO copy buttons fixed for phone browsers* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,21 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-18 (latest) — Mounting: whole vs cut on total cost (engine v13 / system v11, MANDA pack v5)
+### 2026-10-20 (latest) — Deal Lookup copy buttons work on phones
+
+Owner: "the deal lookup copy button for the pi or po quote not working in
+mobile browser". `DealLookupTab.tsx` `CopyBtn` / `CopyText` called
+`navigator.clipboard.writeText` directly — absent in in-app browsers (links
+opened from WhatsApp/Telegram), so the tap threw and copied nothing. Both now go
+through `copyOnly` (lib/whatsappQuote.ts) via a small `useCopy` hook, show amber
+on failure, and the icon is a 32px target on phones (20px from `sm`).
+`copyOnly`'s textarea fallback now calls `setSelectionRange` (iOS Safari ignores
+`select()` on a readonly field) at 16px. Guard test in
+`lib/dealLookupDefaults.test.ts`. Prices from the Dolibarr screenshots: still
+waiting on Eric's go-ahead (T-slot splice kit 8.000/8.500/9.000; five missing
+rails) — nothing written.
+
+### 2026-10-18 — Mounting: whole vs cut on total cost (engine v13 / system v11, MANDA pack v5)
 
 Owner: "make it compare total cost, not just rails".
 - `mounting.ts`: `unitCosts { rail, joint, support }` (+ `cutCostPerPiece`,

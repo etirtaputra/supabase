@@ -146,8 +146,13 @@ export async function copyOnly(text: string): Promise<'copied' | 'failed'> {
     ta.setAttribute('readonly', '');
     ta.style.position = 'fixed';
     ta.style.top = '-1000px';
+    // 16px or iOS Safari zooms the page to the field it is about to select.
+    ta.style.fontSize = '16px';
     document.body.appendChild(ta);
     ta.select();
+    // iOS Safari ignores `select()` on a readonly field; an explicit range is
+    // what it honours, so without this the copy below copies nothing.
+    ta.setSelectionRange(0, text.length);
     const ok = document.execCommand('copy');
     document.body.removeChild(ta);
     return ok ? 'copied' : 'failed';

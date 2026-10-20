@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-20T04:17:48Z",
+    title: "Telusur Transaksi: tombol salin No. PI / PO kini berfungsi di browser HP",
+    details: [
+      "Tombol salin di samping No. PI dan No. PO (dan nama barang yang bisa diketuk untuk disalin) sebelumnya tidak melakukan apa-apa di browser HP, terutama bila tautan dibuka dari WhatsApp atau Telegram. Kini memakai cara salin yang sama dengan halaman lain, yang tetap jalan di sana.",
+      "Tombolnya lebih besar di HP agar mudah diketuk. Centang hijau berarti sudah tersalin; ikon kuning berarti browser menolak, salin teksnya secara manual.",
+    ],
+  },
+  {
     at: "2026-10-18T08:47:23Z",
     title: "Desain Mounting: rel utuh atau dipotong kini dipilih dari total biaya",
     details: [

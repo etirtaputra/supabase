@@ -20,6 +20,7 @@ import { checkPoTotal, totalDisagrees } from '@/lib/poTotals';
 import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
 import { dealBalance, poBalance, remainingLabel, type DealBalance } from '@/lib/dealBalance';
 import { fetchLiveFx } from '@/lib/liveFx';
+import { copyOnly } from '@/lib/whatsappQuote';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
 import { fmtIdr, fmtCcy, fmtDate, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
@@ -108,24 +109,49 @@ function poBadge(status?: string | null) {
 
 // ── Copy button ───────────────────────────────────────────────────────────────
 
-function CopyBtn({ text, className = '' }: { text: string; className?: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = (e: React.MouseEvent) => {
+/**
+ * Copy one reference (a PI or PO number) and say whether it worked.
+ *
+ * `copyOnly` rather than `navigator.clipboard` directly: that object is absent
+ * inside in-app browsers (a link opened from WhatsApp or Telegram) and over
+ * plain http, and calling `.writeText` on it throws before anything is copied —
+ * on a phone the tap simply did nothing. The helper falls back to an offscreen
+ * textarea and reports when even that failed, so the icon turns amber instead
+ * of pretending.
+ */
+function useCopy(text: string, ms: number) {
+  const [state, setState] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const copy = useCallback(async (e: React.SyntheticEvent) => {
+    // The card around this toggles open. Copying is not a reason to toggle it.
     e.stopPropagation();
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  };
+    e.preventDefault();
+    const how = await copyOnly(text);
+    setState(how === 'copied' ? 'ok' : 'fail');
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setState('idle'), ms);
+  }, [text, ms]);
+  return { state, copy };
+}
+
+function CopyBtn({ text, className = '' }: { text: string; className?: string }) {
+  const { state, copy } = useCopy(text, 1500);
   return (
     <button
+      type="button"
       onClick={copy}
-      title="Copy"
-      className={`inline-flex items-center justify-center w-5 h-5 rounded text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors flex-shrink-0 ${className}`}
+      title={state === 'fail' ? 'Could not reach the clipboard — select the text and copy by hand' : 'Copy'}
+      aria-label="Copy"
+      // A thumb needs more than the 20px a pointer hits exactly; the negative
+      // margin keeps the target big without making the row taller.
+      className={`inline-flex items-center justify-center w-8 h-8 -my-1.5 sm:w-5 sm:h-5 sm:my-0 rounded hover:bg-white/10 transition-colors flex-shrink-0 ${
+        state === 'ok' ? 'text-emerald-400' : state === 'fail' ? 'text-amber-400' : 'text-slate-500 sm:text-slate-600 hover:text-slate-300'
+      } ${className}`}
     >
-      {copied
-        ? <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
-        : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
+      {state === 'ok'
+        ? <svg className="w-4 h-4 sm:w-3 sm:h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+        : <svg className="w-4 h-4 sm:w-3 sm:h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
       }
     </button>
   );
@@ -137,25 +163,19 @@ function CopyBtn({ text, className = '' }: { text: string; className?: string })
  * at. Stops propagation so copying never opens or closes the deal row.
  */
 function CopyText({ text, className = '', children }: { text: string; className?: string; children?: React.ReactNode }) {
-  const [copied, setCopied] = useState(false);
+  const { state, copy } = useCopy(text, 1200);
   if (!text) return <>{children}</>;
   return (
     <span
       role="button"
       tabIndex={0}
-      title={copied ? 'Copied' : `Click to copy — ${text}`}
-      onClick={(e) => {
-        e.stopPropagation();
-        navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        });
-      }}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); (e.target as HTMLElement).click(); } }}
-      className={`cursor-copy transition-colors ${copied ? 'text-emerald-400' : 'hover:text-emerald-300'} ${className}`}
+      title={state === 'ok' ? 'Copied' : state === 'fail' ? 'Could not reach the clipboard — select the text and copy by hand' : `Click to copy — ${text}`}
+      onClick={copy}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') copy(e); }}
+      className={`cursor-copy transition-colors ${state === 'ok' ? 'text-emerald-400' : state === 'fail' ? 'text-amber-400' : 'hover:text-emerald-300'} ${className}`}
     >
       {children ?? text}
-      {copied && <span className="ml-1.5 text-[9px] font-normal text-emerald-400 align-middle">copied</span>}
+      {state === 'ok' && <span className="ml-1.5 text-[9px] font-normal text-emerald-400 align-middle">copied</span>}
     </span>
   );
 }

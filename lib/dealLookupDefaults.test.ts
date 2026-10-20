@@ -71,3 +71,15 @@ test('a search that matches outside the stage says so', () => {
     'the out-of-stage match notice must compare scoped against filtered');
   assert.match(SRC, /Show all stages/);
 });
+
+test('the PI / PO copy buttons go through the shared clipboard helper', () => {
+  // Reported 2026-10-20: the copy button did nothing in a phone browser.
+  // `navigator.clipboard` is absent in in-app browsers and over plain http,
+  // and `.writeText` on it throws before anything is copied. Comments are
+  // stripped first so the sentence explaining the rule cannot trip it.
+  const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+    .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n');
+  assert.ok(!/navigator\.clipboard/.test(code),
+    'Deal Lookup reaches for the clipboard directly instead of going through copyOnly');
+  assert.match(SRC, /import \{ copyOnly \} from '@\/lib\/whatsappQuote'/);
+});
