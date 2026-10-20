@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-20T22:58:28Z",
+    title: "Penawaran Proyek: kapasitas PCS dan BESS kini terbaca otomatis dari item",
+    details: [
+      "Kolom PCS (kW) dan BESS (kWh) kini dihitung dari item penawaran, sama seperti PV Modules dan Inverters. Contoh: 3 × \"SUNGROW Powerstack Battery 255 kWh / 125 kW\" = BESS 765 kWh dan PCS 375 kW.",
+      "BESS dijumlahkan dari baris baterai (kWh di katalog, atau tertulis di deskripsi: kWh, MWh, atau V × Ah). PCS diambil dari baris yang menyebut dirinya PCS, atau dari kabinet baterai yang menuliskan kW-nya. Inverter hybrid tetap dihitung sebagai kW AC, bukan PCS.",
+      "Bila kolom kosong, angka dari item ditawarkan dan otomatis terisi saat disimpan. Bila angka yang diketik berbeda dari item, muncul peringatan kuning dengan angka item; angka yang diketik tidak pernah ditimpa.",
+    ],
+  },
+  {
     at: "2026-10-20T22:30:42Z",
     title: "Tema terang: tombol Simpan yang nonaktif kini terbaca",
     details: [

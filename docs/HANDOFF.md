@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-21** · last change: *Corporate light: disabled primary buttons legible* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-21** · last change: *Project quotes: PCS kW and BESS kWh detected from the items* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,24 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-21 (latest) — Corporate light: disabled Save is legible
+### 2026-10-21 (latest) — Project quotes: PCS and BESS detected from the items
+
+Owner: "can you also auto-detect the PCS and BESS capacity?" New
+`lib/quoteStorage.ts` (the storage mirror of `lib/quoteAc.ts`): BESS Wh from
+catalog `batteries`/`portable_power` `norm_value`, else a free-typed line that
+calls itself storage ("kWh", "MWh", "V × Ah"; meters and inverters excluded);
+PCS W from a line naming itself PCS (catalog `norm_value` first — DEYE's
+"SUN-100K-PCS01HP3" never writes "kW") or a storage cabinet stating its own kW
+("Powerstack Battery 255 kWh / 125 kW"). Hybrid inverters stay kW AC only.
+`app/proposals/[id]`: `derivedSize` adds `kwh_bess` + `kw_pcs` (services
+excluded); PCS / BESS SpecInputs get the same "Items: N — use" / ⚠ / ✓ hints;
+a blank PCS (hybrid_bess) / BESS (not on_grid) is filled on save. Checked
+read-only on every non-on-grid quote: AYANA 765/375 and DEYE 300 kW match the
+typed values; several typed BESS figures disagree with their items (e.g. the
+off-grid -P/-N family types 4.8 kWh on 4–10 × 2.4 kWh batteries) — those now
+show the amber hint; nothing is overwritten.
+
+### 2026-10-21 — Corporate light: disabled Save is legible
 
 Owner: "the color of the text of the save button in the light version is off"
 (project quote editor, "Saving…"). `disabled:opacity-40` on the navy primary

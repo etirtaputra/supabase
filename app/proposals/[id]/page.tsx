@@ -26,6 +26,7 @@ import ProposalFieldInput from '@/components/ui/ProposalFieldInput';
 import EnergyEconomicsCard from '@/components/ui/EnergyEconomicsCard';
 import type { EconAssumptions } from '@/lib/energyEconomics';
 import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
+import { storageSize } from '@/lib/quoteStorage';
 import { lineAcWatts } from '@/lib/quoteAc';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import type { Component } from '@/types/database';
@@ -1220,22 +1221,24 @@ export default function QuoteEditorPage() {
    */
   const derivedSize = useCallback((secs: DraftSection[]) => {
     let wp = 0, w = 0;
+    const hardware: { component_id: string | null; description: string; quantity: number }[] = [];
     for (const sec of secs) {
       if (sec._deleted) continue;
       for (const item of sec.items) {
         if (item._deleted || item.parent_item_id) continue;
         if (sec.group_key === 'solar_panels') wp += itemWp(item);
         if (sec.group_key !== 'services') {
-          w += lineAcWatts(catalog.components, {
-            component_id: item.component_id,
-            description: item.description,
-            quantity: num(item.quantity) ?? 0,
-          });
+          const line = { component_id: item.component_id, description: item.description, quantity: num(item.quantity) ?? 0 };
+          w += lineAcWatts(catalog.components, line);
+          hardware.push(line);
         }
       }
     }
     const round2 = (v: number) => Math.round(v / 10) / 100;   // watts → kW, 2dp
-    return { kwp_dc: wp > 0 ? round2(wp) : 0, kw_ac: w > 0 ? round2(w) : 0 };
+    // BESS kWh and PCS kW from the storage lines (lib/quoteStorage) — the
+    // same sweep, the same exclusion of services.
+    const storage = storageSize(catalog.components, hardware);
+    return { kwp_dc: wp > 0 ? round2(wp) : 0, kw_ac: w > 0 ? round2(w) : 0, ...storage };
   }, [itemWp, catalog.components]);
 
   const derived = useMemo(() => derivedSize(sections), [derivedSize, sections]);
@@ -1634,6 +1637,10 @@ export default function QuoteEditorPage() {
         let filled = false;
         if (!(Number(specs.kwp_dc) > 0) && size.kwp_dc > 0) { specs.kwp_dc = size.kwp_dc; filled = true; }
         if (!(Number(specs.kw_ac) > 0) && size.kw_ac > 0) { specs.kw_ac = size.kw_ac; filled = true; }
+        // Storage only where the project type has the field to show it.
+        const pt = quoteNow.project_type as ProjectType;
+        if (pt === 'hybrid_bess' && !(Number(specs.kw_pcs) > 0) && size.kw_pcs > 0) { specs.kw_pcs = size.kw_pcs; filled = true; }
+        if (pt !== 'on_grid' && !(Number(specs.kwh_bess) > 0) && size.kwh_bess > 0) { specs.kwh_bess = size.kwh_bess; filled = true; }
         if (filled) {
           const description = composeDescription(
             quoteNow.project_type as ProjectType, specs, quoteNow.location ?? '');
@@ -2352,10 +2359,12 @@ export default function QuoteEditorPage() {
                 onChange={(v) => updateProject({ specs: { kw_ac: v } })} />
               {(quote.project_type as ProjectType) === 'hybrid_bess' && (
                 <SpecInput label="PCS" unit="kW" value={quote.system_specs?.kw_pcs}
+                  derived={derived.kw_pcs} derivedNote="kW of the PCS lines, or of storage cabinets that state their own kW"
                   onChange={(v) => updateProject({ specs: { kw_pcs: v } })} />
               )}
               {(quote.project_type as ProjectType) !== 'on_grid' && (
                 <SpecInput label="BESS" unit="kWh" value={quote.system_specs?.kwh_bess}
+                  derived={derived.kwh_bess} derivedNote="Total kWh of the battery lines"
                   onChange={(v) => updateProject({ specs: { kwh_bess: v } })} />
               )}
             </div>
