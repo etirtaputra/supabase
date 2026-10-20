@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-20T22:30:42Z",
+    title: "Tema terang: tombol Simpan yang nonaktif kini terbaca",
+    details: [
+      "Saat tombol Simpan sedang tidak bisa ditekan (\"Menyimpan…\" atau belum ada perubahan), di tema terang tombolnya kini abu-abu muda dengan tulisan abu-abu tua, bukan biru pucat dengan tulisan hampir putih yang sulit dibaca. Berlaku untuk semua tombol utama di tema terang. Tema gelap tidak berubah.",
+    ],
+  },
+  {
     at: "2026-10-20T07:41:01Z",
     title: "Lead Time Pemasok: kini juga per barang",
     details: [

@@ -461,6 +461,14 @@ const CORPORATE_SHELL_CSS = [
   ...['bg-emerald-600', 'bg-violet-600'].flatMap((fill) => [
     `${both(`[class~="${fill}"][class~="text-white"]:not(:disabled)`)},${both(`[class~="${fill}"][class~="text-white"]:disabled:not([class*="disabled:bg-"])`)}{background-color:rgb(var(--c-brand));color:#fff}`,
     `${both(`[class~="${fill}"][class~="text-white"]:hover:not(:disabled)`)}{background-color:rgb(var(--c-brand-hover))}`,
+    // DISABLED, light skin only: the screens fade a disabled button with
+    // `disabled:opacity-40`, which on a light page turns navy-with-white into
+    // pale blue with near-white text — "Saving…" could not be read (owner,
+    // 2026-10-21: "the color of the text of the save button in the light
+    // version is off"). A solid light grey with slate ink reads as disabled
+    // AND stays legible (~4.6:1). Dark corporate keeps the fade: navy at 40%
+    // over a dark page still carries white text.
+    `${lightOnly(`[class~="${fill}"][class~="text-white"]:disabled:not([class*="disabled:bg-"])`)}{background-color:rgb(var(--c-slate-800));color:rgb(var(--c-slate-500));opacity:1}`,
   ]),
   // Focus is the brand too, so the field you are typing in is unmistakable
   // and never confused with a green "valid" state.
