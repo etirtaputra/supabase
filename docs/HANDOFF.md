@@ -147,6 +147,8 @@ near-white text. `scripts/generate-palette.js`: light corporate only, a
 disabled primary is slate-800 fill + slate-500 ink at opacity 1 (≈4.6:1);
 corporate-dark keeps the fade. `constants/palette.ts` regenerated (insertion
 only). Applies to every primary button in Corporate light, not just this one.
+Follow-up ("see this is dark"): the "⌘S" hint (`text-white/50`) inside a live
+primary is navy ink in light → white at 60% there.
 
 ### 2026-10-20 — Supabase stops auto-granting new tables (2026-10-30)
 

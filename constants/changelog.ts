@@ -24,6 +24,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Tema terang: tombol Simpan yang nonaktif kini terbaca",
     details: [
       "Saat tombol Simpan sedang tidak bisa ditekan (\"Menyimpan…\" atau belum ada perubahan), di tema terang tombolnya kini abu-abu muda dengan tulisan abu-abu tua, bukan biru pucat dengan tulisan hampir putih yang sulit dibaca. Berlaku untuk semua tombol utama di tema terang. Tema gelap tidak berubah.",
+      "Petunjuk \"⌘S\" di dalam tombol Simpan yang aktif kini putih samar, bukan biru tua di atas biru yang tidak terbaca.",
     ],
   },
   {

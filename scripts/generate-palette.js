@@ -469,6 +469,11 @@ const CORPORATE_SHELL_CSS = [
     // AND stays legible (~4.6:1). Dark corporate keeps the fade: navy at 40%
     // over a dark page still carries white text.
     `${lightOnly(`[class~="${fill}"][class~="text-white"]:disabled:not([class*="disabled:bg-"])`)}{background-color:rgb(var(--c-slate-800));color:rgb(var(--c-slate-500));opacity:1}`,
+    // The faint hint INSIDE the button (Save's "⌘S" is `text-white/50`) is the
+    // navy ink at half strength in the light skin — navy on the navy fill,
+    // unreadable (owner, 2026-10-21: "see this is dark"). On the live button
+    // it is white at the same strength the dark skin shows.
+    `${lightOnly(`[class~="${fill}"][class~="text-white"]:not(:disabled) [class*="text-white/"]`)}{color:rgb(255 255 255 / .6)}`,
   ]),
   // Focus is the brand too, so the field you are typing in is unmistakable
   // and never confused with a green "valid" state.
