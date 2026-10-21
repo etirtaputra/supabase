@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-21T08:45:20Z",
+    title: "Tampilan baru untuk dicoba: Corporate Teal",
+    details: [
+      "Ada pilihan tampilan gelap baru, Corporate Teal: hijau-biru tua yang lebih terang dari Corporate Dark, lebih nyaman di monitor kantor. Tombol tetap biru navy dan semua teks tetap mudah dibaca.",
+      "Coba di Pengaturan › Appearance › Corporate Teal — hanya berlaku di perangkat Anda sendiri. Corporate Dark dan Corporate tidak berubah, dan tampilan bawaan perusahaan tetap Corporate.",
+    ],
+  },
+  {
     at: "2026-10-20T22:58:28Z",
     title: "Penawaran Proyek: kapasitas PCS dan BESS kini terbaca otomatis dari item",
     details: [

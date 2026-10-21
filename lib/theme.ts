@@ -49,7 +49,7 @@ export const DEFAULT_THEME: ThemeName = 'corporate';
  * picker; the menu became a one-tap switch on 2026-08-28 and the duplicate
  * went with it.)
  */
-export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate', 'terminal', 'terminal-light'];
+export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate-teal', 'corporate', 'terminal', 'terminal-light'];
 
 /**
  * The offered skins come in PAIRS — one dark, one light, same design — and the
@@ -61,6 +61,10 @@ export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate',
  */
 export const THEME_PAIRS: [dark: ThemeName, light: ThemeName][] = [
   ['corporate-dark', 'corporate'],
+  // Corporate Teal (2026-10-21) is a second dark side to the same light skin:
+  // from Teal the switch goes to Corporate; from Corporate it goes back to
+  // Corporate Dark (the first pair wins), so picking Teal is a Settings choice.
+  ['corporate-teal', 'corporate'],
   ['terminal', 'terminal-light'],
 ];
 
@@ -146,6 +150,11 @@ export const THEMES: {
     swatch: { bg: '#f3f5f8', card: '#ffffff', ink: '#0b1f3a', accent: '#1f5aa8' } },
   { value: 'corporate-dark', label: 'Corporate Dark', blurb: 'The same corporate look on navy-graphite — for dim rooms, never pure black',
     swatch: { bg: '#1b2431', card: '#212a39', ink: '#f0f3f7', accent: '#2f6fc4' } },
+  // Offered beside Corporate Dark, not in place of it (owner, 2026-10-21:
+  // "don't replace, add. I want to see first") — lighter, blue-green surfaces
+  // for office monitors that smear the navy-graphite. Real CORPORATE_TEAL values.
+  { value: 'corporate-teal', label: 'Corporate Teal', blurb: 'The corporate look on a lighter deep teal — easier on office monitors than Corporate Dark',
+    swatch: { bg: '#2a3f44', card: '#31484e', ink: '#f3f8f9', accent: '#2f6fc4' } },
   // The terminal pair (2026-08-21). Cues from a trading screen: flat panels or
   // plain white cards, hairline separators instead of ringed edges, market
   // green/red rather than the house teal, squarer corners, and Inter with
@@ -162,7 +171,7 @@ export const THEMES: {
 
 export const isTheme = (v: unknown): v is ThemeName =>
   v === 'dark' || v === 'light' || v === 'dim' || v === 'paper'
-  || v === 'terminal' || v === 'terminal-light' || v === 'corporate' || v === 'corporate-dark';
+  || v === 'terminal' || v === 'terminal-light' || v === 'corporate' || v === 'corporate-dark' || v === 'corporate-teal';
 
 /**
  * Runs before first paint, inlined in <head>. Written as a plain string
@@ -172,7 +181,7 @@ export const isTheme = (v: unknown): v is ThemeName =>
  * localStorage access; a throw here would blank the page).
  * Mirrors the resolution order above: personal → cached company default.
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light','corporate','corporate-dark'];var l=window.localStorage;var K=${JSON.stringify(
+export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light','corporate','corporate-dark','corporate-teal'];var l=window.localStorage;var K=${JSON.stringify(
   THEME_STORAGE_KEY,
 )};var D=${JSON.stringify(THEME_DEFAULT_KEY)};var t=l.getItem(K);var M=${JSON.stringify(THEME_MIGRATED_KEY)};if(!l.getItem(M)){var m=${JSON.stringify(
   LEGACY_THEME_MIGRATION,

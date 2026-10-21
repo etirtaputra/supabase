@@ -324,6 +324,38 @@ const CORPORATE_DARK_SURFACES = {
 };
 for (const [name, hex] of Object.entries(CORPORATE_DARK_SURFACES)) corporateDark[name] = { DEFAULT: hexToRgb(hex) };
 
+// TEAL: a second dark corporate skin, OFFERED BESIDE Corporate Dark, not in
+// place of it (owner, 2026-10-21: "the darker ones seem too dark … in my
+// office monitor the dark color is still too dark"; then, of six tones
+// rendered at the same lightness, "add C … don't replace, add. I want to see
+// first"). Same corporate dress, same brand navy for action; the surfaces are
+// a deep blue-green at ~20% lightness (page #2a3f44) instead of Corporate
+// Dark's ~11% navy-graphite, with every step lifted together so cards still
+// separate from the page and borders from cards.
+//
+// A lighter card leaves less room under the inks, so the accent inks read one
+// step lighter here (400 reads 300, 300 reads 200) — the mirror of the light
+// skin's deeper ink. Every text ink is held to AA by lib/palette.test.ts.
+const corporateTeal = clone(corporateDark);
+const lighterInk = (ramp) => ({ ...Object.fromEntries(STEPS.map((st) => [st, ramp[st]])), 400: ramp[300], 300: ramp[200], 200: ramp[100], 100: ramp[50] });
+const CORPORATE_TEAL_FIX = {
+  slate: {
+    950: '#293e43', 900: '#31484e', 800: '#3d575d', 700: '#4b686f',
+    600: '#698b93', 500: '#a6c1c8', 400: '#c3d7dc', 300: '#dbe9ec', 200: '#eaf2f4', 100: '#f3f8f9', 50: '#f9fbfc',
+  },
+  emerald: lighterInk(STD('emerald')),
+  rose: lighterInk(STD('rose')),
+};
+for (const sc of ['red', 'amber', 'sky', 'blue', 'violet']) CORPORATE_TEAL_FIX[sc] = lighterInk(CUSTOM[sc] ?? colors[sc]);
+for (const [scale, steps] of Object.entries(CORPORATE_TEAL_FIX)) {
+  for (const [step, hex] of Object.entries(steps)) corporateTeal[scale][step] = hexToRgb(hex);
+}
+const CORPORATE_TEAL_SURFACES = {
+  chrome: '#273b40', canvas: '#2a3f44', sunken: '#273c41', raised: '#3d565c',
+  rail: '#2e444a', deep: '#22363b', navy: '#2d5163', moss: '#22574a', moss2: '#2a6655',
+};
+for (const [name, hex] of Object.entries(CORPORATE_TEAL_SURFACES)) corporateTeal[name] = { DEFAULT: hexToRgb(hex) };
+
 // The brand navy, as its own tokens — only the corporate skins define them and
 // only CORPORATE_SHELL_CSS reads them. Light: the Shop's #1f5aa8 (white text
 // 6.9:1). Dark: lifted so it separates from the navy-graphite page while white
@@ -331,6 +363,7 @@ for (const [name, hex] of Object.entries(CORPORATE_DARK_SURFACES)) corporateDark
 const BRAND = {
   corporate: { brand: '#1f5aa8', hover: '#17457f' },
   'corporate-dark': { brand: '#2f6fc4', hover: '#2a61ad' },
+  'corporate-teal': { brand: '#2f6fc4', hover: '#2a61ad' },
 };
 const brandBlock = (b) => `--c-brand:${hexToRgb(b.brand)};--c-brand-hover:${hexToRgb(b.hover)}`;
 
@@ -338,6 +371,7 @@ const APP_BG_EXTRA = {
   dim: hexToRgb('#1e222a'), paper: hexToRgb('#ece6d7'),
   terminal: hexToRgb('#1e222a'), 'terminal-light': hexToRgb('#f6f7f9'),
   corporate: hexToRgb('#f3f5f8'), 'corporate-dark': hexToRgb('#1b2431'),
+  'corporate-teal': hexToRgb('#2a3f44'),
 };
 
 // ── Type, as a theme token ──────────────────────────────────────────────────
@@ -421,9 +455,11 @@ const TERMINAL_SHELL_CSS = [
 // The DEFAULT since 2026-09-28 (owner: "make Corporate the default"): an
 // unattributed <html> is Corporate light, so it is a corporate root too.
 const CL = [':root:not([data-theme])', ':root[data-theme="corporate"]'];
-const CD = ':root[data-theme="corporate-dark"]';
+// The dark corporate skins: Corporate Dark and, since 2026-10-21, Corporate Teal.
+const CDS = [':root[data-theme="corporate-dark"]', ':root[data-theme="corporate-teal"]'];
+const CD = CDS.join(',');
 const C = CL.join(',');
-const both = (sel) => [...CL, CD].map((r) => `${r} ${sel}`).join(',');
+const both = (sel) => [...CL, ...CDS].map((r) => `${r} ${sel}`).join(',');
 const lightOnly = (sel) => CL.map((r) => `${r} ${sel}`).join(',');
 const CORPORATE_SHELL_CSS = [
   // Corners: measured, not square — between the house's pill-soft cards and
@@ -538,6 +574,7 @@ const css = [
   `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)}}`,
   `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])}}`,
+  `:root[data-theme="corporate-teal"]{${block(corporateTeal, APP_BG_EXTRA['corporate-teal'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-teal'])}}`,
   SHADOW_FIX,
   TERMINAL_SHELL_CSS,
   CORPORATE_SHELL_CSS,
@@ -575,7 +612,7 @@ export const THEME_VARS_CSS = ${JSON.stringify(css)};
 
 export const TAILWIND_COLORS_JS = ${JSON.stringify(colorsJs)};
 
-export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light' | 'corporate' | 'corporate-dark';
+export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light' | 'corporate' | 'corporate-dark' | 'corporate-teal';
 
 /**
  * The scales and steps this palette actually defines. Emitted so anything that

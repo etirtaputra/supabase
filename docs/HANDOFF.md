@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-21** · last change: *Project quotes: PCS kW and BESS kWh detected from the items* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-21** · last change: *New skin Corporate Teal, offered beside Corporate Dark (to try)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,22 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-21 (latest) — Project quotes: PCS and BESS detected from the items
+### 2026-10-21 (latest) — Corporate Teal skin, added beside Corporate Dark
+
+Owner: Corporate Dark "too dark … in my office monitor". Lighter navy and slate
+versions were previewed, then six tones at the same lightness (navy, teal,
+forest, warm charcoal, plum, graphite — all AA); owner picked teal and said
+"don't replace, add. I want to see first". So `corporate-teal` is a NEW skin:
+`scripts/generate-palette.js` (CORPORATE_TEAL_FIX / _SURFACES: page #2a3f44,
+card #31484e, ~20% lightness vs Corporate Dark's ~11%; accent inks one step
+lighter; brand navy unchanged; every corporate shell rule now scoped to CDS =
+dark + teal). `lib/theme.ts`: offered, in THEMES (Settings › Appearance card),
+isTheme + boot script, pair ['corporate-teal','corporate'] — from Teal the
+switch goes to Corporate; from Corporate it still goes to Corporate Dark.
+Corporate and Corporate Dark blocks verified byte-identical. Not done: making
+Teal the company default or replacing Corporate Dark — waiting on the owner.
+
+### 2026-10-21 — Project quotes: PCS and BESS detected from the items
 
 Owner: "can you also auto-detect the PCS and BESS capacity?" New
 `lib/quoteStorage.ts` (the storage mirror of `lib/quoteAc.ts`): BESS Wh from

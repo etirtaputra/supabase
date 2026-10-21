@@ -58,7 +58,7 @@ test('a legacy skin leaves for the DEFAULT pair on the first tap, and stays', ()
 
 test('every saved older skin moves to Corporate on its own side — dark stays dark, light stays light', () => {
   for (const th of THEMES) {
-    if (th.value === 'corporate' || th.value === 'corporate-dark') {
+    if (th.value === 'corporate' || th.value === 'corporate-dark' || th.value === 'corporate-teal') {
       assert.equal(LEGACY_THEME_MIGRATION[th.value], undefined, `${th.value} is already corporate — nothing to move`);
       continue;
     }
@@ -82,14 +82,20 @@ test('the corporate pair flips to each other and never falls back to terminal', 
   assert.equal(nextTheme(nextTheme('corporate')), 'corporate', 'two taps is where you started');
 });
 
-test('every pair is one dark and one light, and every offered skin is in exactly one pair', () => {
+test('every pair is one dark and one light, and every offered skin is in a pair', () => {
   for (const [dark, light] of THEME_PAIRS) {
     assert.equal(isLightTheme(dark), false, `${dark} is listed as a pair's dark side`);
     assert.equal(isLightTheme(light), true, `${light} is listed as a pair's light side`);
   }
-  const paired = THEME_PAIRS.flat();
+  const paired = [...new Set(THEME_PAIRS.flat())];
   assert.deepEqual([...paired].sort(), [...OFFERED_THEME_VALUES].sort(), 'offered = paired, no more, no less');
-  assert.equal(new Set(paired).size, paired.length, 'no skin sits in two pairs');
+  // A DARK skin sits in exactly one pair. A light one may serve two dark sides
+  // (2026-10-21: Corporate is the light side of both Corporate Dark and Teal).
+  const darks = THEME_PAIRS.map(([d]) => d);
+  assert.equal(new Set(darks).size, darks.length, 'no dark skin sits in two pairs');
+  assert.deepEqual(pairOf('corporate'), ['corporate-dark', 'corporate'], 'from Corporate the switch still goes to Corporate Dark');
+  assert.equal(nextTheme('corporate-teal'), 'corporate', 'from Teal the switch goes to Corporate');
+  assert.equal(pickOffered(false, 'corporate-teal'), 'corporate-teal', 'choosing dark while on Teal stays on Teal');
   for (const th of THEMES) {
     assert.equal(pairOf(th.value) !== null, OFFERED_THEME_VALUES.includes(th.value), th.value);
   }
