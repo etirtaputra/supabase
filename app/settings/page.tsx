@@ -484,12 +484,11 @@ function AppearanceTab({ companyDefault, onMakeDefault }: {
           })}
         </div>
         <p className="text-[11px] text-slate-600 leading-snug max-w-2xl">
-          Two designs, each with a dark and a light side — the sun/moon switch in the ICAPROC menu flips between the two
-          sides of whichever design you are on. <span className="text-slate-400">Terminal</span> is the trading-desk
-          look (Inter, market green). <span className="text-slate-400">Corporate</span> wears the company navy from our
-          Shop and printed documents, with IBM Plex type: buttons are navy, green is kept for paid and done. Every
-          figure lines up in its column in both. The older skins (Dark, Dim, Light, Paper) are no longer offered; a
-          browser already on one keeps it until its person changes.
+          <span className="text-slate-400">Corporate</span> wears the company navy from our Shop and printed documents,
+          with IBM Plex type: buttons are navy, green is kept for paid and done. It has two dark sides — Corporate Dark
+          and the lighter Corporate Teal — and the sun/moon switch in the ICAPROC menu flips between light and dark.
+          The older skins (Terminal, Terminal Light, Dark, Dim, Light, Paper) are no longer offered; a browser already
+          on one keeps it until its person changes.
         </p>
       </div>
     </div>

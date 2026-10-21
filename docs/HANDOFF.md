@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-21** · last change: *New skin Corporate Teal, offered beside Corporate Dark (to try)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-21** · last change: *Terminal skins hidden (Corporate, Corporate Dark, Corporate Teal offered)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,17 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-21 (latest) — Corporate Teal skin, added beside Corporate Dark
+### 2026-10-21 (latest) — Terminal skins hidden
+
+Owner: "hide the Terminal choices". `lib/theme.ts`: OFFERED_THEME_VALUES is
+now corporate-dark / corporate-teal / corporate and the terminal pair left
+THEME_PAIRS — hidden like the four house skins, not deleted (palette blocks,
+THEMES entries and the boot script keep them; a browser on Terminal keeps it
+until its first tap of the switch, which lands on the corporate pair).
+Settings › Appearance footer copy updated. `app/preview/Harness.tsx` still
+renders Terminal on purpose (dev preview).
+
+### 2026-10-21 — Corporate Teal skin, added beside Corporate Dark
 
 Owner: Corporate Dark "too dark … in my office monitor". Lighter navy and slate
 versions were previewed, then six tones at the same lightness (navy, teal,

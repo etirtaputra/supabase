@@ -49,7 +49,10 @@ export const DEFAULT_THEME: ThemeName = 'corporate';
  * picker; the menu became a one-tap switch on 2026-08-28 and the duplicate
  * went with it.)
  */
-export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate-teal', 'corporate', 'terminal', 'terminal-light'];
+// Terminal and Terminal Light hidden the same way (owner, 2026-10-21: "hide
+// the Terminal choices") — kept, still rendered for a browser already on one,
+// no longer offered.
+export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate-teal', 'corporate'];
 
 /**
  * The offered skins come in PAIRS — one dark, one light, same design — and the
@@ -65,7 +68,6 @@ export const THEME_PAIRS: [dark: ThemeName, light: ThemeName][] = [
   // from Teal the switch goes to Corporate; from Corporate it goes back to
   // Corporate Dark (the first pair wins), so picking Teal is a Settings choice.
   ['corporate-teal', 'corporate'],
-  ['terminal', 'terminal-light'],
 ];
 
 /**

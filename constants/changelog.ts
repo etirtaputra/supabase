@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-21T12:37:19Z",
+    title: "Tampilan Terminal disembunyikan",
+    details: [
+      "Pengaturan › Appearance kini hanya menawarkan Corporate, Corporate Dark, dan Corporate Teal. Terminal dan Terminal Light tidak lagi ditawarkan.",
+      "Siapa pun yang masih memakai Terminal tetap melihatnya sampai mengetuk tombol terang/gelap di menu ICAPROC, lalu pindah ke Corporate.",
+    ],
+  },
+  {
     at: "2026-10-21T08:45:20Z",
     title: "Tampilan baru untuk dicoba: Corporate Teal",
     details: [

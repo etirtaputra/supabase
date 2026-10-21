@@ -35,10 +35,13 @@ test('a tap NEVER lands on a hidden skin — this is the bug the old cycle had',
   }
 });
 
-test('the terminal pair flips to each other and stays there', () => {
-  assert.equal(nextTheme('terminal'), 'terminal-light');
-  assert.equal(nextTheme('terminal-light'), 'terminal');
-  assert.equal(nextTheme(nextTheme('terminal')), 'terminal', 'two taps is where you started');
+test('the terminal skins are hidden: a tap leaves them for Corporate on the other side', () => {
+  // Owner, 2026-10-21: "hide the Terminal choices". Still a real skin for a
+  // browser already on one; the first tap moves it onto the corporate pair.
+  assert.ok(!OFFERED_THEME_VALUES.includes('terminal') && !OFFERED_THEME_VALUES.includes('terminal-light'));
+  assert.equal(nextTheme('terminal'), 'corporate');
+  assert.equal(nextTheme('terminal-light'), 'corporate-dark');
+  assert.ok(THEMES.some((th) => th.value === 'terminal'), 'hidden, not deleted');
 });
 
 test('a legacy skin leaves for the DEFAULT pair on the first tap, and stays', () => {
