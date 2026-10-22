@@ -17,8 +17,8 @@ test('every skin is classified bright or dark — none is left unanswered', () =
   for (const th of THEMES) {
     assert.equal(typeof isLightTheme(th.value), 'boolean', `${th.value} has no answer`);
   }
-  assert.deepEqual([...LIGHT_THEMES].sort(), ['corporate', 'corporate-mist', 'light', 'paper', 'terminal-light'],
-    'the five lights; everything else is a dark');
+  assert.deepEqual([...LIGHT_THEMES].sort(), ['corporate', 'light', 'paper', 'terminal-light'],
+    'the four lights; everything else is a dark');
 });
 
 test('a tap always flips brightness — the icon can never lie', () => {
@@ -61,7 +61,7 @@ test('a legacy skin leaves for the DEFAULT pair on the first tap, and stays', ()
 
 test('every saved older skin moves to Corporate on its own side — dark stays dark, light stays light', () => {
   for (const th of THEMES) {
-    if (th.value.startsWith('corporate')) {
+    if (th.value === 'corporate' || th.value === 'corporate-dark') {
       assert.equal(LEGACY_THEME_MIGRATION[th.value], undefined, `${th.value} is already corporate — nothing to move`);
       continue;
     }
@@ -73,7 +73,7 @@ test('every saved older skin moves to Corporate on its own side — dark stays d
 });
 
 test('the move runs once, before first paint, and also moves the cached company default', () => {
-  assert.match(THEME_BOOT_SCRIPT, /icaproc_theme_migrated_v3/);
+  assert.match(THEME_BOOT_SCRIPT, /icaproc_theme_migrated_v4/);
   assert.ok(THEME_BOOT_SCRIPT.includes('l.setItem(D,m[d])'), 'the cached company default is not migrated');
 });
 
@@ -92,13 +92,9 @@ test('every pair is one dark and one light, and every offered skin is in a pair'
   }
   const paired = [...new Set(THEME_PAIRS.flat())];
   assert.deepEqual([...paired].sort(), [...OFFERED_THEME_VALUES].sort(), 'offered = paired, no more, no less');
-  // A DARK skin sits in exactly one pair. A light one may serve two dark sides
-  // (2026-10-21: Corporate is the light side of both Corporate Dark and Teal).
-  const darks = THEME_PAIRS.map(([d]) => d);
-  assert.equal(new Set(darks).size, darks.length, 'no dark skin sits in two pairs');
-  assert.deepEqual(pairOf('corporate'), ['corporate-dark', 'corporate'], 'from Corporate the switch still goes to Corporate Dark');
-  assert.equal(nextTheme('corporate-teal'), 'corporate', 'from Teal the switch goes to Corporate');
-  assert.equal(pickOffered(false, 'corporate-teal'), 'corporate-teal', 'choosing dark while on Teal stays on Teal');
+  // Since 2026-10-22 there is one pair: "only left Corporate Light and Corporate Dark".
+  assert.deepEqual(THEME_PAIRS, [['corporate-dark', 'corporate']]);
+  assert.deepEqual([...OFFERED_THEME_VALUES].sort(), ['corporate', 'corporate-dark']);
   for (const th of THEMES) {
     assert.equal(pairOf(th.value) !== null, OFFERED_THEME_VALUES.includes(th.value), th.value);
   }
@@ -164,4 +160,15 @@ test('the navy button re-dress leaves a greyed-out button grey', () => {
   assert.match(rule!, /:not\(:disabled\)/, 'an enabled button only');
   assert.match(rule!, /:disabled:not\(\[class\*="disabled:bg-"\]\)/,
     'a disabled button keeps its own disabled:bg-… look — Settings’ Save rendered navy while greyed out');
+});
+
+test('the deleted trial skins (Teal, Mist, Ocean) move to the corporate side of their brightness', () => {
+  // Owner, 2026-10-22: "make [Ocean] as Corporate Dark, and then delete the rest".
+  assert.equal(LEGACY_THEME_MIGRATION['corporate-ocean'], 'corporate-dark');
+  assert.equal(LEGACY_THEME_MIGRATION['corporate-teal'], 'corporate-dark');
+  assert.equal(LEGACY_THEME_MIGRATION['corporate-mist'], 'corporate');
+  for (const gone of ['corporate-teal', 'corporate-mist', 'corporate-ocean']) {
+    assert.ok(!THEMES.some((th) => th.value === gone), `${gone} is still listed`);
+    assert.ok(!isTheme(gone), `${gone} is still a valid skin`);
+  }
 });

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-22** · last change: *PO received ↔ stock: gaps flagged, Deal Lookup receives into stock; PIO-2026012 received* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-22** · last change: *Two skins only: Corporate Light + Corporate Dark (Ocean colours)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,21 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-22 (latest) — PO "received" vs stock: the gap is flagged and closed
+### 2026-10-22 (latest) — Two skins: Corporate Light and Corporate Dark (Ocean)
+
+Owner: "make [Corporate Ocean] as Corporate Dark, and then delete the rest. So
+only left Corporate Light … and Corporate Dark". `scripts/generate-palette.js`:
+CORPORATE_DARK_FIX / _SURFACES now hold Ocean's values (page #222f39, card
+#283641, accent inks one step lighter); the corporate-teal / -mist / -ocean
+blocks and their scope entries are gone — the new corporate-dark block was
+verified byte-identical to the old ocean block, corporate unchanged.
+`lib/theme.ts`: offered = ['corporate-dark','corporate'], one pair, the light
+card is labelled "Corporate Light"; LEGACY_THEME_MIGRATION gains teal/ocean →
+corporate-dark and mist → corporate, marker bumped to v4 (so a browser still on
+Terminal also moves, by brightness). The six older house/terminal skins remain
+as hidden blocks (owner 2026-08-28: hide, don't delete).
+
+### 2026-10-22 — PO "received" vs stock: the gap is flagged and closed
 
 Owner: PIO-2026012 (PI RP2026081002) "fully received but not showing ON HAND",
 and a shortage on SO-20260906-0012. Cause: the status was set in Deal Lookup

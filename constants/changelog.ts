@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T06:32:15Z",
+    title: "Tampilan kini hanya dua: Corporate Light dan Corporate Dark (warna Ocean)",
+    details: [
+      "Corporate Dark kini memakai warna Ocean: gelap biru-hijau yang lebih terang dari Corporate Dark lama, nyaman di monitor kantor.",
+      "Corporate Teal, Corporate Mist, dan Corporate Ocean dihapus. Siapa pun yang memakainya otomatis pindah: Teal dan Ocean ke Corporate Dark, Mist ke Corporate Light. Yang masih memakai Terminal juga pindah ke Corporate.",
+      "Corporate Light tidak berubah dan tetap menjadi tampilan bawaan perusahaan.",
+    ],
+  },
+  {
     at: "2026-10-22T06:32:00Z",
     title: "PO yang ditandai Diterima kini wajib masuk stok",
     details: [

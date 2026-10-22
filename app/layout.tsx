@@ -79,7 +79,7 @@ export default function RootLayout({
           /* Form controls and scrollbars are painted by the browser, not by a
              utility class, so they need telling which skin is in play. */
           :root { color-scheme: dark; }
-          :root:not([data-theme]), :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"], :root[data-theme="corporate"], :root[data-theme="corporate-mist"] { color-scheme: light; }
+          :root:not([data-theme]), :root[data-theme="light"], :root[data-theme="paper"], :root[data-theme="terminal-light"], :root[data-theme="corporate"] { color-scheme: light; }
           :root[data-theme="terminal"] { color-scheme: dark; }
 
           /* ── The dropdown chevron (owner, 2026-08-26: "too close to the

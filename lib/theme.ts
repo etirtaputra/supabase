@@ -50,9 +50,10 @@ export const DEFAULT_THEME: ThemeName = 'corporate';
  * went with it.)
  */
 // Terminal and Terminal Light hidden the same way (owner, 2026-10-21: "hide
-// the Terminal choices") — kept, still rendered for a browser already on one,
-// no longer offered.
-export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate-teal', 'corporate', 'corporate-ocean', 'corporate-mist'];
+// the Terminal choices"). Since 2026-10-22 ("only left Corporate Light and
+// Corporate Dark") the offer is the one corporate pair; the trial skins Teal,
+// Mist and Ocean were deleted, and Ocean's colours became Corporate Dark.
+export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate'];
 
 /**
  * The offered skins come in PAIRS — one dark, one light, same design — and the
@@ -64,12 +65,6 @@ export const OFFERED_THEME_VALUES: ThemeName[] = ['corporate-dark', 'corporate-t
  */
 export const THEME_PAIRS: [dark: ThemeName, light: ThemeName][] = [
   ['corporate-dark', 'corporate'],
-  // Corporate Teal (2026-10-21) is a second dark side to the same light skin:
-  // from Teal the switch goes to Corporate; from Corporate it goes back to
-  // Corporate Dark (the first pair wins), so picking Teal is a Settings choice.
-  ['corporate-teal', 'corporate'],
-  // The softer pair (2026-10-21): Mist and Ocean switch to each other.
-  ['corporate-ocean', 'corporate-mist'],
 ];
 
 /**
@@ -77,7 +72,7 @@ export const THEME_PAIRS: [dark: ThemeName, light: ThemeName][] = [
  * screen bright or dark" — which is what the one-tap switch in the wordmark
  * menu asks, and what its icon has to be honest about.
  */
-export const LIGHT_THEMES: ThemeName[] = ['light', 'paper', 'terminal-light', 'corporate', 'corporate-mist'];
+export const LIGHT_THEMES: ThemeName[] = ['light', 'paper', 'terminal-light', 'corporate'];
 export const isLightTheme = (t: ThemeName): boolean => LIGHT_THEMES.includes(t);
 
 /**
@@ -126,8 +121,11 @@ export const pairOf = (t: ThemeName): [ThemeName, ThemeName] | null =>
 export const LEGACY_THEME_MIGRATION: Record<string, ThemeName> = {
   dark: 'corporate-dark', dim: 'corporate-dark', terminal: 'corporate-dark',
   light: 'corporate', paper: 'corporate', 'terminal-light': 'corporate',
+  // v4 (2026-10-22, "only left Corporate Light and Corporate Dark"): the trial
+  // skins of 2026-10-21 are gone, and a browser still on Terminal moves too.
+  'corporate-teal': 'corporate-dark', 'corporate-ocean': 'corporate-dark', 'corporate-mist': 'corporate',
 };
-export const THEME_MIGRATED_KEY = 'icaproc_theme_migrated_v3';
+export const THEME_MIGRATED_KEY = 'icaproc_theme_migrated_v4';
 
 /**
  * Order = the Appearance switcher's order: the two darks, then the two lights.
@@ -150,20 +148,9 @@ export const THEMES: {
   // The corporate pair (2026-09-27): the Shop's and the printed documents'
   // navy as the action colour, cool slate neutrals, IBM Plex Sans. Swatches
   // are the REAL values from CORPORATE_SURFACES / BRAND in the generator.
-  { value: 'corporate', label: 'Corporate', blurb: 'Company navy on white — the colours of our documents and Shop, IBM Plex type, calm labels',
+  { value: 'corporate', label: 'Corporate Light', blurb: 'Company navy on white — the colours of our documents and Shop, IBM Plex type, calm labels',
     swatch: { bg: '#f3f5f8', card: '#ffffff', ink: '#0b1f3a', accent: '#1f5aa8' } },
-  { value: 'corporate-dark', label: 'Corporate Dark', blurb: 'The same corporate look on navy-graphite — for dim rooms, never pure black',
-    swatch: { bg: '#1b2431', card: '#212a39', ink: '#f0f3f7', accent: '#2f6fc4' } },
-  // Offered beside Corporate Dark, not in place of it (owner, 2026-10-21:
-  // "don't replace, add. I want to see first") — lighter, blue-green surfaces
-  // for office monitors that smear the navy-graphite. Real CORPORATE_TEAL values.
-  { value: 'corporate-teal', label: 'Corporate Teal', blurb: 'The corporate look on a lighter deep teal — easier on office monitors than Corporate Dark',
-    swatch: { bg: '#2a3f44', card: '#31484e', ink: '#f3f8f9', accent: '#2f6fc4' } },
-  // The softer pair (owner, 2026-10-21: "add L1 and D3"), offered beside the
-  // others. Real CORPORATE_MIST / CORPORATE_OCEAN values from the generator.
-  { value: 'corporate-mist', label: 'Corporate Mist', blurb: 'Corporate without the glare — cool grey page, off-white cards',
-    swatch: { bg: '#e3e8ee', card: '#f0f3f6', ink: '#0b1f3a', accent: '#1f5aa8' } },
-  { value: 'corporate-ocean', label: 'Corporate Ocean', blurb: 'Dark blue-teal, between Teal and Corporate Dark — close to the company navy',
+  { value: 'corporate-dark', label: 'Corporate Dark', blurb: 'The same corporate look on a dark blue-teal — easy on office monitors, never black',
     swatch: { bg: '#222f39', card: '#283641', ink: '#f3f8f9', accent: '#2f6fc4' } },
   // The terminal pair (2026-08-21). Cues from a trading screen: flat panels or
   // plain white cards, hairline separators instead of ringed edges, market
@@ -181,7 +168,7 @@ export const THEMES: {
 
 export const isTheme = (v: unknown): v is ThemeName =>
   v === 'dark' || v === 'light' || v === 'dim' || v === 'paper'
-  || v === 'terminal' || v === 'terminal-light' || v === 'corporate' || v === 'corporate-dark' || v === 'corporate-teal' || v === 'corporate-mist' || v === 'corporate-ocean';
+  || v === 'terminal' || v === 'terminal-light' || v === 'corporate' || v === 'corporate-dark';
 
 /**
  * Runs before first paint, inlined in <head>. Written as a plain string
@@ -191,7 +178,7 @@ export const isTheme = (v: unknown): v is ThemeName =>
  * localStorage access; a throw here would blank the page).
  * Mirrors the resolution order above: personal → cached company default.
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light','corporate','corporate-dark','corporate-teal','corporate-mist','corporate-ocean'];var l=window.localStorage;var K=${JSON.stringify(
+export const THEME_BOOT_SCRIPT = `(function(){try{var v=['dark','light','dim','paper','terminal','terminal-light','corporate','corporate-dark'];var l=window.localStorage;var K=${JSON.stringify(
   THEME_STORAGE_KEY,
 )};var D=${JSON.stringify(THEME_DEFAULT_KEY)};var t=l.getItem(K);var M=${JSON.stringify(THEME_MIGRATED_KEY)};if(!l.getItem(M)){var m=${JSON.stringify(
   LEGACY_THEME_MIGRATION,

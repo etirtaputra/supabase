@@ -302,111 +302,52 @@ const CORPORATE_SURFACES = {
 };
 for (const [name, hex] of Object.entries(CORPORATE_SURFACES)) corporate[name] = { DEFAULT: hexToRgb(hex) };
 
-// DARK: navy-graphite, NOT near-black (the office's cheap panels smear black —
-// owner, 2026-08-28). The surfaces sit at Dim/Terminal's lightness with a blue
-// cast. The text steps hold Terminal's contrast, except the muted ink (500),
-// which is lifted to clear 4.5 on a card, not only on the page — every text
-// ink in both corporate skins is held to AA by lib/palette.test.ts.
+// DARK: OCEAN, a dark blue-teal (owner, 2026-10-22: "I am liking the new
+// Corporate Ocean theme, make this as Corporate Dark, and then delete the
+// rest"). History: navy-graphite at ~11% lightness (#1b2431) until 2026-10-21,
+// "too dark … in my office monitor"; lighter navy, slate and six hues were
+// previewed; Teal, Mist and Ocean were added beside it to try; Ocean won and
+// replaced it, and the other trial skins were removed the same day.
+//
+// Page #222f39, card #283641 — never near-black (the office's cheap panels
+// smear black, owner 2026-08-28), the closest dark to the company navy. A
+// lighter page than the old one leaves less room under the inks, so the accent
+// inks read one step lighter (400 reads 300, 300 reads 200) — the mirror of
+// the light skin's deeper ink. Every text ink in both corporate skins is held
+// to AA by lib/palette.test.ts.
+const lighterInk = (ramp) => ({ ...Object.fromEntries(STEPS.map((st) => [st, ramp[st]])), 400: ramp[300], 300: ramp[200], 200: ramp[100], 100: ramp[50] });
 const CORPORATE_DARK_FIX = {
   slate: {
-    950: '#19212e', 900: '#212a39', 800: '#2c3748', 700: '#3a4659',
-    600: '#586579', 500: '#8794a9', 400: '#adb8c8', 300: '#d0d8e3', 200: '#e6ebf2', 100: '#f0f3f7', 50: '#f8fafc',
-  },
-  emerald: Object.fromEntries(STEPS.map((st) => [st, STD('emerald')[st]])),
-  rose: Object.fromEntries(STEPS.map((st) => [st, STD('rose')[st]])),
-};
-for (const [scale, steps] of Object.entries(CORPORATE_DARK_FIX)) {
-  for (const [step, hex] of Object.entries(steps)) corporateDark[scale][step] = hexToRgb(hex);
-}
-const CORPORATE_DARK_SURFACES = {
-  chrome: '#161e2a', canvas: '#1b2431', sunken: '#18202c', raised: '#253042',
-  rail: '#1e2735', deep: '#141b26', navy: '#1d3151', moss: '#113f31', moss2: '#17543f',
-};
-for (const [name, hex] of Object.entries(CORPORATE_DARK_SURFACES)) corporateDark[name] = { DEFAULT: hexToRgb(hex) };
-
-// TEAL: a second dark corporate skin, OFFERED BESIDE Corporate Dark, not in
-// place of it (owner, 2026-10-21: "the darker ones seem too dark … in my
-// office monitor the dark color is still too dark"; then, of six tones
-// rendered at the same lightness, "add C … don't replace, add. I want to see
-// first"). Same corporate dress, same brand navy for action; the surfaces are
-// a deep blue-green at ~20% lightness (page #2a3f44) instead of Corporate
-// Dark's ~11% navy-graphite, with every step lifted together so cards still
-// separate from the page and borders from cards.
-//
-// A lighter card leaves less room under the inks, so the accent inks read one
-// step lighter here (400 reads 300, 300 reads 200) — the mirror of the light
-// skin's deeper ink. Every text ink is held to AA by lib/palette.test.ts.
-const corporateTeal = clone(corporateDark);
-const lighterInk = (ramp) => ({ ...Object.fromEntries(STEPS.map((st) => [st, ramp[st]])), 400: ramp[300], 300: ramp[200], 200: ramp[100], 100: ramp[50] });
-const CORPORATE_TEAL_FIX = {
-  slate: {
-    950: '#293e43', 900: '#31484e', 800: '#3d575d', 700: '#4b686f',
-    600: '#698b93', 500: '#a6c1c8', 400: '#c3d7dc', 300: '#dbe9ec', 200: '#eaf2f4', 100: '#f3f8f9', 50: '#f9fbfc',
+    950: '#212e38', 900: '#283641', 800: '#32424e', 700: '#3e505d',
+    600: '#576c7b', 500: '#a6c1c8', 400: '#c3d7dc', 300: '#dbe9ec', 200: '#eaf2f4', 100: '#f3f8f9', 50: '#f9fbfc',
   },
   emerald: lighterInk(STD('emerald')),
   rose: lighterInk(STD('rose')),
 };
-for (const sc of ['red', 'amber', 'sky', 'blue', 'violet']) CORPORATE_TEAL_FIX[sc] = lighterInk(CUSTOM[sc] ?? colors[sc]);
-for (const [scale, steps] of Object.entries(CORPORATE_TEAL_FIX)) {
-  for (const [step, hex] of Object.entries(steps)) corporateTeal[scale][step] = hexToRgb(hex);
+for (const sc of ['red', 'amber', 'sky', 'blue', 'violet']) CORPORATE_DARK_FIX[sc] = lighterInk(CUSTOM[sc] ?? colors[sc]);
+for (const [scale, steps] of Object.entries(CORPORATE_DARK_FIX)) {
+  for (const [step, hex] of Object.entries(steps)) corporateDark[scale][step] = hexToRgb(hex);
 }
-const CORPORATE_TEAL_SURFACES = {
-  chrome: '#273b40', canvas: '#2a3f44', sunken: '#273c41', raised: '#3d565c',
-  rail: '#2e444a', deep: '#22363b', navy: '#2d5163', moss: '#22574a', moss2: '#2a6655',
-};
-for (const [name, hex] of Object.entries(CORPORATE_TEAL_SURFACES)) corporateTeal[name] = { DEFAULT: hexToRgb(hex) };
-
-// MIST and OCEAN: a softer pair, OFFERED BESIDE the corporate skins (owner,
-// 2026-10-21: "let's explore more dark or less bright themes" → "add L1 and
-// D3"). Same corporate dress, same brand navy.
-//
-// MIST is Corporate with the glare taken out: a cool grey page (#e3e8ee) and
-// off-white cards (#f0f3f6) instead of pure white. On grey, the light skin's
-// accent inks fell just under 4.5:1 (green 4.45, amber 4.08 on the page), so
-// they read one step deeper again here (400 reads 800, 300 reads 900).
-const corporateMist = clone(corporate);
-for (const sc of SCALES) {
-  if (sc === 'slate') continue;
-  const src = sc === 'emerald' || sc === 'rose' ? STD(sc) : (CUSTOM[sc] ?? colors[sc]);
-  for (const [step, from] of [[400, 800], [300, 900], [200, 950], [100, 950], [50, 950]]) corporateMist[sc][step] = hexToRgb(src[from]);
-}
-for (const [step, hex] of Object.entries({ 950: '#f0f3f6', 900: '#f0f3f6', 800: '#d3dae3', 700: '#c3ccd8' })) corporateMist.slate[step] = hexToRgb(hex);
-const CORPORATE_MIST_SURFACES = {
-  chrome: '#eaeef2', canvas: '#e3e8ee', sunken: '#dde3ea', raised: '#f3f6f8',
-  rail: '#eef2f5', deep: '#f0f3f6', navy: '#dde7f4', moss: '#dcefe6', moss2: '#c3e6d5',
-};
-for (const [name, hex] of Object.entries(CORPORATE_MIST_SURFACES)) corporateMist[name] = { DEFAULT: hexToRgb(hex) };
-
-// OCEAN is a dark blue-teal between Teal (~20% lightness) and Corporate Dark
-// (~11%): page #222f39, card #283641 — the closest dark to the company navy
-// without Corporate Dark's depth. Teal's inks, which only gain contrast here.
-const corporateOcean = clone(corporateTeal);
-for (const [step, hex] of Object.entries({ 950: '#212e38', 900: '#283641', 800: '#32424e', 700: '#3e505d', 600: '#576c7b' })) corporateOcean.slate[step] = hexToRgb(hex);
-const CORPORATE_OCEAN_SURFACES = {
+const CORPORATE_DARK_SURFACES = {
   chrome: '#1f2c35', canvas: '#222f39', sunken: '#202d36', raised: '#32424d',
   rail: '#25333d', deep: '#1b2831', navy: '#24425a', moss: '#17463a', moss2: '#1d5444',
 };
-for (const [name, hex] of Object.entries(CORPORATE_OCEAN_SURFACES)) corporateOcean[name] = { DEFAULT: hexToRgb(hex) };
+for (const [name, hex] of Object.entries(CORPORATE_DARK_SURFACES)) corporateDark[name] = { DEFAULT: hexToRgb(hex) };
 
 // The brand navy, as its own tokens — only the corporate skins define them and
 // only CORPORATE_SHELL_CSS reads them. Light: the Shop's #1f5aa8 (white text
-// 6.9:1). Dark: lifted so it separates from the navy-graphite page while white
+// 6.9:1). Dark: lifted so it separates from the ocean page while white
 // text on it still clears AA.
 const BRAND = {
   corporate: { brand: '#1f5aa8', hover: '#17457f' },
   'corporate-dark': { brand: '#2f6fc4', hover: '#2a61ad' },
-  'corporate-teal': { brand: '#2f6fc4', hover: '#2a61ad' },
-  'corporate-mist': { brand: '#1f5aa8', hover: '#17457f' },
-  'corporate-ocean': { brand: '#2f6fc4', hover: '#2a61ad' },
 };
 const brandBlock = (b) => `--c-brand:${hexToRgb(b.brand)};--c-brand-hover:${hexToRgb(b.hover)}`;
 
 const APP_BG_EXTRA = {
   dim: hexToRgb('#1e222a'), paper: hexToRgb('#ece6d7'),
   terminal: hexToRgb('#1e222a'), 'terminal-light': hexToRgb('#f6f7f9'),
-  corporate: hexToRgb('#f3f5f8'), 'corporate-dark': hexToRgb('#1b2431'),
-  'corporate-teal': hexToRgb('#2a3f44'),
-  'corporate-mist': hexToRgb('#e3e8ee'), 'corporate-ocean': hexToRgb('#222f39'),
+  corporate: hexToRgb('#f3f5f8'), 'corporate-dark': hexToRgb('#222f39'),
 };
 
 // ── Type, as a theme token ──────────────────────────────────────────────────
@@ -489,9 +430,8 @@ const TERMINAL_SHELL_CSS = [
  */
 // The DEFAULT since 2026-09-28 (owner: "make Corporate the default"): an
 // unattributed <html> is Corporate light, so it is a corporate root too.
-const CL = [':root:not([data-theme])', ':root[data-theme="corporate"]', ':root[data-theme="corporate-mist"]'];
-// The dark corporate skins: Corporate Dark and, since 2026-10-21, Corporate Teal.
-const CDS = [':root[data-theme="corporate-dark"]', ':root[data-theme="corporate-teal"]', ':root[data-theme="corporate-ocean"]'];
+const CL = [':root:not([data-theme])', ':root[data-theme="corporate"]'];
+const CDS = [':root[data-theme="corporate-dark"]'];
 const CD = CDS.join(',');
 const C = CL.join(',');
 const both = (sel) => [...CL, ...CDS].map((r) => `${r} ${sel}`).join(',');
@@ -609,9 +549,6 @@ const css = [
   `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)}}`,
   `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])}}`,
-  `:root[data-theme="corporate-teal"]{${block(corporateTeal, APP_BG_EXTRA['corporate-teal'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-teal'])}}`,
-  `:root[data-theme="corporate-mist"]{${block(corporateMist, APP_BG_EXTRA['corporate-mist'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-mist'])}}`,
-  `:root[data-theme="corporate-ocean"]{${block(corporateOcean, APP_BG_EXTRA['corporate-ocean'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-ocean'])}}`,
   SHADOW_FIX,
   TERMINAL_SHELL_CSS,
   CORPORATE_SHELL_CSS,
@@ -649,7 +586,7 @@ export const THEME_VARS_CSS = ${JSON.stringify(css)};
 
 export const TAILWIND_COLORS_JS = ${JSON.stringify(colorsJs)};
 
-export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light' | 'corporate' | 'corporate-dark' | 'corporate-teal' | 'corporate-mist' | 'corporate-ocean';
+export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light' | 'corporate' | 'corporate-dark';
 
 /**
  * The scales and steps this palette actually defines. Emitted so anything that

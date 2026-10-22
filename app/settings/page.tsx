@@ -485,11 +485,9 @@ function AppearanceTab({ companyDefault, onMakeDefault }: {
         </div>
         <p className="text-[11px] text-slate-600 leading-snug max-w-2xl">
           <span className="text-slate-400">Corporate</span> wears the company navy from our Shop and printed documents,
-          with IBM Plex type: buttons are navy, green is kept for paid and done. It comes in five brightnesses — Corporate
-          and the softer Mist on the light side; Corporate Dark, Ocean and the lighter Teal on the dark side — and the
-          sun/moon switch in the ICAPROC menu flips between light and dark (Mist ↔ Ocean, Corporate ↔ Corporate Dark).
-          The older skins (Terminal, Terminal Light, Dark, Dim, Light, Paper) are no longer offered; a browser already
-          on one keeps it until its person changes.
+          with IBM Plex type: buttons are navy, green is kept for paid and done. It has a light side and a dark side
+          (a dark blue-teal, never black), and the sun/moon switch in the ICAPROC menu flips between them. The older
+          skins are no longer offered; a browser still on one moves to Corporate on its next visit.
         </p>
       </div>
     </div>
