@@ -72,3 +72,31 @@ test('customers with nothing to show disappear; the rest sort by latest activity
   const gs = groupProposals([a, b, c], { now: NOW, show: (f) => f.active });
   assert.deepEqual(gs.map((g) => g.name), ['Beta', 'Alpha']);
 });
+
+test('AYANA: a version numbered off the house pattern folds in by title and type; the rest newest first', () => {
+  const base = { customer_name: 'AYANA Resort and Spa BALI', location: 'Atap BOH & Atap Ballroom AYANA BALI', project_type: 'hybrid_bess' };
+  const vs = [
+    q({ ...base, quote_number: 'Q-20260724-RVSP (battery from AYANA)', quote_date: '2026-07-24', created_at: '2026-07-24T08:00:00Z' }),
+    q({ ...base, quote_number: 'Q-20260724-RVSP (battery from ICA/MBS)', quote_date: '2026-07-24', created_at: '2026-07-24T09:00:00Z' }),
+    q({ ...base, quote_number: 'Q-20260724-RVSP (battery from ICA/MBS)-REV (PV from AYANA)', quote_date: '2026-09-03', created_at: '2026-09-03T08:00:00Z' }),
+    q({ ...base, quote_number: 'Q-20260724-R4-PV+BESS_SBO', quote_date: '2026-10-20', created_at: '2026-10-20T08:00:00Z', status: 'draft' }),
+  ];
+  const other = q({ customer_name: base.customer_name, location: 'Tower Lily dan After Rock', quote_number: 'Q-20260916-NRRW' });
+  const [g] = groupProposals([...vs, other], { now: NOW });
+  assert.equal(g.families.length, 2, 'Atap BOH is one proposal; Tower Lily stays its own');
+  const fam = g.families.find((f) => f.older.length)!;
+  assert.equal(fam.latest.quote_number, 'Q-20260724-R4-PV+BESS_SBO');
+  assert.deepEqual(fam.older.map((o) => o.quote_number), [
+    'Q-20260724-RVSP (battery from ICA/MBS)-REV (PV from AYANA)',
+    'Q-20260724-RVSP (battery from ICA/MBS)',
+    'Q-20260724-RVSP (battery from AYANA)',
+  ], 'older versions by date, newest on top');
+});
+
+test('same title but a different project type, or no title at all, stays separate', () => {
+  const a = q({ customer_name: 'Rajawali', location: 'Rajawali Place', project_type: 'on_grid', quote_number: 'Q-20261001-AAAA' });
+  const b = q({ customer_name: 'Rajawali', location: 'Rajawali Place', project_type: 'custom', quote_number: 'Q-20261002-BBBB' });
+  const c = q({ customer_name: 'Rajawali', quote_number: 'Q-20261003-CCCC' });
+  const d = q({ customer_name: 'Rajawali', quote_number: 'Q-20261004-DDDD' });
+  assert.equal(groupProposals([a, b, c, d], { now: NOW })[0].families.length, 4);
+});

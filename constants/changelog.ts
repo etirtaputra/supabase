@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T06:43:54Z",
+    title: "Proposal: versi lama kini terlipat di bawah versi terbaru",
+    details: [
+      "Proposal untuk pelanggan, lokasi, dan jenis proyek yang sama kini menjadi satu kartu, walaupun nomornya berbeda pola (mis. Q-20260724-R4-PV+BESS_SBO kini menjadi versi terbaru Atap BOH & Atap Ballroom AYANA BALI).",
+      "Versi lama tampil menjorok di bawahnya, diurutkan dari tanggal terbaru ke terlama. Ketuk \"N versi lain\" untuk membuka atau menutupnya.",
+    ],
+  },
+  {
     at: "2026-10-22T06:39:56Z",
     title: "Proposal: tombol \"Tampilkan lagi\" kini ikon panah",
     details: [

@@ -22,6 +22,10 @@ export interface GroupableQuote {
   status: string;
   created_at?: string | null;
   updated_at?: string | null;
+  quote_date?: string | null;
+  location?: string | null;
+  project_description?: string | null;
+  project_type?: string | null;
 }
 
 /** A sent proposal untouched for longer than this leaves the Active view. */
@@ -38,6 +42,17 @@ export function familyKey(q: Pick<GroupableQuote, 'quote_id' | 'quote_number'>):
   const stem = n.match(/^Q-\d{8}-[A-Z0-9]{4}/i);
   if (stem) return stem[0].toUpperCase();
   return n.replace(/-REV\d*\b.*$/i, '').toUpperCase() || `id:${q.quote_id}`;
+}
+
+/**
+ * What a proposal is ABOUT: its site, unless the site only repeats the
+ * customer, else its description — the same rule the list uses for the card
+ * title. Empty when there is nothing to go on.
+ */
+export function titleKey(q: Pick<GroupableQuote, 'customer_name' | 'location' | 'project_description'>): string {
+  const site = normField(q.location ?? '');
+  if (site && site !== normField(q.customer_name ?? '')) return site;
+  return normField(q.project_description ?? '');
 }
 
 /** One customer however it was typed — case, punctuation and spacing aside. */
@@ -119,12 +134,33 @@ export function groupProposals<Q extends GroupableQuote>(
 
   const groups: CustomerGroup<Q>[] = [];
   for (const [key, members] of byCustomer) {
-    const fams = new Map<string, Q[]>();
+    // Versions share a number stem — OR, for one customer, the same title and
+    // project type (owner, 2026-10-22: the newest "Atap BOH & Atap Ballroom
+    // AYANA BALI" was numbered Q-20260724-R4-PV+BESS_SBO, off the house
+    // pattern, and stood apart from its three older versions). A number
+    // family and a title family that meet are one proposal.
+    const byNumber = new Map<string, Q[]>();
     for (const q of members) {
       const fk = familyKey(q);
-      const arr = fams.get(fk) ?? [];
-      arr.push(q);
-      fams.set(fk, arr);
+      (byNumber.get(fk) ?? byNumber.set(fk, []).get(fk)!).push(q);
+    }
+    const parent = new Map<string, string>([...byNumber.keys()].map((k) => [k, k]));
+    const root = (k: string): string => { let r = k; while (parent.get(r) !== r) r = parent.get(r)!; return r; };
+    const firstWithTitle = new Map<string, string>();
+    for (const [fk, vs] of byNumber) {
+      for (const q of vs) {
+        const t = titleKey(q);
+        if (!t) continue;
+        const tk = `${t}|${q.project_type || 'custom'}`;
+        const other = firstWithTitle.get(tk);
+        if (other === undefined) firstWithTitle.set(tk, fk);
+        else if (root(other) !== root(fk)) parent.set(root(fk), root(other));
+      }
+    }
+    const fams = new Map<string, Q[]>();
+    for (const [fk, vs] of byNumber) {
+      const r = root(fk);
+      (fams.get(r) ?? fams.set(r, []).get(r)!).push(...vs);
     }
     const families: ProposalFamily<Q>[] = [];
     for (const [fk, vs] of fams) {
@@ -132,9 +168,12 @@ export function groupProposals<Q extends GroupableQuote>(
       // edit to an old version does not make it the current one.
       const sorted = [...vs].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
       const latest = sorted[0]!;
+      // The rest by their own date, newest on top (owner, 2026-10-22).
+      const dated = (q: Q) => `${(q.quote_date ?? '').slice(0, 10)}|${q.created_at ?? ''}`;
+      const older = sorted.slice(1).sort((a, b) => dated(b).localeCompare(dated(a)));
       const lastActivity = vs.map(activityOf).sort().at(-1) ?? '';
       const fam: ProposalFamily<Q> = {
-        key: fk, latest, older: sorted.slice(1), lastActivity,
+        key: fk, latest, older, lastActivity,
         active: isActive(latest, vs, hasOpenNote, now),
       };
       if (!opts.show || opts.show(fam)) families.push(fam);
