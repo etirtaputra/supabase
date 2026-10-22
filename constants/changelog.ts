@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T07:49:41Z",
+    title: "Proposal: SBO bisa dibatalkan, simulasi energi tidak lagi otomatis",
+    details: [
+      "Klik SBO lagi untuk membatalkannya: biaya dan harga jual sebelumnya kembali dengan sendirinya, baik untuk satu baris maupun satu bagian.",
+      "Simulasi energi kini tidak dicentang secara bawaan, baik di kartu proposal maupun di pratinjau PDF. Centang bila ingin menyertakannya.",
+    ],
+  },
+  {
     at: "2026-10-22T07:31:48Z",
     title: "Proposal: tombol SBO untuk barang yang disediakan pemilik",
     details: [

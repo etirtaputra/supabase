@@ -39,7 +39,8 @@ export default function PrintPage() {
   const [loading, setLoading] = useState(true);
 
   // Include the energy-analysis annex? Defaults to the quote's own setting
-  // (Energy Economics card → "Include in proposal PDF"); overridable here.
+  // (Energy Economics card → "Include in proposal PDF"), which is off unless
+  // ticked (owner, 2026-10-22: unchecked by default); overridable here.
   const [showEcon, setShowEcon] = useState<boolean | null>(null);
 
   // Column choices (shared with the editor's Excel export via localStorage)
@@ -144,7 +145,7 @@ export default function PrintPage() {
   const econ = (quote.project_type === 'on_grid' || econHybrid)
     ? computeEnergyEconomics(subtotal, econDcKwp, econAssump ?? {}, econHybrid)
     : null;
-  const econVisible = econ != null && (showEcon ?? (econAssump?.enabled !== false));
+  const econVisible = econ != null && (showEcon ?? (econAssump?.enabled === true));
   const econTariff0 = econAssump?.pln_tariff ?? ECON_DEFAULTS.pln_tariff;
   const econLife = econAssump?.lifetime_years ?? ECON_DEFAULTS.lifetime_years;
 

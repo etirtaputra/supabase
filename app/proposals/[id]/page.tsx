@@ -54,6 +54,8 @@ interface DraftItem {
   sort_order: number;
   /** Supplied by owner — this line alone (see DraftSection.sbo for a whole section). */
   sbo: boolean;
+  /** The prices this line had before SBO zeroed them — switching SBO off puts them back. */
+  sboPrev?: { cost: string; sell: string };
   _deleted?: boolean;
 }
 interface DraftSection {
@@ -1390,15 +1392,24 @@ export default function QuoteEditorPage() {
 
   /**
    * Supplied by owner, for a section or one line. Switching ON zeroes the cost
-   * and sell price in the draft (so the change saves and every total follows);
-   * switching OFF leaves them at 0 for the user to price again — a quoted
-   * price is never invented.
+   * and sell price in the draft (so the change saves and every total follows)
+   * and keeps the prices it replaced; switching OFF puts them back (owner,
+   * 2026-10-22: "if a user accidentally clicked SBO on an item that previously
+   * has prices, it should automatically revert"). A line that never had a
+   * price stays at 0 — a quoted price is never invented.
    */
+  const sboOn = (i: DraftItem): DraftItem =>
+    ({ ...i, sboPrev: i.sboPrev ?? { cost: i.cost_price, sell: i.sell_price }, cost_price: '0', sell_price: '0' });
+  const sboOff = (i: DraftItem): DraftItem => {
+    const { sboPrev, ...rest } = i;
+    return sboPrev ? { ...rest, cost_price: sboPrev.cost, sell_price: sboPrev.sell } : rest;
+  };
   function toggleSectionSbo(sid: string) {
     setSections((prev) => prev.map((s) => {
       if (s.section_id !== sid) return s;
       const on = !s.sbo;
-      return { ...s, sbo: on, items: on ? s.items.map((i) => ({ ...i, cost_price: '0', sell_price: '0' })) : s.items };
+      // A line marked SBO on its own stays zeroed when the section is switched off.
+      return { ...s, sbo: on, items: s.items.map((i) => on ? sboOn(i) : i.sbo ? i : sboOff(i)) };
     }));
     markDirty();
   }
@@ -1407,8 +1418,7 @@ export default function QuoteEditorPage() {
       if (s.section_id !== sid) return s;
       return { ...s, items: s.items.map((i) => {
         if (i.item_id !== iid) return i;
-        const on = !i.sbo;
-        return on ? { ...i, sbo: true, cost_price: '0', sell_price: '0' } : { ...i, sbo: false };
+        return i.sbo ? { ...sboOff(i), sbo: false } : { ...sboOn(i), sbo: true };
       }) };
     }));
     markDirty();
@@ -1542,7 +1552,7 @@ export default function QuoteEditorPage() {
       const merged: DraftSection[] = remote.map((rs) => {
         const ls = localSecById.get(rs.section_id);
         const bs = baseSecById.get(rs.section_id);
-        const secLocallyChanged = !!ls && (!bs || ls.title !== bs.title || ls.lead_time !== bs.lead_time || ls.group_key !== bs.group_key || !!ls._deleted);
+        const secLocallyChanged = !!ls && (!bs || ls.title !== bs.title || ls.lead_time !== bs.lead_time || ls.group_key !== bs.group_key || ls.sbo !== bs.sbo || !!ls._deleted);
         const items: DraftItem[] = rs.items.map((ri) => {
           const li = localById.get(ri.item_id);
           const bp = basePos.get(ri.item_id);
@@ -1551,7 +1561,8 @@ export default function QuoteEditorPage() {
             if (bp && !sameItem(ri, bp.item)) conflicts += 1; // both sides edited this row
             return li;
           }
-          return ri;
+          // Keep the prices SBO replaced, so switching it off still restores them.
+          return li?.sboPrev && (ri.sbo || rs.sbo) ? { ...ri, sboPrev: li.sboPrev } : ri;
         });
         if (ls) {
           for (const li of ls.items) {

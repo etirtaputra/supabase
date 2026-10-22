@@ -25,7 +25,7 @@
  */
 
 export interface EconAssumptions {
-  enabled?: boolean;               // include the economics page on the proposal PDF
+  enabled?: boolean;               // include the economics page on the proposal PDF — only when true (opt-in)
   specific_production?: number;    // kWh/kWp/yr incl. system losses
   first_year_deg_pct?: number;     // initial output loss vs nameplate, %
   yearly_deg_pct?: number;         // annual performance loss, %/yr

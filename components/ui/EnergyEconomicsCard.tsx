@@ -118,7 +118,8 @@ export default function EnergyEconomicsCard({ econ, onChange, capexIdr, dcKwp, h
     () => computeEnergyEconomics(capexIdr, dcKwp, a, hybrid),
     [capexIdr, dcKwp, a, hybrid],
   );
-  const included = a.enabled !== false;
+  // Opt-in (owner, 2026-10-22): the annex is off until someone ticks it.
+  const included = a.enabled === true;
 
   return (
     <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 ${locked ? 'pointer-events-none opacity-70' : ''}`}>

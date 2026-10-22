@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-22** · last change: *EPC proposals: SBO switch — supplied-by-owner sections/lines at cost & price 0* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-22** · last change: *SBO off restores the prices; energy simulation annex opt-in* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,20 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-22 (latest) — EPC proposals: the SBO switch (supplied by owner)
+### 2026-10-22 (latest) — SBO off restores the prices · energy annex opt-in
+
+Owner: an accidental SBO click must revert to the previous prices. The
+draft line keeps `sboPrev` (cost/sell it had) when SBO zeroes it; switching
+off — line or section — puts them back (a line SBO'd on its own stays 0 when
+only its section is switched off). Kept across autosaves and a colleague's
+merge (mergeRemote carries `sboPrev`; a section's own sbo toggle now counts
+as a local change there, it was being overwritten by the remote copy). NOT
+stored in the database: after a reload the prices are gone, undo (↶) is the
+fallback. Owner: the PDF preview's Energy simulation should start unchecked —
+`econ.enabled` is now opt-in (`=== true`) in EnergyEconomicsCard and the print
+page; no quote had it stored as true (72 unset, 19 false), so no data change.
+
+### 2026-10-22 — EPC proposals: the SBO switch (supplied by owner)
 
 Owner: lines/sections typed "- SBO" by hand should be one consistent switch
 that zeroes cost and price and colours the section. Column
