@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-22** · last change: *EPC proposals: waiting-line flags (flag icon, who, PDF pop-up)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-22** · last change: *Selling Prices › Prices: cost trend, margin per tier, lead time on one row* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,36 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-22 (latest) — EPC proposals: lines WAITING on someone (flags)
+### 2026-10-22 (latest) — Selling Prices › Prices: cost, margin per tier, lead time on one row
+
+Owner: Item Hub, Selling Prices and Profitability overlap; what management
+monitors is (1) cost history — up or down, last price, when; (2) at this
+price, the margin and cheaper/dearer than the rest; (3) the usual lead time.
+Previewed (desktop + phone, decluttered on request), then "build it with
+your suggestions" + "I still want to be shown margin for T2 and T3".
+- New first/default tab of /pricing: `components/ui/PricesTab.tsx`. List =
+  item · last cost (+ ↑/↓ vs previous, date) · net price (type, Enter/Save)
+  · margin at LAST cost (T2/T3 margins under it) · lead time. Detail = side
+  panel on desktop, full screen on phone: price + margin (and "on current
+  stock"), every tier with its margin (pinned marked, warning when a pinned
+  tier falls below the tier before it), similar items, restock warning with
+  a "Use X to keep Y%" button, cost per unit, lead time, sales history,
+  price changes, links to competitor prices / full item page. Filter select:
+  priced (default) · cost went up · margin < 15% · only 1 purchase · below
+  floor · no price yet.
+- `lib/priceInsight.ts` (+ tests, real cases): costHistory (settled TUC per
+  PO + goods-in landed cost for unpaid POs, never double), costTrend (±2% =
+  flat; outliers > 1.8× / < 0.55× the median set aside and shown —
+  QI1522 PIO-009), similarTo (same category, ½–2× size, per Wp/W/A/Wh via
+  CATEGORY_UNITS, priced peers only), restockGap.
+- /pricing now also reads 30.0 receipt movements and 30.2 GRNs; lead times
+  via productLeadTimes over the catalog it already loads. Saves go through
+  the page's saveEdits (net only). PO numbers only for buySide roles.
+- Tab row scrolls on phones (was widening the page to 418px).
+- Phase 2 (not done, awaiting go): tabs → filters, tiers/profiles into
+  Settings, menu trims (Item Hub list, Market Intel, Profitability).
+
+### 2026-10-22 — EPC proposals: lines WAITING on someone (flags)
 
 Owner follow-up: "use flag symbol not hour glass" — the mark is `FlagIcon`
 (SVG, currentColor) exported from components/ui/QuoteFlags.tsx, used on the

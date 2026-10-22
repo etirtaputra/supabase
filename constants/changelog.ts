@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T23:43:53Z",
+    title: "Harga Jual: tab Harga, biaya, margin, dan waktu kirim dalam satu baris",
+    details: [
+      "Tab baru Harga (terbuka pertama): biaya terakhir dengan tanggal dan tanda naik/turun, harga net, margin pada biaya terakhir beserta margin T2 dan T3, serta waktu kirim biasa.",
+      "Ketuk atau klik barang untuk detail: semua tier dengan marginnya, perbandingan dengan barang serupa, riwayat biaya per unit, riwayat penjualan, dan perubahan harga.",
+      "Jika pesanan terakhir lebih mahal dari stok, muncul peringatan dengan tombol harga yang menjaga margin tetap sama.",
+      "Biaya yang jauh berbeda dari pembelian lain ditandai \"periksa\" dan tidak dihitung dalam tren.",
+      "Di ponsel, daftar tampil sebagai kartu dan detail terbuka layar penuh.",
+    ],
+  },
+  {
     at: "2026-10-22T10:05:50Z",
     title: "Proposal: tanda baris yang menunggu kini memakai ikon bendera",
     details: [

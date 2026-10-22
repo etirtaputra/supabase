@@ -46,6 +46,9 @@ import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { resolveCost, isMeasured, BASIS_LABEL, BASIS_NOTE, BASIS_TAG, NO_COST, type ResolvedCost } from '@/lib/costBasis';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import PricesTab from '@/components/ui/PricesTab';
+import { poTimelines, productLeadTimes, type LtPo, type LtQuote, type LtCost, type LtGrn, type ProductLead } from '@/lib/supplierLeadTimes';
+import { PRINCIPAL_CATS } from '@/constants/costCategories';
 
 interface Tier {
   tier_id: string; tier_code: string; name: string;
@@ -60,8 +63,10 @@ interface Override {
 interface Comp {
   component_id: string; supplier_model: string; internal_description: string | null;
   category: string | null; unit: string | null; selling_price_idr: number | null;
-  margin_profile_id: string | null;
+  margin_profile_id: string | null; norm_value: number | null;
 }
+/** A goods-in movement: landed cost per unit, stamped by the receive page. */
+interface Receipt { component_id: string; unit_cost_idr: number | null; moved_at: string; source_id: string | null }
 interface Bal { component_id: string; qty_on_hand: number; avg_cost_idr: number | null; }
 /** One logged price change (21.3, written by triggers — see the migration). */
 interface PriceLog {
@@ -84,7 +89,7 @@ const minPriceFor = (cost: number, floorPct: number): number | null => {
   return roundUpToStep(cost / (1 - floorPct / 100));
 };
 
-type Tab = 'set' | 'tiers' | 'audit' | 'overrides' | 'profiles' | 'history';
+type Tab = 'prices' | 'set' | 'tiers' | 'audit' | 'overrides' | 'profiles' | 'history';
 
 interface Violation {
   comp: Comp; tier: Tier; price: number; cost: number; gp: number;
@@ -123,7 +128,11 @@ export default function PricingPage() {
   const logCount = allLog.length;
   const [loading, setLoading] = useState(true);
   const [schemaMissing, setSchemaMissing] = useState(false);
-  const [tab, setTab] = useState<Tab>('set');
+  // Prices answers the owner's three questions on one row and is where the
+  // screen opens (2026-10-22); Set Pricing stays for editing every tier at once.
+  const [tab, setTab] = useState<Tab>('prices');
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [grns, setGrns] = useState<LtGrn[]>([]);
   const [marginProfiles, setMarginProfiles] = useState<MarginProfile[]>([]);
   // How many items sit on each profile, and how many on none — the number that
   // tells the owner whether the classification is actually finished.
@@ -177,7 +186,7 @@ export default function PricingPage() {
    * `useState(true)` — for the same reason.
    */
   const fetchAll = useCallback(async (): Promise<() => void> => {
-    const [tierRes, ovRes, allComps, balRes, custRes, logRes] = await Promise.all([
+    const [tierRes, ovRes, allComps, balRes, custRes, logRes, rcRes, grnRes] = await Promise.all([
       supabase.from('21.0_price_tiers').select('*').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('price_id, component_id, tier_id, override_price_idr, override_discount_pct, updated_at, updated_by_email'),
       // ARCHIVED ITEMS ARE NOT PRICED (owner, 2026-09-09). A retired item has
@@ -185,7 +194,7 @@ export default function PricingPage() {
       // tier override worth keeping — so it does not belong on any tab of this
       // screen. Archiving is a CATALOGUE decision made in the Item Editor, the
       // same reasoning /products has carried since the feature shipped.
-      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr, margin_profile_id',
+      fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr, margin_profile_id, norm_value',
         { activeOnly: true }),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
       supabase.from('20.0_customers').select('customer_id, tier'),
@@ -194,6 +203,12 @@ export default function PricingPage() {
       supabase.from('21.3_item_price_history')
         .select('history_id, component_id, tier_id, old_price_idr, new_price_idr, cost_idr, target_min_pct, target_max_pct, changed_at, changed_by_email')
         .order('changed_at', { ascending: false }).limit(1000),
+      // Goods received at landed cost — the newest cost of an item whose PO is
+      // not paid yet (Prices tab). And receipt dates, for lead times.
+      selectAll<Receipt>((f, t) => supabase.from('30.0_stock_movements')
+        .select('component_id, unit_cost_idr, moved_at, source_id')
+        .eq('source_type', 'receipt').eq('direction', 'in').order('movement_id').range(f, t)),
+      selectAll<LtGrn>((f, t) => supabase.from('30.2_goods_receipts').select('po_id, received_at').order('grn_id').range(f, t)),
     ]);
     if (tierRes.error) return () => { setSchemaMissing(true); setLoading(false); };
     const bm = new Map<string, Bal>();
@@ -220,6 +235,8 @@ export default function PricingPage() {
       if (list) list.push(l); else lm.set(l.component_id, [l]);
     }
     return () => {
+      setReceipts(rcRes.data ?? []);
+      setGrns(grnRes.data ?? []);
       setAllLog((logRes.data as PriceLog[]) ?? []);
       setPriceLog(lm);
       setTiers((tierRes.data as Tier[]) ?? []);
@@ -303,6 +320,34 @@ export default function PricingPage() {
 
   /** The number alone, for the arithmetic that does not care where it came from. */
   const costOf = useCallback((cid: string): number | null => basisOf(cid).cost, [basisOf]);
+
+  // ── Prices tab: cost history, lead time ───────────────────────────────────
+  const poNumberById = useMemo(() => new Map(catalog.pos.map((p) => [String(p.po_id), p.po_number])), [catalog.pos]);
+  const receivedByComp = useMemo(() => {
+    const m = new Map<string, { label: string; date: string; unitCost: number }[]>();
+    for (const r of receipts) {
+      if (!(Number(r.unit_cost_idr) > 0)) continue;
+      const e = { label: (r.source_id && poNumberById.get(String(r.source_id))) || 'GRN', date: r.moved_at, unitCost: Number(r.unit_cost_idr) };
+      (m.get(r.component_id) ?? m.set(r.component_id, []).get(r.component_id)!).push(e);
+    }
+    return m;
+  }, [receipts, poNumberById]);
+  const paidOf = useCallback((cid: string) => (tucMap.get(cid)?.entries ?? [])
+    .map((e) => ({ label: e.label, date: e.date, unitCost: e.unitCost })), [tucMap]);
+  const receivedOf = useCallback((cid: string) => receivedByComp.get(cid) ?? [], [receivedByComp]);
+  const basisCost = useCallback((cid: string) => { const b = basisOf(cid); return { cost: b.cost, provisional: b.provisional }; }, [basisOf]);
+  const stockCostOf = useCallback((cid: string): number | null => Number(bals.get(cid)?.avg_cost_idr) || null, [bals]);
+  const leadByComp = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const timelines = poTimelines({
+      pos: catalog.pos as unknown as LtPo[], quotes: catalog.quotes as unknown as LtQuote[],
+      costs: (catalog.poCosts as unknown as LtCost[]).filter((c) => PRINCIPAL_CATS.has(c.cost_category)), grns, today,
+    });
+    return new Map<string, ProductLead>(productLeadTimes(timelines, catalog.poItems, today).map((l) => [l.componentId, l]));
+  }, [catalog.pos, catalog.quotes, catalog.poCosts, catalog.poItems, grns]);
+  const leadOf = useCallback((cid: string) => leadByComp.get(cid) ?? null, [leadByComp]);
+  const chainAt = useCallback((cid: string, net: number | null) => computeTierChain(net, activeSorted,
+    (tid) => ovByKey.get(`${cid}:${tid}`)?.override_price_idr), [activeSorted, ovByKey]);
 
   // Every (item, active tier) whose effective price sits below the tier floor.
   const violations: Violation[] = useMemo(() => {
@@ -593,11 +638,12 @@ export default function PricingPage() {
         ) : (
           <>
             {/* Tab bar — text-only underline, sell-side emerald */}
-            <div className="flex items-center gap-5 border-b border-slate-800/80">
-              {([['set', 'Set Pricing'], ['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`], ['profiles', `Margin Profiles${marginProfiles.length ? ` (${marginProfiles.length})` : ''}`],
+            {/* Seven tabs do not fit a phone: the row scrolls on its own rather than widening the page. */}
+            <div className="flex items-center gap-5 border-b border-slate-800/80 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {([['prices', 'Prices'], ['set', 'Set Pricing'], ['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`], ['profiles', `Margin Profiles${marginProfiles.length ? ` (${marginProfiles.length})` : ''}`],
                 ['history', `Price History${logCount ? ` (${logCount})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
                 <button key={k} onClick={() => setTab(k)}
-                  className={`pb-2.5 -mb-px text-[13px] transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
+                  className={`pb-2.5 -mb-px text-[13px] whitespace-nowrap flex-shrink-0 transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
                   {label}
                 </button>
               ))}
@@ -619,6 +665,18 @@ export default function PricingPage() {
                 and keeps the person exactly where they were. */}
             {loading && comps.length === 0 ? (
               <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-slate-800/40 rounded-2xl animate-pulse" />)}</div>
+            ) : tab === 'prices' ? (
+              <PricesTab
+                comps={comps.map((c) => ({ component_id: c.component_id, name: descOf(c), category: c.category, norm_value: c.norm_value, selling_price_idr: c.selling_price_idr }))}
+                tiers={activeSorted} chainAt={chainAt} paidOf={paidOf} receivedOf={receivedOf} basisCost={basisCost}
+                stockCost={stockCostOf} stockOf={stockOf} leadOf={leadOf} priceLog={priceLog}
+                tierName={(tid) => (tid ? tierById.get(tid)?.name : activeSorted[0]?.name) ?? 'Net'}
+                canManage={canManage} saving={savingRows}
+                onSaveNet={(cid, v) => saveEdits([{ component_id: cid, tier_id: null, value: v }])}
+                showPoNumbers={!!profile && ROLE_PERMISSIONS[profile.role].buySide}
+                canSeeCompetitors={!!profile && ROLE_PERMISSIONS[profile.role].canViewCompetitorPrices && canOpenPath(ROLE_PERMISSIONS[profile.role], '/purchasing?tab=market-intel')}
+                canOpenItem={!!profile && canOpenPath(ROLE_PERMISSIONS[profile.role], '/items')}
+                roundStep={priceRoundingStep} />
             ) : tab === 'set' ? (
               <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf} basisOf={basisOf}
                 stockOf={stockOf}
