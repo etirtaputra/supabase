@@ -13,6 +13,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
+import { waitingLines, personName, FLAG_COLS, type QuoteFlag } from '@/lib/quoteFlags';
 import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
 import { resolveIssuer, COMPANY_COLUMNS, RECEIVING_ACCOUNT_COLUMNS, type CompanyRecord, type ReceivingAccount } from '@/lib/issuer';
 
@@ -23,7 +24,7 @@ interface Section extends QuoteSection { items: QuoteItem[] }
 export default function PrintPage() {
   const { id } = useParams<{ id: string }>();
   // Only the on-screen toolbar is translated — the printed document is the customer's.
-  const { t } = useT();
+  const { t, tf } = useT();
   const supabase = createSupabaseClient();
   // Any signed-in role may print; no session redirects to login
   const gate = useQuotesGate(true);
@@ -33,6 +34,12 @@ export default function PrintPage() {
   // The issuing company's record + its accounts (lib/issuer.ts decides what prints).
   const [company, setCompany] = useState<CompanyRecord | null>(null);
   const [accounts, setAccounts] = useState<ReceivingAccount[]>([]);
+  // Lines still waiting on someone — a screen-only warning above the page, never printed.
+  const [flags, setFlags] = useState<QuoteFlag[]>([]);
+  useEffect(() => {
+    supabase.from('10.7_quote_item_flags').select(FLAG_COLS).eq('quote_id', id).is('resolved_at', null)
+      .then(({ data }) => setFlags((data ?? []) as QuoteFlag[]), () => {});
+  }, [id]);   // eslint-disable-line react-hooks/exhaustive-deps
   const settings = useSettings();   // letterhead + document number/date formats
   // component_id → Wp per module, for pv_module components used on this quote
   const [wpMap, setWpMap] = useState<Map<string, number>>(new Map());
@@ -231,7 +238,25 @@ export default function PrintPage() {
 
         .print-btn { padding: 11px 22px; background: #1f5aa8; color: #fff; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(15,23,42,0.25); width: 100%; }
         .print-btn:hover { background: #1a4e91; }
+        .waiting-bar { max-width: 210mm; margin: 12px auto 0; padding: 10px 14px; border: 1px solid #f59e0b; background: #fffbeb; border-radius: 10px; font-size: 12px; color: #78350f; }
+        .waiting-bar a { color: #1f5aa8; font-weight: 600; text-decoration: none; white-space: nowrap; }
       `}</style>
+      {(() => {
+        // Screen only (.no-print): the customer's copy never carries it.
+        const waiting = waitingLines(flags, sections.flatMap((sec) => sec.items.map((i) => ({ item_id: i.item_id, description: i.description ?? '' }))));
+        if (!waiting.length) return null;
+        return (
+          <div className="no-print waiting-bar">
+            <strong>⏳ {waiting.length === 1 ? t('1 line is still waiting') : tf('{n} lines are still waiting', { n: waiting.length })}</strong>
+            {waiting.map((w) => (
+              <div key={w.flag.flag_id} style={{ marginTop: 4, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
+                <span>{w.description || '—'} · {w.flag.kind === 'price' ? t('Price') : t('Technical')} · {personName(w.flag.assignee_email)}</span>
+                <a href={`/proposals/${id}#line-${w.itemId}`}>{t('Back to edit')} →</a>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       <div className="page">
         {/* Header */}

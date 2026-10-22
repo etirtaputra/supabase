@@ -8,6 +8,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { useT } from '@/hooks/useT';
 import { fetchOpenNotes, newestOpenByQuote, openCountByQuote, type QuoteNote } from '@/lib/quoteNotes';
+import { openFlagsByQuote } from '@/lib/quoteFlags';
 import { computeTUCMap, getComponentCost, fxFromHistory, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
@@ -107,6 +108,23 @@ export default function QuotesListPage() {
   const reloadNotes = useCallback(() => { fetchOpenNotes(supabase).then(setOpenNotes).catch(() => setOpenNotes([])); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { reloadNotes(); }, [reloadNotes]);
   const noteByQuote = useMemo(() => newestOpenByQuote(openNotes), [openNotes]);
+  // Lines still WAITING on someone (10.7_quote_item_flags), per proposal and who.
+  const [waitingRows, setWaitingRows] = useState<{ quote_id: string; assignee_email: string }[]>([]);
+  useEffect(() => {
+    supabase.from('10.7_quote_item_flags').select('quote_id, assignee_email').is('resolved_at', null)
+      .then(({ data }) => setWaitingRows((data ?? []) as { quote_id: string; assignee_email: string }[]), () => {});
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  const waitingByQuote = useMemo(() => openFlagsByQuote(waitingRows), [waitingRows]);
+  const waitingBadge = (quoteId: string, card: boolean) => {
+    const w = waitingByQuote.get(quoteId);
+    if (!w) return null;
+    return (
+      <span className={`${card ? 'px-2 rounded-full text-[10px]' : 'px-1.5 rounded text-[9px]'} py-0.5 font-semibold whitespace-nowrap flex-shrink-0 bg-sky-500/15 text-sky-300`}
+        title={tf('{n} lines waiting on {people}', { n: w.n, people: w.people.join(', ') })}>
+        ⏳ {w.n}{card ? ` · ${w.people.join(', ')}` : ''}
+      </span>
+    );
+  };
   const noteCountByQuote = useMemo(() => openCountByQuote(openNotes), [openNotes]);
   /** Hover text for the note on a row: how many are open, and since when. */
   const noteThreadTitle = useCallback((quoteId: string): string => {
@@ -527,6 +545,7 @@ export default function QuotesListPage() {
           ⚠ {driftByQuote.get(q.quote_id)}
         </span>
       )}
+      {waitingBadge(q.quote_id, false)}
       {/* An OPEN note takes the description's place (owner's
           call, 2026-08-27). A live "waiting on the customer"
           is worth more than a description you wrote yourself
@@ -576,6 +595,7 @@ export default function QuotesListPage() {
         ⚠ {driftByQuote.get(q.quote_id)} outdated cost{driftByQuote.get(q.quote_id)! > 1 ? 's' : ''}
       </span>
     )}
+    {waitingBadge(q.quote_id, true)}
   </div>
   {/* An OPEN follow-up note. Compact view swaps it in for the
       description because the row cannot grow; a card has the

@@ -36,6 +36,11 @@ import { catalogMatches, lastQuotedDates } from '@/lib/catalogSearch';
 import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { FlagDialog, WaitingStrip, PdfGuard, type Person } from '@/components/ui/QuoteFlags';
+import {
+  fetchFlags, raiseFlag, reassignFlag, clearFlag, openFlagByItem, waitingLines, personName, TAGGABLE_ROLES,
+  type FlagKind, type QuoteFlag,
+} from '@/lib/quoteFlags';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -152,6 +157,9 @@ function fmtDateTime(s: string | undefined) {
 }
 
 const ACTIVITY_BADGE: Record<string, string> = {
+  flagged: 'bg-sky-500/20 text-sky-300',
+  cleared: 'bg-emerald-500/20 text-emerald-300',
+  pdf:     'bg-amber-500/20 text-amber-300',
   created: 'bg-emerald-500/20 text-emerald-300',
   edited:  'bg-slate-600/40 text-slate-300',
   status:  'bg-sky-500/20 text-sky-300',
@@ -999,6 +1007,81 @@ export default function QuoteEditorPage() {
       .order('at', { ascending: false })
       .limit(100);
     setActivity(data ?? []);
+  }
+
+  // ── Lines WAITING on someone (10.7_quote_item_flags; lib/quoteFlags.ts) ────
+  // Written straight to the database, not through the draft/save cycle: a
+  // flag is about the line, not its contents, and must work on a SENT
+  // proposal too (same audience as the follow-up notes).
+  const [flags, setFlags] = useState<QuoteFlag[]>([]);
+  const [flagPeople, setFlagPeople] = useState<Person[]>([]);
+  const [flagFor, setFlagFor] = useState<{ itemId: string; description: string } | null>(null);
+  const [flagBusy, setFlagBusy] = useState(false);
+  const [flagErr, setFlagErr] = useState<string | null>(null);
+  const [pdfGuardOpen, setPdfGuardOpen] = useState(false);
+  const [flashLine, setFlashLine] = useState<string | null>(null);
+  const reloadFlags = useCallback(() => {
+    fetchFlags(supabase, id).then(setFlags, () => {});
+  }, [supabase, id]);
+  useEffect(() => {
+    reloadFlags();
+    supabase.from('user_profiles').select('email, role').in('role', [...TAGGABLE_ROLES]).order('email')
+      .then(({ data }) => setFlagPeople(((data ?? []) as { email: string }[])
+        .filter((p) => p.email)
+        .map((p) => ({ email: p.email, name: personName(p.email) }))));
+    // Someone may clear a flag in another tab: look again when this one is back in front.
+    const onFocus = () => reloadFlags();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [supabase, reloadFlags]);
+  const openFlags = useMemo(() => openFlagByItem(flags), [flags]);
+  const waiting = useMemo(() => waitingLines(flags, sections
+    .filter((s) => !s._deleted)
+    .flatMap((s) => s.items.filter((i) => !i._deleted).map((i) => ({ item_id: i.item_id, description: i.description })))),
+  [flags, sections]);
+
+  async function runFlag(fn: () => Promise<void>, close = false) {
+    setFlagBusy(true); setFlagErr(null);
+    try {
+      await fn();
+      reloadFlags();
+      if (close) setFlagFor(null);
+    } catch (e) {
+      setFlagErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFlagBusy(false);
+    }
+  }
+
+  // Arriving from "Waiting on you" (/proposals/<id>#line-<item>): go to that
+  // line once the proposal has loaded. Once only — the hash stays in the URL.
+  const hashLineDone = useRef(false);
+  useEffect(() => {
+    if (loadingQuote || hashLineDone.current || !sections.length) return;
+    const m = /^#line-([0-9a-f-]{36})$/i.exec(window.location.hash);
+    if (!m) return;
+    hashLineDone.current = true;
+    // Not cleared on re-render: this page re-renders constantly, and the jump must still happen.
+    window.setTimeout(() => goToLine(m[1]), 300);
+  }, [loadingQuote, sections.length]);
+
+  /** Open the flag box for a line. A line not saved yet is saved first — a flag points at the stored line. */
+  async function openFlagFor(itemId: string, description: string) {
+    setFlagErr(null);
+    const stored = baseRef.current.some((sec) => sec.items.some((i) => i.item_id === itemId));
+    if (!stored && !(await save())) return;
+    setFlagFor({ itemId, description });
+  }
+
+  /** Scroll to a line, flash it, and put the cursor in its cost box. */
+  function goToLine(itemId: string) {
+    setPdfGuardOpen(false);
+    const row = document.getElementById(`line-${itemId}`);
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setFlashLine(itemId);
+    window.setTimeout(() => setFlashLine((cur) => (cur === itemId ? null : cur)), 2200);
+    window.setTimeout(() => row.querySelector<HTMLInputElement>('input[data-nav-col="cost"]')?.focus({ preventScroll: true }), 450);
   }
 
   // ── Export column choices (shared with the print page via localStorage) ────
@@ -2231,6 +2314,7 @@ export default function QuoteEditorPage() {
               {t('Costs')}
             </button>
             <Link href={`/proposals/${id}/print`} target="_blank"
+              onClick={(e) => { if (waiting.length) { e.preventDefault(); setPdfGuardOpen(true); } }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
               PDF
@@ -2478,6 +2562,13 @@ export default function QuoteEditorPage() {
           </div>
         </div>
 
+        {/* ── Lines waiting on someone — outside the locked wrapper on purpose ── */}
+        <WaitingStrip lines={waiting} onGo={(itemId) => {
+          goToLine(itemId);
+          // On a SENT proposal the lines cannot be clicked; open the flag here instead.
+          if (locked) { const w = waiting.find((x) => x.itemId === itemId); setFlagFor({ itemId, description: w?.description ?? '' }); }
+        }} />
+
         {/* ── Groups & sub-sections ── */}
         <div className={`space-y-8 ${locked ? 'pointer-events-none opacity-70' : ''}`} ref={acRef}>
           {SECTION_GROUPS.map((group) => {
@@ -2683,6 +2774,7 @@ export default function QuoteEditorPage() {
                         const total = (num(item.quantity) ?? 0) * (num(item.sell_price) ?? 0);
                         const gm = gmFromPrices(item.cost_price, item.sell_price);
                         const owner = isOwnerSupplied(sec, item);
+                        const flag = openFlags.get(item.item_id) ?? null;
                         const isAcOpen = acState?.itemId === item.item_id;
                         const drift = itemDrift(item);
 
@@ -2690,7 +2782,8 @@ export default function QuoteEditorPage() {
                           <React.Fragment key={item.item_id}>
                             {/* Main item row */}
                             <tr
-                              className={`transition-colors hover:bg-white/[0.06] ${item.sbo && !sec.sbo ? 'bg-amber-500/[0.06]' : itemIdx % 2 === 1 ? 'bg-white/[0.015]' : ''} ${
+                              id={`line-${item.item_id}`}
+                              className={`transition-colors duration-500 hover:bg-white/[0.06] ${flashLine === item.item_id ? 'bg-sky-500/25' : flag ? 'bg-sky-500/[0.08]' : item.sbo && !sec.sbo ? 'bg-amber-500/[0.06]' : itemIdx % 2 === 1 ? 'bg-white/[0.015]' : ''} ${
                                 itemDrag.lineAt(itemKey(sec.section_id, item.item_id), { table: true })} ${
                                 itemDrag.dragKey === itemKey(sec.section_id, item.item_id) ? DRAGGING_ROW : ''}`}
                               {...itemDrag.rowProps(itemKey(sec.section_id, item.item_id), { stopPropagation: true })}
@@ -3099,6 +3192,17 @@ export default function QuoteEditorPage() {
                               </td>
                               <td className="pr-3 py-2">
                                 <div className="flex items-center gap-1.5">
+                                  {/* Waiting on someone: a price or a technical answer (lib/quoteFlags.ts). */}
+                                  <button type="button" onClick={() => openFlagFor(item.item_id, item.description)}
+                                    aria-pressed={!!flag}
+                                    title={flag
+                                      ? `${flag.kind === 'price' ? t('Waiting for price') : t('Waiting for a technical answer')} · ${personName(flag.assignee_email)}${flag.note ? ` · ${flag.note}` : ''}`
+                                      : t('Flag: waiting for a price or a technical answer')}
+                                    className={`text-[10px] leading-none rounded transition-colors whitespace-nowrap ${flag
+                                      ? 'px-1 py-0.5 bg-sky-500/20 text-sky-200 font-semibold'
+                                      : 'text-slate-600 hover:text-sky-200'}`}>
+                                    ⏳{flag ? ` ${personName(flag.assignee_email)}` : ''}
+                                  </button>
                                   {/* One line supplied by the owner. Inside an SBO section every line already is. */}
                                   <button type="button" onClick={() => toggleItemSbo(sec.section_id, item.item_id)} disabled={sec.sbo}
                                     aria-pressed={owner}
@@ -3343,6 +3447,37 @@ export default function QuoteEditorPage() {
           />
         </div>
       </main>
+
+      {/* ── Waiting flag on one line ── */}
+      {flagFor && (
+        <FlagDialog
+          description={flagFor.description}
+          flags={flags}
+          itemId={flagFor.itemId}
+          people={flagPeople}
+          busy={flagBusy}
+          error={flagErr}
+          onRaise={(kind: FlagKind, who, note) => runFlag(() => raiseFlag(supabase, { quote_id: id, item_id: flagFor.itemId, kind, assignee_email: who, note }), true)}
+          onReassign={(flagId, who) => runFlag(() => reassignFlag(supabase, flagId, who))}
+          onClear={(flagId) => runFlag(() => clearFlag(supabase, flagId), true)}
+          onClose={() => setFlagFor(null)}
+        />
+      )}
+
+      {/* ── PDF while lines still wait ── */}
+      {pdfGuardOpen && (
+        <PdfGuard
+          lines={waiting}
+          onGo={goToLine}
+          onCancel={() => setPdfGuardOpen(false)}
+          onAnyway={() => {
+            setPdfGuardOpen(false);
+            window.open(`/proposals/${id}/print`, '_blank');
+            // On the record: the database names the lines that were still waiting.
+            void supabase.rpc('log_quote_pdf_with_flags', { p_quote_id: id }).then(() => {}, () => {});
+          }}
+        />
+      )}
 
       {/* ── Activity history modal ── */}
       {showActivity && (
