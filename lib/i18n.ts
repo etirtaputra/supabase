@@ -49,7 +49,7 @@ export const KEEPERS: readonly string[] = [
   // Documents, by the code that is stamped on them
   'PO', 'PI', 'GRN', 'DO', 'SO', 'SQ', 'INV', 'RCPT',
   // Item and trade vocabulary that is already a code
-  'SKU', 'kWp', 'PPN', 'EPC', 'FOB', 'CIF',
+  'SKU', 'kWp', 'PPN', 'EPC', 'FOB', 'CIF', 'SBO',
   // Words Indonesian spells identically — a phrase-book entry for one of
   // these would equal its own English and fail the test, so it lives here
   // instead of being a translation that translates nothing.
@@ -2428,6 +2428,14 @@ export const ID: Record<string, string> = {
   'Material cost': 'Biaya material',
   'Margin share of total': 'Porsi margin dari total',
   'Rp/Wp incl. PPN': 'Rp/Wp termasuk PPN',
+  // SBO: supplied by the owner, cost and price 0 (2026-10-22)
+  'Supplied by owner': 'Disediakan pemilik',
+  'By owner': 'Dari pemilik',
+  'The whole section is supplied by the owner': 'Seluruh bagian ini disediakan pemilik',
+  'Supplied by owner — click to price this line again': 'Disediakan pemilik — klik untuk memberi harga lagi',
+  'Supplied by owner — click to price these lines again': 'Disediakan pemilik — klik untuk memberi harga lagi pada baris ini',
+  'Mark this line as supplied by the owner: cost and price 0': 'Tandai baris ini disediakan pemilik: biaya dan harga 0',
+  'Mark every line here as supplied by the owner: cost and price 0': 'Tandai semua baris di sini disediakan pemilik: biaya dan harga 0',
 };
 
 const DICTS: Record<Lang, Record<string, string>> = { en: {}, id: ID };

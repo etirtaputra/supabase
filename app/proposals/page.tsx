@@ -432,8 +432,11 @@ export default function QuotesListPage() {
           title: s.title, lead_time: s.lead_time, sort_order: s.sort_order,
         };
         if ('group_key' in s) row.group_key = s.group_key ?? 'bos';
+        if ('supplied_by_owner' in s) row.supplied_by_owner = !!s.supplied_by_owner;
         return row;
       });
+      // Supplied-by-owner lines keep their 0 — a re-cost must not price them.
+      const ownerSection = new Set((secRes.data ?? []).filter((s) => s.supplied_by_owner).map((s) => s.section_id));
       if (newSecs.length) {
         const { error } = await supabase.from('10.1_quote_sections').insert(newSecs);
         if (error) throw error;
@@ -447,7 +450,8 @@ export default function QuotesListPage() {
       for (const it of srcItems) itemIdMap.set(it.item_id, crypto.randomUUID());
       const newItems = srcItems.map((it) => {
         let cost = it.cost_price, sell = it.sell_price;
-        if (dupRefresh && it.component_id) {
+        const owner = !!it.supplied_by_owner || ownerSection.has(it.section_id);
+        if (dupRefresh && it.component_id && !owner) {
           const cc = getComponentCost(it.component_id, dupTucMap, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? [], costOptsFor(it.component_id), fx);
           if (cc) {
             const newCost = Math.round(cc.cost);
@@ -472,6 +476,7 @@ export default function QuotesListPage() {
         };
         if ('qty_formula' in it) row.qty_formula = dupInternal ? (it.qty_formula ?? '') : '';
         if ('eng_note' in it) row.eng_note = dupInternal ? (it.eng_note ?? '') : '';
+        if ('supplied_by_owner' in it) row.supplied_by_owner = !!it.supplied_by_owner;
         return row;
       });
       if (newItems.length) {

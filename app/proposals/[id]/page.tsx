@@ -52,6 +52,8 @@ interface DraftItem {
   cost_price: string;
   sell_price: string;
   sort_order: number;
+  /** Supplied by owner — this line alone (see DraftSection.sbo for a whole section). */
+  sbo: boolean;
   _deleted?: boolean;
 }
 interface DraftSection {
@@ -60,9 +62,14 @@ interface DraftSection {
   title: string;
   lead_time: string;
   sort_order: number;
+  /** Supplied by owner: every line priced 0, tinted, printed "Supplied by owner". */
+  sbo: boolean;
   items: DraftItem[];
   _deleted?: boolean;
 }
+
+/** A line the owner supplies — on its own, or because its whole section is. */
+const isOwnerSupplied = (sec: Pick<DraftSection, 'sbo'>, item: Pick<DraftItem, 'sbo'>) => sec.sbo || item.sbo;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -303,7 +310,7 @@ const GRIP = (
 // changed since it last synced (its "base" snapshot), colleagues' saves are
 // merged in automatically, and only rows BOTH sides edited count as
 // conflicts. Nothing ever overwrites a whole quote again.
-const ITEM_CMP_FIELDS = ['parent_item_id', 'component_id', 'description', 'brand', 'quantity', 'qty_formula', 'eng_note', 'unit', 'cost_price', 'sell_price'] as const;
+const ITEM_CMP_FIELDS = ['parent_item_id', 'component_id', 'description', 'brand', 'quantity', 'qty_formula', 'eng_note', 'unit', 'cost_price', 'sell_price', 'sbo'] as const;
 
 function sameItem(a: DraftItem | undefined, b: DraftItem | undefined): boolean {
   if (!a || !b) return false;
@@ -336,6 +343,7 @@ function dbToDraft(dbSections: QuoteSection[], dbItems: QuoteItem[]): DraftSecti
     title: sec.title,
     lead_time: sec.lead_time,
     sort_order: sec.sort_order,
+    sbo: !!sec.supplied_by_owner,
     items: dbItems
       .filter((i) => i.section_id === sec.section_id)
       .map((i) => ({
@@ -351,6 +359,7 @@ function dbToDraft(dbSections: QuoteSection[], dbItems: QuoteItem[]): DraftSecti
         cost_price: i.cost_price != null ? String(i.cost_price) : '',
         sell_price: i.sell_price != null ? String(i.sell_price) : '',
         sort_order: i.sort_order,
+        sbo: !!i.supplied_by_owner,
       })),
   }));
 }
@@ -933,7 +942,7 @@ export default function QuoteEditorPage() {
     for (const s of sections) {
       if (s._deleted) continue;
       for (const it of s.items) {
-        if (it._deleted || !it.component_id) continue;
+        if (it._deleted || !it.component_id || isOwnerSupplied(s, it)) continue;   // owner-supplied stays at 0
         const cc = costFor(it.component_id);
         if (!cc || !(cc.cost > 0)) continue;
         const newCost = Math.round(cc.cost);
@@ -1194,7 +1203,7 @@ export default function QuoteEditorPage() {
         sub += qty * sell;
         // System size from the Solar Panels group: module qty × Wp/module
         if (sec.group_key === 'solar_panels') wp += itemWp(item);
-        if (qty > 0 && sell <= 0) missing += 1;
+        if (qty > 0 && sell <= 0 && !isOwnerSupplied(sec, item)) missing += 1;
         // Blended margin over lines that carry both cost and sell
         if (qty > 0 && cost > 0 && sell > 0) { costSum += qty * cost; sellSum += qty * sell; }
       }
@@ -1369,13 +1378,39 @@ export default function QuoteEditorPage() {
   function addSection(group: SectionGroup) {
     setSections((prev) => [
       ...prev,
-      { section_id: uid(), group_key: group, title: '', lead_time: 'Ready', sort_order: prev.length, items: [] },
+      { section_id: uid(), group_key: group, title: '', lead_time: 'Ready', sort_order: prev.length, sbo: false, items: [] },
     ]);
     markDirty();
   }
 
   function updateSection(sid: string, patch: Partial<DraftSection>) {
     setSections((prev) => prev.map((s) => s.section_id === sid ? { ...s, ...patch } : s));
+    markDirty();
+  }
+
+  /**
+   * Supplied by owner, for a section or one line. Switching ON zeroes the cost
+   * and sell price in the draft (so the change saves and every total follows);
+   * switching OFF leaves them at 0 for the user to price again — a quoted
+   * price is never invented.
+   */
+  function toggleSectionSbo(sid: string) {
+    setSections((prev) => prev.map((s) => {
+      if (s.section_id !== sid) return s;
+      const on = !s.sbo;
+      return { ...s, sbo: on, items: on ? s.items.map((i) => ({ ...i, cost_price: '0', sell_price: '0' })) : s.items };
+    }));
+    markDirty();
+  }
+  function toggleItemSbo(sid: string, iid: string) {
+    setSections((prev) => prev.map((s) => {
+      if (s.section_id !== sid) return s;
+      return { ...s, items: s.items.map((i) => {
+        if (i.item_id !== iid) return i;
+        const on = !i.sbo;
+        return on ? { ...i, sbo: true, cost_price: '0', sell_price: '0' } : { ...i, sbo: false };
+      }) };
+    }));
     markDirty();
   }
 
@@ -1391,8 +1426,8 @@ export default function QuoteEditorPage() {
       return { ...s, items: [...s.items, {
         item_id: uid(), parent_item_id: parentId, component_id: null,
         description: '', brand: '', quantity: '', qty_formula: '', eng_note: '',
-        unit: '', cost_price: '', sell_price: '',
-        sort_order: order,
+        unit: '', cost_price: s.sbo ? '0' : '', sell_price: s.sbo ? '0' : '',
+        sort_order: order, sbo: false,
       }] };
     }));
     markDirty();
@@ -1401,7 +1436,16 @@ export default function QuoteEditorPage() {
   function updateItem(sid: string, iid: string, patch: Partial<DraftItem>) {
     setSections((prev) => prev.map((s) => {
       if (s.section_id !== sid) return s;
-      return { ...s, items: s.items.map((i) => i.item_id === iid ? { ...i, ...patch } : i) };
+      return { ...s, items: s.items.map((i) => {
+        if (i.item_id !== iid) return i;
+        // An owner-supplied line is priced 0 however a price arrives — typed,
+        // picked from the catalog, a previous quote, or a GM% edit.
+        if (!isOwnerSupplied(s, i)) return { ...i, ...patch };
+        const p = { ...patch };
+        if ('cost_price' in p) p.cost_price = '0';
+        if ('sell_price' in p) p.sell_price = '0';
+        return { ...i, ...p };
+      }) };
     }));
     markDirty();
   }
@@ -1720,10 +1764,10 @@ export default function QuoteEditorPage() {
         .sort((a, b) => groupOrder.indexOf(a.group_key) - groupOrder.indexOf(b.group_key));
       const baseSecIdx = new Map(baseSections.map((sec, i) => [sec.section_id, { sec, i }]));
       const secRows = liveSections
-        .map((sec, i) => ({ section_id: sec.section_id, quote_id: id, group_key: sec.group_key, title: sec.title, lead_time: sec.lead_time, sort_order: i }))
+        .map((sec, i) => ({ section_id: sec.section_id, quote_id: id, group_key: sec.group_key, title: sec.title, lead_time: sec.lead_time, sort_order: i, supplied_by_owner: sec.sbo }))
         .filter((row, i) => {
           const b = baseSecIdx.get(row.section_id);
-          return !b || b.i !== i || b.sec.title !== row.title || b.sec.lead_time !== row.lead_time || b.sec.group_key !== row.group_key;
+          return !b || b.i !== i || b.sec.title !== row.title || b.sec.lead_time !== row.lead_time || b.sec.group_key !== row.group_key || b.sec.sbo !== row.supplied_by_owner;
         });
       if (secRows.length) {
         const { error } = await supabase.from('10.1_quote_sections').upsert(secRows);
@@ -1732,20 +1776,21 @@ export default function QuoteEditorPage() {
 
       // 4. Items — upsert only rows that differ from base (fields or position)
       const itemRows = liveSections.flatMap((sec) =>
-        sec.items.filter((i) => !i._deleted).map((i, idx) => ({ draft: i, secId: sec.section_id, idx })))
+        sec.items.filter((i) => !i._deleted).map((i, idx) => ({ draft: i, secId: sec.section_id, idx, owner: isOwnerSupplied(sec, i) })))
         .filter(({ draft, secId, idx }) => {
           const b = basePos.get(draft.item_id);
           return !b || b.secId !== secId || b.idx !== idx || !sameItem(draft, b.item);
         })
-        .map(({ draft, secId, idx }) => ({
+        .map(({ draft, secId, idx, owner }) => ({
           item_id: draft.item_id, section_id: secId, quote_id: id,
           parent_item_id: draft.parent_item_id,
           component_id: draft.component_id ?? null,
           description: draft.description, brand: draft.brand,
           quantity: num(draft.quantity), qty_formula: draft.qty_formula, eng_note: draft.eng_note,
           unit: draft.unit,
-          cost_price: num(draft.cost_price), sell_price: num(draft.sell_price),
-          sort_order: idx,
+          // Owner-supplied: 0, whatever the draft holds — every total that reads the prices is then right.
+          cost_price: owner ? 0 : num(draft.cost_price), sell_price: owner ? 0 : num(draft.sell_price),
+          sort_order: idx, supplied_by_owner: draft.sbo,
         }));
       if (itemRows.length) {
         const { error } = await supabase.from('10.2_quote_items').upsert(itemRows);
@@ -2476,7 +2521,7 @@ export default function QuoteEditorPage() {
             return (
               <div
                 key={sec.section_id}
-                className={`bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-600 rounded-2xl overflow-hidden ${REORDER_ROW} ${
+                className={`bg-slate-900/50 hover:bg-slate-900/80 border rounded-2xl overflow-hidden ${sec.sbo ? 'border-amber-500/40 hover:border-amber-400/60' : 'border-slate-800 hover:border-slate-600'} ${REORDER_ROW} ${
                   sectionDrag.lineAt(sec.section_id)} ${sectionDrag.dragKey === sec.section_id ? DRAGGING_ROW : ''}`}
                 {...sectionDrag.rowProps(sec.section_id)}
               >
@@ -2496,7 +2541,9 @@ export default function QuoteEditorPage() {
                     640 and up, where the row already fitted. Same
                     flex-wrap/gap-x/gap-y shape the GROUP header above already
                     uses. */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 bg-moss/25 hover:bg-moss/45 border-b border-moss/50 transition-colors">
+                <div className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b transition-colors ${sec.sbo
+                  ? 'bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/30'
+                  : 'bg-moss/25 hover:bg-moss/45 border-moss/50'}`}>
                   <span
                     {...sectionDrag.handleProps(sec.section_id)}
                     className="cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-300 flex-shrink-0 -ml-1"
@@ -2549,6 +2596,14 @@ export default function QuoteEditorPage() {
                       );
                     })()}
                   </div>
+                  {/* Supplied by owner — one click for the whole sub-section. */}
+                  <button type="button" onClick={() => toggleSectionSbo(sec.section_id)} aria-pressed={sec.sbo}
+                    title={sec.sbo ? t('Supplied by owner — click to price these lines again') : t('Mark every line here as supplied by the owner: cost and price 0')}
+                    className={`px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${sec.sbo
+                      ? 'bg-amber-500/20 text-amber-200 ring-1 ring-amber-500/50 hover:bg-amber-500/30'
+                      : 'border border-slate-700 text-slate-400 hover:text-amber-200 hover:border-amber-500/50'}`}>
+                    {sec.sbo ? `✓ ${t('Supplied by owner')}` : 'SBO'}
+                  </button>
                   {LEAD_TIMES.includes(sec.lead_time) && sec.lead_time !== 'Custom' ? (
                     <select
                       value={sec.lead_time}
@@ -2616,6 +2671,7 @@ export default function QuoteEditorPage() {
                         const subItems = liveItems.filter((i) => i.parent_item_id === item.item_id);
                         const total = (num(item.quantity) ?? 0) * (num(item.sell_price) ?? 0);
                         const gm = gmFromPrices(item.cost_price, item.sell_price);
+                        const owner = isOwnerSupplied(sec, item);
                         const isAcOpen = acState?.itemId === item.item_id;
                         const drift = itemDrift(item);
 
@@ -2623,7 +2679,7 @@ export default function QuoteEditorPage() {
                           <React.Fragment key={item.item_id}>
                             {/* Main item row */}
                             <tr
-                              className={`transition-colors hover:bg-white/[0.06] ${itemIdx % 2 === 1 ? 'bg-white/[0.015]' : ''} ${
+                              className={`transition-colors hover:bg-white/[0.06] ${item.sbo && !sec.sbo ? 'bg-amber-500/[0.06]' : itemIdx % 2 === 1 ? 'bg-white/[0.015]' : ''} ${
                                 itemDrag.lineAt(itemKey(sec.section_id, item.item_id), { table: true })} ${
                                 itemDrag.dragKey === itemKey(sec.section_id, item.item_id) ? DRAGGING_ROW : ''}`}
                               {...itemDrag.rowProps(itemKey(sec.section_id, item.item_id), { stopPropagation: true })}
@@ -2866,6 +2922,7 @@ export default function QuoteEditorPage() {
                                 onMouseEnter={(e) => showCostHistory(sec.section_id, item.item_id, item.component_id, item.description, e.currentTarget)}
                                 onMouseLeave={scheduleHoverClose}
                               >
+                                {owner ? <span className="block text-right text-[11px] font-semibold text-amber-300" title={t('Supplied by owner')}>SBO</span> : (
                                 <input type="text" inputMode="text" value={item.cost_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { cost_price: e.target.value })}
                                   onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); return; } navCell(e, item.item_id, 'cost'); }}
@@ -2888,6 +2945,7 @@ export default function QuoteEditorPage() {
                                   placeholder="0 or =800000+180000"
                                   title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.pct > 0 ? '+' : ''}${(drift.pct * 100).toFixed(1)}%). The Costs button refreshes all items; sell prices stay as quoted.` : 'Type a number, or =800000+180000 to calculate'}
                                   className={`w-full bg-transparent outline-none text-right placeholder:text-slate-700 border-b transition-colors focus:border-violet-500 ${drift ? 'text-amber-300 border-amber-500/70 hover:border-amber-400' : 'text-slate-400 border-slate-800 hover:border-slate-600'} ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
+                                )}
                                 {drift && (
                                   <p className="text-right text-[10px] text-amber-400/90 leading-tight" title="Today's recommended cost">
                                     now {fmtMoneyCell(drift.rec)}
@@ -2990,6 +3048,7 @@ export default function QuoteEditorPage() {
                                 )}
                               </td>
                               <td className="px-2 py-2">
+                                {owner ? <span className="block text-right text-[11px] font-semibold text-amber-300" title={t('Supplied by owner')}>SBO</span> : (
                                 <input type="text" inputMode="text" value={item.sell_price}
                                   onChange={(e) => updateItem(sec.section_id, item.item_id, { sell_price: e.target.value })}
                                   onKeyDown={(e) => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); return; } navCell(e, item.item_id, 'sell'); }}
@@ -3001,6 +3060,7 @@ export default function QuoteEditorPage() {
                                   placeholder="0 or =3800000*2"
                                   title={(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'This line has a quantity but no sell price' : 'Type a number, or =3800000*2 to calculate'}
                                   className={`w-full bg-transparent outline-none text-right text-slate-100 placeholder:text-slate-600 border-b transition-colors focus:border-violet-500 ${(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'border-amber-500/60 hover:border-amber-400' : 'border-slate-800 hover:border-slate-600'}`} />
+                                )}
                               </td>
                               <td className="px-2 py-2 text-right bg-violet-500/[0.04]">
                                 {num(item.cost_price) ? (
@@ -3023,10 +3083,20 @@ export default function QuoteEditorPage() {
                                 ) : <span className="text-slate-700">—</span>}
                               </td>
                               <td className="px-2 py-2 text-right text-slate-100 font-semibold whitespace-nowrap tabular-nums">
-                                {total > 0 ? fmtMoneyCell(total) : <span className="text-slate-600 font-normal">—</span>}
+                                {owner ? <span className="text-[11px] font-semibold text-amber-300/80">{t('By owner')}</span>
+                                  : total > 0 ? fmtMoneyCell(total) : <span className="text-slate-600 font-normal">—</span>}
                               </td>
                               <td className="pr-3 py-2">
                                 <div className="flex items-center gap-1.5">
+                                  {/* One line supplied by the owner. Inside an SBO section every line already is. */}
+                                  <button type="button" onClick={() => toggleItemSbo(sec.section_id, item.item_id)} disabled={sec.sbo}
+                                    aria-pressed={owner}
+                                    title={sec.sbo ? t('The whole section is supplied by the owner') : item.sbo ? t('Supplied by owner — click to price this line again') : t('Mark this line as supplied by the owner: cost and price 0')}
+                                    className={`text-[9px] font-bold leading-none px-1 py-0.5 rounded transition-colors disabled:cursor-default ${owner
+                                      ? 'bg-amber-500/20 text-amber-200'
+                                      : 'text-slate-600 hover:text-amber-200'}`}>
+                                    SBO
+                                  </button>
                                   <button
                                     onClick={() => toggleNote(item.item_id)}
                                     className={`transition-colors ${item.eng_note ? 'text-sky-400 hover:text-sky-300' : 'text-slate-700 hover:text-slate-400'}`}

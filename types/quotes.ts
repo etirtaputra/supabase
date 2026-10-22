@@ -75,6 +75,8 @@ export interface QuoteSection {
   title: string;
   lead_time: string;
   sort_order: number;
+  /** Supplied by owner: every line in it is priced 0 and prints "Supplied by owner". */
+  supplied_by_owner?: boolean;
   created_at?: string;
 }
 
@@ -93,5 +95,7 @@ export interface QuoteItem {
   cost_price: number | null;
   sell_price: number | null;
   sort_order: number;
+  /** Supplied by owner (this line alone; a section can also be SBO as a whole). */
+  supplied_by_owner?: boolean;
   created_at?: string;
 }

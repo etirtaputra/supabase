@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T07:31:48Z",
+    title: "Proposal: tombol SBO untuk barang yang disediakan pemilik",
+    details: [
+      "Setiap bagian dan setiap baris kini punya tombol SBO. Sekali klik, biaya dan harga jual menjadi 0 dan tidak lagi ditandai \"harga belum diisi\".",
+      "Bagian SBO berbingkai kuning, baris SBO berwarna kuning muda, sehingga langsung terlihat mana yang bukan pasokan kita.",
+      "Di PDF untuk pelanggan, kolom jumlah tertulis \"By owner\".",
+      "Tiga bagian \"- SBO\" di proposal AYANA R4 sudah otomatis dinyalakan.",
+    ],
+  },
+  {
     at: "2026-10-22T06:43:54Z",
     title: "Proposal: versi lama kini terlipat di bawah versi terbaru",
     details: [

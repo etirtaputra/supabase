@@ -184,6 +184,7 @@ export default function PrintPage() {
         tbody tr.section-row { background: #edf3fa; }
         tbody tr.section-row td { padding: 2mm 1.5mm; font-weight: 650; font-size: 9pt; color: #1f5aa8; }
         .lead-tag { font-weight: 500; font-style: italic; font-size: 8pt; color: #64748b; white-space: nowrap; }
+        .sbo-tag { font-weight: 600; font-style: italic; font-size: 8pt; color: #b45309; white-space: nowrap; }
         tbody tr.item-row td { padding: 1.7mm 1.5mm; border-bottom: 0.4pt solid #e8edf3; vertical-align: top; color: #334155; }
         tbody tr.item-row td:first-child { color: #1f2937; }
         tbody tr.sub-row td { padding: 1mm 1.5mm 1mm 8mm; border-bottom: 0.4pt solid #f1f5f9; color: #64748b; font-size: 8.5pt; font-style: italic; }
@@ -310,7 +311,7 @@ export default function PrintPage() {
                             {sec.title}
                             {cols.lead && sec.lead_time && <span className="lead-tag"> · lead time {sec.lead_time}</span>}
                           </td>
-                          {cols.amount && <td className="num">{secTotal > 0 ? fmtMoneyCellDoc(secTotal) : ''}</td>}
+                          {cols.amount && <td className="num">{sec.supplied_by_owner ? <span className="sbo-tag">By owner</span> : secTotal > 0 ? fmtMoneyCellDoc(secTotal) : ''}</td>}
                         </tr>
                         {mainItems.map((item) => {
                           const subItems = sec.items.filter((i) => i.parent_item_id === item.item_id);
@@ -321,7 +322,7 @@ export default function PrintPage() {
                                 {cols.brand && <td style={{ color: '#64748b' }}>{item.brand}</td>}
                                 {cols.qty && <td className="num">{item.quantity != null ? fmtQtyDoc(Number(item.quantity)) : ''}</td>}
                                 {cols.unit && <td style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{item.unit}</td>}
-                                {cols.amount && <td />}
+                                {cols.amount && <td className="num">{item.supplied_by_owner && !sec.supplied_by_owner ? <span className="sbo-tag">By owner</span> : null}</td>}
                               </tr>
                               {cols.notes && (item.eng_note ?? '').trim() && (
                                 <tr className="sub-row">

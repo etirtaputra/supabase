@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-22** · last change: *EPC proposals: versions grouped by title + type, older ones newest-first* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-22** · last change: *EPC proposals: SBO switch — supplied-by-owner sections/lines at cost & price 0* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,23 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-22 (latest) — EPC proposals: versions fold by title + type
+### 2026-10-22 (latest) — EPC proposals: the SBO switch (supplied by owner)
+
+Owner: lines/sections typed "- SBO" by hand should be one consistent switch
+that zeroes cost and price and colours the section. Column
+`supplied_by_owner boolean NOT NULL DEFAULT false` on `10.1_quote_sections`
+and `10.2_quote_items` (`migrations/proposal_supplied_by_owner.sql`, already
+run in production with Eric's go-ahead; it switched on the three AYANA R4
+"- SBO" sections). Editor `app/proposals/[id]/page.tsx`: SBO button on each
+section header (amber frame + header) and on each line (amber tint); an
+owner line shows "SBO" in place of cost/sell, its total reads "By owner", it
+saves 0/0, skips the missing-price warning and the cost refresh, and new
+lines in an SBO section start at 0. Switching off leaves the price at 0 to
+re-enter. Duplicate copies the flag. Print: section/line amount cell reads
+"By owner". The kWh/kW auto-detect still counts SBO lines (the owner's
+battery is still the system's). 'SBO' joined KEEPERS in lib/i18n.ts.
+
+### 2026-10-22 — EPC proposals: versions fold by title + type
 
 Owner: older versions should sit indented under the latest, by date, newest
 on top. `lib/proposalGroups.ts`: a family is a number stem (as before) OR, per
