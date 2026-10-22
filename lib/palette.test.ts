@@ -94,7 +94,7 @@ test('the corporate skins keep every text ink readable (4.5:1) on the page and o
   const inks = ['white', 'slate-200', 'slate-300', 'slate-400', 'slate-500',
     'emerald-400', 'rose-400', 'red-400', 'amber-300', 'amber-400', 'sky-400', 'blue-400', 'violet-400'];
   const low: string[] = [];
-  for (const name of ['corporate', 'corporate-dark', 'corporate-teal']) {
+  for (const name of ['corporate', 'corporate-dark', 'corporate-teal', 'corporate-mist', 'corporate-ocean']) {
     const body = blocks().find((b) => b.name === name && b.body.includes('--c-slate-900'))?.body;
     assert.ok(body, `no ${name} block`);
     for (const bg of ['app-bg', 'slate-900']) {
@@ -118,7 +118,7 @@ test('the corporate skin only ADDS — nothing it defines leaks into another ski
   // `:root[data-theme="corporate-dark"]{font-feature-settings:…}` has the same
   // shape to the scanner.)
   for (const b of blocks().filter((x) => x.body.includes('--c-slate-900'))) {
-    const isCorp = b.name === 'corporate' || b.name === 'corporate-dark' || b.name === 'corporate-teal' || b.name === '(default)';
+    const isCorp = b.name.startsWith('corporate') || b.name === '(default)';
     assert.equal(b.body.includes('--c-brand:'), isCorp, `${b.name} ${isCorp ? 'lacks' : 'carries'} the brand token`);
   }
   // …and every rule that re-dresses buttons, labels or corners is scoped to
@@ -130,7 +130,7 @@ test('the corporate skin only ADDS — nothing it defines leaks into another ski
     // assertion above; only STYLING rules need a corporate scope here.
     const selectors = /^:root(\[data-theme="[a-z-]+"\])?\{--c-/.test(r) ? [] : r.split('{')[0].split(',');
     for (const sel of selectors) {
-      assert.match(sel.trim(), /^:root(\[data-theme="corporate(-dark|-teal)?"\]|:not\(\[data-theme\]\))/, `unscoped corporate rule: ${sel}`);
+      assert.match(sel.trim(), /^:root(\[data-theme="corporate(-dark|-teal|-mist|-ocean)?"\]|:not\(\[data-theme\]\))/, `unscoped corporate rule: ${sel}`);
     }
   }
 });
@@ -221,7 +221,7 @@ test('tone colours, small print and the serial face are corporate-only', () => {
   assert.ok(rules.length >= 5, 'the corporate type/tone rules have gone');
   for (const r of rules) {
     for (const sel of r.split('{')[0].split(',')) {
-      assert.match(sel.trim(), /^:root(\[data-theme="corporate(-dark|-teal)?"\]|:not\(\[data-theme\]\))/, `unscoped: ${sel}`);
+      assert.match(sel.trim(), /^:root(\[data-theme="corporate(-dark|-teal|-mist|-ocean)?"\]|:not\(\[data-theme\]\))/, `unscoped: ${sel}`);
     }
   }
   // Breakpoint sizes win: the small-print rule must step aside for them.

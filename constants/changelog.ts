@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T00:29:02Z",
+    title: "Dua tampilan baru untuk dicoba: Corporate Mist dan Corporate Ocean",
+    details: [
+      "Corporate Mist: seperti Corporate, tetapi tanpa silau — latar abu-abu sejuk dan kartu putih lembut, bukan putih bersih.",
+      "Corporate Ocean: gelap biru-hijau, di antara Corporate Teal dan Corporate Dark — paling dekat dengan warna navy perusahaan.",
+      "Coba di Pengaturan › Appearance — hanya berlaku di perangkat Anda. Tombol terang/gelap di menu ICAPROC berpindah antara Mist dan Ocean. Tampilan lain tidak berubah; tampilan bawaan perusahaan tetap Corporate.",
+    ],
+  },
+  {
     at: "2026-10-21T12:37:19Z",
     title: "Tampilan Terminal disembunyikan",
     details: [

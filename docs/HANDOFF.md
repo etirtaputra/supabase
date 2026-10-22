@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-21** · last change: *Terminal skins hidden (Corporate, Corporate Dark, Corporate Teal offered)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-22** · last change: *Corporate Mist + Corporate Ocean skins added (to try)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,22 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-21 (latest) — Terminal skins hidden
+### 2026-10-22 (latest) — Corporate Mist and Corporate Ocean skins
+
+Owner: "let's explore more dark or less bright themes" → previews of three
+softer lights and three darker tones → "add L1 and D3". Two NEW skins, nothing
+replaced: `corporate-mist` (light: page #e3e8ee, cards #f0f3f6, no pure white;
+accent inks one step deeper than Corporate's — 400 reads 800 — because on grey
+green/amber fell under 4.5:1) and `corporate-ocean` (dark blue-teal: page
+#222f39, card #283641, Teal's inks). Generator: CL now includes mist, CDS
+includes ocean, so every corporate shell rule (navy buttons, disabled grey,
+⌘S hint, type, corners) applies. `lib/theme.ts`: offered, THEMES cards,
+LIGHT_THEMES (mist), isTheme + boot script, pair ['corporate-ocean',
+'corporate-mist']. `app/layout.tsx`: Mist gets light form controls. Offered
+skins now: Corporate, Corporate Dark, Corporate Teal, Corporate Mist,
+Corporate Ocean (company default still Corporate).
+
+### 2026-10-21 — Terminal skins hidden
 
 Owner: "hide the Terminal choices". `lib/theme.ts`: OFFERED_THEME_VALUES is
 now corporate-dark / corporate-teal / corporate and the terminal pair left

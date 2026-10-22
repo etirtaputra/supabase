@@ -17,8 +17,8 @@ test('every skin is classified bright or dark — none is left unanswered', () =
   for (const th of THEMES) {
     assert.equal(typeof isLightTheme(th.value), 'boolean', `${th.value} has no answer`);
   }
-  assert.deepEqual([...LIGHT_THEMES].sort(), ['corporate', 'light', 'paper', 'terminal-light'],
-    'the four lights; everything else is a dark');
+  assert.deepEqual([...LIGHT_THEMES].sort(), ['corporate', 'corporate-mist', 'light', 'paper', 'terminal-light'],
+    'the five lights; everything else is a dark');
 });
 
 test('a tap always flips brightness — the icon can never lie', () => {
@@ -61,7 +61,7 @@ test('a legacy skin leaves for the DEFAULT pair on the first tap, and stays', ()
 
 test('every saved older skin moves to Corporate on its own side — dark stays dark, light stays light', () => {
   for (const th of THEMES) {
-    if (th.value === 'corporate' || th.value === 'corporate-dark' || th.value === 'corporate-teal') {
+    if (th.value.startsWith('corporate')) {
       assert.equal(LEGACY_THEME_MIGRATION[th.value], undefined, `${th.value} is already corporate — nothing to move`);
       continue;
     }
