@@ -23,6 +23,7 @@ import { canOpenPath } from '@/constants/navigation';
 import { TAX_CATS } from '@/constants/costCategories';
 import type { PurchaseOrder, PurchaseLineItem, POCost } from '@/types/database';
 import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehouses';
+import { RECEIVED_STATUSES } from '@/lib/receiptGap';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import DealLink from '@/components/ui/DealLink';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -60,7 +61,8 @@ function ReceivePage() {
 
   const [poId, setPoId] = useState<string>(params.get('po') ?? '');
   const [lines, setLines] = useState<RecLine[]>([]);
-  const [recvDate, setRecvDate] = useState(today());
+  // Deal Lookup's "When was this received?" hands its date over (?date=YYYY-MM-DD).
+  const [recvDate, setRecvDate] = useState(() => (/^\d{4}-\d{2}-\d{2}$/.test(params.get('date') ?? '') ? params.get('date')! : today()));
   const [location, setLocation] = useState('');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   useEffect(() => {
@@ -327,7 +329,10 @@ function ReceivePage() {
                           <span className="text-sky-300 font-semibold truncate">{po.po_number || k}</span>
                           <span className="text-slate-300 truncate">{supplierOfPo(po) || '—'}</span>
                           <span className="text-[11px] text-slate-500">{fmtDay(po.po_date)}</span>
-                          <span className="text-[11px] text-slate-400">{po.status ?? '—'}</span>
+                          {/* A PO that says it arrived but has stock left to book is the contradiction to fix first. */}
+                          <span className={`text-[11px] ${RECEIVED_STATUSES.has(po.status ?? '') && out > 0 ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}
+                            title={RECEIVED_STATUSES.has(po.status ?? '') && out > 0 ? t('Marked received, but these goods were never booked into stock') : undefined}>
+                            {po.status ?? '—'}{RECEIVED_STATUSES.has(po.status ?? '') && out > 0 ? ` · ${t('not in stock')}` : ''}</span>
                           <span className="text-right tabular-nums text-slate-300">{fmtInt(ordered)}</span>
                           <span className={`text-right tabular-nums font-semibold ${out > 0 ? 'text-amber-300' : 'text-slate-600'}`}>{fmtInt(out)}</span>
                         </div>

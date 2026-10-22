@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T06:32:00Z",
+    title: "PO yang ditandai Diterima kini wajib masuk stok",
+    details: [
+      "Di Telusur Transaksi, memilih \"Fully Received\" lalu tanggalnya kini menawarkan \"Terima ke stok →\" (membuka Terima Barang dengan PO dan tanggal sudah terisi, lalu stok, biaya landed, dan status tercatat sekaligus). \"Ubah status saja\" tetap ada untuk barang yang langsung dikirim ke proyek.",
+      "PO yang berstatus diterima tetapi barangnya belum pernah dibukukan ke gudang kini menampilkan peringatan kuning yang tidak bisa ditutup, dengan tombol \"Terima barang →\". Halaman Stok menampilkan jumlahnya di tombol \"Receive against PO\".",
+      "PIO-2026012 (PI RP2026081002) sudah diterima ke Gudang No. 63: ICA100-36M × 1.200 dan ICA200-72M 1265×770 × 1.000, dengan biaya landed Rp 388.702 dan Rp 635.608 per unit.",
+    ],
+  },
+  {
     at: "2026-10-22T00:29:02Z",
     title: "Dua tampilan baru untuk dicoba: Corporate Mist dan Corporate Ocean",
     details: [

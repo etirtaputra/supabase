@@ -21,8 +21,11 @@ import { buildDealGroups, type DealGroup } from '@/lib/dealGroups';
 import { dealBalance, poBalance, remainingLabel, type DealBalance } from '@/lib/dealBalance';
 import { fetchLiveFx } from '@/lib/liveFx';
 import { copyOnly } from '@/lib/whatsappQuote';
+import { createSupabaseClient } from '@/lib/supabase';
+import { fetchAllRows } from '@/lib/fetchAllRows';
+import { receiptGaps, type ReceiptMove } from '@/lib/receiptGap';
 import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategories';
-import { fmtIdr, fmtCcy, fmtDate, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
+import { fmtIdr, fmtCcy, fmtDate, fmtMoneyCell, moneyUnit, fmtInt } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
 import { useT } from '@/hooks/useT';
 import { SourceLine, ReasonChip } from './DealContext';
@@ -610,6 +613,24 @@ export default function DealLookupTab({
   // step: book the goods into stock — one click, PO pre-selected. Marking the
   // status records the FACT; receiving writes the on-hand and landed cost.
   const [receivePrompt, setReceivePrompt] = useState<string | null>(null);
+  // What the stock ledger has actually received per PO. A PO marked received
+  // that the ledger has not caught up with gets a banner that does not go
+  // away until the goods are booked (lib/receiptGap) — the dismissible prompt
+  // above was missed, and PIO-2026012 sat "Fully Received" with 2,200 panels
+  // nowhere in stock (2026-10-22).
+  const [receiptMoves, setReceiptMoves] = useState<ReceiptMove[] | null>(null);
+  useEffect(() => {
+    const supabase = createSupabaseClient();
+    fetchAllRows<ReceiptMove>((f, t) => supabase.from('30.0_stock_movements')
+      .select('source_id, component_id, quantity').eq('source_type', 'receipt').order('movement_id').range(f, t))
+      .then((r) => setReceiptMoves(r.rows ?? []));
+  }, []);
+  const gapByPo = useMemo(() => new Map(receiptMoves
+    ? receiptGaps(pos, poItems, receiptMoves).map((g) => [g.poId, g] as const)
+    : []), [pos, poItems, receiptMoves]);
+  // A PO with no stock lines (everything "For a project") goes to site: marking it received is the whole job.
+  const hasStockLines = useCallback((poId: string) =>
+    poItems.some((i) => String(i.po_id) === poId && i.component_id && i.reason !== 'project' && Number(i.quantity) > 0), [poItems]);
   const [editingReceivedId, setEditingReceivedId] = useState<string | null>(null);
   const [editingReceivedDate, setEditingReceivedDate] = useState('');
   const [editingPoSupplier, setEditingPoSupplier] = useState<string | null>(null);
@@ -1879,6 +1900,17 @@ export default function DealLookupTab({
                                 onClick={() => setPendingReceived(null)}
                                 className="flex-1 py-1.5 text-[11px] text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all"
                               >{t('Cancel')}</button>
+                              {/* Goods for the warehouse: receiving IS marking received —
+                                  the Receive page books the stock at landed cost and
+                                  sets this status and date itself, so the two can't
+                                  disagree. Status-only stays one click away for goods
+                                  that went straight to site. */}
+                              {hasStockLines(pKey) && pendingReceived.date && (
+                                <a href={`/stock/receive?po=${encodeURIComponent(pKey)}&date=${pendingReceived.date}`}
+                                  className="flex-1 py-1.5 text-center text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all">
+                                  {t('Receive into stock')} →
+                                </a>
+                              )}
                               <button
                                 disabled={!pendingReceived.date || updatingPo === pKey}
                                 onClick={async () => {
@@ -1888,11 +1920,14 @@ export default function DealLookupTab({
                                     await onPoStatusChange(pKey, 'Fully Received');
                                     if (onUpdatePo) await onUpdatePo(pKey, { actual_received_date: pendingReceived.date });
                                     setPendingReceived(null);
-                                    setReceivePrompt(pKey);
+                                    if (hasStockLines(pKey)) setReceivePrompt(pKey);
                                   } finally { setUpdatingPo(null); }
                                 }}
-                                className="flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40"
-                              >{updatingPo === pKey ? t('Saving…') : t('Confirm')}</button>
+                                title={hasStockLines(pKey) ? t('Changes the status only — the goods stay out of stock until received') : undefined}
+                                className={hasStockLines(pKey)
+                                  ? 'flex-1 py-1.5 text-[11px] text-slate-300 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-40'
+                                  : 'flex-1 py-1.5 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-all disabled:opacity-40'}
+                              >{updatingPo === pKey ? t('Saving…') : hasStockLines(pKey) ? t('Status only') : t('Confirm')}</button>
                             </div>
                           </div>
                         )}
@@ -1900,6 +1935,21 @@ export default function DealLookupTab({
                         {/* The next obvious step, one click away: the status
                             records the FACT of arrival; RECEIVING writes the
                             stock and its landed cost. PO pre-selected. */}
+                        {gapByPo.has(pKey) && receivePrompt !== pKey && (() => {
+                          const g = gapByPo.get(pKey)!;
+                          return (
+                            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[11px] font-semibold text-amber-300">{tf('Marked {status}, but not in stock', { status: g.status })}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">{tf('{qty} units on {n} lines were never booked into the warehouse — ON HAND and sales orders cannot see them.', { qty: fmtInt(g.missingQty), n: g.missing.length })}</p>
+                              </div>
+                              <a href={`/stock/receive?po=${encodeURIComponent(pKey)}${po.actual_received_date ? `&date=${po.actual_received_date.slice(0, 10)}` : ''}`}
+                                className="flex-shrink-0 px-2.5 py-1.5 rounded-lg bg-amber-500/15 text-amber-200 ring-1 ring-amber-500/40 hover:bg-amber-500/25 text-[11px] font-bold transition-colors whitespace-nowrap">
+                                {t('Receive goods')} →
+                              </a>
+                            </div>
+                          );
+                        })()}
                         {receivePrompt === pKey && (
                           <div className="rounded-xl border border-sky-500/30 bg-sky-500/5 px-3 py-2.5 flex items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
                             <div className="min-w-0 flex-1">

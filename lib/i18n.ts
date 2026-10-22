@@ -117,6 +117,16 @@ export const ID: Record<string, string> = {
   'e.g. Awaiting answer from the customer on the revised scope':
     'mis. Menunggu jawaban pelanggan atas lingkup yang direvisi',
   'Saving…': 'Menyimpan…',
+  'Receive into stock': 'Terima ke stok',
+  'Status only': 'Ubah status saja',
+  'Changes the status only — the goods stay out of stock until received': 'Hanya mengubah status — barang belum masuk stok sampai diterima',
+  'Marked {status}, but not in stock': 'Ditandai {status}, tetapi belum masuk stok',
+  '{qty} units on {n} lines were never booked into the warehouse — ON HAND and sales orders cannot see them.': '{qty} unit di {n} baris belum pernah dibukukan ke gudang — ON HAND dan pesanan penjualan tidak melihatnya.',
+  'Receive goods': 'Terima barang',
+  'not in stock': 'belum masuk stok',
+  'Marked received, but these goods were never booked into stock': 'Ditandai diterima, tetapi barang ini belum pernah dibukukan ke stok',
+  'POs marked received whose goods were never booked into stock': 'PO yang ditandai diterima tetapi barangnya belum dibukukan ke stok',
+  '{n} not in stock': '{n} belum masuk stok',
   'Post': 'Kirim',
   'Nothing noted yet. Anything written here shows on the EPC Proposals list until it is ticked off.':
     'Belum ada catatan. Apa pun yang ditulis di sini tampil di daftar EPC Proposal sampai dicentang selesai.',

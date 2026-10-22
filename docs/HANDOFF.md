@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-22** · last change: *Corporate Mist + Corporate Ocean skins added (to try)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-22** · last change: *PO received ↔ stock: gaps flagged, Deal Lookup receives into stock; PIO-2026012 received* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,25 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-22 (latest) — Corporate Mist and Corporate Ocean skins
+### 2026-10-22 (latest) — PO "received" vs stock: the gap is flagged and closed
+
+Owner: PIO-2026012 (PI RP2026081002) "fully received but not showing ON HAND",
+and a shortage on SO-20260906-0012. Cause: the status was set in Deal Lookup
+on 20 Oct with no goods receipt; only Stock › Receive against PO writes 30.2 /
+30.0. **Production write, owner-approved:** GRN-20261022-0011 into G63 dated
+2026-10-20 — 1,200 × ICA100-36M 900x585 @ 388,702 and 1,000 × ICA200-72M
+1265x770 @ 635,608 (= the receive page's landed formula, = TUC). Code:
+`lib/receiptGap.ts` (+ tests) — received-status PO whose stock lines (reason
+≠ project) the ledger hasn't received; LEDGER_START 2026-07-19. Deal Lookup:
+persistent amber banner + "Receive goods →"; the Fully Received date step now
+offers "Receive into stock →" (`/stock/receive?po=…&date=…`, the receive page
+reads `date`) and "Status only". Receive page marks such POs "· not in stock";
+Stock's Receive button shows "N not in stock". Still open for the owner: ~6
+more gap POs (EB.42277, EB.42278, PIO-2026013, PO-177/181/182-MBS); SO-0010 on
+ICA200-36M and SO-0011 on TRACER5210LPLI point at never-bought items; duplicate
+ICA200-72M / ICA100-36M records.
+
+### 2026-10-22 — Corporate Mist and Corporate Ocean skins
 
 Owner: "let's explore more dark or less bright themes" → previews of three
 softer lights and three darker tones → "add L1 and D3". Two NEW skins, nothing

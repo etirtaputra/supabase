@@ -30,6 +30,7 @@ import { fetchInTransit, type InTransitSummary } from '@/lib/inTransit';
 import { fetchLandedVariances, type LandedSummary } from '@/lib/landedCost';
 import FitText from '@/components/ui/FitText';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { fetchReceiptGaps, type ReceiptGap } from '@/lib/receiptGap';
 
 /** An order line still waiting on stock — what the shortage is FOR. */
 interface DemandRef { quote_id: string; number: string; customer: string; qty: number; date: string }
@@ -62,6 +63,8 @@ export default function StockPage() {
   const [filterWh, setFilterWh] = useState('');          // '' = all warehouses
   const [shortages, setShortages] = useState<Shortage[]>([]);
   const [reorders, setReorders] = useState<ReorderAlert[]>([]);
+  // POs marked received that the ledger never booked (lib/receiptGap).
+  const [receiptGaps, setReceiptGaps] = useState<ReceiptGap[]>([]);
   const [inTransit, setInTransit] = useState<InTransitSummary | null>(null);
   const [landed, setLanded] = useState<LandedSummary | null>(null);
   const [transfer, setTransfer] = useState<{ c: Comp; from: string; available: number } | null>(null);
@@ -109,6 +112,7 @@ export default function StockPage() {
   const load = useCallback(async (): Promise<() => void> => {
     // Reorder alerts fetch their own tables — independent, never blocks the page
     fetchReorderAlerts(supabase).then(setReorders).catch(() => setReorders([]));
+    if (canView) fetchReceiptGaps(supabase).then(setReceiptGaps).catch(() => setReceiptGaps([]));
     // Goods on the water — paid/ordered, not yet received — read the same way
     fetchInTransit(supabase, undefined, { buySide: canView }).then(setInTransit).catch(() => setInTransit(null));
     // Bills that landed after the goods did — stock value still carrying the guess
@@ -262,6 +266,12 @@ export default function StockPage() {
             <Link href="/stock/receive"
               className="px-3.5 py-2 rounded-xl bg-sky-500/15 text-sky-300 ring-1 ring-sky-500/30 hover:bg-sky-500/25 text-xs font-semibold whitespace-nowrap transition-colors">
               Receive against PO
+              {receiptGaps.length > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-200 text-[10px] font-bold"
+                  title={t('POs marked received whose goods were never booked into stock')}>
+                  {tf('{n} not in stock', { n: receiptGaps.length })}
+                </span>
+              )}
             </Link>
           )}
           {isOwner && (
