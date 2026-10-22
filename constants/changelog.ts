@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T06:39:56Z",
+    title: "Proposal: tombol \"Tampilkan lagi\" kini ikon panah",
+    details: [
+      "Di daftar proposal EPC, kartu pelanggan dengan banyak proposal kini dibuka dan ditutup dengan ikon panah ke bawah (berputar ke atas saat terbuka), bukan tulisan \"Tampilkan N lagi\". Jumlahnya tetap terlihat saat kursor diarahkan ke panah.",
+    ],
+  },
+  {
     at: "2026-10-22T06:32:15Z",
     title: "Tampilan kini hanya dua: Corporate Light dan Corporate Dark (warna Ocean)",
     details: [

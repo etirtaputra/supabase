@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-22** · last change: *Two skins only: Corporate Light + Corporate Dark (Ocean colours)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-22** · last change: *EPC proposals: customer card expands with a chevron* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,13 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-22 (latest) — Two skins: Corporate Light and Corporate Dark (Ocean)
+### 2026-10-22 (latest) — EPC proposals: chevron instead of "Show N more"
+
+Owner: the customer card's "Show 4 more" should be a drop-down symbol.
+`app/proposals/page.tsx`: the bottom bar is a centred chevron that rotates
+when open; "Show {n} more" / "Show fewer" stay as title + aria-label.
+
+### 2026-10-22 — Two skins: Corporate Light and Corporate Dark (Ocean)
 
 Owner: "make [Corporate Ocean] as Corporate Dark, and then delete the rest. So
 only left Corporate Light … and Corporate Dark". `scripts/generate-palette.js`:
