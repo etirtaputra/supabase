@@ -5,9 +5,10 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { useT } from '@/hooks/useT';
 import { fmtDay } from '@/lib/formatters';
 import { personName, type FlagKind } from '@/lib/quoteFlags';
+import { FlagIcon } from '@/components/ui/QuoteFlags';
 
 /**
- * "⏳ Waiting on you" — the proposal lines someone tagged to THIS person
+ * "⚑ Waiting on you" — the proposal lines someone tagged to THIS person
  * (10.7_quote_item_flags, owner 2026-10-22). Each one is a link straight to
  * the line on the proposal, so the person tagged does not have to go looking;
  * nothing is shown when nothing is waiting on them.
@@ -52,7 +53,7 @@ export default function WaitingOnYou({ email }: { email: string }) {
   return (
     <div className="rounded-2xl border border-sky-500/40 bg-sky-500/10 p-4 sm:p-5">
       <p className="text-xs font-bold uppercase tracking-widest text-sky-300">
-        ⏳ {rows.length === 1 ? t('1 line waiting on you') : tf('{n} lines waiting on you', { n: rows.length })}
+        <FlagIcon className="w-3.5 h-3.5 mr-1" />{rows.length === 1 ? t('1 line waiting on you') : tf('{n} lines waiting on you', { n: rows.length })}
       </p>
       <div className="mt-3 divide-y divide-sky-500/15">
         {rows.map((r) => {

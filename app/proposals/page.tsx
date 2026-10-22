@@ -9,6 +9,7 @@ import { useQuotesGate } from '@/hooks/useQuotesGate';
 import { useT } from '@/hooks/useT';
 import { fetchOpenNotes, newestOpenByQuote, openCountByQuote, type QuoteNote } from '@/lib/quoteNotes';
 import { openFlagsByQuote } from '@/lib/quoteFlags';
+import { FlagIcon } from '@/components/ui/QuoteFlags';
 import { computeTUCMap, getComponentCost, fxFromHistory, type TUCResult, type CostEntry } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
@@ -121,7 +122,7 @@ export default function QuotesListPage() {
     return (
       <span className={`${card ? 'px-2 rounded-full text-[10px]' : 'px-1.5 rounded text-[9px]'} py-0.5 font-semibold whitespace-nowrap flex-shrink-0 bg-sky-500/15 text-sky-300`}
         title={tf('{n} lines waiting on {people}', { n: w.n, people: w.people.join(', ') })}>
-        ⏳ {w.n}{card ? ` · ${w.people.join(', ')}` : ''}
+        <FlagIcon className="w-3 h-3" /> {w.n}{card ? ` · ${w.people.join(', ')}` : ''}
       </span>
     );
   };

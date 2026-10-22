@@ -36,7 +36,7 @@ import { catalogMatches, lastQuotedDates } from '@/lib/catalogSearch';
 import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { FlagDialog, WaitingStrip, PdfGuard, type Person } from '@/components/ui/QuoteFlags';
+import { FlagDialog, FlagIcon, WaitingStrip, PdfGuard, type Person } from '@/components/ui/QuoteFlags';
 import {
   fetchFlags, raiseFlag, reassignFlag, clearFlag, openFlagByItem, waitingLines, personName, TAGGABLE_ROLES,
   type FlagKind, type QuoteFlag,
@@ -3201,7 +3201,7 @@ export default function QuoteEditorPage() {
                                     className={`text-[10px] leading-none rounded transition-colors whitespace-nowrap ${flag
                                       ? 'px-1 py-0.5 bg-sky-500/20 text-sky-200 font-semibold'
                                       : 'text-slate-600 hover:text-sky-200'}`}>
-                                    ⏳{flag ? ` ${personName(flag.assignee_email)}` : ''}
+                                    <FlagIcon className="w-3 h-3" />{flag ? ` ${personName(flag.assignee_email)}` : ''}
                                   </button>
                                   {/* One line supplied by the owner. Inside an SBO section every line already is. */}
                                   <button type="button" onClick={() => toggleItemSbo(sec.section_id, item.item_id)} disabled={sec.sbo}

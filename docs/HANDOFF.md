@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-22** · last change: *EPC proposals: lines waiting on someone (⏳ flags, who, PDF pop-up)* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-22** · last change: *EPC proposals: waiting-line flags (flag icon, who, PDF pop-up)* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,11 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-22 (latest) — EPC proposals: lines WAITING on someone (⏳ flags)
+### 2026-10-22 (latest) — EPC proposals: lines WAITING on someone (flags)
+
+Owner follow-up: "use flag symbol not hour glass" — the mark is `FlagIcon`
+(SVG, currentColor) exported from components/ui/QuoteFlags.tsx, used on the
+line button, strip, PDF pop-up, list badge, Dashboard panel and print bar.
 
 Owner: flag a proposal line awaiting a price or a technical answer and tag who
 is on it (AYANA BOH, ACDP price); clear by hand, the log says who cleared what;
@@ -156,11 +160,11 @@ PDF with flags open pops up the lines with a way to each.
   sell_admin refused, reopen refused).
 - `lib/quoteFlags.ts` (+ tests), `components/ui/QuoteFlags.tsx`
   (FlagDialog, WaitingStrip with ‹ ›, PdfGuard), `components/ui/WaitingOnYou.tsx`.
-- Editor: ⏳ button per line (sky tint, "⏳ Budi" when open; an unsaved line is
+- Editor: flag button per line (sky tint, "⚑ Budi" when open; an unsaved line is
   saved first); strip above the sections (outside the locked wrapper — on a
   SENT proposal it opens the flag); PDF button → PdfGuard; `#line-<id>` in the
   URL jumps to the line, flashes it and focuses its cost box.
-- Proposals list: ⏳ badge per card with who. Dashboard: "Waiting on you"
+- Proposals list: flag badge per card with who. Dashboard: "Waiting on you"
   above the widgets, only when the person has open flags. Print preview:
   `.no-print` amber bar with "Back to edit" links.
 - Not done: duplicating a proposal does not copy its open flags; a folded

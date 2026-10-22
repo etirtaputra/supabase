@@ -20,14 +20,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-22T10:05:50Z",
+    title: "Proposal: tanda baris yang menunggu kini memakai ikon bendera",
+    details: [
+      "Ikon jam pasir diganti ikon bendera di baris, strip, pop-up PDF, daftar Proposal, dan Dasbor.",
+    ],
+  },
+  {
     at: "2026-10-22T09:21:58Z",
     title: "Proposal: tandai baris yang menunggu harga atau jawaban teknis",
     details: [
-      "Tombol ⏳ di setiap baris: pilih Harga atau Teknis, pilih siapa yang menangani (Owner atau Project Engineer), tambahkan catatan.",
+      "Tombol bendera di setiap baris: pilih Harga atau Teknis, pilih siapa yang menangani (Owner atau Project Engineer), tambahkan catatan.",
       "Baris yang menunggu berwarna biru, dan di atas daftar bagian ada strip \"N baris menunggu\" dengan tombol ‹ › untuk berpindah antar baris.",
       "Saat menekan PDF dan masih ada baris yang menunggu, muncul daftar barisnya dengan tombol \"Ke baris\". \"Tetap simpan PDF\" tetap bisa, dan tercatat di Riwayat.",
       "Tanda dihapus secara manual. Riwayat mencatat siapa yang menandai dan siapa yang menghapus, beserta waktunya.",
-      "Dasbor menampilkan \"baris menunggu Anda\" bagi orang yang ditandai, dan daftar Proposal menampilkan lencana ⏳.",
+      "Dasbor menampilkan \"baris menunggu Anda\" bagi orang yang ditandai, dan daftar Proposal menampilkan lencana bendera.",
     ],
   },
   {

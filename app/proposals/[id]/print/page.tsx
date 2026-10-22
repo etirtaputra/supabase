@@ -14,6 +14,7 @@ import { useT } from '@/hooks/useT';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 import { waitingLines, personName, FLAG_COLS, type QuoteFlag } from '@/lib/quoteFlags';
+import { FlagIcon } from '@/components/ui/QuoteFlags';
 import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
 import { resolveIssuer, COMPANY_COLUMNS, RECEIVING_ACCOUNT_COLUMNS, type CompanyRecord, type ReceivingAccount } from '@/lib/issuer';
 
@@ -247,7 +248,7 @@ export default function PrintPage() {
         if (!waiting.length) return null;
         return (
           <div className="no-print waiting-bar">
-            <strong>⏳ {waiting.length === 1 ? t('1 line is still waiting') : tf('{n} lines are still waiting', { n: waiting.length })}</strong>
+            <strong><FlagIcon className="w-3.5 h-3.5" /> {waiting.length === 1 ? t('1 line is still waiting') : tf('{n} lines are still waiting', { n: waiting.length })}</strong>
             {waiting.map((w) => (
               <div key={w.flag.flag_id} style={{ marginTop: 4, display: 'flex', gap: 8, justifyContent: 'space-between' }}>
                 <span>{w.description || '—'} · {w.flag.kind === 'price' ? t('Price') : t('Technical')} · {personName(w.flag.assignee_email)}</span>

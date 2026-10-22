@@ -18,6 +18,15 @@ import { lineHistory, openFlagByItem, personName, type FlagKind, type QuoteFlag,
 
 export interface Person { email: string; name: string }
 
+/** The flag mark (owner, 2026-10-22: "use flag symbol not hour glass"). Takes the text colour around it. */
+export function FlagIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
+  return (
+    <svg className={`${className} inline-block flex-shrink-0 align-[-0.15em]`} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M5 2.75a.75.75 0 0 1 .75.75v.6c1.7-.9 3.7-.95 5.9-.1 1.9.75 3.6.75 5.6-.2a.75.75 0 0 1 1.07.68v9.5a.75.75 0 0 1-.42.67c-2.4 1.17-4.6 1.2-6.8.33-2-.8-3.7-.7-5.35.3v6.72a.75.75 0 0 1-1.5 0V3.5A.75.75 0 0 1 5 2.75Z" />
+    </svg>
+  );
+}
+
 const kindLabel = (k: FlagKind, t: (en: string) => string) => (k === 'price' ? t('Price') : t('Technical'));
 
 export function FlagDialog({ description, flags, itemId, people, busy, error, onRaise, onReassign, onClear, onClose }: {
@@ -44,7 +53,7 @@ export function FlagDialog({ description, flags, itemId, people, busy, error, on
       <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 max-w-md w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-widest text-sky-300 font-semibold">⏳ {t('Waiting on someone')}</p>
+            <p className="text-[10px] uppercase tracking-widest text-sky-300 font-semibold flex items-center gap-1.5"><FlagIcon className="w-3 h-3" /> {t('Waiting on someone')}</p>
             <h3 className="font-semibold text-white text-sm mt-1 break-words">{description || t('This line')}</h3>
           </div>
           <button type="button" onClick={onClose} aria-label={t('Close')} className="text-slate-500 hover:text-white transition-colors flex-shrink-0">
@@ -98,7 +107,7 @@ export function FlagDialog({ description, flags, itemId, people, busy, error, on
             </label>
             <button type="button" disabled={busy || !who} onClick={() => onRaise(kind, who, note)}
               className={`${BAR_BTN} ${BAR_BTN_ON_SKY} w-full justify-center px-3 disabled:opacity-40`}>
-              ⏳ {t('Flag this line')}
+              <FlagIcon className="w-3.5 h-3.5 mr-1.5" /> {t('Flag this line')}
             </button>
           </div>
         )}
@@ -123,7 +132,7 @@ export function FlagDialog({ description, flags, itemId, people, busy, error, on
   );
 }
 
-/** "⏳ 2 lines waiting" — one line at a time, ‹ › to step through them top to bottom. */
+/** "⚑ 2 lines waiting" — one line at a time, ‹ › to step through them top to bottom. */
 export function WaitingStrip({ lines, onGo }: { lines: WaitingLine[]; onGo: (itemId: string) => void }) {
   const { t, tf } = useT();
   const [i, setI] = useState(0);
@@ -138,7 +147,7 @@ export function WaitingStrip({ lines, onGo }: { lines: WaitingLine[]; onGo: (ite
   return (
     <div className="mb-4 flex items-center gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[12px]">
       <span className="font-semibold text-sky-200 whitespace-nowrap">
-        ⏳ {lines.length === 1 ? t('1 line waiting') : tf('{n} lines waiting', { n: lines.length })}
+        <FlagIcon className="w-3.5 h-3.5 mr-1" />{lines.length === 1 ? t('1 line waiting') : tf('{n} lines waiting', { n: lines.length })}
       </span>
       <button type="button" onClick={() => onGo(cur.itemId)} title={t('Go to line')}
         className="min-w-0 flex-1 truncate text-left text-slate-200 hover:text-white underline-offset-2 hover:underline">
@@ -167,7 +176,7 @@ export function PdfGuard({ lines, onGo, onAnyway, onCancel }: {
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onCancel}>
       <div className="bg-slate-900 border border-sky-500/40 rounded-2xl p-5 max-w-lg w-full max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
         <h3 className="font-semibold text-white">
-          ⏳ {lines.length === 1 ? t('1 line is still waiting') : tf('{n} lines are still waiting', { n: lines.length })}
+          <FlagIcon className="w-4 h-4 mr-1.5 text-sky-300" />{lines.length === 1 ? t('1 line is still waiting') : tf('{n} lines are still waiting', { n: lines.length })}
         </h3>
         <p className="text-[12px] text-slate-400 mt-1 mb-3">{t('Go to a line to finish it, or save the PDF as it is.')}</p>
         <div className="overflow-y-auto space-y-1.5 pr-1">
