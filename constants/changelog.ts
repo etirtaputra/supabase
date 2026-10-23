@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-23T00:14:45Z",
+    title: "Proposal: versi sebelumnya kini tombol biru di baris proposal",
+    details: [
+      "Tombol \"3 versi sebelumnya\" kini ada di baris proposal terbaru, di samping statusnya, sehingga tidak terlewat.",
+      "Saat dibuka, versi sebelumnya tampil di bawahnya dengan garis biru dan judul lebih redup, terbaru di atas.",
+    ],
+  },
+  {
     at: "2026-10-23T00:05:37Z",
     title: "Harga Jual lebih ringkas: tiga tab, pengaturan tier pindah ke Pengaturan",
     details: [

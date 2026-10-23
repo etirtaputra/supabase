@@ -182,8 +182,10 @@ export const ID: Record<string, string> = {
   'Nice!': 'Mantap!',
   'Won': 'Diterima',
   'Last activity {date}': 'Aktivitas terakhir {date}',
-  '{n} other versions': '{n} versi lain',
-  'Hide versions': 'Sembunyikan versi',
+  '{n} earlier versions': '{n} versi sebelumnya',
+  '1 earlier version': '1 versi sebelumnya',
+  'Show earlier versions': 'Tampilkan versi sebelumnya',
+  'Hide earlier versions': 'Sembunyikan versi sebelumnya',
   'Show {n} more': 'Tampilkan {n} lagi',
 
   // ── Document statuses ─────────────────────────────────────────────────────

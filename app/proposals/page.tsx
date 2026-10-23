@@ -521,7 +521,34 @@ export default function QuotesListPage() {
   }
 
   // One proposal row (card or compact). Used for a proposal and for each of its older versions.
-  const renderRow = (q: ProjectQuote, nested = false) => {
+  /**
+   * "3 earlier versions ▾" — on the proposal's own row, beside its status (owner,
+   * 2026-10-23: the line under the row "could be better and less easy to miss and
+   * more intuitive"). A span with a button role rather than a <button>: the row is
+   * a link, and a button inside a link is not valid HTML. Click and Enter/Space
+   * toggle the versions without opening the proposal.
+   */
+  const versionsChip = (v: { count: number; open: boolean; onToggle: () => void }) => {
+    const toggle = (e: React.SyntheticEvent) => { e.preventDefault(); e.stopPropagation(); v.onToggle(); };
+    return (
+      <span role="button" tabIndex={0} aria-expanded={v.open} onClick={toggle}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') toggle(e); }}
+        title={v.open ? tr('Hide earlier versions') : tr('Show earlier versions')}
+        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-semibold whitespace-nowrap flex-shrink-0 cursor-pointer transition-colors ${v.open
+          ? 'border-sky-500/60 bg-sky-500/20 text-sky-200'
+          : 'border-sky-500/40 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20'}`}>
+        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <rect x="7" y="7" width="13" height="13" rx="2" /><path d="M4 16V6a2 2 0 0 1 2-2h10" />
+        </svg>
+        {v.count === 1 ? tr('1 earlier version') : tf('{n} earlier versions', { n: v.count })}
+        <svg className={`w-3 h-3 transition-transform ${v.open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </span>
+    );
+  };
+
+  const renderRow = (q: ProjectQuote, nested = false, versions?: { count: number; open: boolean; onToggle: () => void }) => {
     const t = totalsByQuote.get(q.quote_id);
     // The customer is the group's header, so a row leads with what tells its
     // proposals apart: the SITE (Imigrasi's 31 share one description and differ
@@ -533,13 +560,14 @@ export default function QuotesListPage() {
     const livePeers = peersByProposal.get(q.quote_id) ?? [];
     const someoneEditing = livePeers.some((p) => p.editing);
     return (
-    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 transition-colors ${compact ? 'py-1.5' : 'py-3'} ${nested ? 'pl-8 sm:pl-10 pr-3 sm:pr-4 bg-slate-950/40' : compact ? 'px-3' : 'px-4 sm:px-5'} ${someoneEditing ? 'bg-amber-500/[0.07]' : livePeers.length ? 'bg-emerald-500/[0.05]' : 'hover:bg-slate-800/40'}`}>
+    <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 transition-colors ${compact ? 'py-1.5' : 'py-3'} ${nested ? 'pl-3 sm:pl-4 pr-3 sm:pr-4 bg-slate-950/40' : compact ? 'px-3' : 'px-4 sm:px-5'} ${someoneEditing ? 'bg-amber-500/[0.07]' : livePeers.length ? 'bg-emerald-500/[0.05]' : 'hover:bg-slate-800/40'}`}>
                 <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
   {compact ? (
     /* One line: who, what state, what it's worth, which number */
     <div className="flex items-center gap-2 min-w-0">
-      <span className="font-semibold text-slate-100 text-[13px] truncate flex-shrink min-w-0 max-w-[45%]" title={title}>{title}</span>
+      <span className={`text-[13px] truncate flex-shrink min-w-0 max-w-[45%] ${nested ? 'font-medium text-slate-500' : 'font-semibold text-slate-100'}`} title={title}>{title}</span>
       <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>{tr(q.status)}</span>
+      {versions && versionsChip(versions)}
       {driftByQuote.has(q.quote_id) && (
         <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
           title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost`}>
@@ -579,10 +607,11 @@ export default function QuotesListPage() {
   ) : (<>
   {/* Primary focus: the customer + status/type */}
   <div className="flex flex-wrap items-center gap-2 mb-0.5">
-    <span className="font-semibold text-white text-base truncate max-w-full" title={title}>{title}</span>
+    <span className={`truncate max-w-full ${nested ? 'font-medium text-slate-500 text-[14px]' : 'font-semibold text-white text-base'}`} title={title}>{title}</span>
     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>
       {q.status}
     </span>
+    {versions && versionsChip(versions)}
     {q.project_type && q.project_type !== 'custom' && (
       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 bg-sky-500/15 text-sky-300">
         {PROJECT_TYPES.find((t) => t.key === q.project_type)?.label ?? q.project_type}
@@ -879,14 +908,16 @@ export default function QuotesListPage() {
                       const versionsOpen = openFamilies.has(fkey) || (!!searchLc && !matches(f.latest) && f.older.some(matches));
                       return (
                         <React.Fragment key={fkey}>
-                          {renderRow(f.latest)}
-                          {f.older.length > 0 && (
-                            <button onClick={() => toggleIn(setOpenFamilies, fkey)}
-                              className={`w-full text-left ${compact ? 'pl-8 py-1' : 'pl-10 py-1.5'} pr-4 text-[11px] text-slate-500 hover:text-slate-300 hover:bg-slate-800/40 transition-colors`}>
-                              ↳ {versionsOpen ? tr('Hide versions') : tf('{n} other versions', { n: f.older.length })}
-                            </button>
+                          {renderRow(f.latest, false, f.older.length
+                            ? { count: f.older.length, open: versionsOpen, onToggle: () => toggleIn(setOpenFamilies, fkey) }
+                            : undefined)}
+                          {/* Earlier versions hang off the latest on a line, newest first. */}
+                          {versionsOpen && (
+                            /* Colour set inline: the list's divide-y repaints every child border, the left one too. */
+                            <div className={`${compact ? 'ml-5' : 'ml-6 sm:ml-8'} border-l-[3px]`} style={{ borderLeftColor: 'rgb(var(--c-sky-500) / 0.7)' }}>
+                              {f.older.map((o) => renderRow(o, true))}
+                            </div>
                           )}
-                          {versionsOpen && f.older.map((o) => renderRow(o, true))}
                         </React.Fragment>
                       );
                     })}

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-23** · last change: *Selling Prices phase 2: three tabs, tiers/profiles in Settings, menu trims* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-23** · last change: *EPC proposals: earlier-versions chip on the row* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,18 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-23 (latest) — Selling Prices phase 2: three tabs, setup in Settings, menu trims
+### 2026-10-23 (latest) — EPC proposals: "N earlier versions" chip on the row
+
+Owner: the "↳ N other versions" line "could be better and less easy to miss
+and more intuitive". `app/proposals/page.tsx`: the toggle is now a sky chip
+(stack icon · "3 earlier versions" · chevron) beside the status on the
+latest version's own row, card and compact alike — a span role=button
+(the row is a link) that toggles without opening the proposal. Open, the
+earlier versions hang under it on a 3px sky line (colour set inline: the
+list's divide-y repaints child borders) with dimmed titles, newest first.
+The separate line under the row is gone.
+
+### 2026-10-23 — Selling Prices phase 2: three tabs, setup in Settings, menu trims
 
 Owner: "go ahead with phase 2".
 - /pricing has three tabs: Prices (default) · Bulk edit (the old Set
