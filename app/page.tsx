@@ -1,6 +1,7 @@
 'use client';
 import WinBanner from '@/components/ui/WinBanner';
 import WaitingOnYou from '@/components/ui/WaitingOnYou';
+import FxAutoNotice from '@/components/ui/FxAutoNotice';
 import { canOpenPath } from '@/constants/navigation';
 import { useMemo, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
@@ -405,6 +406,8 @@ export default function Home() {
         {perms && canOpenPath(perms, '/proposals') && <WinBanner />}
         {/* Proposal lines someone tagged to this person — shown only when there are some. */}
         {perms && canOpenPath(perms, '/proposals') && profile?.email && <WaitingOnYou email={profile.email} />}
+        {/* The morning KlikBCA check moved the company rate — for whoever plans purchases with it. */}
+        {perms?.buySide && <FxAutoNotice />}
 
         {/* ── Customise: what this person watches, and in what order ──
                Personal and per-device. The house layout stays in

@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-23T23:26:13Z",
+    title: "Kurs: dicek otomatis tiap pagi dari KlikBCA e-Rate, dan riwayat bisa diubah",
+    details: [
+      "Setiap pagi sistem membaca KlikBCA e-Rate (jual) untuk USD dan CNH (CNY), membulatkannya ke atas ke ratusan terdekat (18.128 → 18.200; 2.745 → 2.800), dan memperbarui kurs perusahaan sendiri bila selisihnya lebih dari 1,5%.",
+      "Bila kurs diperbarui otomatis, Dashboard menampilkan pemberitahuan selama 3 hari. Di Pengaturan › Kurs tampil bacaan KlikBCA hari ini di bawah setiap kurs.",
+      "Riwayat kurs kini bisa diubah (kurs dan catatan) oleh pemilik. Setiap perubahan tercatat: siapa dan kapan.",
+    ],
+  },
+  {
     at: "2026-10-23T11:13:02Z",
     title: "Kurs perusahaan untuk USD dan CNY (Pengaturan › Kurs)",
     details: [

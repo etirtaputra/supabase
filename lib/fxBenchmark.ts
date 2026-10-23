@@ -21,6 +21,19 @@ export interface FxBenchmark {
   note?: string | null;
   set_at: string;
   set_by_email?: string | null;
+  /** 'manual' (typed by the owner) or 'bca-erate' (the morning KlikBCA check). */
+  source?: string | null;
+  edited_at?: string | null;
+  edited_by_email?: string | null;
+}
+
+/** One morning's KlikBCA e-Rate reading (9.2_fx_reference_rates). */
+export interface FxReference {
+  rate_date: string;
+  currency: string;
+  buy: number | string | null;
+  sell: number | string;
+  quoted_at: string;
 }
 
 /** The benchmark currencies the screen always offers, even before one is set. */

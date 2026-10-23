@@ -16,7 +16,7 @@ export function useFxBenchmarks(enabled = true): { rows: FxBenchmark[]; loaded: 
   useEffect(() => {
     if (!enabled) return;
     let live = true;
-    supabase.from('9.1_fx_benchmark_rates').select('benchmark_id, currency, rate, note, set_at, set_by_email')
+    supabase.from('9.1_fx_benchmark_rates').select('benchmark_id, currency, rate, note, set_at, set_by_email, source, edited_at, edited_by_email')
       .then(({ data }) => { if (live) { setRows((data ?? []) as FxBenchmark[]); setLoaded(true); } }, () => { if (live) setLoaded(true); });
     return () => { live = false; };
   }, [supabase, enabled, tick]);

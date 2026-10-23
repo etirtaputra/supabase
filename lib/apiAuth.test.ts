@@ -29,6 +29,11 @@
  * `lib/agentApi.callerFromRequest` is the sanctioned way: it validates the
  * bearer token, resolves the profile, and hands back a client that queries AS
  * THE CALLER so RLS and the audit triggers stay honest.
+ *
+ * A SCHEDULED JOB is not a person and has no profile: `lib/cronAuth.ts
+ * verifyCronSecret` is its sanctioned check (the CRON_SECRET Vercel Cron
+ * sends), and it fails closed when the secret is not set (2026-10-24, the
+ * morning KlikBCA exchange-rate check).
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -53,7 +58,7 @@ function routeFiles(): string[] {
 
 /** Does this source establish who the caller is before doing anything? */
 const authenticates = (src: string): boolean =>
-  /callerFromRequest/.test(src) || /auth\.getUser\(/.test(src);
+  /callerFromRequest/.test(src) || /auth\.getUser\(/.test(src) || /verifyCronSecret\(request\)/.test(src);
 
 test('every API route authenticates its caller', () => {
   const open: string[] = [];
@@ -99,4 +104,20 @@ test('extract-pdf gates on the buy side and caps the upload', () => {
   assert.match(src, /callerFromRequest/);
   assert.match(src, /buySide/, 'a supplier document is buy-side information');
   assert.match(src, /MAX_PDF_BYTES/, 'an unbounded upload is an unbounded bill');
+});
+
+test('the scheduler check fails closed, and the cron route asks it first', async () => {
+  const { verifyCronSecret } = await import('./cronAuth.ts');
+  const req = (h?: string) => new Request('https://x/api/cron', { headers: h ? { authorization: h } : {} });
+  const before = process.env.CRON_SECRET;
+  delete process.env.CRON_SECRET;
+  assert.equal(verifyCronSecret(req('Bearer ')), false, 'no secret configured: nobody gets in');
+  process.env.CRON_SECRET = 'a-long-enough-secret-value';
+  assert.equal(verifyCronSecret(req()), false);
+  assert.equal(verifyCronSecret(req('Bearer wrong')), false);
+  assert.equal(verifyCronSecret(req('Bearer a-long-enough-secret-value')), true);
+  if (before === undefined) delete process.env.CRON_SECRET; else process.env.CRON_SECRET = before;
+  const src = readFileSync(join(ROOT, 'app/api/cron/fx-benchmark/route.ts'), 'utf8');
+  const body = src.slice(src.indexOf('export async function GET'));
+  assert.ok(body.indexOf('verifyCronSecret(request)') < body.indexOf('fetch('), 'the secret is checked before anything is fetched');
 });

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-23** · last change: *Company FX benchmark: Settings › Exchange rates* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-24** · last change: *FX benchmark follows KlikBCA e-Rate each morning; log editable* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,37 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-23 (latest) — Company FX benchmark: Settings › Exchange rates
+### 2026-10-24 (latest) — FX benchmark follows KlikBCA e-Rate each morning; log editable
+
+Owner: "option 1, use BCA e-Rate, warn above 1.5% / round up to the nearest
+hundreds digit (18.128 → 18.200, CNY/CNH 2.745 → 2.800) / Check daily every
+morning. and update itself" + "this is supposed to be KlikBCA e-Rate not TT
+Counter / allow us to edit".
+- migrations/fx_benchmark_auto_and_edit.sql (RUN in production; rolled-back
+  test passed): 9.1 gains `source` ('manual' | 'bca-erate'), `edited_at`,
+  `edited_by_email`; owner UPDATE policy + grant; trigger freezes currency /
+  set_at / set_by / source on update and stamps the editor; a service-role
+  insert keeps its own set_by_email. New `9.2_fx_reference_rates` (one row
+  per currency per Jakarta day: buy, sell, quoted_at; service role writes,
+  buy side reads).
+- `lib/bcaRate.ts` (+test): parseBcaKurs (row `code="USD"`/`"CNH"`, cells by
+  `rate-type="eRate-buy|sell"`, fallback = first pair of figures in the row,
+  which is the e-Rate column), roundUpToHundred, decideFollow (update only
+  beyond ±1.5% or when no rate yet; SANE bands refuse a misread).
+- `app/api/cron/fx-benchmark/route.ts` + `vercel.json` cron `30 1 * * *`
+  (08:30 WIB). Reads https://www.bca.co.id/id/informasi/kurs server-side
+  (the sandbox cannot reach bca.co.id — the parser is UNVERIFIED against the
+  live page until the first run; check 9.2 after it). Once per Jakarta day.
+  Auth: `lib/cronAuth.ts verifyCronSecret` (fails closed) — sanctioned in
+  lib/apiAuth.test.ts. **CRON_SECRET must be set on Vercel (Production) by
+  the owner** — this session's Vercel token may not create env vars (403);
+  until then the route answers 401 and nothing runs. `?dry=1` = parse only.
+- UI: Settings › Exchange rates shows this morning's KlikBCA reading under
+  each rate, names automatic rows "KlikBCA e-Rate (automatic)", and every log
+  row has Edit (rate + note; "edited by … ") ; `components/ui/FxAutoNotice.tsx`
+  on the Dashboard (buy side) for 3 days after an automatic change.
+
+### 2026-10-23 — Company FX benchmark: Settings › Exchange rates
 
 Owner: "set a universal exchange rate for USD and CNY, in settings … logs …
 only affect new POs … compare what's the rates use during payment vs the
