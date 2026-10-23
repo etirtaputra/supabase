@@ -5224,7 +5224,14 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    trigger still NOT attached, the three KSTAR POs still null. Briefing
    "Company exchange rate · 23 Oct": owner card (set rates → paste guard SQL →
    choose the KSTAR rate), MIRA (/new, both packs, test on PIO-2026021,
-   expected source "benchmark"), MANDA (information). The
+   expected source "benchmark"), MANDA (information). **24 Oct:** the owner
+   set USD 18,200 and CNY 2,800 (BCA e-Rate sell rounded up) and chose the
+   company rate for the three KSTAR POs; MIRA's card now carries that one-off
+   fix (rate endpoint by po_number → expect 2800/benchmark → update ONLY
+   exchange_rate → read back → report any other null-rate PO). Those three
+   PO dates (13–23 Oct) precede the first company rate, so the paid-vs-company
+   comparison will never include them. Guard trigger still not attached
+   (owner's SQL card). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
