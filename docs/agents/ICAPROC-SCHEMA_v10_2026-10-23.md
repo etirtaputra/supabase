@@ -3,8 +3,16 @@
 > **Read this before your first query. Never guess a table name.**
 >
 > Written 2026-09-06, revised 2026-09-07, 2026-09-09, 2026-09-11, 2026-09-19,
-> 2026-10-09 and 2026-10-11, against `main` @ the commit that carries it. Row counts are from
+> 2026-10-09, 2026-10-11 and 2026-10-23, against `main` @ the commit that carries it. Row counts are from
 > those days and drift; the NAMES and the RULES are what matter.
+>
+> **v10 (2026-10-23) adds three tables.** `9.1_fx_benchmark_rates` — the
+> COMPANY exchange rate per currency, as a log (newest row per currency = the
+> current rate); a new PO starts from it, and each paid PO is compared with
+> the rate in force on its PO date. `9.2_fx_reference_rates` — the bank's
+> published buy/sell rates each morning, written only by a scheduled job.
+> `10.7_quote_item_flags` — a proposal line waiting on a price or a technical
+> answer. All three are READ-ONLY for agents. §2, §5 and §9 list them.
 >
 > **v9 (2026-10-11) adds one table, `10.6_bom_calcs`** — the BOM Calculator
 > (beta) at `/proposals/bom`: an engineer's EPC costing, one row per
@@ -109,6 +117,7 @@ designer for two days.
 | `10.4_description_library` | 0 | reusable line descriptions for the EPC quote editor |
 | `10.5_quote_notes` | 7 | internal notes on a quote — **`cleared_at IS NULL` = still open** |
 | `10.6_bom_calcs` | 0 | BOM Calculator (beta): one engineer's costing per row, `doc` jsonb = inputs only (lib/bomCalc). **Not a proposal** and not linked to one unless `project_quote_id` says so; totals are recomputed by the app, never stored |
+| `10.7_quote_item_flags` | 0 | a proposal line WAITING on someone (`kind` = `price` or `technical`, `assignee_email`); open until cleared by hand. Who/when stamped by the database. Read-only for agents |
 
 Header columns worth knowing: `quote_number`, `quote_date`, `customer_name`,
 `project_description` (the capacity is prose in here, not a number column),
@@ -241,7 +250,24 @@ means nothing is waiting, not that the feature is switched off.
 `4.1_price_quote_line_items` (927) · `5.0_purchases` (226) →
 `5.1_purchase_line_items` (651) · `6.0_po_costs` (341) ·
 `7.0_competitor_prices` · `8.0_component_links` (37) ·
-`9.0_exchange_rate_history` · `payment_batches` (14)
+`9.0_exchange_rate_history` · `9.1_fx_benchmark_rates` · `9.2_fx_reference_rates` ·
+`payment_batches` (14)
+
+**Exchange rates — three tables, three different facts:**
+- `9.1_fx_benchmark_rates` — the **company rate** per currency (USD, CNY), set
+  by the owner in Settings › Exchange rates. The log IS the table: the current
+  rate is the newest row per currency (`set_at`); "our rate on 13 Oct" is the
+  newest row on or before that day. Rows are added, never edited. A new PO's
+  `exchange_rate` starts from it (`GET /api/agent/purchasing/rate`, `source:
+  "benchmark"`); a saved PO keeps its own rate. **Owner writes only.**
+- `9.2_fx_reference_rates` — what the bank published each morning (buy/sell
+  per currency). Written only by a scheduled job. Read-only.
+- `9.0_exchange_rate_history` — an old record of rates actually paid per PO
+  (18 rows). The app does not use it. Do not quote it as a current rate.
+
+The rate a PO was PAID at is not stored anywhere: it is computed from its
+`6.0_po_costs` payments (`lib/fxBenchmark.ts`, `paidRate`). That is why a
+payment row carries the BANK's rate from the slip and never the PO's.
 
 `8.0_component_links` relates two catalogue items — `component_id_a` to
 `component_id_b` — under a `link_type`: **`brand_equivalent`** (17, the same
@@ -560,7 +586,8 @@ attribution is the point of the account, not a side effect.
 ## 9. Every table, once
 
 **This is the whole database — 60 tables, read from `information_schema` on
-2026-09-19, plus `10.6_bom_calcs` added 2026-10-11.** It exists so that "I could not find a table for X" is always a
+2026-09-19, plus `10.6_bom_calcs` added 2026-10-11 and `9.1_fx_benchmark_rates`,
+`9.2_fx_reference_rates` and `10.7_quote_item_flags` added by 2026-10-23.** It exists so that "I could not find a table for X" is always a
 checkable claim. Nothing outside this list exists; if you need something that
 is not here, the answer is that ICAPROC does not store it yet.
 
@@ -577,7 +604,9 @@ Counts drift. Names do not.
 | `6.0_po_costs` | 5 | freight, PIB, OPS — landed cost |
 | `7.0_competitor_prices` | 5 | |
 | `8.0_component_links` | 5 | `brand_equivalent` · `normalized` · `successor` |
-| `9.0_exchange_rate_history` | 5 | |
+| `9.0_exchange_rate_history` | 5 | old paid rates per PO; unused by the app |
+| `9.1_fx_benchmark_rates` | 5 | **the company rate** per currency, as a log; newest row = current. Owner writes only |
+| `9.2_fx_reference_rates` | 5 | the bank's morning buy/sell rates; scheduled job only |
 | `payment_batches` | 5, 5d | no number prefix; predates the convention |
 
 ### Catalogue — §1
@@ -595,6 +624,7 @@ Counts drift. Names do not.
 | `10.4_description_library` | 2 | reusable descriptions |
 | `10.5_quote_notes` | 2 | `cleared_at IS NULL` = open |
 | `10.6_bom_calcs` | 2 | BOM Calculator (beta) — inputs only; not a proposal |
+| `10.7_quote_item_flags` | 2 | a proposal line waiting on a price or a technical answer |
 
 ### Sell side — §3
 

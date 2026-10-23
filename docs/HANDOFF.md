@@ -5175,7 +5175,26 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    20-RUNBOOKS, INDEX `1cscHmckeXHqSlH298xQb40cMipd1W3n3` in 00-READ-FIRST;
    v5 and the old INDEX trashed. MIRA's and MANDA's prompts are in the
    briefing; MIRA's carries a read-only test (expected rate 2688, source
-   supplier). The
+   supplier). **Later on 23 Oct — rewritten for the company rate** (owner:
+   "wait for the currency benchmark settings, then rewrite brief to the
+   agents"). Benchmark shipped in 9cdae09 (other thread): estimatePoRate step 0
+   = `9.1_fx_benchmark_rates`, endpoint returns `source: "benchmark"` +
+   `benchmark_set_on`, and the payment form now records the BANK rate from the
+   slip (no PO-rate default). Packs: PURCHASING-RUNBOOK → **v7** (rule 7: PO =
+   company rate via the endpoint, PI's stated rate wins; payment = bank slip
+   rate or none, never the PO's/company's — `paidRate` compares it; never
+   write 9.1) and ICAPROC-SCHEMA → **v10** (adds `9.1_fx_benchmark_rates`,
+   `9.2_fx_reference_rates` — in the database but its code was not on main
+   yet: a daily bank e-Rate job from the benchmark thread — and
+   `10.7_quote_item_flags`, which v9 never had); `AGENT_RULES` line updated.
+   Drive: runbook v7 `14A-Ey68CXDQzVzL3ejDT83o9VVocXfBP`, schema v10
+   `14dCn6CZbOpakpZDBzXoe9FPAOacw0099`, INDEX
+   `1OlKPMOkQOH7bFP6ccSCHbUxO4Fmkyt3s`; v6, v9 and the old INDEX trashed.
+   Production at the time: `9.1` EMPTY (owner sets the first rates), guard
+   trigger still NOT attached, the three KSTAR POs still null. Briefing
+   "Company exchange rate · 23 Oct": owner card (set rates → paste guard SQL →
+   choose the KSTAR rate), MIRA (/new, both packs, test on PIO-2026021,
+   expected source "benchmark"), MANDA (information). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA

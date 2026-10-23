@@ -3,6 +3,15 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v7, 2026-10-23 (later the same day)** — the COMPANY RATE. The owner sets one
+> exchange rate per currency (USD, CNY) in Settings › Exchange rates
+> (`9.1_fx_benchmark_rates`). A new PO starts from it: the rate endpoint now
+> answers with it first (`source: "benchmark"`), payment history only when no
+> company rate is set. A saved PO keeps its rate; a new company rate never
+> changes an old PO. And a PAYMENT now records the bank's rate from the slip,
+> never the PO's: each paid PO is compared with the company rate. Rule 7, §4,
+> §5 and both contracts changed.
+>
 > **v6, 2026-10-23** — a non-IDR PO is saved WITH its `exchange_rate` (rule 7).
 > The New Deal screen estimates an empty Exch Rate in the browser; an agent
 > writing the row never ran that code, so EB.42538, PIO-2026020 and PIO-2026021
@@ -58,12 +67,22 @@ An agent that remembers nothing else from this document must still obey these se
    who sent it, who received it) when you know it. Every line gets a reason only when
    the request says why — or when the owner's supplier rules cover it (§3). A guessed
    reason is worse than none — it is read later as fact in a negotiation. See §3.
-7. **A non-IDR PO is saved WITH its `exchange_rate`.** Take it from the PI or the bank
-   slip when they state one; otherwise ask `GET /api/agent/purchasing/rate?supplier_id=…&currency=…`
-   — it runs the New Deal screen's own estimate (this supplier's latest rate in that
-   currency, else any supplier's, else today's market rate). Never leave it null and never
-   save 1: every total reads a missing rate as 1, so CNY 333,798 showed as IDR 333,798.
-   The database refuses the insert without one, and its error names the endpoint. See §4.
+7. **Exchange rates: a PO takes the COMPANY rate, a payment takes the BANK's rate.**
+   - A non-IDR PO is saved WITH its `exchange_rate`. Ask
+     `GET /api/agent/purchasing/rate?supplier_id=…&currency=…` and save its `rate`. It
+     runs the New Deal screen's own rule: the company rate for that currency
+     (`source: "benchmark"`, set by the owner in Settings › Exchange rates), else this
+     supplier's latest rate, else any supplier's, else today's market rate. Only when the
+     PI itself states a rate do you save that one instead — and say so in your report.
+   - Never leave it null and never save 1: every total reads a missing rate as 1, so
+     CNY 333,798 showed as IDR 333,798. The database refuses it, naming the endpoint.
+   - A saved PO keeps its rate. A new company rate never changes an old PO — never
+     "update" old POs to it.
+   - A payment (`6.0_po_costs`) records the rate printed on the bank slip, or none.
+     Never copy the PO's rate or the company rate into a payment: the paid rate is
+     compared with the company rate, and a copied rate makes that comparison say
+     "paid exactly at plan". See §5.
+   - Never write `9.1_fx_benchmark_rates` (owner only; the database refuses it).
 
 ## Escalate to a human, do not guess
 
@@ -306,7 +325,7 @@ Everything else on the form is shared between the two documents.
 |---|---|---|
 | PO # | yes | Our purchase order number. Unique — that is what makes a same-number revision an amendment rather than a new row. |
 | PO Date | — | Empty means the same date as the PI. |
-| Exch Rate | yes, unless IDR | Estimated. Left empty on the screen, it is filled from payment history (`lib/poRate.ts`). An agent writing the row gets the same number from `GET /api/agent/purchasing/rate` — rule 7. **IDR ignores it.** |
+| Exch Rate | yes, unless IDR | Left empty on the screen, it is filled with the company rate for the PO's currency (Settings › Exchange rates), else payment history (`lib/poRate.ts`); the placeholder shows the company rates. An agent writing the row gets the same number from `GET /api/agent/purchasing/rate` — rule 7. It can be overridden per deal. **IDR ignores it.** |
 | Ship Via | — | Method of shipment. |
 | PO Terms | — | Payment terms. Defaults from Settings. |
 | Replaces PO | — | Supersede an older PO *without* loading its items. Use Stored PO above if you want the items too. |
@@ -347,8 +366,9 @@ then  4.1_price_quote_line_items # + reason fields, as §3
 then  5.0_purchases              # unit_price -> unit_cost
                                  # total_value: LEAVE NULL at insert
                                  # exchange_rate: REQUIRED unless IDR —
-                                 #   PI / bank rate, else
-                                 #   GET /api/agent/purchasing/rate (rule 7)
+                                 #   GET /api/agent/purchasing/rate
+                                 #   (company rate first), or the
+                                 #   PI's own stated rate (rule 7)
                                  # + the same four source fields as the quote
 then  5.1_purchase_line_items    # + the line's reason; price_check -> null
                                  #   (the table refuses it)
@@ -378,7 +398,7 @@ for one payment against one PO, **Batch** for one bank remittance covering sever
 | Cost Category | yes | See the three families below. |
 | Amount | yes | As it left the bank. |
 | Currency | yes | The currency of that amount. |
-| Exchange Rate | — | Only if it differs from the PO's rate. The PO's rate shows as the placeholder. |
+| Bank rate (from the slip) | — | The rate the BANK applied, as printed on the slip. Nothing on the slip → leave it empty. Never the PO's rate or the company rate — the PO's rate shows as the placeholder for reference only (owner, 2026-10-23: "in payments, we will input the rate … written on bank slips"). |
 | Date | — | Value date on the bank record. |
 | Notes | — | Anything the bank reference does not say. |
 
@@ -421,7 +441,11 @@ to IDR
   otherwise          -> amount × rate
   # never branch on "is exchange_rate present"
 
-rate  omit unless it differs from the PO's
+exchange_rate  the bank's rate from the slip, else null
+               # NEVER the PO's rate, never the company rate:
+               # Deal Lookup and Settings › Exchange rates compare
+               # the paid rate with the company rate on the PO
+               # date. A copied rate reads as "paid at plan".
 ```
 
 ---

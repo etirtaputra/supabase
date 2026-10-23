@@ -30,14 +30,14 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'schema',
     title: 'ICAPROC schema map',
-    file: 'ICAPROC-SCHEMA_v9_2026-10-11.md',
+    file: 'ICAPROC-SCHEMA_v10_2026-10-23.md',
     audience: 'every agent, before its first query',
     first: true,
   },
   {
     id: 'purchasing-runbook',
     title: 'Purchasing runbook (buy side)',
-    file: 'PURCHASING-RUNBOOK_v6_2026-10-23.md',
+    file: 'PURCHASING-RUNBOOK_v7_2026-10-23.md',
     audience: 'buy-side agents: quotes, POs, payments, landed cost',
     first: false,
   },
@@ -129,5 +129,5 @@ export const AGENT_RULES = [
   'The sales mirror records DOCUMENTS ONLY and posts no stock movement. When Dolibarr shows the goods have SHIPPED, POST /api/agent/sales/stock with the external_ref — dry_run: true first. Never on "ordered" alone: an order is not a shipment, and the ledger is append-only. A shortfall means ICAPROC holds less than was sold; report it, do not force it with allow_negative.',
   'Tier-2 and Tier-3 selling prices are NOT in any table. Only the net (3.0_components.selling_price_idr) and hand-pinned overrides (21.1_item_tier_prices) are stored; the rest is computed from the net by the markup chain. Read them from GET /api/agent/prices. An empty 21.1 means NO OVERRIDE, never no price.',
   'Say which table a figure came from. A number without its source cannot be checked.',
-  'A non-IDR PO is saved WITH its exchange_rate. Take it from the PI or the bank when they state one, else from GET /api/agent/purchasing/rate. Never leave it null and never save 1: every total reads a missing rate as 1, so CNY 333,798 shows as IDR 333,798. The database refuses the insert without one.',
+  'A non-IDR PO is saved WITH its exchange_rate: GET /api/agent/purchasing/rate answers with the company rate (Settings › Exchange rates, source "benchmark") first; the PI\'s own stated rate wins over it. Never leave it null and never save 1: every total reads a missing rate as 1, so CNY 333,798 shows as IDR 333,798. The database refuses the insert without one. A PAYMENT carries the bank\'s rate from the slip, or none — never the PO\'s rate or the company rate, or the paid-vs-company comparison reads "paid at plan". Never write 9.1_fx_benchmark_rates.',
 ] as const;

@@ -5,10 +5,11 @@
 > copy in Google Drive is stale. Agent prompts point HERE, and this page names
 > the current file — otherwise every version bump would break every prompt.
 >
-> **Last updated: 2026-10-23** (PURCHASING-RUNBOOK v6: rule 7 — a non-IDR PO
-> is saved with its exchange rate, from the PI or the bank, else from
-> `GET /api/agent/purchasing/rate`. Three KSTAR CNY POs had been saved with
-> none and read as CNY 1 = IDR 1.)
+> **Last updated: 2026-10-23, later** (PURCHASING-RUNBOOK v7: the company
+> exchange rate — a new PO starts from the owner's rate in Settings › Exchange
+> rates, a payment records the bank's rate from the slip. ICAPROC-SCHEMA v10:
+> three new tables — `9.1_fx_benchmark_rates`, `9.2_fx_reference_rates`,
+> `10.7_quote_item_flags`.)
 
 ## The one call that beats this page
 
@@ -30,8 +31,8 @@ superseded now and finding out after acting on it.
 
 | Pack | Current file | For | Changed |
 |---|---|---|---|
-| **Schema map** | `ICAPROC-SCHEMA_v9_2026-10-11.md` | every agent, first | v9: one new table, `10.6_bom_calcs` (BOM Calculator beta — inputs only, not a proposal); §2 and §9. v8: §5f deal context — `source_channel/source_at/source_contact/received_by` on 4.0 and 5.0; `reason` + one link + note on 4.1 and 5.1 (5.1 refuses `price_check`). v7: §9 is a census of ALL 59 tables — if a name is not in §9 it does not exist; adds §5d money, §5e settings |
-| **Purchasing runbook** | `PURCHASING-RUNBOOK_v6_2026-10-23.md` | MIRA / Hermes, buy side | v6: rule 7 — a non-IDR PO is saved WITH its `exchange_rate` (PI / bank rate, else `GET /api/agent/purchasing/rate`); the database refuses it without one (§4). v5: EPSIVO is stock-only → every line is "Stock / restock" (§3). v4: project-only suppliers (ANUGRAH, ESA, JJLAPP, LAPP, PERSADA, SUPREME) and the JEMBO brand → every line is "For a project" (rule 6, §3). v3: rule 6 (record the context, never invent it); §3 Source · Date & time received · Supplier contact · Our contact, "Document No." = supplier's number only, the eight line reasons; §4 a stored quote carries source and reasons to the PO. v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
+| **Schema map** | `ICAPROC-SCHEMA_v10_2026-10-23.md` | every agent, first | v10: three tables, all read-only for agents — `9.1_fx_benchmark_rates` (the company rate per currency, a log; owner writes), `9.2_fx_reference_rates` (the bank's morning rates; a scheduled job writes), `10.7_quote_item_flags` (a proposal line waiting on a price or an answer); §5 says which of the three rate tables means what. v9: one new table, `10.6_bom_calcs` (BOM Calculator beta — inputs only, not a proposal); §2 and §9. v8: §5f deal context — `source_channel/source_at/source_contact/received_by` on 4.0 and 5.0; `reason` + one link + note on 4.1 and 5.1 (5.1 refuses `price_check`). v7: §9 is a census of ALL 59 tables — if a name is not in §9 it does not exist; adds §5d money, §5e settings |
+| **Purchasing runbook** | `PURCHASING-RUNBOOK_v7_2026-10-23.md` | MIRA / Hermes, buy side | v7: rule 7 — a PO takes the COMPANY rate (the rate endpoint answers `source: "benchmark"` first; a saved PO keeps its rate), a payment takes the BANK's rate from the slip, never the PO's (§5). v6: rule 7 — a non-IDR PO is saved WITH its `exchange_rate` (PI / bank rate, else `GET /api/agent/purchasing/rate`); the database refuses it without one (§4). v5: EPSIVO is stock-only → every line is "Stock / restock" (§3). v4: project-only suppliers (ANUGRAH, ESA, JJLAPP, LAPP, PERSADA, SUPREME) and the JEMBO brand → every line is "For a project" (rule 6, §3). v3: rule 6 (record the context, never invent it); §3 Source · Date & time received · Supplier contact · Our contact, "Document No." = supplier's number only, the eight line reasons; §4 a stored quote carries source and reasons to the PO. v2: versioned and moved here; the mechanism behind lines-before-totals; the price-quote exception |
 | **Solar design** | `MANDA-SOLAR-DESIGN_v5_2026-10-18.md` | MANDA, engineering | v5: whole vs cut rails decided on TOTAL COST (rails + joints + supports at the customer's prices); a missing price falls back to rail count with a warning; mounting engine v13, system engine v11 (§3.3a). v4: cut rails — a 4850 rail is cut into 2400 / 1200 pieces (≤ 2 per rail line) when that buys fewer rails; mounting engine v12, system engine v10 (§3.3a, §3.5). v3: engine v9 — demand factor, power loss factor, headroom, battery string voltage, cable run, PSH provenance |
 | **MANDA boot prompt** | `MANDA-BOOT-PROMPT_v3_2026-09-20.md` | MANDA's config | v3: boots from `/api/agent/onboarding`, not a hard-coded filename; order of authority; efficiency |
 | **MIRA boot prompt** | `MIRA-BOOT-PROMPT_v1_2026-09-20.md` | MIRA's config | v1: she had none — boot call, order of authority, never guess a table name, token reuse |
