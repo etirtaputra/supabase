@@ -3,6 +3,13 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v6, 2026-10-23** — a non-IDR PO is saved WITH its `exchange_rate` (rule 7).
+> The New Deal screen estimates an empty Exch Rate in the browser; an agent
+> writing the row never ran that code, so EB.42538, PIO-2026020 and PIO-2026021
+> (KSTAR, CNY) were saved with none and read as CNY 1 = IDR 1. The rate now
+> comes from the PI or the bank, else `GET /api/agent/purchasing/rate`, and the
+> database refuses the insert without one. Rule 7, §4 and the §4 contract changed.
+>
 > **v5, 2026-10-09** — a stock-only supplier: every line from EPSIVO (Dongguan
 > Epsivo Electric) has the reason "Stock / restock" (owner's rule). §3 changed.
 >
@@ -34,7 +41,7 @@ recorded incidents, not hypotheticals.
 
 ## Rules that override everything else
 
-An agent that remembers nothing else from this document must still obey these six.
+An agent that remembers nothing else from this document must still obey these seven.
 
 1. **Lines before totals.** Never write `5.0_purchases.total_value` before
    `5.1_purchase_line_items` rows exist. See §4.
@@ -51,6 +58,12 @@ An agent that remembers nothing else from this document must still obey these si
    who sent it, who received it) when you know it. Every line gets a reason only when
    the request says why — or when the owner's supplier rules cover it (§3). A guessed
    reason is worse than none — it is read later as fact in a negotiation. See §3.
+7. **A non-IDR PO is saved WITH its `exchange_rate`.** Take it from the PI or the bank
+   slip when they state one; otherwise ask `GET /api/agent/purchasing/rate?supplier_id=…&currency=…`
+   — it runs the New Deal screen's own estimate (this supplier's latest rate in that
+   currency, else any supplier's, else today's market rate). Never leave it null and never
+   save 1: every total reads a missing rate as 1, so CNY 333,798 showed as IDR 333,798.
+   The database refuses the insert without one, and its error names the endpoint. See §4.
 
 ## Escalate to a human, do not guess
 
@@ -293,7 +306,7 @@ Everything else on the form is shared between the two documents.
 |---|---|---|
 | PO # | yes | Our purchase order number. Unique — that is what makes a same-number revision an amendment rather than a new row. |
 | PO Date | — | Empty means the same date as the PI. |
-| Exch Rate | — | Estimated. Auto-filled from payment history if left empty. **IDR ignores it.** |
+| Exch Rate | yes, unless IDR | Estimated. Left empty on the screen, it is filled from payment history (`lib/poRate.ts`). An agent writing the row gets the same number from `GET /api/agent/purchasing/rate` — rule 7. **IDR ignores it.** |
 | Ship Via | — | Method of shipment. |
 | PO Terms | — | Payment terms. Defaults from Settings. |
 | Replaces PO | — | Supersede an older PO *without* loading its items. Use Stored PO above if you want the items too. |
@@ -333,6 +346,9 @@ write 4.0_price_quotes           # status -> Accepted
 then  4.1_price_quote_line_items # + reason fields, as §3
 then  5.0_purchases              # unit_price -> unit_cost
                                  # total_value: LEAVE NULL at insert
+                                 # exchange_rate: REQUIRED unless IDR —
+                                 #   PI / bank rate, else
+                                 #   GET /api/agent/purchasing/rate (rule 7)
                                  # + the same four source fields as the quote
 then  5.1_purchase_line_items    # + the line's reason; price_check -> null
                                  #   (the table refuses it)

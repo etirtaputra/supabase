@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-23** · last change: *Dashboard: Spend & Cash panels* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-23** · last change: *A non-IDR PO is never saved without its exchange rate* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5091,7 +5091,24 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    has noct 45±2, isc 4.61 A, 5.9 kg; (b) **SNV-SP4533** (supplier model
    EPSIVO EPV300-4T45G, `solar_pump_inverter`) has **empty
    `specifications`**, so no engine can use it — the datasheet gives 900 VDC
-   / 250–900 VDC. The
+   / 250–900 VDC.
+   **23 Oct — MIRA's POs had no exchange rate** (owner: "whenever MIRA helps
+   to enter the PO in ICAPROC, she always misses the exchange or currency
+   rate"). EB.42538, PIO-2026020 and PIO-2026021 (KSTAR, CNY) had
+   `exchange_rate = null`; every total read it as 1 ("CNY 333.798 = IDR
+   333.798"). Cause: the New Deal screen estimates an empty Exch Rate in the
+   BROWSER; MIRA writes `5.0_purchases` directly, so that code never ran.
+   Fix, one rule for every writer: `lib/poRate.ts` (`estimatePoRate`:
+   supplier's latest rate in the currency → any supplier's → today's market
+   rate, rounded), used by both screen save paths (new and revise — which now
+   refuse to save rather than store null) and by the new
+   `GET /api/agent/purchasing/rate` (`?supplier_id=&currency=` or
+   `?po_number=`; registered in `AGENT_ENDPOINTS`, plus an `AGENT_RULES` line).
+   `migrations/po_exchange_rate_required.sql` backfilled the three with 2688
+   (realised rate of PIO-2026013, paid 16 Oct: 2,015,733,651.10 ÷ 750,000) and
+   adds a BEFORE INSERT/UPDATE OF currency, exchange_rate trigger that refuses
+   a non-IDR PO without a positive rate, naming the endpoint. Purchasing
+   runbook → v6 (rule 7). Tests: `lib/poRate.test.ts`. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA

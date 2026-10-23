@@ -37,7 +37,7 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'purchasing-runbook',
     title: 'Purchasing runbook (buy side)',
-    file: 'PURCHASING-RUNBOOK_v5_2026-10-09.md',
+    file: 'PURCHASING-RUNBOOK_v6_2026-10-23.md',
     audience: 'buy-side agents: quotes, POs, payments, landed cost',
     first: false,
   },
@@ -108,6 +108,7 @@ export const AGENT_ENDPOINTS = [
   { method: 'POST', path: '/api/agent/design/mounting', purpose: 'the v11 mounting engine, with catalogue and prices' },
   { method: 'POST', path: '/api/agent/design/system', purpose: 'the v9 system engine, with catalogue and prices' },
   { method: 'GET', path: '/api/agent/purchasing/progress', purpose: "the Progress board as data — each tracked PO's stage computed by the board's own functions, and the Basecamp PROGRESS IMPOR column its card belongs in. ?po_number= or ?pi_number= for any PO. Buy-side roles" },
+  { method: 'GET', path: '/api/agent/purchasing/rate', purpose: 'the exchange_rate to save a non-IDR PO with — the New Deal screen\'s own estimate (this supplier\'s latest rate in the currency, else any supplier\'s, else today\'s). ?supplier_id=&currency= or ?po_number=. Buy-side roles' },
   { method: 'POST', path: '/api/agent/sales/mirror', purpose: 'record a sales order taken in another system (Dolibarr) — computes the totals the way the editor does, and posts NO stock' },
   { method: 'POST', path: '/api/agent/sales/stock', purpose: "a mirrored order's goods have LEFT — takes them off stock from where they are, once, priced at moving-average cost. dry_run: true first; action: 'reverse' to put them back (owner only)" },
 ] as const;
@@ -128,4 +129,5 @@ export const AGENT_RULES = [
   'The sales mirror records DOCUMENTS ONLY and posts no stock movement. When Dolibarr shows the goods have SHIPPED, POST /api/agent/sales/stock with the external_ref — dry_run: true first. Never on "ordered" alone: an order is not a shipment, and the ledger is append-only. A shortfall means ICAPROC holds less than was sold; report it, do not force it with allow_negative.',
   'Tier-2 and Tier-3 selling prices are NOT in any table. Only the net (3.0_components.selling_price_idr) and hand-pinned overrides (21.1_item_tier_prices) are stored; the rest is computed from the net by the markup chain. Read them from GET /api/agent/prices. An empty 21.1 means NO OVERRIDE, never no price.',
   'Say which table a figure came from. A number without its source cannot be checked.',
+  'A non-IDR PO is saved WITH its exchange_rate. Take it from the PI or the bank when they state one, else from GET /api/agent/purchasing/rate. Never leave it null and never save 1: every total reads a missing rate as 1, so CNY 333,798 shows as IDR 333,798. The database refuses the insert without one.',
 ] as const;

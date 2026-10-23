@@ -30,7 +30,9 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/hooks/useAuth';
 // Constants & Types
 import { ENUMS } from '@/constants/enums';
-import { getLatestExchangeRate, deriveExchangeRates } from '@/lib/exchangeRates';
+import { deriveExchangeRates } from '@/lib/exchangeRates';
+import { estimatePoRate } from '@/lib/poRate';
+import { fetchLiveFx } from '@/lib/liveFx';
 import { autoPostTrueUp, autoPostMessage, drainTrueUpQueue, drainMessage } from '@/lib/landedAutoPostClient';
 import { extractPdf } from '@/lib/extractPdfClient';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
@@ -709,6 +711,16 @@ function MasterInsertPage() {
       const { error } = await supabase.from('5.0_purchases').update({ total_value: n }).eq('po_id', poId);
       if (error) showToast(`PO saved, but its total could not be set: ${error.message}`, 'error');
     };
+    // An empty Exch Rate is estimated by the same rule agents get from
+    // /api/agent/purchasing/rate (lib/poRate.ts); the database refuses a
+    // non-IDR PO without one, so null here means "ask the user".
+    const poRateEstimate = async (supplierId: unknown, currency: unknown): Promise<number | null> => {
+      const history = deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes);
+      const own = estimatePoRate(history, String(supplierId ?? ''), String(currency ?? ''));
+      if (own) return own.rate;
+      const live = await fetchLiveFx();
+      return estimatePoRate(history, String(supplierId ?? ''), String(currency ?? ''), live?.rates)?.rate ?? null;
+    };
     // PO-only keys may linger in the shared draft after a mode switch — a
     // quote-only save must never try to write them into 4.0.
     const { po_number, po_date, exchange_rate, existing_quote_id, existing_po_id, replaces_po_id,
@@ -779,7 +791,9 @@ function MasterInsertPage() {
       const totalVal = quote.total_value === '' || quote.total_value == null
         ? poLineRows.reduce((s, r) => s + r.quantity * r.unit_cost, 0) + (freightForTotal || 0)
         : Number(quote.total_value);
-      const rate = quote.currency === 'IDR' ? null : (Number(exchange_rate) || Number((src as any).exchange_rate) || null);
+      const rate = quote.currency === 'IDR' ? null
+        : (Number(exchange_rate) || Number((src as any).exchange_rate) || await poRateEstimate(quote.supplier_id, quote.currency));
+      if (quote.currency !== 'IDR' && !rate) { showToast(`Exch Rate needed — no ${quote.currency} rate on record to estimate from.`, 'error'); return false; }
       const header = {
         currency: quote.currency, exchange_rate: rate, total_value: totalVal,
         po_date: po_date || src.po_date, incoterms: incoterms || null,
@@ -864,12 +878,9 @@ function MasterInsertPage() {
       copiedItems = lineRows;   // the same lines land on the PO, price → cost
     }
     // Estimated rate: what payments on this supplier's past POs actually imply
-    let rate = quote.currency === 'IDR' ? null : (Number(exchange_rate) || null);
-    if (quote.currency !== 'IDR' && !rate) {
-      const liveRates = deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes);
-      const actual = getLatestExchangeRate(liveRates, String(quote.supplier_id), String(quote.currency));
-      if (actual?.rate) rate = Math.round(actual.rate);
-    }
+    const rate = quote.currency === 'IDR' ? null
+      : (Number(exchange_rate) || await poRateEstimate(quote.supplier_id, quote.currency));
+    if (quote.currency !== 'IDR' && !rate) { showToast(`Exch Rate needed — no ${quote.currency} rate on record to estimate from.`, 'error'); return false; }
     const poRows = await handleInsert('5.0_purchases', {
       quote_id: q.quote_id, supplier_id: quote.supplier_id, company_id: quote.company_id,
       pi_number: quote.pi_number, pi_date: quote.quote_date, pi_status: 'Accepted',
