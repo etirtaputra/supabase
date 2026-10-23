@@ -161,8 +161,8 @@ Counter / allow us to edit".
   live page until the first run; check 9.2 after it). Once per Jakarta day.
   Auth: `lib/cronAuth.ts verifyCronSecret` (fails closed) — sanctioned in
   lib/apiAuth.test.ts. **CRON_SECRET must be set on Vercel (Production) by
-  the owner** — this session's Vercel token may not create env vars (403);
-  until then the route answers 401 and nothing runs. `?dry=1` = parse only.
+  the owner** — this session's Vercel token may not create env vars (403).
+  **Set by the owner on 2026-10-24** (Production); live from the deploy after it. `?dry=1` = parse only.
 - UI: Settings › Exchange rates shows this morning's KlikBCA reading under
   each rate, names automatic rows "KlikBCA e-Rate (automatic)", and every log
   row has Edit (rate + note; "edited by … ") ; `components/ui/FxAutoNotice.tsx`
