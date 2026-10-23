@@ -20,6 +20,7 @@
  *   Economics canViewEconomics   (mirrors /profitability — GP, Position)
  * Brand / supplier model render only for canViewBrand, exactly like Products.
  */
+import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -274,9 +275,10 @@ export default function ItemHubPage() {
     () => (canBuy ? computeTUCMap(pos, poItems, poCosts) : new Map<string, TUCResult>()),
     [canBuy, pos, poItems, poCosts]);
   const tucRes: TUCResult | null = tucMap.get(componentId) ?? null;
+  const { rows: fxBenchmarks } = useFxBenchmarks(canBuy);
   const fx: Record<string, FxRate> = useMemo(
-    () => (canBuy ? fxFromHistory(pos, deriveExchangeRates(pos, poItems, poCosts, quotes)) : {}),
-    [canBuy, pos, poItems, poCosts, quotes]);
+    () => (canBuy ? fxFromHistory(pos, deriveExchangeRates(pos, poItems, poCosts, quotes), fxBenchmarks) : {}),
+    [canBuy, pos, poItems, poCosts, quotes, fxBenchmarks]);
 
   const myPoLines = useMemo(() => {
     const poById = new Map(pos.map((p) => [String(p.po_id), p]));

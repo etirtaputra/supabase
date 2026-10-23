@@ -35,8 +35,11 @@ export const FX_STALE_DAYS = 90;
 export interface FxRate {
   rate: number;
   date: string;
-  /** 'settled' = a rate actually paid; 'po' = the rate committed to on a purchase order. */
-  source: 'settled' | 'po';
+  /**
+   * 'benchmark' = the company rate (Settings › Exchange rates);
+   * 'settled' = a rate actually paid; 'po' = the rate committed to on a purchase order.
+   */
+  source: 'benchmark' | 'settled' | 'po';
   label: string;
 }
 
@@ -57,6 +60,7 @@ export interface FxRate {
 export function fxFromHistory(
   pos: { currency?: string | null; exchange_rate?: number | string | null; po_date?: string | null; po_number?: string | null; status?: string | null }[],
   settled: { currency: string; implied_rate: number; payment_date: string }[] = [],
+  benchmarks: { currency: string; rate: number | string; set_at: string; benchmark_id?: number }[] = [],
 ): Record<string, FxRate> {
   const best = new Map<string, FxRate>();
   const offer = (c: FxRate & { currency: string }) => {
@@ -80,6 +84,14 @@ export function fxFromHistory(
       currency: r.currency, rate: Number(r.implied_rate), date: (r.payment_date ?? '').slice(0, 10),
       source: 'settled', label: 'settled payment',
     });
+  }
+  // The COMPANY RATE wins outright where one is set (owner, 2026-10-23: "for
+  // quotes and entry for PO use the benchmark rate") — a quote is priced at the
+  // rate the business plans with, not at whichever PO happened to be last.
+  // Newest row per currency; history answers for a currency without one.
+  for (const b of [...benchmarks].sort((a, c) => c.set_at.localeCompare(a.set_at) || (c.benchmark_id ?? 0) - (a.benchmark_id ?? 0))) {
+    if (b.currency === 'IDR' || !(Number(b.rate) > 0) || best.get(b.currency)?.source === 'benchmark') continue;
+    best.set(b.currency, { rate: Number(b.rate), date: b.set_at.slice(0, 10), source: 'benchmark', label: 'company rate' });
   }
   return Object.fromEntries(best);
 }

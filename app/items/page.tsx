@@ -9,6 +9,7 @@
  * — the column/tab gating below stays capability-driven so widening access
  * later is a one-line flag flip in constants/roles.ts.
  */
+import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllComponents, selectAll } from '@/lib/fetchAllRows';
@@ -215,7 +216,8 @@ function ItemsInner() {
   // THE canonical engines, computed once for the whole list — every expanded
   // row's forensics reads these, so the numbers match Cost Lookup exactly.
   const tucMap = useMemo(() => computeTUCMap(pos, poItems, poCosts), [pos, poItems, poCosts]);
-  const fx = useMemo(() => fxFromHistory(pos, deriveExchangeRates(pos, poItems, poCosts, quotes)), [pos, poItems, poCosts, quotes]);
+  const { rows: fxBenchmarks } = useFxBenchmarks(canOpen);
+  const fx = useMemo(() => fxFromHistory(pos, deriveExchangeRates(pos, poItems, poCosts, quotes), fxBenchmarks), [pos, poItems, poCosts, quotes, fxBenchmarks]);
   // The Item Score, ranked across the whole catalog (owner-only). Same engine
   // and basis as the Profitability dashboard.
   const { scores, metrics } = useItemScores(supabase, canOpen);

@@ -856,8 +856,8 @@ export default function QuoteEditorPage() {
    * protect the margin.
    */
   const fx = useMemo(
-    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
-    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes],
+    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes), catalog.fxBenchmarks),
+    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.fxBenchmarks],
   );
 
   // Global Cost Basis buffer % (Settings › Defaults), per-item override on the component

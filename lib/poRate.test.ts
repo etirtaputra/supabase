@@ -60,3 +60,15 @@ test('the New Deal screen saves through the same rule', () => {
   const page = readFileSync(new URL('../app/purchasing/page.tsx', import.meta.url), 'utf8');
   assert.equal((page.match(/estimatePoRate\(/g) ?? []).length, 2, 'both PO save paths (new and revise)');
 });
+
+test('the company benchmark comes first; without one the history rule still answers', () => {
+  const bm = [
+    { benchmark_id: 1, currency: 'CNY', rate: 2650, set_at: '2026-08-01T03:00:00Z' },
+    { benchmark_id: 2, currency: 'CNY', rate: 2688.4, set_at: '2026-10-20T03:00:00Z' },
+  ];
+  const r = estimatePoRate([], 'kstar', 'CNY', { CNY: 2704 }, bm);
+  assert.deepEqual(r, { rate: 2688, source: 'benchmark', po_id: null, date: '2026-10-20' });
+  // No USD benchmark: today's market rate, exactly as before.
+  assert.equal(estimatePoRate([], 'kstar', 'USD', { USD: 16890 }, bm)?.source, 'live');
+  assert.equal(estimatePoRate([], 'kstar', 'IDR', null, bm), null);
+});

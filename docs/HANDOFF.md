@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-23** · last changes: *Corporate text inks: comfort and visibility* and *A non-IDR PO is never saved without its exchange rate* (parallel thread) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-23** · last change: *Company FX benchmark: Settings › Exchange rates* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,44 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-23 (latest) — Corporate text inks: comfort and visibility
+### 2026-10-23 (latest) — Company FX benchmark: Settings › Exchange rates
+
+Owner: "set a universal exchange rate for USD and CNY, in settings … logs …
+only affect new POs … compare what's the rates use during payment vs the
+benchmark" → "make the fx benchmark in this thread" → "for quotes and entry
+for PO use the benchmark rate; in payments, we will input the rate … written
+on bank slips".
+- Table `9.1_fx_benchmark_rates` (migrations/create_fx_benchmark_rates.sql, RUN
+  in production, empty — the owner sets the first rates): one row per change,
+  newest = current. Trigger stamps set_by_email/set_at from auth.uid(); RLS
+  read can_read_buy_side(), insert owner only; no UPDATE/DELETE for staff.
+  Rolled-back test passed (owner insert stamped, update refused, buy_admin
+  insert refused). NOT 9.0_exchange_rate_history (old realised rates, unused).
+- `lib/fxBenchmark.ts` (+test): currentBenchmarks, benchmarkOn(day),
+  benchmarkLog, paidRate (principal only; foreign row × its rate; IDR row ÷
+  its rate; rateless IDR only once a BALANCE_CATS payment exists, as what
+  settled the rest), compareToBenchmark (vs the rate in force on the PO
+  DATE — older POs are not compared), summarise (month / supplier / bank).
+- Rate rule: `lib/poRate.ts` estimatePoRate takes `benchmarks` → source
+  'benchmark' is step 0; history/live remain the fallback. Used by the New
+  Deal save (read fresh at save) and `GET /api/agent/purchasing/rate`
+  (returns `benchmark_set_on`). Quotes: `fxFromHistory` (lib/computeTUC.ts)
+  takes benchmarks too, which win per currency (label "company rate");
+  wired on pricing, proposals, BOM, items. `hooks/useFxBenchmarks.ts`;
+  `useSupabaseData` also loads `fxBenchmarks`.
+- Payments form: no longer pre-fills the PO's rate (that made every payment
+  read as paid AT the plan rate); the field is "Bank rate (from the slip)"
+  with the PO rate as placeholder only.
+- UI: Settings › Exchange rates (`components/ui/FxBenchmarkSettings.tsx`,
+  nav search entry `/settings?tab=fx`): current rate per currency with the
+  market rate beside it, a >14-day staleness note, set-rate form (a rate
+  >20% off the market asks for a second click), the change log, and "Paid
+  against the company rate" by month / supplier / bank plus each PO. Deal
+  Lookup money line: "Rate paid X vs company Y · Rp Z more/less".
+- For the MIRA thread: the rate endpoint now answers with the company rate
+  first (source "benchmark"); the runbook's rule 7 wording should say so.
+
+### 2026-10-23 — Corporate text inks: comfort and visibility
 
 Owner: "check the color of the Fonts for Corporate Dark and Light … extra
 comfort and visibility" → "go ahead". Measured: Dark hint ink (text-slate-600,

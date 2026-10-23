@@ -29,6 +29,7 @@ export function useSupabaseData() {
     componentHistory: [],
     componentLinks: [],
     exchangeRates: [],
+    fxBenchmarks: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -182,6 +183,15 @@ export function useSupabaseData() {
         .order('payment_date', { ascending: false })
         .then(({ data: exchangeRates }) => {
           if (exchangeRates) setData((prev) => ({ ...prev, exchangeRates }));
+        });
+
+      // The company exchange rates — quotes are converted at them (lib/computeTUC
+      // fxFromHistory). RLS answers empty for a role off the buy side.
+      supabase
+        .from('9.1_fx_benchmark_rates')
+        .select('benchmark_id, currency, rate, note, set_at, set_by_email')
+        .then(({ data: fxBenchmarks }) => {
+          if (fxBenchmarks) setData((prev) => ({ ...prev, fxBenchmarks }));
         });
 
       setLoading(false);

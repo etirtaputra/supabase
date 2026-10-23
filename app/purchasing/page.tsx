@@ -32,6 +32,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { ENUMS } from '@/constants/enums';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { estimatePoRate } from '@/lib/poRate';
+import { currentBenchmarks, type FxBenchmark } from '@/lib/fxBenchmark';
+import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { fetchLiveFx } from '@/lib/liveFx';
 import { autoPostTrueUp, autoPostMessage, drainTrueUpQueue, drainMessage } from '@/lib/landedAutoPostClient';
 import { extractPdf } from '@/lib/extractPdfClient';
@@ -90,7 +92,9 @@ function MasterInsertPage() {
   // nothing should be hidden behind the "settled" filter by default.
   const [hideSettledPos, setHideSettledPos] = useState(false);
   const [showCostBreakdown, setShowCostBreakdown] = useState(false);
-  const [singlePoRate, setSinglePoRate] = useState<number | null>(null);
+  // The company exchange rates (Settings › Exchange rates) — what an empty
+  // Exch Rate on a new PO is saved with, and what its placeholder says.
+  const { rows: benchmarks } = useFxBenchmarks();
   const [lastSaved, setLastSaved] = useState<{ message: string; cta: string; nextTab: Tab; quoteId?: string; poId?: string } | null>(null);
   const [pdfUploading, setPdfUploading] = useState(false);
   const [dupWarning, setDupWarning] = useState<string | null>(null);
@@ -712,14 +716,18 @@ function MasterInsertPage() {
       if (error) showToast(`PO saved, but its total could not be set: ${error.message}`, 'error');
     };
     // An empty Exch Rate is estimated by the same rule agents get from
-    // /api/agent/purchasing/rate (lib/poRate.ts); the database refuses a
-    // non-IDR PO without one, so null here means "ask the user".
+    // /api/agent/purchasing/rate (lib/poRate.ts) — the company rate first; the
+    // database refuses a non-IDR PO without one, so null here means "ask the user".
+    // The benchmark is read fresh at save: a rate the owner set a minute ago counts.
     const poRateEstimate = async (supplierId: unknown, currency: unknown): Promise<number | null> => {
+      const { data: bm } = await supabase.from('9.1_fx_benchmark_rates').select('benchmark_id, currency, rate, set_at')
+        .eq('currency', String(currency ?? ''));
+      const rows = (bm ?? benchmarks) as FxBenchmark[];
       const history = deriveExchangeRates(data.pos, data.poItems, data.poCosts, data.quotes);
-      const own = estimatePoRate(history, String(supplierId ?? ''), String(currency ?? ''));
+      const own = estimatePoRate(history, String(supplierId ?? ''), String(currency ?? ''), null, rows);
       if (own) return own.rate;
       const live = await fetchLiveFx();
-      return estimatePoRate(history, String(supplierId ?? ''), String(currency ?? ''), live?.rates)?.rate ?? null;
+      return estimatePoRate(history, String(supplierId ?? ''), String(currency ?? ''), live?.rates, rows)?.rate ?? null;
     };
     // PO-only keys may linger in the shared draft after a mode switch — a
     // quote-only save must never try to write them into 4.0.
@@ -1551,7 +1559,8 @@ function MasterInsertPage() {
                         ...(withPo ? [
                           { name: 'po_number', label: 'PO #', type: 'text' as const, req: true, suggestions: suggestions.poNumbers, default: storedPoDefaults?.po_number ?? pdfData?.po_number, accent: true },
                           { name: 'po_date', label: 'PO Date', hint: 'Empty = same as the PI date', type: 'date' as const, default: storedPoDefaults?.po_date ?? storedDefaults?.po_date, accent: true },
-                          { name: 'exchange_rate', label: 'Exch Rate', hint: 'Estimated — auto-filled from payment history if empty; IDR ignores it', type: 'number' as const, formula: true, default: storedPoDefaults?.exchange_rate, accent: true },
+                          { name: 'exchange_rate', label: 'Exch Rate', hint: t('Empty = the company rate for the PO currency (Settings › Exchange rates), else payment history. IDR ignores it.'), type: 'number' as const, formula: true, default: storedPoDefaults?.exchange_rate, accent: true,
+                            placeholder: [...currentBenchmarks(benchmarks).values()].map((b) => `${b.currency} ${fmtInt(Number(b.rate))}`).join(' · ') || undefined },
                           // Incoterms input hidden (owner, 2026-08-14) — the column and
                           // Deal Lookup's display of historical values stay.
                           { name: 'method_of_shipment', label: 'Ship Via', type: 'select' as const, options: ENUMS.method_of_shipment, default: storedPoDefaults?.method_of_shipment, accent: true },
@@ -1634,16 +1643,18 @@ function MasterInsertPage() {
                       onParentChange={(id) => {
                         setSinglePoId(id);
                         setShowCostBreakdown(false);
-                        const po = data.pos.find(p => String(p.po_id) === id);
-                        setSinglePoRate(po?.exchange_rate ?? null);
                       }}
                       parentField={{ name: 'po_id', label: 'Select PO', options: paymentPosOptions }}
-                      fieldDefaultsOnParentChange={singlePoRate ? { exchange_rate: singlePoRate } : {}}
+                      // No default rate (owner, 2026-10-23: "in payments, we will input the
+                      // rate to whatever is dealt with the bank and written on bank slips").
+                      // Copying the PO's rate here made every payment look paid AT the
+                      // company rate, and the comparison against it meaningless. The PO's
+                      // rate is shown as the placeholder, for reference only.
                       itemFields={[
                         { name: 'cost_category', label: 'Cost Category', type: 'select', options: ENUMS.po_cost_category, req: true },
                         { name: 'amount', label: 'Amount', type: 'number', req: true },
                         { name: 'currency', label: 'Currency', type: 'select', options: ENUMS.currency, req: true },
-                        { name: 'exchange_rate', label: 'Exchange Rate (if ≠ PO rate)', type: 'number', placeholder: selPo?.exchange_rate ? String(selPo.exchange_rate) : undefined },
+                        { name: 'exchange_rate', label: t('Bank rate (from the slip)'), type: 'number', placeholder: selPo?.exchange_rate ? tf('PO rate {rate}', { rate: fmtInt(Number(selPo.exchange_rate)) }) : undefined },
                         { name: 'payment_date', label: 'Date', type: 'date' },
                         { name: 'notes', label: 'Notes', type: 'text' },
                       ]}

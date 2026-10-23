@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-23T11:13:02Z",
+    title: "Kurs perusahaan untuk USD dan CNY (Pengaturan › Kurs)",
+    details: [
+      "Atur kurs perusahaan untuk USD dan CNY di Pengaturan › Kurs. Setiap perubahan tercatat: kapan, oleh siapa, kurs sebelumnya, dan catatan.",
+      "Penawaran pemasok dan PO baru memakai kurs ini. PO menyimpan kurs saat dibuat, jadi kurs baru hanya berlaku untuk PO baru. MIRA juga menerima kurs ini lebih dulu.",
+      "Pembayaran: kolom kurs kini \"Kurs bank (dari slip)\" dan tidak lagi otomatis diisi kurs PO. Isi sesuai slip bank.",
+      "Setiap PO yang lunas dibandingkan dengan kurs perusahaan pada tanggal PO-nya: di Deal Lookup (\"Kurs dibayar … vs perusahaan …\") dan di Pengaturan › Kurs per bulan, per pemasok, atau per bank.",
+    ],
+  },
+  {
     at: "2026-10-23T10:32:52Z",
     title: "Tampilan: warna teks Corporate lebih nyaman dan mudah dibaca",
     details: [

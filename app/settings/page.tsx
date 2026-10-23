@@ -17,6 +17,7 @@
  * source of truth per fact, no shadow copies.
  */
 'use client';
+import FxBenchmarkSettings from '@/components/ui/FxBenchmarkSettings';
 import { useT } from '@/hooks/useT';
 import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -53,9 +54,9 @@ import Link from 'next/link';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import PricingSetup from '@/components/ui/PricingSetup';
 
-type Tab = 'format' | 'appearance' | 'menu' | 'dashboard' | 'lists' | 'pricing' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
+type Tab = 'format' | 'appearance' | 'menu' | 'dashboard' | 'lists' | 'pricing' | 'fx' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
-  ['format', 'Formatting'], ['appearance', 'Appearance'], ['menu', 'Menu'], ['dashboard', 'Dashboard'], ['lists', 'Lists'], ['pricing', 'Pricing'],
+  ['format', 'Formatting'], ['appearance', 'Appearance'], ['menu', 'Menu'], ['dashboard', 'Dashboard'], ['lists', 'Lists'], ['pricing', 'Pricing'], ['fx', 'Exchange rates'],
   ['defaults', 'Defaults'], ['terms', 'Terms'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
@@ -225,6 +226,7 @@ export default function SettingsPage() {
         {tab === 'dashboard' && <DashboardTab draft={draft} set={set} />}
         {tab === 'lists'    && <ListsTab draft={draft} set={set} />}
         {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
+        {tab === 'fx'       && <FxBenchmarkSettings flash={flash} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
         {tab === 'terms'    && <TermsTab draft={draft} set={set} />}
         {tab === 'company'  && <CompanyTab draft={draft} set={set} />}

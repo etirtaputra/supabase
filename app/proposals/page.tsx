@@ -264,8 +264,8 @@ export default function QuotesListPage() {
   // Realized FX per currency — the drift check must compare against the same
   // cost the editor would compute, or it flags (or misses) the wrong quotes.
   const fx = useMemo(
-    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
-    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes],
+    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes), catalog.fxBenchmarks),
+    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.fxBenchmarks],
   );
 
 

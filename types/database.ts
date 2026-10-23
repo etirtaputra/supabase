@@ -326,6 +326,8 @@ export interface DatabaseData {
   componentHistory: ComponentHistoryEntry[];
   componentLinks: ComponentLink[];
   exchangeRates?: ExchangeRateHistory[];
+  /** The company exchange rates, as their log (9.1_fx_benchmark_rates; buy side only). */
+  fxBenchmarks?: { benchmark_id: number; currency: string; rate: number; note?: string | null; set_at: string; set_by_email?: string | null }[];
 }
 
 // Autocomplete suggestions structure

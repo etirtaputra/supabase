@@ -294,8 +294,8 @@ function PricingPage() {
    */
   const { data: catalog } = useSupabaseData();
   const fx = useMemo(
-    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
-    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes]);
+    () => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes), catalog.fxBenchmarks),
+    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.fxBenchmarks]);
   const tucMap = useMemo(() => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts),
     [catalog.pos, catalog.poItems, catalog.poCosts]);
 

@@ -96,8 +96,8 @@ export default function BomCalcEditorPage() {
   const { data: catalog } = useSupabaseData();
   const { epcCostBufferPct } = useSettings();
   const tucMap = useMemo(() => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts), [catalog.pos, catalog.poItems, catalog.poCosts]);
-  const fx = useMemo(() => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes)),
-    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes]);
+  const fx = useMemo(() => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes), catalog.fxBenchmarks),
+    [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.fxBenchmarks]);
   const offerable = useMemo(() => (catalog.components as Component[]).filter(isOfferable), [catalog.components]);
   const compById = useMemo(() => new Map((catalog.components as Component[]).map((c) => [String(c.component_id), c])), [catalog.components]);
   const costFor = useCallback((componentId: string) => {

@@ -37,6 +37,8 @@ import { useListDefaults } from '@/hooks/useListDefaults';
 import { inRange, isOpenRange, ALL_TIME, type DateRange } from '@/lib/dateRange';
 import PurchasingInbox from './PurchasingInbox';
 import { BAR_INPUT, BAR_SELECT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON_SKY } from '@/constants/controls';
+import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
+import { compareToBenchmark } from '@/lib/fxBenchmark';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -741,6 +743,9 @@ export default function DealLookupTab({
   // localStorage by `fetchLiveFx`, so this costs one request an hour at most,
   // and a failure simply leaves the booked rate as the labelled fallback.
   const [liveRates, setLiveRates] = useState<Record<string, number> | null>(null);
+  // The company exchange rates (Settings › Exchange rates) — a paid PO shows the
+  // rate it was paid at against the one in force on its PO date.
+  const { rows: fxBenchmarks } = useFxBenchmarks();
   useEffect(() => {
     let cancelled = false;
     void fetchLiveFx().then((snap) => { if (!cancelled && snap) setLiveRates(snap.rates); });
@@ -1705,6 +1710,25 @@ export default function DealLookupTab({
                               <span className="text-[10px] text-slate-600 tabular-nums ml-1">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</span>
                             )}
                           </span>
+                          {(() => {
+                            const fx = compareToBenchmark(po, costs, fxBenchmarks);
+                            if (!fx) return null;
+                            const more = fx.diffIdr > 0.5, less = fx.diffIdr < -0.5;
+                            return (
+                              <span className="whitespace-nowrap"
+                                title={tf('Paid at {paid} per {ccy}; the company rate on {date} was {company}.', {
+                                  paid: fmtInt(Math.round(fx.paid.rate)), ccy: fx.currency, date: fmtDate(fx.poDate), company: fmtInt(fx.benchmarkRate) })}>
+                                <span className="text-[10px] text-slate-500 mr-1">{t('Rate paid')}</span>
+                                <span className="font-semibold tabular-nums text-slate-200">{fmtInt(Math.round(fx.paid.rate))}</span>
+                                <span className="text-[10px] text-slate-500 ml-1">{tf('vs company {rate}', { rate: fmtInt(fx.benchmarkRate) })}</span>
+                                {(more || less) && (
+                                  <span className={`text-[10px] tabular-nums ml-1 ${more ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    {more ? tf('{amount} more', { amount: fmtIdr(fx.diffIdr) }) : tf('{amount} less', { amount: fmtIdr(-fx.diffIdr) })}
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })()}
                           {/* THE number this panel exists for: what to type
                               into the transfer, in the currency the supplier
                               is owed in. `outIdr` above is the books figure at

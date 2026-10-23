@@ -14,6 +14,9 @@
  * so a writer that skips both gets told rather than saving a wrong total.
  *
  * Order — the first that exists wins:
+ *   0. the COMPANY BENCHMARK for this currency (Settings › Exchange rates,
+ *      `9.1_fx_benchmark_rates`; owner 2026-10-23: "a universal exchange rate
+ *      for USD and CNY … when a new rate is used, it will only affect new POs");
  *   1. this supplier's latest rate in this currency (realised once a PO is
  *      settled, else that PO's estimate — `deriveExchangeRates` decides);
  *   2. the latest rate in this currency from any supplier;
@@ -22,15 +25,16 @@
  * ESTIMATE: once the PO is paid, the realised rate replaces it everywhere.
  */
 import type { ExchangeRateHistory } from '../types/database';
+import { currentBenchmarks, type FxBenchmark } from './fxBenchmark.ts';
 
-export type PoRateSource = 'supplier' | 'currency' | 'live';
+export type PoRateSource = 'benchmark' | 'supplier' | 'currency' | 'live';
 
 export interface PoRateEstimate {
   rate: number;
   source: PoRateSource;
   /** The PO the rate was read from (sources 1 and 2). */
   po_id: string | null;
-  /** Payment date behind the rate (sources 1 and 2). */
+  /** Payment date behind the rate (sources 1 and 2), or the day the benchmark was set. */
   date: string | null;
 }
 
@@ -44,8 +48,13 @@ export function estimatePoRate(
   supplierId: string | null | undefined,
   currency: string | null | undefined,
   live?: Record<string, number> | null,
+  benchmarks?: FxBenchmark[] | null,
 ): PoRateEstimate | null {
   if (!currency || currency === 'IDR') return null;
+  const bm = benchmarks ? currentBenchmarks(benchmarks).get(currency) : undefined;
+  if (bm && Number(bm.rate) > 0) {
+    return { rate: Math.round(Number(bm.rate)), source: 'benchmark', po_id: null, date: bm.set_at.slice(0, 10) };
+  }
   const inCurrency = history.filter((r) => r.currency === currency && Number(r.implied_rate) > 0);
 
   const own = supplierId ? inCurrency.filter((r) => String(r.supplier_id) === String(supplierId)) : [];
