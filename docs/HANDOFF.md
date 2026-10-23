@@ -5124,7 +5124,21 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    (realised rate of PIO-2026013, paid 16 Oct: 2,015,733,651.10 ÷ 750,000) and
    adds a BEFORE INSERT/UPDATE OF currency, exchange_rate trigger that refuses
    a non-IDR PO without a positive rate, naming the endpoint. Purchasing
-   runbook → v6 (rule 7). Tests: `lib/poRate.test.ts`. The
+   runbook → v6 (rule 7). Tests: `lib/poRate.test.ts`. **State in production
+   (23 Oct):** code deployed (abd8766 READY); the guard FUNCTION
+   `po_exchange_rate_required()` exists, but CREATE TRIGGER on `5.0_purchases`
+   timed out from the Supabase MCP every time (apply_migration twice,
+   execute_sql once; no lock held, no event trigger) — the owner pastes the
+   trigger in the SQL Editor (briefing card "PO exchange rate · 23 Oct").
+   The **backfill is NOT applied**: the owner's rule is ask before any
+   production data change, and a company benchmark rate (USD/CNY, with a
+   change log, `9.1_fx_benchmark_rates`) is being built in ANOTHER thread —
+   the three POs wait for the owner's choice (2688 = paid rate of 16 Oct, or
+   the benchmark). Drive: v6 `1RkBssTDn8pghGFwUpRmI8K73CPFJWxgV` in
+   20-RUNBOOKS, INDEX `1cscHmckeXHqSlH298xQb40cMipd1W3n3` in 00-READ-FIRST;
+   v5 and the old INDEX trashed. MIRA's and MANDA's prompts are in the
+   briefing; MIRA's carries a read-only test (expected rate 2688, source
+   supplier). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
