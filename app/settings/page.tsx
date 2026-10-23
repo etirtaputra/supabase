@@ -51,6 +51,7 @@ import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import PricingSetup from '@/components/ui/PricingSetup';
 
 type Tab = 'format' | 'appearance' | 'menu' | 'dashboard' | 'lists' | 'pricing' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
@@ -645,11 +646,11 @@ function PricingTab({ draft, set }: {
     <div className="space-y-5">
       <div className="bg-emerald-500/[0.07] border border-emerald-500/25 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <p className="text-xs text-emerald-100/90 leading-relaxed">
-          <span className="font-bold">The tiers themselves live on Pricing.</span> This tab holds the house rules a
-          new tier or a new customer starts from, and the rounding every tier price obeys.
+          <span className="font-bold">Set once, here:</span> the house rules a new tier or customer starts from,
+          the rounding every tier price obeys, the tiers themselves and the margin profiles. Prices are set on Selling Prices.
         </p>
         <Link href="/pricing" className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 whitespace-nowrap px-3 py-1.5 rounded-lg border border-emerald-500/30 hover:bg-emerald-500/10 transition-colors">
-          Open Pricing →
+          Open Selling Prices →
         </Link>
       </div>
 
@@ -673,7 +674,7 @@ function PricingTab({ draft, set }: {
             <input type="number" step="0.5" min={0} className={inputCls} value={draft.defaultTierStepPct}
               onChange={(e) => set('defaultTierStepPct', Math.max(0, Number(e.target.value) || 0))} />
           </Field>
-          <Field label="Default margin floor %" hint="Prefilled when a new tier is created — the minimum GP vs landed cost the Floor Audit polices.">
+          <Field label="Default margin floor %" hint="Prefilled when a new tier is created — the minimum GP vs landed cost; prices under it show in the Below floor filter on Selling Prices.">
             <input type="number" step="1" className={inputCls} value={draft.defaultMarginFloorPct}
               onChange={(e) => set('defaultMarginFloorPct', Number(e.target.value) || 0)} />
           </Field>
@@ -695,10 +696,13 @@ function PricingTab({ draft, set }: {
             </select>
           </Field>
           {!tiers.length && (
-            <p className="text-[11px] text-amber-300/80">No active tiers yet — create them on Pricing first.</p>
+            <p className="text-[11px] text-amber-300/80">No active tiers yet — add one below.</p>
           )}
         </div>
       </div>
+
+      {/* The tier ladder and margin profiles — moved here from Selling Prices (owner, 2026-10-22). */}
+      <PricingSetup />
     </div>
   );
 }

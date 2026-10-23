@@ -931,7 +931,7 @@ function SellTab({ comp, activeTiers, chain, avgCost, canFloor, soldLines, custN
                 <th className="text-right font-semibold px-3 py-2">{t('Price')} ({moneyUnit()})</th>
                 <th className="text-right font-semibold px-3 py-2">Step</th>
                 <th className="text-right font-semibold px-3 py-2" title="Actual margin over the previous tier after rounding">Actual</th>
-                {canFloor && <th className="text-right font-semibold px-3 py-2" title="Margin vs avg landed cost — the /pricing Floor Audit rule">GP vs cost</th>}
+                {canFloor && <th className="text-right font-semibold px-3 py-2" title="Margin vs avg landed cost — the Selling Prices below-floor rule">GP vs cost</th>}
                 <th className="text-left font-semibold px-3 py-2" />
               </tr>
             </thead>

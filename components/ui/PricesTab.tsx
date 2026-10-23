@@ -36,9 +36,24 @@ export interface PricesComp {
   selling_price_idr: number | null;
 }
 export interface PricesTier { tier_id: string; name: string; margin_floor_pct: number }
+/**
+ * A tier priced under its margin floor — the Floor Audit's own verdict (landed
+ * cost, or the supplier quote where nothing has landed), handed in by the page.
+ * The audit was a tab until 2026-10-22; it is the "Below floor" filter now.
+ */
+export interface FloorBreach {
+  componentId: string; tierId: string; tierName: string;
+  /** The lowest price that clears the floor, on a clean rounding step. */
+  minPrice: number | null;
+  /** (minPrice − price) × on-hand: money at stake on stock we hold. */
+  leakage: number;
+  /** The cost behind it is a quote, not a landed cost. */
+  provisional: boolean;
+}
 export interface PriceLogLite { tier_id: string | null; old_price_idr: number | null; new_price_idr: number | null; changed_at: string; changed_by_email: string | null }
 
-type Filter = 'priced' | 'up' | 'low' | 'one' | 'floor' | 'unpriced';
+type Filter = 'priced' | 'up' | 'low' | 'one' | 'floor' | 'pinned' | 'unpriced';
+const FILTERS: Filter[] = ['priced', 'up', 'low', 'one', 'floor', 'pinned', 'unpriced'];
 const LOW_MARGIN = 15;
 const UP_PCT = 5;
 
@@ -57,6 +72,7 @@ interface Row {
 export default function PricesTab({
   comps, tiers, chainAt, paidOf, receivedOf, basisCost, stockCost, stockOf, leadOf, priceLog, tierName,
   canManage, saving, onSaveNet, showPoNumbers, canSeeCompetitors, canOpenItem, roundStep,
+  floor, pinned, initialFilter, totalLeakage, bulkBusy, onRaise, onRaiseAll, onUnpin,
 }: {
   comps: PricesComp[];
   tiers: PricesTier[];
@@ -78,10 +94,21 @@ export default function PricesTab({
   canSeeCompetitors: boolean;
   canOpenItem: boolean;
   roundStep: number;
+  floor: Map<string, FloorBreach[]>;
+  /** Tiers pinned to a price by hand (21.1 overrides), per item. */
+  pinned: Map<string, { tierId: string; priceId: string }[]>;
+  /** From ?filter= — Settings › Pricing links straight to the below-floor list. */
+  initialFilter?: string;
+  totalLeakage: number;
+  bulkBusy: boolean;
+  onRaise: (b: FloorBreach) => void;
+  onRaiseAll: () => void;
+  onUnpin: (priceId: string) => void;
 }) {
   const { t, tf } = useT();
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Filter>('priced');
+  const [filter, setFilter] = useState<Filter>(FILTERS.includes(initialFilter as Filter) ? (initialFilter as Filter) : 'priced');
+  const [confirmAll, setConfirmAll] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [sheet, setSheet] = useState(false);        // phone: the detail is open full screen
   const [drafts, setDrafts] = useState<Map<string, string>>(new Map());
@@ -116,12 +143,13 @@ export default function PricesTab({
       case 'up': return priced && r.trend.dir === 'up' && (r.trend.changePct ?? 0) >= UP_PCT;
       case 'low': { const m = t1Margin(r); return priced && m != null && m < LOW_MARGIN; }
       case 'one': return priced && r.trend.dir === 'first';
-      case 'floor': { const m = t1Margin(r); return priced && m != null && belowFloor(m, floor1); }
+      case 'floor': return priced && floor.has(r.c.component_id);
+      case 'pinned': return priced && pinned.has(r.c.component_id);
     }
   };
   // Plain arithmetic over ~1,000 rows on each render: cheaper than keeping a
   // memo honest about drafts typed into any of them.
-  const counts: Record<Filter, number> = { priced: 0, up: 0, low: 0, one: 0, floor: 0, unpriced: 0 };
+  const counts: Record<Filter, number> = { priced: 0, up: 0, low: 0, one: 0, floor: 0, pinned: 0, unpriced: 0 };
   for (const r of rows) for (const f of Object.keys(counts) as Filter[]) if (matches(r, f)) counts[f] += 1;
 
   const q = search.trim().toLowerCase();
@@ -201,9 +229,40 @@ export default function PricesTab({
           <option value="low">{tf('Margin under 15% ({n})', { n: counts.low })}</option>
           <option value="one">{tf('Only 1 purchase ({n})', { n: counts.one })}</option>
           <option value="floor">{tf('Below floor ({n})', { n: counts.floor })}</option>
+          <option value="pinned">{tf('Pinned prices ({n})', { n: counts.pinned })}</option>
           <option value="unpriced">{tf('No price yet ({n})', { n: counts.unpriced })}</option>
         </select>
       </div>
+
+      {filter === 'floor' && counts.floor > 0 && (() => {
+        const n = [...floor.values()].reduce((s, b) => s + b.filter((x) => x.minPrice != null).length, 0);
+        // A breach measured on a supplier quote is unproven — and unproven in a known
+        // direction: a quote leaves out freight and duty, so the real margin is lower still.
+        const provisionalViolations = [...floor.values()].reduce((s, b) => s + b.filter((x) => x.provisional).length, 0);
+        return (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/[0.07] px-3.5 py-2.5 text-[13px]">
+            <p className="text-red-200 flex-1 min-w-[14rem]">
+              {n === 1 ? t('1 tier price sits under its floor.') : tf('{n} tier prices sit under their floor.', { n })}
+              {totalLeakage > 0 && <> {tf('{amount} at stake on stock in hand.', { amount: fmtRupiah(totalLeakage) })}</>}
+              {provisionalViolations > 0 && (
+                <span className="block mt-1 text-amber-300/90 text-[12px]">
+                  {tf('{n} of them rest on a supplier quote (marked QUOTE), not a landed cost. A quote leaves out freight, duty and fees, so the true margin is worse than shown, not better.', { n: provisionalViolations })}
+                </span>
+              )}
+            </p>
+            {canManage && n > 0 && (confirmAll ? (
+              <span className="flex items-center gap-2">
+                <button type="button" disabled={bulkBusy} onClick={() => { setConfirmAll(false); onRaiseAll(); }}
+                  className="h-9 px-3 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-500 disabled:opacity-50">{tf('Raise {n} prices', { n })}</button>
+                <button type="button" onClick={() => setConfirmAll(false)} className="h-9 px-3 rounded-lg text-slate-300 hover:text-white">{t('Cancel')}</button>
+              </span>
+            ) : (
+              <button type="button" disabled={bulkBusy} onClick={() => setConfirmAll(true)}
+                className="h-9 px-3 rounded-lg border border-red-500/40 text-red-200 font-semibold hover:bg-red-500/10 disabled:opacity-50">{t('Raise all to the floor')}</button>
+            ))}
+          </div>
+        );
+      })()}
 
       <div className="md:grid md:grid-cols-[minmax(0,1fr)_380px] md:gap-4 md:items-start">
         {/* ── Desktop: the table ── */}
@@ -229,6 +288,7 @@ export default function PricesTab({
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {r.cost != null ? (<>
                         <span className="font-bold text-slate-100 tabular-nums">{fmtMoneyCell(r.cost)}</span>{trendTag(r.trend)}
+                        {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
                         <p className="text-[11px] text-slate-500">{r.costFromQuote ? t('supplier quote') : fmtDay(r.trend.last?.date)}</p>
                       </>) : <span className="text-slate-600">—</span>}
                     </td>
@@ -262,6 +322,7 @@ export default function PricesTab({
                 <span className="mt-1.5 grid grid-cols-[1.5fr_.9fr_.6fr] gap-2">
                   <span>
                     <span className="font-bold text-slate-100 tabular-nums">{r.cost != null ? fmtRupiah(r.cost) : '—'}</span>{trendTag(r.trend)}
+                    {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
                     <span className="block text-[11px] text-slate-500">{r.costFromQuote ? t('supplier quote') : r.trend.last ? fmtDay(r.trend.last.date) : t('no cost yet')}</span>
                   </span>
                   <span>
@@ -290,6 +351,8 @@ export default function PricesTab({
               priceInput={priceInput(sel, true)} catalog={comps} priceLog={priceLog.get(sel.c.component_id) ?? []}
               tierName={tierName} showPoNumbers={showPoNumbers} canSeeCompetitors={canSeeCompetitors} canOpenItem={canOpenItem}
               canManage={canManage} roundStep={roundStep}
+              breaches={floor.get(sel.c.component_id) ?? []} pins={pinned.get(sel.c.component_id) ?? []}
+              onRaise={onRaise} onUnpin={onUnpin}
               onUsePrice={(v) => setDraft(sel.c.component_id, fmtInt(v))} marginCls={marginCls} />
           </aside>
         )}
@@ -298,7 +361,7 @@ export default function PricesTab({
   );
 }
 
-function PriceDetail({ r, tiers, net, chain, priceInput, catalog, priceLog, tierName, showPoNumbers, canSeeCompetitors, canOpenItem, canManage, roundStep, onUsePrice, marginCls }: {
+function PriceDetail({ r, tiers, net, chain, priceInput, catalog, priceLog, tierName, showPoNumbers, canSeeCompetitors, canOpenItem, canManage, roundStep, breaches, pins, onRaise, onUnpin, onUsePrice, marginCls }: {
   r: Row; tiers: PricesTier[]; net: number | null;
   chain: Map<string, { price: number | null; overridden: boolean }>;
   priceInput: ReactNode;
@@ -306,6 +369,10 @@ function PriceDetail({ r, tiers, net, chain, priceInput, catalog, priceLog, tier
   priceLog: PriceLogLite[];
   tierName: (tierId: string | null) => string;
   showPoNumbers: boolean; canSeeCompetitors: boolean; canOpenItem: boolean; canManage: boolean; roundStep: number;
+  breaches: FloorBreach[];
+  pins: { tierId: string; priceId: string }[];
+  onRaise: (b: FloorBreach) => void;
+  onUnpin: (priceId: string) => void;
   onUsePrice: (v: number) => void;
   marginCls: (m: number | null, floorPct: number) => string;
 }) {
@@ -369,13 +436,35 @@ function PriceDetail({ r, tiers, net, chain, priceInput, catalog, priceLog, tier
           {tiers.map((tr) => {
             const e = chain.get(tr.tier_id);
             const m = marginPct(e?.price ?? null, r.cost);
+            const breach = breaches.find((b) => b.tierId === tr.tier_id) ?? null;
+            const pin = pins.find((p) => p.tierId === tr.tier_id) ?? null;
             return (
-              <div key={tr.tier_id} className="flex items-center justify-between gap-3 px-3 py-1.5">
-                <span className="text-slate-400">{tr.name}{e?.overridden && <span className="ml-1 text-[10.5px] text-violet-300">{t('pinned')}</span>}</span>
-                <span className="tabular-nums">
-                  <span className="text-slate-200 font-semibold">{e?.price ? fmtInt(e.price) : '—'}</span>
-                  <span className={`ml-3 inline-block w-14 text-right font-semibold ${marginCls(m, tr.margin_floor_pct)}`}>{m == null ? '—' : `${m.toFixed(1)}%`}</span>
-                </span>
+              <div key={tr.tier_id} className="px-3 py-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-400">{tr.name}{e?.overridden && <span className="ml-1 text-[10.5px] text-violet-300">{t('pinned')}</span>}</span>
+                  <span className="tabular-nums">
+                    <span className="text-slate-200 font-semibold">{e?.price ? fmtInt(e.price) : '—'}</span>
+                    <span className={`ml-3 inline-block w-14 text-right font-semibold ${marginCls(m, tr.margin_floor_pct)}`}>{m == null ? '—' : `${m.toFixed(1)}%`}</span>
+                  </span>
+                </div>
+                {/* The Floor Audit's fix and the Overrides list's unpin, on the tier they belong to. */}
+                {canManage && (breach || pin) && (
+                  <div className="mt-1 flex flex-wrap justify-end gap-2 text-[11.5px]">
+                    {breach?.minPrice != null && (
+                      <button type="button" onClick={() => onRaise(breach)}
+                        className="px-2 py-1 rounded-md border border-red-500/40 text-red-200 hover:bg-red-500/10"
+                        title={breach.provisional ? t('The floor is checked against a supplier quote: nothing has landed yet.') : t('The floor is checked against the landed cost of stock in hand.')}>
+                        {tf('Under the {pct}% floor: raise to {price}', { pct: tr.margin_floor_pct, price: fmtInt(breach.minPrice) })}
+                      </button>
+                    )}
+                    {pin && (
+                      <button type="button" onClick={() => onUnpin(pin.priceId)}
+                        className="px-2 py-1 rounded-md border border-violet-500/40 text-violet-200 hover:bg-violet-500/10">
+                        {t('Unpin')}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -387,7 +476,7 @@ function PriceDetail({ r, tiers, net, chain, priceInput, catalog, priceLog, tier
         const e = chain.get(tr.tier_id), before = i > 0 ? chain.get(tiers[i - 1].tier_id)?.price : null;
         return i > 0 && e?.overridden && e.price != null && before != null && e.price < before;
       }) && (
-        <p className="mt-2 text-[12px] text-red-300">{t('A pinned tier is now cheaper than the tier before it. Change it in Set Pricing.')}</p>
+        <p className="mt-2 text-[12px] text-red-300">{t('A pinned tier is now cheaper than the tier before it: unpin it or raise it.')}</p>
       )}
 
       {(sim || (sold && sold[0])) && (

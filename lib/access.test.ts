@@ -67,20 +67,24 @@ test('an unregistered path is open — registering it is how a page gets a gate'
   assert.equal(canOpenPath(null, '/settings'), true);
 });
 
-/** What each role finds in its menu. Change this only on purpose. */
+/**
+ * What each role finds in its menu. Change this only on purpose.
+ * 2026-10-22: Profitability, the Item Hub list and Market Intel left the menu on
+ * purpose (owner: "item hub, selling prices, profitability usually has almost the
+ * same overlapping stuffs") — they stay one search away.
+ */
 const EXPECTED: Record<UserRole, string[]> = {
   owner: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile',
     '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials', '/aftersales',
-    '/support-letters', '/banks', '/spend-cash', '/profitability', '/items', '/specs',
-    '/purchasing?tab=market-intel', '/pricing', '/proposals', '/proposals/bom', '/settings', '/import-export',
+    '/support-letters', '/banks', '/spend-cash', '/specs',
+    '/pricing', '/proposals', '/proposals/bom', '/settings', '/import-export',
   ],
   buy_admin: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile',
-    '/products', '/delivery', '/serials', '/banks', '/specs',
-    '/purchasing?tab=market-intel', '/import-export',
+    '/products', '/delivery', '/serials', '/banks', '/specs', '/import-export',
   ],
   sell_admin: [
     '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
@@ -100,12 +104,12 @@ const EXPECTED: Record<UserRole, string[]> = {
   data_entry: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=lookup',
     '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile', '/delivery', '/serials',
-    '/specs', '/purchasing?tab=market-intel',
+    '/specs',
   ],
   finance: [
     '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
     '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/reconcile', '/invoices',
-    '/banks', '/specs', '/purchasing?tab=market-intel', '/import-export',
+    '/banks', '/specs', '/import-export',
   ],
 };
 

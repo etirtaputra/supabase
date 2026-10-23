@@ -197,7 +197,11 @@ export const DESTINATIONS: Destination[] = [
   { href: '/usage', label: 'Screen Usage', group: 'Insights', section: null, cap: 'canViewAnalytics', inNav: false,
     hint: 'Which screens get opened, by whom, and how many clicks deep',
     keywords: 'usage analytics telemetry page views traffic menu audit adoption dead pages clicks navigation which pages used' },
-  { href: '/profitability', label: 'Profitability', group: 'Insights', section: null, cap: 'canViewEconomics', inNav: true,
+  // Search-only since 2026-10-22 (owner: "item hub, selling prices, profitability usually has
+  // almost the same overlapping stuffs"): opened once in a month (42.0_page_views). The
+  // per-item answers live on Selling Prices › Prices; this stays the month's results and
+  // the cash cycle, reached from search and from the dashboard's Top products / customers.
+  { href: '/profitability', label: 'Profitability', group: 'Insights', section: null, cap: 'canViewEconomics', inNav: false,
     hint: 'GP per item / customer / rep, capital allocation, cash cycle',
     keywords: 'economics margin profit gp ccc dio dso dpo turnover position capital allocation gmroi' },
   // The P&L is a TAB on Profitability, not a page: same facts, third question.
@@ -211,7 +215,9 @@ export const DESTINATIONS: Destination[] = [
   // the record itself, the market, and our price ladder. The sell team's
   // Products list lives in Sales, where they reach for it; Catalog is the
   // back-office view of the same item. Every entry keeps its own gate.
-  { href: '/items', label: 'Item Hub', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: true,
+  // The list is search-only since 2026-10-22: Selling Prices › Prices is the item list people
+  // work from, and every item's own hub page is one click from its detail there.
+  { href: '/items', label: 'Item Hub', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: false,
     hint: 'Everything about one item — purchases, sales, pricing, FX, cash cycle, stock, specs',
     keywords: 'item hub component sku part product barang produk master 360 items pricing intelligence cash cycle exchange rate fx forex' },
   { href: '/specs', label: 'Tech Specs', group: 'Catalog', section: 'trading', cap: 'canEdit', inNav: true,
@@ -220,7 +226,9 @@ export const DESTINATIONS: Destination[] = [
   { href: '/items/specs', label: 'Spec Readiness', group: 'Catalog', section: 'trading', cap: 'canViewAnalytics', inNav: false,
     hint: 'What the system calculators can size from — fill the missing specs',
     keywords: 'specs specifications calculator ready designer sizing missing data quality bom' },
-  { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', section: 'buySide', inNav: true,
+  // Search-only since 2026-10-22: two competitor prices recorded in six months. It is linked
+  // from each item's detail on Selling Prices › Prices, where the price is being decided.
+  { href: '/purchasing?tab=market-intel', label: 'Market Intel', group: 'Catalog', section: 'buySide', inNav: false,
     hint: 'Competitor prices and what the market is charging',
     keywords: 'competitor market price intel benchmark rival' },
   // "Selling Prices" (owner, 2026-08-29). It was "Pricing Tiers" while the page
@@ -230,7 +238,7 @@ export const DESTINATIONS: Destination[] = [
   // every one of these rows. Bare "Pricing" was rejected on 2026-08-11 for
   // being the ladder only; that reason has gone, but the ambiguity has not.
   { href: '/pricing', label: 'Selling Prices', group: 'Catalog', section: null, cap: 'canManagePricing', inNav: true,
-    hint: 'Set prices per tier, margin floor audit, per-item overrides',
+    hint: 'Last cost and trend, margin per tier, lead time — and set the price',
     keywords: 'tiers markup discount floor margin pricing tier set pricing sell price harga jual selling price bulk' },
   // The buy-side AI assistant — answers questions over suppliers, costs, POs
   // and quotes. Search-only: it has no menu tile today, so Spotlight is how it

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-22** · last change: *Selling Prices › Prices: cost trend, margin per tier, lead time on one row* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-23** · last change: *Selling Prices phase 2: three tabs, tiers/profiles in Settings, menu trims* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,27 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-22 (latest) — Selling Prices › Prices: cost, margin per tier, lead time on one row
+### 2026-10-23 (latest) — Selling Prices phase 2: three tabs, setup in Settings, menu trims
+
+Owner: "go ahead with phase 2".
+- /pricing has three tabs: Prices (default) · Bulk edit (the old Set
+  Pricing grid, unchanged) · Price history. Floor Audit and Overrides are
+  gone as tabs: Prices gained the "Below floor" filter (the audit's own
+  violations — landed cost, or quote, all tiers; `?filter=floor` opens it)
+  with a red bar (count, Rp at stake, provisional/QUOTE caveat, two-click
+  "Raise all to the floor" → bulkRaise) and a "Pinned prices" filter; the
+  item detail has per-tier "Under the X% floor: raise to Y" (raiseToFloor)
+  and "Unpin" (clearOverride). Quote-based costs carry a QUOTE badge in the
+  row and card. lib/costBasis.test.ts now reads page + PricesTab together.
+- Tiers + Margin Profiles moved (code moved, not rewritten) to
+  `components/ui/PricingSetup.tsx`, rendered under Settings › Pricing. Note:
+  Settings is owner-only, so sell_admin can no longer edit tiers/profiles.
+- Menu: Profitability, Item Hub list and Market Intel are inNav:false
+  (search-only); lib/access.test.ts EXPECTED updated on purpose.
+- ESLint baseline is now **412** (dead code from the removed tabs took 3
+  warnings with it). Keep it at or under 412.
+
+### 2026-10-22 — Selling Prices › Prices: cost, margin per tier, lead time on one row
 
 Owner: Item Hub, Selling Prices and Profitability overlap; what management
 monitors is (1) cost history — up or down, last price, when; (2) at this

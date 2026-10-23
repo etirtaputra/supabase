@@ -18,7 +18,7 @@
  * the tier system itself. Margin data is internal-only, never client-facing.
  */
 'use client';
-import { Fragment, useState, useEffect, useMemo, useCallback } from 'react';
+import { Fragment, Suspense, useState, useEffect, useMemo, useCallback } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllComponents, selectAll } from '@/lib/fetchAllRows';
 import { useAuth } from '@/hooks/useAuth';
@@ -34,8 +34,7 @@ import { issuesFor, matchesIssues, matchesScope, marginPct, belowFloor,
          compareCells, suggestRange, ISSUE_LABEL, SCOPE_LABEL,
          type PriceIssue, type PriceScope, type SortDir } from '@/lib/priceGrid';
 import {
-  fetchMarginProfiles, saveMarginProfile, createMarginProfile, deleteMarginProfile,
-  rangeError, byId as marginById, bandOf, assignProfile, type MarginProfile,
+  fetchMarginProfiles, byId as marginById, bandOf, assignProfile, type MarginProfile,
 } from '@/lib/marginProfiles';
 import { fmtDay, fmtInt, fmtMoneyCell, fmtRupiah, moneyUnit } from '@/lib/formatters';
 import { formatCategory } from '@/lib/formatCategory';
@@ -43,10 +42,11 @@ import { useSettings } from '@/hooks/useSettings';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { computeTUCMap, getComponentCost, fxFromHistory } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
-import { resolveCost, isMeasured, BASIS_LABEL, BASIS_NOTE, BASIS_TAG, NO_COST, type ResolvedCost } from '@/lib/costBasis';
+import { resolveCost, BASIS_NOTE, BASIS_TAG, type ResolvedCost } from '@/lib/costBasis';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import PricesTab from '@/components/ui/PricesTab';
+import PricesTab, { type FloorBreach } from '@/components/ui/PricesTab';
+import { useSearchParams } from 'next/navigation';
 import { poTimelines, productLeadTimes, type LtPo, type LtQuote, type LtCost, type LtGrn, type ProductLead } from '@/lib/supplierLeadTimes';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 
@@ -89,7 +89,7 @@ const minPriceFor = (cost: number, floorPct: number): number | null => {
   return roundUpToStep(cost / (1 - floorPct / 100));
 };
 
-type Tab = 'prices' | 'set' | 'tiers' | 'audit' | 'overrides' | 'profiles' | 'history';
+type Tab = 'prices' | 'set' | 'history';
 
 interface Violation {
   comp: Comp; tier: Tier; price: number; cost: number; gp: number;
@@ -108,9 +108,18 @@ interface Violation {
   provisional: boolean;
 }
 
-export default function PricingPage() {
+/** The page reads ?filter= from the URL, which Next.js only allows inside a Suspense boundary. */
+export default function PricingPageShell() {
+  return <Suspense fallback={null}><PricingPage /></Suspense>;
+}
+
+function PricingPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
+  const { t } = useT();
+  // /pricing?filter=floor — the tier cards in Settings › Pricing link here.
+  const searchParams = useSearchParams();
+  const initialFilter = searchParams.get('filter') ?? undefined;
   const { user, profile, loading: authLoading } = useAuth();
   const canManage = !!profile && ROLE_PERMISSIONS[profile.role].canManagePricing;
   // The house rounding step (Settings › Pricing). Read through the hook rather
@@ -122,7 +131,6 @@ export default function PricingPage() {
   const [overrides, setOverrides] = useState<Override[]>([]);
   const [comps, setComps] = useState<Comp[]>([]);
   const [bals, setBals] = useState<Map<string, Bal>>(new Map());
-  const [custTierCounts, setCustTierCounts] = useState<Map<string, number>>(new Map());
   const [priceLog, setPriceLog] = useState<Map<string, PriceLog[]>>(new Map());
   const [allLog, setAllLog] = useState<PriceLog[]>([]);
   const logCount = allLog.length;
@@ -134,23 +142,11 @@ export default function PricingPage() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [grns, setGrns] = useState<LtGrn[]>([]);
   const [marginProfiles, setMarginProfiles] = useState<MarginProfile[]>([]);
-  // How many items sit on each profile, and how many on none — the number that
-  // tells the owner whether the classification is actually finished.
-  const [profileCounts, setProfileCounts] = useState<Map<string, number>>(new Map());
-  /** Reads, and hands back the state update — see `fetchAll` below for why. */
+  /** Reads, and hands back the state update — see `fetchAll` below for why. (The per-profile
+   *  tally moved to Settings › Pricing with the profiles themselves.) */
   const loadMarginProfiles = useCallback(async (): Promise<() => void> => {
-    const [profiles, tally] = await Promise.all([
-      fetchMarginProfiles(supabase),
-      // Archived items are excluded here too, or the tally counts rows the
-      // list below will not show and "how many are unclassified" stops adding up.
-      selectAll((f, t) => supabase.from('3.0_components').select('margin_profile_id').is('archived_at', null).order('component_id').range(f, t)),
-    ]);
-    const counts = new Map<string, number>();
-    for (const r of ((tally.data ?? []) as { margin_profile_id: string | null }[])) {
-      const k = r.margin_profile_id ?? 'none';
-      counts.set(k, (counts.get(k) ?? 0) + 1);
-    }
-    return () => { setMarginProfiles(profiles); setProfileCounts(counts); };
+    const profiles = await fetchMarginProfiles(supabase);
+    return () => { setMarginProfiles(profiles); };
   }, []);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let live = true;
@@ -186,7 +182,7 @@ export default function PricingPage() {
    * `useState(true)` — for the same reason.
    */
   const fetchAll = useCallback(async (): Promise<() => void> => {
-    const [tierRes, ovRes, allComps, balRes, custRes, logRes, rcRes, grnRes] = await Promise.all([
+    const [tierRes, ovRes, allComps, balRes, logRes, rcRes, grnRes] = await Promise.all([
       supabase.from('21.0_price_tiers').select('*').order('sort_order'),
       supabase.from('21.1_item_tier_prices').select('price_id, component_id, tier_id, override_price_idr, override_discount_pct, updated_at, updated_by_email'),
       // ARCHIVED ITEMS ARE NOT PRICED (owner, 2026-09-09). A retired item has
@@ -197,7 +193,6 @@ export default function PricingPage() {
       fetchAllComponents<Comp>(supabase, 'component_id, supplier_model, internal_description, category, unit, selling_price_idr, margin_profile_id, norm_value',
         { activeOnly: true }),
       supabase.from('30.1_stock_balances').select('component_id, qty_on_hand, avg_cost_idr'),
-      supabase.from('20.0_customers').select('customer_id, tier'),
       // Newest first; capped because this only feeds a per-row popover, and the
       // table grows one row per price change forever.
       supabase.from('21.3_item_price_history')
@@ -223,11 +218,6 @@ export default function PricingPage() {
         avg_cost_idr: (Number(b.qty_on_hand) || 0) > (Number(prev.qty_on_hand) || 0) ? b.avg_cost_idr : prev.avg_cost_idr,
       });
     }
-    const cc = new Map<string, number>();
-    for (const c of (custRes.data as { tier: string | null }[]) ?? []) {
-      const t = (c.tier ?? '').trim();
-      if (t) cc.set(t, (cc.get(t) ?? 0) + 1);
-    }
     // Index the log by item once, so a row's popover is a map lookup.
     const lm = new Map<string, PriceLog[]>();
     for (const l of (logRes.data as PriceLog[]) ?? []) {
@@ -243,7 +233,6 @@ export default function PricingPage() {
       setOverrides((ovRes.data as Override[]) ?? []);
       setComps(allComps);
       setBals(bm);
-      setCustTierCounts(cc);
       setLoading(false);
     };
   }, []);
@@ -384,93 +373,24 @@ export default function PricingPage() {
     return out.sort((a, b) => (b.leakage - a.leakage) || (a.gp - b.gp));
   }, [comps, activeSorted, bals, basisOf, chainFor, ovByKey]);
 
-  const itemsNoCost = useMemo(
-    () => comps.filter((c) => costOf(c.component_id) == null && (Number(c.selling_price_idr) || 0) > 0).length,
-    [comps, costOf]);
-  /** Priced items whose margin rests on a quote — the audit's own caveat. */
-  const itemsQuotedCost = useMemo(
-    () => comps.filter((c) => basisOf(c.component_id).provisional && (Number(c.selling_price_idr) || 0) > 0).length,
-    [comps, basisOf]);
-  const provisionalViolations = useMemo(() => violations.filter((v) => v.provisional).length, [violations]);
   const totalLeakage = useMemo(() => violations.reduce((s, v) => s + v.leakage, 0), [violations]);
-  const violationsByTier = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const v of violations) m.set(v.tier.tier_id, (m.get(v.tier.tier_id) ?? 0) + 1);
+  // Prices tab: the Floor Audit and the Overrides list, per item (2026-10-22 — the tabs became filters).
+  const floorByComp = useMemo(() => {
+    const m = new Map<string, FloorBreach[]>();
+    for (const v of violations) {
+      const e: FloorBreach = { componentId: v.comp.component_id, tierId: v.tier.tier_id, tierName: v.tier.name, minPrice: v.minPrice, leakage: v.leakage, provisional: v.provisional };
+      (m.get(e.componentId) ?? m.set(e.componentId, []).get(e.componentId)!).push(e);
+    }
     return m;
   }, [violations]);
-  const overridesByTier = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const o of overrides) m.set(o.tier_id, (m.get(o.tier_id) ?? 0) + 1);
+  const pinnedByComp = useMemo(() => {
+    const m = new Map<string, { tierId: string; priceId: string }[]>();
+    for (const o of overrides) {
+      if (!(Number(o.override_price_idr) > 0)) continue;
+      (m.get(o.component_id) ?? m.set(o.component_id, []).get(o.component_id)!).push({ tierId: o.tier_id, priceId: o.price_id });
+    }
     return m;
   }, [overrides]);
-
-  // ── Tier writes ────────────────────────────────────────────────────────────
-  const [savingTier, setSavingTier] = useState<string | null>(null);
-
-  async function saveTier(t: Tier, patch: Partial<Tier>) {
-    setSavingTier(t.tier_id);
-    const payload = {
-      tier_code: String(patch.tier_code ?? t.tier_code).trim().toLowerCase().replace(/\s+/g, '_'),
-      name: String(patch.name ?? t.name).trim(),
-      default_discount_pct: Number(patch.default_discount_pct ?? t.default_discount_pct) || 0,
-      margin_floor_pct: Number(patch.margin_floor_pct ?? t.margin_floor_pct) || 0,
-      sort_order: Number(patch.sort_order ?? t.sort_order) || 0,
-      is_active: patch.is_active ?? t.is_active,
-    };
-    const oldCode = t.tier_code;
-    const { error } = await supabase.from('21.0_price_tiers').update(payload).eq('tier_id', t.tier_id);
-    setSavingTier(null);
-    if (error) { flash(`Failed: ${error.message}`); return; }
-    // A tier's code is its foreign key on customers — carry them along on rename.
-    if (payload.tier_code !== oldCode && oldCode) {
-      const { data: moved, error: custErr } = await supabase
-        .from('20.0_customers').update({ tier: payload.tier_code }).eq('tier', oldCode).select('customer_id');
-      if (custErr) flash(`Tier saved, but customers still carry "${oldCode}": ${custErr.message}`);
-      else if (moved && moved.length) flash(`Tier saved · ${moved.length} customer${moved.length !== 1 ? 's' : ''} moved to the new code`);
-      else flash('Tier saved');
-    } else {
-      flash('Tier saved');
-    }
-    refresh();
-  }
-
-  async function addTier(draft: { name: string; default_discount_pct: number; margin_floor_pct: number }) {
-    const code = draft.name.trim().toLowerCase().replace(/\s+/g, '_');
-    if (!code) { flash('Give the tier a name first'); return; }
-    const { error } = await supabase.from('21.0_price_tiers').insert({
-      tier_code: code, name: draft.name.trim(),
-      default_discount_pct: draft.default_discount_pct || 0,
-      margin_floor_pct: draft.margin_floor_pct || 0,
-      sort_order: (tiers.reduce((m, t) => Math.max(m, t.sort_order), 0) + 1),
-      is_active: true,
-    });
-    if (error) { flash(`Failed: ${error.message}`); return; }
-    flash('Tier added');
-    refresh();
-  }
-
-  async function moveTier(t: Tier, dir: -1 | 1) {
-    const ordered = [...tiers].sort((a, b) => a.sort_order - b.sort_order);
-    const i = ordered.findIndex((x) => x.tier_id === t.tier_id);
-    const j = i + dir;
-    if (j < 0 || j >= ordered.length) return;
-    const a = ordered[i], b = ordered[j];
-    // Swap slots (normalize to index+1 so legacy duplicate sort_orders untangle)
-    const [ra, rb] = await Promise.all([
-      supabase.from('21.0_price_tiers').update({ sort_order: j + 1 }).eq('tier_id', a.tier_id),
-      supabase.from('21.0_price_tiers').update({ sort_order: i + 1 }).eq('tier_id', b.tier_id),
-    ]);
-    if (ra.error || rb.error) { flash(`Failed: ${(ra.error ?? rb.error)!.message}`); return; }
-    refresh();
-  }
-
-  async function deleteTier(t: Tier) {
-    const { error } = await supabase.from('21.0_price_tiers').delete().eq('tier_id', t.tier_id);
-    if (error) { flash(`Failed: ${error.message}`); return; }
-    flash(`Tier "${t.name}" deleted`);
-    refresh();
-  }
-
   // ── Override writes ────────────────────────────────────────────────────────
   async function raiseToFloor(v: Violation) {
     if (v.minPrice == null) return;
@@ -573,42 +493,10 @@ export default function PricingPage() {
     if (ok) { refresh(); void refreshMarginProfiles(); }
   }, [supabase, refresh, refreshMarginProfiles, canManage]);
 
-  // ── Audit tab filters ──────────────────────────────────────────────────────
-  const [auditSearch, setAuditSearch] = useState('');
-  const [auditTier, setAuditTier] = useState('');
-  const filteredViolations = useMemo(() => {
-    const q = auditSearch.trim().toLowerCase();
-    return violations.filter((v) => {
-      if (auditTier && v.tier.tier_id !== auditTier) return false;
-      if (!q) return true;
-      return [descOf(v.comp), v.comp.category].filter(Boolean).join(' ').toLowerCase().includes(q);
-    });
-  }, [violations, auditSearch, auditTier]);
-
-  // ── Overrides tab ──────────────────────────────────────────────────────────
-  const [ovSearch, setOvSearch] = useState('');
-  const overrideRows = useMemo(() => {
-    const q = ovSearch.trim().toLowerCase();
-    return overrides
-      .map((o) => {
-        const comp = compById.get(o.component_id);
-        const tier = tierById.get(o.tier_id);
-        if (!comp || !tier) return null;
-        // Chain default = what this tier would cost if the override were cleared
-        const defPrice = chainFor(comp, o.tier_id).get(o.tier_id)?.price ?? null;
-        const effPrice = o.override_price_idr ?? null;
-        return { o, comp, tier, defPrice, effPrice };
-      })
-      .filter((r): r is NonNullable<typeof r> => !!r)
-      .filter((r) => !q || descOf(r.comp).toLowerCase().includes(q) || r.tier.name.toLowerCase().includes(q))
-      .sort((a, b) => (b.o.updated_at || '').localeCompare(a.o.updated_at || ''));
-  }, [overrides, compById, tierById, ovSearch, chainFor]);
-
   if (authLoading || !profile || !canManage) {
     return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
   }
 
-  const orderedTiers = [...tiers].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
@@ -640,8 +528,11 @@ export default function PricingPage() {
             {/* Tab bar — text-only underline, sell-side emerald */}
             {/* Seven tabs do not fit a phone: the row scrolls on its own rather than widening the page. */}
             <div className="flex items-center gap-5 border-b border-slate-800/80 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {([['prices', 'Prices'], ['set', 'Set Pricing'], ['tiers', 'Tiers'], ['audit', `Floor Audit${violations.length ? ` (${violations.length})` : ''}`], ['overrides', `Overrides${overrides.length ? ` (${overrides.length})` : ''}`], ['profiles', `Margin Profiles${marginProfiles.length ? ` (${marginProfiles.length})` : ''}`],
-                ['history', `Price History${logCount ? ` (${logCount})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
+              {/* Three tabs (owner, 2026-10-22): Prices does the daily work — below-floor and
+                  pinned prices are its filters now; Bulk edit is the all-tiers grid; tiers and
+                  margin profiles moved to Settings › Pricing. */}
+              {([['prices', t('Prices')], ['set', t('Bulk edit')],
+                ['history', `${t('Price history')}${logCount ? ` (${logCount})` : ''}`]] as [Tab, string][]).map(([k, label]) => (
                 <button key={k} onClick={() => setTab(k)}
                   className={`pb-2.5 -mb-px text-[13px] whitespace-nowrap flex-shrink-0 transition-colors border-b-2 ${tab === k ? 'border-emerald-400 text-white font-bold' : 'border-transparent text-slate-500 hover:text-slate-300 font-medium'}`}>
                   {label}
@@ -676,600 +567,26 @@ export default function PricingPage() {
                 showPoNumbers={!!profile && ROLE_PERMISSIONS[profile.role].buySide}
                 canSeeCompetitors={!!profile && ROLE_PERMISSIONS[profile.role].canViewCompetitorPrices && canOpenPath(ROLE_PERMISSIONS[profile.role], '/purchasing?tab=market-intel')}
                 canOpenItem={!!profile && canOpenPath(ROLE_PERMISSIONS[profile.role], '/items')}
-                roundStep={priceRoundingStep} />
+                roundStep={priceRoundingStep}
+                floor={floorByComp} pinned={pinnedByComp} initialFilter={initialFilter}
+                totalLeakage={totalLeakage} bulkBusy={bulkBusy}
+                onRaise={(v) => { const x = violations.find((y) => y.comp.component_id === v.componentId && y.tier.tier_id === v.tierId); if (x) void raiseToFloor(x); }}
+                onRaiseAll={() => void bulkRaise(violations)}
+                onUnpin={(priceId) => void clearOverride(priceId, t('Unpinned: the tier follows the net price again'))} />
             ) : tab === 'set' ? (
               <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf} basisOf={basisOf}
                 stockOf={stockOf}
                 profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits}
                 onAssignProfile={assignItemProfile} canManage={canManage}
                 roundStep={priceRoundingStep} priceLog={priceLog} />
-            ) : tab === 'tiers' ? (
-              <TiersTab tiers={orderedTiers} custTierCounts={custTierCounts} overridesByTier={overridesByTier}
-                violationsByTier={violationsByTier} saving={savingTier}
-                onSave={saveTier} onAdd={addTier} onMove={moveTier} onDelete={deleteTier} onGoAudit={(tid) => { setAuditTier(tid); setTab('audit'); }} />
-            ) : tab === 'audit' ? (
-              <AuditTab violations={filteredViolations} allCount={violations.length} totalLeakage={totalLeakage}
-                itemsNoCost={itemsNoCost} itemsQuotedCost={itemsQuotedCost} provisionalViolations={provisionalViolations}
-                tiers={orderedTiers.filter((t) => t.is_active)}
-                search={auditSearch} setSearch={setAuditSearch} tierFilter={auditTier} setTierFilter={setAuditTier}
-                bulkBusy={bulkBusy} onRaise={raiseToFloor} onClear={clearOverride} onBulkRaise={bulkRaise} />
-            ) : tab === 'history' ? (
-              <PriceHistoryTab log={allLog} compById={compById} tiers={tiers} />
-            ) : tab === 'profiles' ? (
-              <MarginProfilesTab profiles={marginProfiles} counts={profileCounts} onChanged={refreshMarginProfiles} notify={setToast} />
             ) : (
-              <OverridesTab rows={overrideRows} search={ovSearch} setSearch={setOvSearch} onClear={clearOverride} costOf={costOf} />
+              <PriceHistoryTab log={allLog} compById={compById} tiers={tiers} />
             )}
           </>
         )}
       </main>
 
       {toast && <div className="fixed bottom-6 right-6 z-[110] px-4 py-2.5 bg-slate-800 border border-slate-700 text-white text-sm font-semibold rounded-xl shadow-lg max-w-[90vw] truncate">{toast}</div>}
-    </div>
-  );
-}
-
-// ── Tiers tab ────────────────────────────────────────────────────────────────
-function TiersTab({ tiers, custTierCounts, overridesByTier, violationsByTier, saving, onSave, onAdd, onMove, onDelete, onGoAudit }: {
-  tiers: Tier[];
-  custTierCounts: Map<string, number>;
-  overridesByTier: Map<string, number>;
-  violationsByTier: Map<string, number>;
-  saving: string | null;
-  onSave: (t: Tier, patch: Partial<Tier>) => void;
-  onAdd: (draft: { name: string; default_discount_pct: number; margin_floor_pct: number }) => void;
-  onMove: (t: Tier, dir: -1 | 1) => void;
-  onDelete: (t: Tier) => void;
-  onGoAudit: (tierId: string) => void;
-}) {
-  const { t, tf } = useT();
-  const { defaultMarginFloorPct: defaultFloor, defaultTierStepPct } = useSettings();
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState({ name: '', disc: '', floor: '' });
-  // A new tier starts at the house markup step + margin floor (Settings › Pricing)
-  const openAdd = () => {
-    setDraft({ name: '', disc: defaultTierStepPct > 0 ? String(defaultTierStepPct) : '', floor: String(defaultFloor) });
-    setAdding(true);
-  };
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-
-  // A worked example makes the chain self-explanatory: what a Rp 100,000 net
-  // price becomes at every tier, with the actual margin after Rp-1,000 rounding.
-  const activeOrdered = useMemo(() => tiers.filter((t) => t.is_active), [tiers]);
-  const example = useMemo(() => computeTierChain(100_000, activeOrdered), [activeOrdered]);
-
-  return (
-    <div className="space-y-4">
-      <p className="text-[11px] text-slate-600 max-w-3xl">
-        Markup chain: the price entered on an item IS the first tier — the <span className="text-slate-400">net price</span>. Each tier above it
-        adds its <span className="text-slate-400">markup %</span> on the tier before it (price = previous ÷ (1 − markup%)), rounded up to the
-        nearest Rp 1,000 — so the actual margin lands slightly above the setting. Per-item overrides pin a tier and the tiers above chain from the
-        pinned price. The <span className="text-slate-400">margin floor</span> is the minimum GP vs landed cost — prices under it show up in the
-        Floor Audit. Customers pick a tier on their profile; the sales editor auto-fills that tier’s prices.
-      </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {tiers.map((tier, i) => {
-          const customers = custTierCounts.get(tier.tier_code) ?? 0;
-          const ovs = overridesByTier.get(tier.tier_id) ?? 0;
-          const viols = violationsByTier.get(tier.tier_id) ?? 0;
-          const activeIdx = activeOrdered.findIndex((x) => x.tier_id === tier.tier_id);
-          const isNetTier = activeIdx === 0;
-          const prevTier = activeIdx > 0 ? activeOrdered[activeIdx - 1] : null;
-          const ex = activeIdx >= 0 ? example.get(tier.tier_id) : undefined;
-          return (
-            <div key={tier.tier_id} className={`bg-slate-900/40 border rounded-2xl p-4 space-y-3 transition-colors ${tier.is_active ? 'border-slate-800/80' : 'border-slate-800/40 opacity-60'}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <div className="flex flex-col -my-1">
-                    <button onClick={() => onMove(tier, -1)} disabled={i === 0} className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move up">▲</button>
-                    <button onClick={() => onMove(tier, 1)} disabled={i === tiers.length - 1} className="text-slate-600 hover:text-white disabled:opacity-20 leading-none text-[10px] px-1 py-0.5 transition-colors" title="Move down">▼</button>
-                  </div>
-                  {/* No NET badge here: the Price basis field below already
-                      says "Net — as entered per item", and a badge floating
-                      after a fixed-width name input reads as detached from the
-                      title it is meant to qualify. */}
-                  <input defaultValue={tier.name} key={`name-${tier.tier_id}-${tier.name}`}
-                    onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== tier.name) onSave(tier, { name: v }); }}
-                    className="bg-transparent text-white font-bold text-base outline-none border-b border-transparent focus:border-emerald-500/50 min-w-0 w-36 transition-colors" />
-                </div>
-                <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer select-none flex-shrink-0">
-                  <input type="checkbox" checked={tier.is_active} onChange={(e) => onSave(tier, { is_active: e.target.checked })} className="accent-emerald-500 w-3.5 h-3.5" />
-                  Active
-                </label>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <Field label="Code" title="Stored on customer profiles — renaming migrates them">
-                  <input defaultValue={tier.tier_code} key={`code-${tier.tier_id}-${tier.tier_code}`}
-                    onBlur={(e) => { const v = e.target.value.trim().toLowerCase().replace(/\s+/g, '_'); if (v && v !== tier.tier_code) onSave(tier, { tier_code: v }); }}
-                    className={tInp} />
-                </Field>
-                {isNetTier ? (
-                  <Field label="Price basis" title="This is the NET tier — its price is exactly the net price entered on each item; no markup applies">
-                    <p className="px-2 py-1.5 text-xs text-emerald-300/90 font-semibold">Net — as entered per item</p>
-                  </Field>
-                ) : (
-                  <Field label={`Markup % on ${prevTier?.name ?? 'prev tier'}`}
-                    title={`This tier's price = ${prevTier?.name ?? 'previous tier'} ÷ (1 − markup%), rounded up to Rp 1,000`}>
-                    <input defaultValue={String(tier.default_discount_pct)} key={`disc-${tier.tier_id}-${tier.default_discount_pct}`} inputMode="decimal"
-                      onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== tier.default_discount_pct) onSave(tier, { default_discount_pct: v }); }}
-                      className={`${tInp} text-right tabular-nums`} />
-                  </Field>
-                )}
-                <Field label="Floor GP %" title="Minimum margin vs landed cost — below it = Floor Audit">
-                  <input defaultValue={String(tier.margin_floor_pct)} key={`floor-${tier.tier_id}-${tier.margin_floor_pct}`} inputMode="decimal"
-                    onBlur={(e) => { const v = num(e.target.value); if (v != null && v !== tier.margin_floor_pct) onSave(tier, { margin_floor_pct: v }); }}
-                    className={`${tInp} text-right tabular-nums`} />
-                </Field>
-              </div>
-
-              {/* Worked example so the % is never abstract */}
-              {ex?.price != null && (
-                <p className="text-[10px] text-slate-600">
-                  {isNetTier
-                    ? 'e.g. item entered at Rp 100,000 → this tier sells at Rp 100,000.'
-                    : <>e.g. net Rp 100,000 → <span className="text-slate-400 tabular-nums">{fmtRupiah(ex.price)}</span> here{ex.actualMarginPct != null ? <> · actual +{ex.actualMarginPct.toFixed(1)}% on {prevTier?.name} after rounding</> : null}</>}
-                </p>
-              )}
-
-              <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
-                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 tabular-nums">{customers} customer{customers !== 1 ? 's' : ''}</span>
-                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 tabular-nums">{ovs} override{ovs !== 1 ? 's' : ''}</span>
-                {viols > 0 ? (
-                  <button onClick={() => onGoAudit(tier.tier_id)} className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 tabular-nums hover:bg-red-500/20 transition-colors" title="Open in Floor Audit">
-                    ⚠ {tf('{n} below floor', { n: viols })}
-                  </button>
-                ) : (
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400/80">floor clear</span>
-                )}
-                <span className="flex-1" />
-                {confirmDelete === tier.tier_id ? (
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-red-300">{ovs > 0 ? `Deletes ${ovs} override${ovs !== 1 ? 's' : ''}.` : ''}{customers > 0 ? ` ${customers} customer${customers !== 1 ? 's' : ''} keep the code (reassign them).` : ''} Sure?</span>
-                    <button onClick={() => { setConfirmDelete(null); onDelete(tier); }} className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold transition-colors">{t('Delete')}</button>
-                    <button onClick={() => setConfirmDelete(null)} className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 hover:text-white transition-colors">{t('Cancel')}</button>
-                  </span>
-                ) : (
-                  <button onClick={() => setConfirmDelete(tier.tier_id)} className="text-slate-600 hover:text-red-400 transition-colors" title="Delete tier">{t('Delete')}</button>
-                )}
-              </div>
-              {saving === tier.tier_id && <p className="text-[10px] text-slate-600">Saving…</p>}
-            </div>
-          );
-        })}
-
-        {/* Add tier */}
-        <div className="border border-dashed border-slate-800 rounded-2xl p-4 flex flex-col justify-center min-h-[150px]">
-          {adding ? (
-            <div className="space-y-2">
-              <input autoFocus value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder="Tier name (e.g. Project)" className={tInp} />
-              <div className="grid grid-cols-2 gap-2">
-                <input value={draft.disc} onChange={(e) => setDraft((d) => ({ ...d, disc: e.target.value }))} inputMode="decimal" placeholder="% off list" className={`${tInp} text-right`} />
-                <input value={draft.floor} onChange={(e) => setDraft((d) => ({ ...d, floor: e.target.value }))} inputMode="decimal" placeholder="Floor GP %" className={`${tInp} text-right`} />
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => { onAdd({ name: draft.name, default_discount_pct: num(draft.disc) ?? 0, margin_floor_pct: num(draft.floor) ?? defaultFloor }); setDraft({ name: '', disc: '', floor: '' }); setAdding(false); }}
-                  className="flex-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors">{t('Add tier')}</button>
-                <button onClick={() => setAdding(false)} className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white border border-slate-700 transition-colors">{t('Cancel')}</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setAdding(true)} className="text-sm text-emerald-400 hover:text-emerald-300 font-semibold transition-colors">+ {t('Add tier')}</button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, title, children }: { label: string; title?: string; children: React.ReactNode }) {
-  return (
-    <div title={title}>
-      <label className="block text-[9px] font-medium uppercase tracking-wider text-slate-600 mb-0.5">{label}</label>
-      {children}
-    </div>
-  );
-}
-const tInp = 'w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-800 focus:border-emerald-500/50 outline-none text-white text-xs placeholder:text-slate-600 transition-colors';
-
-// ── Floor Audit tab ──────────────────────────────────────────────────────────
-function AuditTab({ violations, allCount, totalLeakage, itemsNoCost, itemsQuotedCost, provisionalViolations, tiers, search, setSearch, tierFilter, setTierFilter, bulkBusy, onRaise, onClear, onBulkRaise }: {
-  violations: Violation[];
-  allCount: number;
-  totalLeakage: number;
-  itemsNoCost: number;
-  itemsQuotedCost: number;
-  provisionalViolations: number;
-  tiers: Tier[];
-  search: string; setSearch: (v: string) => void;
-  tierFilter: string; setTierFilter: (v: string) => void;
-  bulkBusy: boolean;
-  onRaise: (v: Violation) => void;
-  onClear: (priceId: string, label?: string) => void;
-  onBulkRaise: (list: Violation[]) => void;
-}) {
-  const { t, tf } = useT();
-  const [confirmBulk, setConfirmBulk] = useState(false);
-  const fixable = violations.filter((v) => v.minPrice != null);
-
-  return (
-    <div className="space-y-4">
-      {/* Economics up top: what's at stake if this stock sells at current prices */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-        <Stat label="Prices below floor" value={String(allCount)} tone={allCount ? 'red' : 'green'}
-          hint={provisionalViolations ? `${provisionalViolations} of these are judged on a supplier quote — see below` : undefined} />
-        <Stat label="Margin at risk (on-hand)" value={totalLeakage ? fmtRupiah(totalLeakage) : 'Rp 0'} tone={totalLeakage ? 'red' : 'green'}
-          hint="If current on-hand stock sells at these prices instead of the floor minimum" />
-        <Stat label="On a supplier quote" value={String(itemsQuotedCost)} tone={itemsQuotedCost ? 'amber' : 'neutral'}
-          hint="Priced items with nothing landed yet, so the margin is measured against a quote — which excludes freight and duty and therefore flatters it" />
-        <Stat label="Priced items with no cost at all" value={String(itemsNoCost)} tone={itemsNoCost ? 'amber' : 'green'}
-          hint="No goods received, no settled PO and no supplier quote — nothing to audit them against" />
-      </div>
-
-      {/* The audit now reaches items nothing has landed for, which is the point
-          — it used to skip 84% of the catalogue. But a breach measured against
-          a quote is UNPROVEN, and unproven in a known direction: a quote is
-          EXW/FOB, so the real cost only goes UP once freight and duty are in,
-          and a price under the floor on a quote basis is if anything further
-          under it than this says. Worth acting on, not worth reporting as
-          settled. */}
-      {provisionalViolations > 0 && (
-        <p className="text-[12px] text-amber-300/80 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2">
-          <span className="font-semibold">{provisionalViolations}</span> of these {provisionalViolations === 1 ? 'is' : 'are'} measured against a
-          supplier quote rather than a landed cost — marked <span className="font-mono text-[10px] px-1 py-px rounded bg-amber-500/15">QUOTE</span> in the
-          list. A quote excludes freight, duty and fees, so the true margin is
-          worse than shown, not better. Treat them as leads, and re-check once the goods land.
-        </p>
-      )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px]">
-          <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item or category…"
-            className="w-full pl-10 pr-4 h-10 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
-        </div>
-        <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)}
-          className="h-10 px-3 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-slate-300 text-xs transition-colors cursor-pointer">
-          <option value="">All tiers</option>
-          {tiers.map((t) => <option key={t.tier_id} value={t.tier_id}>{t.name}</option>)}
-        </select>
-        {fixable.length > 0 && (
-          confirmBulk ? (
-            <span className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400">Write {fixable.length} override{fixable.length !== 1 ? 's' : ''} at the floor minimum?</span>
-              <button onClick={() => { setConfirmBulk(false); onBulkRaise(fixable); }} disabled={bulkBusy}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors disabled:opacity-50">{bulkBusy ? t('Raising…') : t('Confirm')}</button>
-              <button onClick={() => setConfirmBulk(false)} className="px-2 py-1.5 text-slate-500 hover:text-white transition-colors">{t('Cancel')}</button>
-            </span>
-          ) : (
-            <button onClick={() => setConfirmBulk(true)} disabled={bulkBusy}
-              className="px-3 py-2 rounded-xl bg-emerald-600/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/25 text-xs font-bold transition-colors disabled:opacity-50">
-              ↑ {tierFilter || search ? tf('Raise these {n} to floor', { n: fixable.length }) : tf('Raise all {n} to floor', { n: fixable.length })}
-            </button>
-          )
-        )}
-      </div>
-
-      {violations.length === 0 ? (
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-14 text-center">
-          <p className="text-emerald-400/90 font-semibold">✓ Every audited price clears its tier’s margin floor.</p>
-          <p className="text-[11px] text-slate-600 mt-1.5">Audited = items with a landed cost (received stock) × active tiers. New receipts can shift landed cost — check back after receiving.</p>
-        </div>
-      ) : (
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
-          <table className="w-full min-w-[880px]">
-            <thead>
-              <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <th className="text-left font-semibold px-4 py-2.5">{t('Item')}</th>
-                <th className="text-left font-semibold px-3 py-2.5">{t('Tier')}</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('Price')} ({moneyUnit()})</th>
-                <th className="text-right font-semibold px-3 py-2.5" title="Landed cost where goods have arrived; a supplier quote where nothing has yet">{t('Cost basis')} ({moneyUnit()})</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('GP now')}</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('Floor')}</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('Floor min')} ({moneyUnit()})</th>
-                <th className="text-right font-semibold px-3 py-2.5" title="(floor min − price) × on-hand qty">{t('At risk')} ({moneyUnit()})</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('Fix')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {violations.map((v) => (
-                <tr key={`${v.comp.component_id}:${v.tier.tier_id}`} className="hover:bg-slate-800/20 transition-colors">
-                  <td className="px-4 py-2">
-                    <p className="text-sm text-slate-100 truncate max-w-[280px]">{descOf(v.comp)}</p>
-                    <p className="text-[10px] text-slate-600">{v.onHand > 0 ? `${fmtInt(v.onHand)}${v.comp.unit ? ` ${v.comp.unit}` : ''} on hand` : 'no stock on hand'}</p>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">
-                    {v.tier.name}
-                    {v.ov && <span className="block text-[9px] text-emerald-500/70">override</span>}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-sm text-slate-200 whitespace-nowrap">{fmtMoneyCell(v.price)}</td>
-                  {/* A breach measured on a quote is marked where the number
-                      is, not only in the banner above — by the time somebody is
-                      reading a row they have stopped reading the header. */}
-                  <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap" title={v.provisional ? BASIS_NOTE.quote : BASIS_NOTE.landed}>
-                    <span className={v.provisional ? 'text-amber-300/90' : 'text-slate-400'}>{fmtMoneyCell(v.cost)}</span>
-                    {v.provisional && <span className="ml-1 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide">QUOTE</span>}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-sm font-semibold text-red-400 whitespace-nowrap">{v.gp.toFixed(1)}%</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500">{v.tier.margin_floor_pct}%</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs text-emerald-300/90 whitespace-nowrap">{v.minPrice != null ? fmtMoneyCell(v.minPrice) : '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap">
-                    {v.leakage > 0 ? <span className="text-red-300">{fmtMoneyCell(v.leakage)}</span> : <span className="text-slate-700">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <span className="inline-flex gap-1.5">
-                      {v.defaultCompliant && v.ov && (
-                        <button onClick={() => onClear(v.ov!.price_id, `${descOf(v.comp)} · ${v.tier.name} — override cleared, tier default is compliant`)}
-                          title="The override is what breaks the floor — clearing it returns to the compliant tier default"
-                          className="px-2 py-1 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 text-[11px] transition-colors">{t('Clear override')}</button>
-                      )}
-                      {v.minPrice != null && (
-                        <button onClick={() => onRaise(v)}
-                          title={`Write a ${v.tier.name} override at ${fmtRupiah(v.minPrice)}`}
-                          className="px-2 py-1 rounded-lg bg-emerald-600/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/25 text-[11px] font-semibold transition-colors">↑ {fmtMoneyCell(v.minPrice)}</button>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="text-[10px] text-slate-600">
-        GP = (price − landed cost) ÷ price, landed cost = moving average from received stock. “Raise to floor” writes a per-item override at the compliant
-        minimum (rounded up to Rp 1,000); tiers above the raised one re-chain from the new price automatically. Internal only — never shown to customers.
-      </p>
-    </div>
-  );
-}
-
-function Stat({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone: 'red' | 'green' | 'amber' | 'neutral' }) {
-  const toneCls = tone === 'red' ? 'text-red-300' : tone === 'green' ? 'text-emerald-300' : tone === 'amber' ? 'text-amber-300' : 'text-slate-200';
-  return (
-    <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-3" title={hint}>
-      <p className="text-[10px] uppercase tracking-wider text-slate-600">{label}</p>
-      <p className={`text-lg font-bold tabular-nums mt-0.5 ${toneCls}`}>{value}</p>
-    </div>
-  );
-}
-
-// ── Overrides tab ────────────────────────────────────────────────────────────
-function OverridesTab({ rows, search, setSearch, onClear, costOf }: {
-  rows: { o: Override; comp: Comp; tier: Tier; defPrice: number | null; effPrice: number | null }[];
-  search: string; setSearch: (v: string) => void;
-  onClear: (priceId: string) => void;
-  costOf: (cid: string) => number | null;
-}) {
-  const { t } = useT();
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px]">
-          <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search item or tier…"
-            className="w-full pl-10 pr-4 h-10 rounded-xl bg-slate-900/80 border border-slate-700/80 focus:border-emerald-500/60 outline-none text-white text-base sm:text-sm placeholder:text-[13px] sm:placeholder:text-sm placeholder:text-slate-500 transition-colors" />
-        </div>
-        <span className="text-xs text-slate-600 tabular-nums">{rows.length} override{rows.length !== 1 ? 's' : ''}</span>
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl px-4 py-14 text-center">
-          <p className="text-slate-400">No per-item overrides{search ? ' match' : ' yet'}.</p>
-          <p className="text-[11px] text-slate-600 mt-1.5">
-            Overrides pin an item’s price for one tier, replacing “list − tier %”. Create them in the Catalog’s <span className="text-slate-400">Pricing Mode</span>, from an item’s Tiers popover, or via “Raise to floor” in the Floor Audit.
-          </p>
-        </div>
-      ) : (
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl overflow-x-auto">
-          <table className="w-full min-w-[780px]">
-            <thead>
-              <tr className="border-b border-slate-800 text-[10px] uppercase tracking-widest text-slate-500">
-                <th className="text-left font-semibold px-4 py-2.5">{t('Item')}</th>
-                <th className="text-left font-semibold px-3 py-2.5">{t('Tier')}</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('Override')} ({moneyUnit()})</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('Tier default')} ({moneyUnit()})</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('vs default')}</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('GP')}</th>
-                <th className="text-left font-semibold px-3 py-2.5">{t('Updated')}</th>
-                <th className="text-right font-semibold px-3 py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {rows.map(({ o, comp, tier, defPrice, effPrice }) => {
-                const delta = effPrice != null && defPrice != null && defPrice > 0 ? ((effPrice - defPrice) / defPrice) * 100 : null;
-                const cost = costOf(comp.component_id);
-                const gp = effPrice != null && effPrice > 0 && cost != null ? ((effPrice - cost) / effPrice) * 100 : null;
-                const belowFloor = gp != null && gp < (tier.margin_floor_pct || 0);
-                return (
-                  <tr key={o.price_id} className="hover:bg-slate-800/20 transition-colors">
-                    <td className="px-4 py-2"><p className="text-sm text-slate-100 truncate max-w-[300px]">{descOf(comp)}</p></td>
-                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{tier.name}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-sm text-emerald-300 font-semibold whitespace-nowrap">
-                      {o.override_price_idr != null ? fmtMoneyCell(o.override_price_idr) : o.override_discount_pct != null ? `−${o.override_discount_pct}%` : '—'}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-xs text-slate-500 whitespace-nowrap">{defPrice != null ? fmtMoneyCell(defPrice) : '—'}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap ${delta == null ? 'text-slate-700' : delta < 0 ? 'text-amber-300/90' : 'text-emerald-400/80'}`}>
-                      {delta == null ? '—' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`}
-                    </td>
-                    <td className={`px-3 py-2 text-right tabular-nums text-xs whitespace-nowrap ${gp == null ? 'text-slate-700' : belowFloor ? 'text-red-400 font-semibold' : 'text-slate-400'}`}>
-                      {gp == null ? '—' : `${gp.toFixed(1)}%${belowFloor ? ' ⚠' : ''}`}
-                    </td>
-                    <td className="px-3 py-2 text-[11px] text-slate-500 whitespace-nowrap">
-                      {fmtDay(o.updated_at)}{o.updated_by_email ? <span className="text-slate-700"> · {o.updated_by_email.split('@')[0]}</span> : ''}
-                    </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <button onClick={() => onClear(o.price_id)} title="Remove the override — back to list − tier %"
-                        className="px-2 py-1 rounded-lg border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 text-[11px] transition-colors">{t('Clear')}</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Margin Profiles — what each tier is SUPPOSED to earn.
- *
- * The targets live here and nowhere else: no screen in the app hardcodes
- * 10–15 or 20–25, so moving a band moves every judgement that depends on it
- * without a deploy. That was an explicit requirement.
- *
- * Built as a LIST over whatever rows exist, plus an Add — not two hardcoded
- * cards — because the owner expects to add a middle "Standard" tier later.
- */
-function MarginProfilesTab({ profiles, counts, onChanged, notify }: {
-  profiles: MarginProfile[];
-  counts: Map<string, number>;
-  onChanged: () => Promise<void> | void;
-  notify: (m: string) => void;
-}) {
-  const { t } = useT();
-  const supabase = createSupabaseClient();
-  const [draft, setDraft] = useState<Record<string, Partial<MarginProfile>>>({});
-  const [busy, setBusy] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-
-  const val = <K extends keyof MarginProfile>(p: MarginProfile, k: K): MarginProfile[K] =>
-    (draft[p.id]?.[k] ?? p[k]) as MarginProfile[K];
-  const dirty = (p: MarginProfile) => Object.keys(draft[p.id] ?? {}).length > 0;
-  const set = (id: string, k: keyof MarginProfile, v: unknown) =>
-    setDraft((d) => ({ ...d, [id]: { ...(d[id] ?? {}), [k]: v } }));
-
-  const save = async (p: MarginProfile) => {
-    const min = Number(val(p, 'margin_target_min'));
-    const max = Number(val(p, 'margin_target_max'));
-    const bad = rangeError(min, max);
-    if (bad) { notify(bad); return; }
-    setBusy(p.id);
-    const ok = await saveMarginProfile(supabase, p.id, {
-      label: String(val(p, 'label')).trim() || p.label,
-      margin_target_min: min, margin_target_max: max,
-      description: (val(p, 'description') as string | null) ?? null,
-    });
-    setBusy(null);
-    if (!ok) { notify('Could not save that profile.'); return; }
-    setDraft((d) => { const n = { ...d }; delete n[p.id]; return n; });
-    await onChanged();
-    notify(`${String(val(p, 'label'))} saved`);
-  };
-
-  const add = async () => {
-    setAdding(true);
-    const created = await createMarginProfile(supabase, {
-      code: `profile_${Date.now().toString(36)}`,
-      label: 'New profile', margin_target_min: 15, margin_target_max: 20,
-      description: null,
-    });
-    setAdding(false);
-    if (!created) { notify('Could not add a profile — owner or sell-side admin only.'); return; }
-    await onChanged();
-  };
-
-  const remove = async (p: MarginProfile) => {
-    setBusy(p.id);
-    const ok = await deleteMarginProfile(supabase, p.id);
-    setBusy(null);
-    setConfirmDelete(null);
-    if (!ok) { notify('Could not delete — items may still be on this profile.'); return; }
-    await onChanged();
-    notify(`${p.label} removed`);
-  };
-
-  const unclassified = counts.get('none') ?? 0;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <p className="text-[12px] text-slate-400 max-w-2xl leading-relaxed">
-          What each tier of item is expected to earn. These bands are the only place the targets
-          live — change one here and every screen that judges a margin follows, with no code change.
-        </p>
-        <button onClick={() => void add()} disabled={adding}
-          className="flex-shrink-0 px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-40 transition-colors">
-          {adding ? t('Adding…') : <>+ {t('Add profile')}</>}
-        </button>
-      </div>
-
-      {unclassified > 0 && (
-        <p className="text-[12px] text-amber-300/90 bg-amber-500/[0.07] border border-amber-500/20 rounded-xl px-3.5 py-2.5">
-          <span className="font-semibold tabular-nums">{fmtInt(unclassified)}</span> items have no margin profile yet.
-          They are shown as <span className="font-semibold">Unclassified</span> in the Item Editor — filter to them there
-          and set the tier in bulk.
-        </p>
-      )}
-
-      <div className="space-y-3">
-        {profiles.map((p) => (
-          <div key={p.id} className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
-            <div className="flex items-start gap-3 flex-wrap">
-              <div className="min-w-[200px] flex-1">
-                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Label</label>
-                <input value={String(val(p, 'label') ?? '')} onChange={(e) => set(p.id, 'label', e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm" />
-                <p className="text-[10px] text-slate-500 mt-1 font-mono">{p.code}</p>
-              </div>
-              <div className="w-[110px]">
-                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Target min %</label>
-                <input type="number" step="0.5" min="0" max="100"
-                  value={String(val(p, 'margin_target_min') ?? '')}
-                  onChange={(e) => set(p.id, 'margin_target_min', e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm tabular-nums" />
-              </div>
-              <div className="w-[110px]">
-                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Target max %</label>
-                <input type="number" step="0.5" min="0" max="100"
-                  value={String(val(p, 'margin_target_max') ?? '')}
-                  onChange={(e) => set(p.id, 'margin_target_max', e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-white text-sm tabular-nums" />
-              </div>
-              <div className="w-[120px]">
-                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Items</label>
-                <p className="px-2.5 py-1.5 text-sm text-slate-300 tabular-nums">{fmtInt(counts.get(p.id) ?? 0)}</p>
-              </div>
-            </div>
-            <div className="mt-3">
-              <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">Description</label>
-              <textarea rows={2} value={String(val(p, 'description') ?? '')}
-                onChange={(e) => set(p.id, 'description', e.target.value)}
-                placeholder="What kind of item belongs in this tier, and why"
-                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 focus:border-emerald-500/60 outline-none text-slate-300 text-xs leading-relaxed placeholder:text-slate-500 resize-y" />
-            </div>
-            <div className="flex items-center gap-2 mt-3">
-              <button onClick={() => void save(p)} disabled={!dirty(p) || busy === p.id}
-                className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-30 transition-colors">
-                {busy === p.id ? t('Saving…') : t('Save')}
-              </button>
-              {dirty(p) && (
-                <button onClick={() => setDraft((d) => { const n = { ...d }; delete n[p.id]; return n; })}
-                  className="text-[12px] font-semibold text-slate-400 hover:text-white transition-colors">{t('Cancel')}</button>
-              )}
-              <span className="ml-auto">
-                {confirmDelete === p.id ? (
-                  <span className="flex items-center gap-2">
-                    <span className="text-[11px] text-red-400">Remove {p.label}?</span>
-                    <button onClick={() => void remove(p)} className="text-[11px] font-semibold text-red-400 hover:text-red-300">{t('Remove')}</button>
-                    <button onClick={() => setConfirmDelete(null)} className="text-[11px] text-slate-400 hover:text-white">{t('Keep')}</button>
-                  </span>
-                ) : (
-                  <button onClick={() => setConfirmDelete(p.id)}
-                    className="text-[11px] text-slate-500 hover:text-red-400 transition-colors">{t('Remove')}</button>
-                )}
-              </span>
-            </div>
-          </div>
-        ))}
-        {profiles.length === 0 && (
-          <p className="text-[12px] text-slate-400 py-6 text-center">No margin profiles yet. Add one to start classifying items.</p>
-        )}
-      </div>
     </div>
   );
 }

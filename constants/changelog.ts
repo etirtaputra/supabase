@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-23T00:05:37Z",
+    title: "Harga Jual lebih ringkas: tiga tab, pengaturan tier pindah ke Pengaturan",
+    details: [
+      "Harga Jual kini hanya tiga tab: Harga, Ubah massal (dulu Set Pricing), dan Riwayat harga.",
+      "Audit batas pindah ke filter \"Di bawah batas\" pada tab Harga, lengkap dengan tombol \"Naikkan semua ke batas\". Di detail barang, tiap tier yang di bawah batas punya tombol naikkan, dan tier yang dipatok punya tombol lepas patokan.",
+      "Pengaturan tier dan profil margin pindah ke Pengaturan › Pricing.",
+      "Menu lebih ringkas: Profitability, Item Hub, dan Market Intel tidak lagi di menu, tetap bisa dicari lewat kotak pencarian.",
+    ],
+  },
+  {
     at: "2026-10-22T23:43:53Z",
     title: "Harga Jual: tab Harga, biaya, margin, dan waktu kirim dalam satu baris",
     details: [

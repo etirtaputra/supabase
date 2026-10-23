@@ -605,8 +605,8 @@ export const ID: Record<string, string> = {
     'Catat penawaran pemasok / PI — sendiri atau langsung menjadi PO',
   'Record supplier payments, bank fees and landed costs':
     'Catat pembayaran ke pemasok, biaya bank dan biaya sampai gudang',
-  'Set prices per tier, margin floor audit, per-item overrides':
-    'Atur harga per tier, audit batas bawah margin, penyesuaian per barang',
+  'Last cost and trend, margin per tier, lead time — and set the price':
+    'Biaya terakhir dan trennya, margin per tier, waktu kirim, lalu atur harganya',
   'Every PI → PO → payment as one deal':
     'Setiap PI → PO → pembayaran sebagai satu transaksi',
   'Which PO is at which stage — PI, PO, payments, docs, PIB':
@@ -1595,13 +1595,9 @@ export const ID: Record<string, string> = {
   // ── Money columns, 2026-09-28: the unit sits in the header, "Harga (Rp)" ──
   'Price': 'Harga',
   'Cost basis': 'Dasar biaya',
-  'GP now': 'Laba kotor kini',
   'Floor': 'Batas bawah',
-  'Floor min': 'Harga min.',
-  'At risk': 'Berisiko',
   'Override': 'Penyesuaian',
   'Tier default': 'Bawaan tier',
-  'vs default': 'vs bawaan',
   'GP': 'Laba kotor',
   'When': 'Waktu',
   'Was': 'Semula',
@@ -1709,7 +1705,6 @@ export const ID: Record<string, string> = {
   'Change': 'Ganti',
   'Change item': 'Ganti barang',
   'Change product': 'Ganti produk',
-  'Clear override': 'Kosongkan penyesuaian',
   'Create PO': 'Buat PO',
   'Create PO from this quote': 'Buat PO dari penawaran ini',
   'Cycles': 'Siklus',
@@ -1729,9 +1724,6 @@ export const ID: Record<string, string> = {
   'Mark as fully paid': 'Tandai lunas',
   'Mismatch': 'Tidak cocok',
   'POs': 'PO',
-  'Raise all {n} to floor': 'Naikkan semua {n} ke batas bawah',
-  'Raise these {n} to floor': 'Naikkan {n} ini ke batas bawah',
-  'Raising…': 'Menaikkan…',
   'Replaced by…': 'Digantikan oleh…',
   'Replaces a quote': 'Menggantikan penawaran',
   'Save all ({n})': 'Simpan semua ({n})',
@@ -1744,7 +1736,6 @@ export const ID: Record<string, string> = {
   'Undo all': 'Urungkan semua',
   'Unknown supplier': 'Pemasok tidak diketahui',
   'Yes, delete': 'Ya, hapus',
-  '{n} below floor': '{n} di bawah batas bawah',
   'Items say {value} — use': 'Menurut barang {value} — pakai',
   'Items: {value} — use': 'Dari barang: {value} — pakai',
   'Back to proposals': 'Kembali ke proposal',
@@ -2482,7 +2473,26 @@ export const ID: Record<string, string> = {
   'No change logged yet.': 'Belum ada perubahan tercatat.',
   'Competitor prices': 'Harga pesaing',
   'Full item page': 'Halaman barang lengkap',
-  'A pinned tier is now cheaper than the tier before it. Change it in Set Pricing.': 'Tier yang dipatok kini lebih murah dari tier sebelumnya. Ubah di tab Set Pricing.',
+  // Selling Prices phase 2: three tabs, floor and pins on Prices, setup in Settings (2026-10-22)
+  'Bulk edit': 'Ubah massal',
+  'Price history': 'Riwayat harga',
+  'Pinned prices ({n})': 'Harga dipatok ({n})',
+  '{n} tier prices sit under their floor.': '{n} harga tier berada di bawah batasnya.',
+  '{amount} at stake on stock in hand.': '{amount} dipertaruhkan pada stok yang ada.',
+  'Raise all to the floor': 'Naikkan semua ke batas',
+  'Raise {n} prices': 'Naikkan {n} harga',
+  'Under the {pct}% floor: raise to {price}': 'Di bawah batas {pct}%: naikkan ke {price}',
+  'The floor is checked against a supplier quote: nothing has landed yet.': 'Batas dicek terhadap penawaran pemasok: belum ada barang yang tiba.',
+  'The floor is checked against the landed cost of stock in hand.': 'Batas dicek terhadap biaya mendarat stok yang ada.',
+  'Unpin': 'Lepas patokan',
+  'Unpinned: the tier follows the net price again': 'Patokan dilepas: tier kembali mengikuti harga net',
+  'Price tiers': 'Tier harga',
+  'Prices below the floor': 'Harga di bawah batas',
+  'A supplier quote, not a landed cost: freight, duty and fees are not in it yet.': 'Penawaran pemasok, bukan biaya mendarat: ongkos kirim, bea, dan biaya lain belum termasuk.',
+  '{n} of them rest on a supplier quote (marked QUOTE), not a landed cost. A quote leaves out freight, duty and fees, so the true margin is worse than shown, not better.':
+    '{n} di antaranya memakai penawaran pemasok (bertanda QUOTE), bukan biaya mendarat. Penawaran belum termasuk ongkos kirim, bea, dan biaya lain, jadi margin sebenarnya lebih buruk dari yang tampil, bukan lebih baik.',
+  'A pinned tier is now cheaper than the tier before it: unpin it or raise it.': 'Tier yang dipatok kini lebih murah dari tier sebelumnya: lepas patokannya atau naikkan.',
+  '1 tier price sits under its floor.': '1 harga tier berada di bawah batasnya.',
   // Proposal lines WAITING on someone: price or technical (10.7_quote_item_flags, 2026-10-22)
   'Waiting on someone': 'Menunggu seseorang',
   'This line': 'Baris ini',

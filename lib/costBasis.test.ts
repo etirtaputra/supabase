@@ -152,7 +152,10 @@ test('costBasis defers to computeTUC rather than re-deriving the chain', () => {
 // a quote-based margin reads exactly like a landed one unless something says so.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const pricingPage = () => readFileSync(join(process.cwd(), 'app', 'pricing', 'page.tsx'), 'utf8');
+// Selling Prices is the page plus its Prices tab: the Floor Audit moved into that tab on
+// 2026-10-22 (the "Below floor" filter), so the audit's rules are checked across both files.
+const pricingPage = () => readFileSync(join(process.cwd(), 'app', 'pricing', 'page.tsx'), 'utf8')
+  + readFileSync(join(process.cwd(), 'components', 'ui', 'PricesTab.tsx'), 'utf8');
 
 test('Selling Prices resolves a basis instead of reading the ledger raw', () => {
   const src = pricingPage();
