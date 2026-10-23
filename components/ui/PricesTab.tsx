@@ -52,6 +52,7 @@ export interface FloorBreach {
 }
 export interface PriceLogLite { tier_id: string | null; old_price_idr: number | null; new_price_idr: number | null; changed_at: string; changed_by_email: string | null }
 
+type SortCol = 'item' | 'cost' | 'margin' | 'lead';
 type Filter = 'priced' | 'up' | 'low' | 'one' | 'floor' | 'pinned' | 'unpriced';
 const FILTERS: Filter[] = ['priced', 'up', 'low', 'one', 'floor', 'pinned', 'unpriced'];
 const LOW_MARGIN = 15;
@@ -109,6 +110,12 @@ export default function PricesTab({
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>(FILTERS.includes(initialFilter as Filter) ? (initialFilter as Filter) : 'priced');
   const [confirmAll, setConfirmAll] = useState(false);
+  // Sorting (owner, 2026-10-23: "should allow users to sort columns Items, Last Cost, Margin,
+  // and Lead Time"). No column picked = most recently bought first.
+  const [sort, setSort] = useState<{ col: SortCol; dir: 'asc' | 'desc' } | null>(null);
+  const sortBy = (col: SortCol) => setSort((s) => s?.col === col
+    ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' }
+    : { col, dir: col === 'item' ? 'asc' : 'desc' });
   const [selected, setSelected] = useState<string | null>(null);
   const [sheet, setSheet] = useState(false);        // phone: the detail is open full screen
   const [drafts, setDrafts] = useState<Map<string, string>>(new Map());
@@ -155,8 +162,21 @@ export default function PricesTab({
   const q = search.trim().toLowerCase();
   const shown = rows
     .filter((r) => matches(r, filter) && (!q || r.c.name.toLowerCase().includes(q) || (r.c.category ?? '').toLowerCase().includes(q)))
-    // Most recently bought first — the items whose cost just moved are the ones to look at.
-    .sort((a, b) => (b.trend.last?.date ?? '').localeCompare(a.trend.last?.date ?? '') || a.c.name.localeCompare(b.c.name));
+    .sort((a, b) => {
+      if (sort) {
+        // An item with no number for this column sorts last, whichever way the column runs.
+        const key = (r: Row): number | string | null => sort.col === 'item' ? r.c.name.toLowerCase()
+          : sort.col === 'cost' ? r.cost
+          : sort.col === 'margin' ? t1Margin(r)
+          : (r.lead?.poToReceived?.median ?? null);
+        const ka = key(a), kb = key(b);
+        if (ka == null || kb == null) return ka == null && kb == null ? 0 : ka == null ? 1 : -1;
+        const c = typeof ka === 'string' ? ka.localeCompare(kb as string) : (ka as number) - (kb as number);
+        if (c) return sort.dir === 'asc' ? c : -c;
+      }
+      // Default: most recently bought first — the items whose cost just moved are the ones to look at.
+      return (b.trend.last?.date ?? '').localeCompare(a.trend.last?.date ?? '') || a.c.name.localeCompare(b.c.name);
+    });
 
   const sel = rows.find((r) => r.c.component_id === selected) ?? shown[0] ?? null;
 
@@ -271,11 +291,27 @@ export default function PricesTab({
             <colgroup><col className="w-[34%]" /><col className="w-[21%]" /><col className="w-[19%]" /><col className="w-[15%]" /><col className="w-[11%]" /></colgroup>
             <thead>
               <tr className="text-[10.5px] uppercase tracking-wider text-slate-500 border-b border-slate-800">
-                <th className="text-left font-semibold px-3 py-2.5">{t('Item')}</th>
-                <th className="text-left font-semibold px-3 py-2.5">{t('Last cost')} ({moneyUnit()})</th>
+<th className="text-left font-semibold px-3 py-2.5" aria-sort={sort?.col === 'item' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" onClick={() => sortBy('item')} className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-200 ${sort?.col === 'item' ? 'text-slate-200' : ''}`}>
+                    {t('Item')}<span aria-hidden className="text-[9px]">{sort?.col === 'item' ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </button>
+                </th>
+                <th className="text-left font-semibold px-3 py-2.5" aria-sort={sort?.col === 'cost' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" onClick={() => sortBy('cost')} className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-200 ${sort?.col === 'cost' ? 'text-slate-200' : ''}`}>
+                    {t('Last cost')} ({moneyUnit()})<span aria-hidden className="text-[9px]">{sort?.col === 'cost' ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </button>
+                </th>
                 <th className="text-right font-semibold px-3 py-2.5">{t('Net price')} ({moneyUnit()})</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('Margin')}</th>
-                <th className="text-right font-semibold px-3 py-2.5">{t('Lead time')}</th>
+<th className="text-right font-semibold px-3 py-2.5" aria-sort={sort?.col === 'margin' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" onClick={() => sortBy('margin')} className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-200 ${sort?.col === 'margin' ? 'text-slate-200' : ''}`}>
+                    {t('Margin')}<span aria-hidden className="text-[9px]">{sort?.col === 'margin' ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </button>
+                </th>
+                <th className="text-right font-semibold px-3 py-2.5" aria-sort={sort?.col === 'lead' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <button type="button" onClick={() => sortBy('lead')} className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-200 ${sort?.col === 'lead' ? 'text-slate-200' : ''}`}>
+                    {t('Lead time')}<span aria-hidden className="text-[9px]">{sort?.col === 'lead' ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -437,7 +473,7 @@ function PriceDetail({ r, tiers, net, chain, priceInput, catalog, priceLog, tier
             const e = chain.get(tr.tier_id);
             const m = marginPct(e?.price ?? null, r.cost);
             const breach = breaches.find((b) => b.tierId === tr.tier_id) ?? null;
-            const pin = pins.find((p) => p.tierId === tr.tier_id) ?? null;
+            const pin = e?.overridden ? (pins.find((p) => p.tierId === tr.tier_id) ?? null) : null;
             return (
               <div key={tr.tier_id} className="px-3 py-1.5">
                 <div className="flex items-center justify-between gap-3">

@@ -274,6 +274,15 @@ export default function StockPage() {
               )}
             </Link>
           )}
+          {/* Landed Cost left the menu (2026-10-23, Purchasing cut to four): it is the other
+              half of receiving, so it sits beside it here. */}
+          {profile && canOpenPath(ROLE_PERMISSIONS[profile.role], '/stock/reconcile') && (
+            <Link href="/stock/reconcile"
+              className="px-3.5 py-2 rounded-xl bg-slate-800/80 text-slate-300 ring-1 ring-slate-700 hover:text-white hover:bg-slate-700 text-xs font-semibold whitespace-nowrap transition-colors"
+              title={t('True up stock cost when the freight, duty and final payment land')}>
+              {t('Landed cost')}
+            </Link>
+          )}
           {isOwner && (
             <Link href="/settings?tab=defaults"
               className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap"

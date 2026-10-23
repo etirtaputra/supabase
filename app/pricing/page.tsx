@@ -321,8 +321,9 @@ function PricingPage() {
     }
     return m;
   }, [receipts, poNumberById]);
+  // A PO with no number comes back labelled "PO <uuid>" — that is noise, not a name; show the date alone.
   const paidOf = useCallback((cid: string) => (tucMap.get(cid)?.entries ?? [])
-    .map((e) => ({ label: e.label, date: e.date, unitCost: e.unitCost })), [tucMap]);
+    .map((e) => ({ label: /^PO [0-9a-f-]{20,}$/i.test(e.label) ? '' : e.label, date: e.date, unitCost: e.unitCost })), [tucMap]);
   const receivedOf = useCallback((cid: string) => receivedByComp.get(cid) ?? [], [receivedByComp]);
   const basisCost = useCallback((cid: string) => { const b = basisOf(cid); return { cost: b.cost, provisional: b.provisional }; }, [basisOf]);
   const stockCostOf = useCallback((cid: string): number | null => Number(bals.get(cid)?.avg_cost_idr) || null, [bals]);

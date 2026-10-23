@@ -28,12 +28,14 @@ import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS } from '@/constants/costCategor
 import { fmtIdr, fmtCcy, fmtDate, fmtMoneyCell, moneyUnit, fmtInt } from '@/lib/formatters';
 import DateRangeFilter from './DateRangeFilter';
 import { useT } from '@/hooks/useT';
+import Link from 'next/link';
 import { SourceLine, ReasonChip } from './DealContext';
 import { SOURCE_CHANNELS, sourceFieldsFromForm, isoToLocalInput } from '@/lib/dealContext';
 import LayoutToggle from './LayoutToggle';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
-import { inRange, isOpenRange, type DateRange } from '@/lib/dateRange';
+import { inRange, isOpenRange, ALL_TIME, type DateRange } from '@/lib/dateRange';
+import PurchasingInbox from './PurchasingInbox';
 import { BAR_INPUT, BAR_SELECT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON_SKY } from '@/constants/controls';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -625,6 +627,15 @@ export default function DealLookupTab({
       .select('source_id, component_id, quantity').eq('source_type', 'receipt').order('movement_id').range(f, t))
       .then((r) => setReceiptMoves(r.rows ?? []));
   }, []);
+  /** From "Needs action": narrow the list to that one deal, whatever the filters were. */
+  const openDealFromInbox = (poNumber: string) => {
+    setSearch(poNumber);
+    setStageFilter('all');
+    rangeTouched.current = true;
+    setRange(ALL_TIME);
+    setSelectedSuppId(null);
+    setSelectedCompId(null);
+  };
   const gapByPo = useMemo(() => new Map(receiptMoves
     ? receiptGaps(pos, poItems, receiptMoves).map((g) => [g.poId, g] as const)
     : []), [pos, poItems, receiptMoves]);
@@ -2919,6 +2930,10 @@ export default function DealLookupTab({
           The four big stat cards went with them: the stage chips below already
           carry the same counts, and a number shown twice is a number that can
           disagree with itself. */}
+      {/* What to do next on the buy side (2026-10-23). Hidden when nothing needs doing. */}
+      <PurchasingInbox pos={pos} poItems={poItems} poCosts={poCosts} quotes={quotes}
+        supplierName={(id) => suppliers.find((x) => x.supplier_id === id)?.supplier_name ?? ''}
+        receiptMoves={receiptMoves} onOpenDeal={openDealFromInbox} />
       <div>
           {/* ── Row 1: what you are looking at ──────────────────────────────
               Every control dresses from constants/controls.ts — one height, one
@@ -2933,6 +2948,8 @@ export default function DealLookupTab({
               placeholder="Search PI, PO, supplier or company…"
               className={`${BAR_INPUT} flex-1 min-w-[200px] max-w-sm`}
             />
+            {/* New Deal left the menu (2026-10-23); starting one is a button where the deals are. */}
+            <Link href="/purchasing?tab=quoting" className={`${BAR_BTN} ${BAR_BTN_ON_SKY} px-3 font-semibold`}>+ {t('New deal')}</Link>
             {/* Vendors are ordered by what we OWE them, not alphabetically:
                 opening the list should answer "who is waiting for money" before
                 it answers "where is B". */}

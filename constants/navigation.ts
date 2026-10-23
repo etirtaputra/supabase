@@ -78,7 +78,18 @@ export const DESTINATIONS: Destination[] = [
   // actually happens, so the menu names them. (The item screens — Editor,
   // Market Intel — live in the Catalog block below, with the rest of the
   // item lenses.)
-  // Item Editor leads Purchasing (owner's call, 2026-08-10): the component
+  // FOUR entries (owner, 2026-10-23: "go ahead, same 4 entries for buy admin too"):
+  // Deal Lookup · Item Editor · Suppliers · Stock. A month of 42.0_page_views: Deal
+  // Lookup 90 opens and Item Editor 78; New Deal, Progress and Payments were reached
+  // from the Purchasing tab bar, never the menu (1, 0, 0 menu clicks), so they are
+  // search-only and stay one click away in that bar — New Deal is also a button on
+  // Deal Lookup. Lead Times is a view of Suppliers; Receive Goods and Landed Cost are
+  // buttons on Stock (and Deal Lookup links receiving where a PO needs it).
+  // Deal Lookup leads: it is the purchasing hub.
+  { href: '/purchasing?tab=lookup', label: 'Deal Lookup', group: 'Purchasing', section: 'buySide', inNav: true,
+    hint: 'Every PI → PO → payment as one deal',
+    keywords: 'deals pi po payments history search catalog' },
+  // Item Editor led Purchasing from 2026-08-10 (owner's call): the component
   // master sits beside New Deal, the two buy-side entry points, which is where
   // the buyer expects it — more intuitive than filed under Catalog.
   { href: '/purchasing?tab=catalog', label: 'Item Editor', group: 'Purchasing', section: 'buySide', inNav: true,
@@ -87,25 +98,22 @@ export const DESTINATIONS: Destination[] = [
   // Supplier Quotes + Purchase Orders merged into ONE entry form (2026-08-04):
   // record a PI, or PI + PO in one save, or raise the PO for a stored quote.
   // Old names stay as keywords so Spotlight muscle memory keeps working.
-  { href: '/purchasing?tab=quoting', label: 'New Deal', group: 'Purchasing', section: 'buySide', inNav: true,
+  { href: '/purchasing?tab=quoting', label: 'New Deal', group: 'Purchasing', section: 'buySide', inNav: false,
     hint: 'Record a supplier quote / PI — alone or straight to its PO',
     keywords: 'pi proforma quote entry new catalog supplier quotes po purchase order raise deal' },
   // The board the team opens first thing: which PO is at which stage. It sits
   // before Payments because that is the order the morning runs — look at the
   // board, see what needs paying, go and pay it.
-  { href: '/purchasing?tab=progress', label: 'Progress', group: 'Purchasing', section: 'buySide', inNav: true,
+  { href: '/purchasing?tab=progress', label: 'Progress', group: 'Purchasing', section: 'buySide', inNav: false,
     hint: 'Which PO is at which stage — PI, PO, payments, docs, PIB',
     keywords: 'kanban board progress stage milestone status pipeline basecamp impor import track' },
-  { href: '/purchasing?tab=financials', label: 'Payments', group: 'Purchasing', section: 'buySide', cap: 'canViewBankFees', inNav: true,
+  { href: '/purchasing?tab=financials', label: 'Payments', group: 'Purchasing', section: 'buySide', cap: 'canViewBankFees', inNav: false,
     hint: 'Record supplier payments, bank fees and landed costs',
     keywords: 'payment batch remittance costs fees ap payable financials money supplier' },
-  { href: '/purchasing?tab=lookup', label: 'Deal Lookup', group: 'Purchasing', section: 'buySide', inNav: true,
-    hint: 'Every PI → PO → payment as one deal',
-    keywords: 'deals pi po payments history search catalog' },
   { href: '/suppliers', label: 'Suppliers', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Vendor profiles, purchase volume, outstanding payables',
     keywords: 'vendors payables' },
-  { href: '/suppliers/lead-times', label: 'Lead Times', group: 'Purchasing', section: 'buySide', inNav: true,
+  { href: '/suppliers/lead-times', label: 'Lead Times', group: 'Purchasing', section: 'buySide', inNav: false,
     hint: 'How long each supplier takes: quote → PO → payment → fully received',
     keywords: 'lead time delivery speed late on time supplier performance waktu tunggu terlambat' },
   // Buy-side roles keep Stock; the warehouse reaches it through the capability
@@ -115,11 +123,11 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'inventory warehouse gudang on hand balance' },
   // Promoted out of hiding: booking goods in is a daily warehouse job and the
   // moment landed cost enters the system — it should not be search-only.
-  { href: '/stock/receive', label: 'Receive Goods', group: 'Purchasing', section: null, cap: 'canManageStock', inNav: true,
+  { href: '/stock/receive', label: 'Receive Goods', group: 'Purchasing', section: null, cap: 'canManageStock', inNav: false,
     hint: 'Book goods in against a purchase order (GRN)',
     keywords: 'grn goods receipt receiving inbound terima barang' },
   // The other half of receiving: the bills that arrive after the goods do.
-  { href: '/stock/reconcile', label: 'Landed Cost', group: 'Purchasing', section: 'buySide', inNav: true,
+  { href: '/stock/reconcile', label: 'Landed Cost', group: 'Purchasing', section: 'buySide', inNav: false,
     hint: 'True up stock cost when the freight, duty and final payment land',
     keywords: 'landed cost true up reconcile variance freight duty revaluation biaya' },
   // The bare /purchasing URL still resolves (it opens the Item Editor tab) —

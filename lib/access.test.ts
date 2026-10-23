@@ -72,18 +72,20 @@ test('an unregistered path is open — registering it is how a page gets a gate'
  * 2026-10-22: Profitability, the Item Hub list and Market Intel left the menu on
  * purpose (owner: "item hub, selling prices, profitability usually has almost the
  * same overlapping stuffs") — they stay one search away.
+ * 2026-10-23: Purchasing is four entries — Deal Lookup, Item Editor, Suppliers,
+ * Stock — for owner and buy admin alike (owner: "same 4 entries for buy admin
+ * too"). New Deal, Progress, Payments, Lead Times, Receive Goods and Landed
+ * Cost are search-only and one click away from the screens that use them.
  */
 const EXPECTED: Record<UserRole, string[]> = {
   owner: [
-    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
-    '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile',
+    '/', '/purchasing?tab=lookup', '/purchasing?tab=catalog', '/suppliers', '/stock',
     '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials', '/aftersales',
     '/support-letters', '/banks', '/spend-cash', '/specs',
     '/pricing', '/proposals', '/proposals/bom', '/settings', '/import-export',
   ],
   buy_admin: [
-    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
-    '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile',
+    '/', '/purchasing?tab=lookup', '/purchasing?tab=catalog', '/suppliers', '/stock',
     '/products', '/delivery', '/serials', '/banks', '/specs', '/import-export',
   ],
   sell_admin: [
@@ -98,17 +100,16 @@ const EXPECTED: Record<UserRole, string[]> = {
     '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
     '/aftersales', '/support-letters', '/proposals', '/proposals/bom',
   ],
-  warehouse: ['/', '/stock', '/stock/receive', '/delivery', '/serials'],
+  warehouse: ['/', '/stock', '/delivery', '/serials'],
   aftersales: ['/', '/customers', '/serials', '/aftersales'],
   viewer: ['/'],
   data_entry: [
-    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=lookup',
-    '/suppliers', '/suppliers/lead-times', '/stock', '/stock/receive', '/stock/reconcile', '/delivery', '/serials',
+    '/', '/purchasing?tab=lookup', '/purchasing?tab=catalog',
+    '/suppliers', '/stock', '/delivery', '/serials',
     '/specs',
   ],
   finance: [
-    '/', '/purchasing?tab=catalog', '/purchasing?tab=quoting', '/purchasing?tab=progress', '/purchasing?tab=financials',
-    '/purchasing?tab=lookup', '/suppliers', '/suppliers/lead-times', '/stock', '/stock/reconcile', '/invoices',
+    '/', '/purchasing?tab=lookup', '/purchasing?tab=catalog', '/suppliers', '/stock', '/invoices',
     '/banks', '/specs', '/import-export',
   ],
 };

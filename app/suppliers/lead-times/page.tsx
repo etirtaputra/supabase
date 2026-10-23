@@ -30,6 +30,7 @@ import { BAR_INPUT, BAR_SELECT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON_SKY } from '@/c
 import { LIGHT_THEMES } from '@/lib/theme';
 import { fmtDay } from '@/lib/formatters';
 import BrandMenu from '@/components/ui/BrandMenu';
+import SuppliersTabs from '@/components/ui/SuppliersTabs';
 import { supplierLeadTimes, productLeadTimes, poTimelines, leadDigest, shipVia, SHIP_VIAS, type LtGrn, type LtPo, type PoTimeline, type ProductLead, type ShipVia, type Stage, type StageStats, type SupplierLead } from '@/lib/supplierLeadTimes';
 
 /** "1 day", "12 days". */
@@ -169,11 +170,11 @@ function LeadTimes() {
       <div className="border-b border-slate-800/60 bg-chrome/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" subtitle={t('Quote → PO → payment → fully received')} />
-          <Link href="/suppliers" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">{t('Suppliers')} →</Link>
         </div>
       </div>
 
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-4">
+        <SuppliersTabs active="lead-times" />
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex gap-1" role="group" aria-label={t('Grouping')}>
             {([['supplier', 'By supplier'], ['product', 'By product']] as [View, string][]).map(([v, label]) => (

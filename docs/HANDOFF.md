@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-23** · last change: *EPC proposals: earlier-versions chip on the row* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-23** · last change: *Purchasing: four menu entries, Needs action on Deal Lookup, Prices sorting* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,31 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-23 (latest) — EPC proposals: "N earlier versions" chip on the row
+### 2026-10-23 (latest) — Purchasing: four menu entries, Deal Lookup "Needs action", Prices sorting
+
+Owner: "go ahead, same 4 entries for buy admin too" + "should allow users to
+sort columns Items, Last Cost, Margin, and Lead Time".
+- Menu (constants/navigation.ts): Purchasing = Deal Lookup (first) · Item
+  Editor · Suppliers · Stock. New Deal, Progress, Payments, Lead Times,
+  Receive Goods, Landed Cost → inNav:false (lib/access.test.ts EXPECTED
+  updated on purpose; warehouse now reaches receiving from Stock).
+- `components/ui/SuppliersTabs.tsx`: Suppliers | Lead Times switch on both
+  pages. /stock header: "Landed cost" button beside "Receive against PO".
+  Deal Lookup toolbar: "+ New deal" (→ ?tab=quoting).
+- `components/ui/PurchasingInbox.tsx` at the top of Deal Lookup, hidden when
+  empty: arrived-not-in-stock (receiptGaps → Receive into stock / Open
+  deal), late (`lib/purchasingInbox.ts` latePos: promised date, else PO date
+  + supplier median PO→received by ship mode; no history = no verdict),
+  short for a sales order (fetchShortages → SO links), balance to pay
+  (unpaidReceived over poBalance). "Open deal" narrows the list in place
+  (search = PO, stage all, all time, vendor/company cleared). Tests in
+  lib/purchasingInbox.test.ts.
+- Prices tab: sortable Item / Last cost / Margin / Lead time (nulls last;
+  no column = most recently bought first). Unpin shows only on tiers the
+  chain treats as pinned (a stored net-tier override is inert). POs with no
+  number no longer show as "PO <uuid>".
+
+### 2026-10-23 — EPC proposals: "N earlier versions" chip on the row
 
 Owner: the "↳ N other versions" line "could be better and less easy to miss
 and more intuitive". `app/proposals/page.tsx`: the toggle is now a sky chip

@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-23T00:30:48Z",
+    title: "Pembelian: menu jadi empat, Deal Lookup menampilkan yang perlu ditindaklanjuti",
+    details: [
+      "Menu Pembelian kini empat: Deal Lookup, Item Editor, Suppliers, dan Stock. New Deal, Progress, dan Payments tetap ada di baris tab halaman Pembelian; Lead Times jadi tab di Suppliers; Receive Goods dan Landed Cost jadi tombol di Stock.",
+      "Deal Lookup punya strip \"Perlu tindakan\": barang tiba tapi belum masuk stok, PO terlambat dibanding waktu kirim biasa, barang kurang untuk pesanan penjualan, dan pelunasan yang belum dibayar. Ketuk untuk melihat daftarnya, lalu \"Buka deal\".",
+      "Tombol \"+ Deal baru\" di samping pencarian Deal Lookup.",
+      "Harga Jual › Harga: kolom Item, Biaya terakhir, Margin, dan Waktu kirim bisa diurutkan.",
+    ],
+  },
+  {
     at: "2026-10-23T00:14:45Z",
     title: "Proposal: versi sebelumnya kini tombol biru di baris proposal",
     details: [

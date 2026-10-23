@@ -14,6 +14,7 @@ import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import BrandMenu from '@/components/ui/BrandMenu';
+import SuppliersTabs from '@/components/ui/SuppliersTabs';
 import type { Supplier, PriceQuote, PurchaseOrder, POCost, PurchaseLineItem, Component } from '@/types/database';
 import { fmtDay, fmtInt, fmtRupiah as fmtIdr, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import LayoutToggle from '@/components/ui/LayoutToggle';
@@ -158,12 +159,12 @@ export default function SuppliersPage() {
           <BrandMenu wordmarkClass="text-xl md:text-2xl font-extrabold" />
           <div className="flex items-center gap-3">
             <span className="text-[11px] text-slate-500 whitespace-nowrap">{t('Vendors are created in Catalog → Supplier Quotes')}</span>
-            <Link href="/suppliers/lead-times" className="text-xs text-slate-400 hover:text-white px-3 py-1.5 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors whitespace-nowrap">{t('Lead Times')} →</Link>
           </div>
         </div>
       </div>
 
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
+        <SuppliersTabs active="suppliers" />
         <div className="relative">
           <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search supplier name, code, location…')}
