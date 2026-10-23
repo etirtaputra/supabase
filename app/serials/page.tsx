@@ -26,6 +26,7 @@ import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import SalesTabs from '@/components/ui/SalesTabs';
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import { displayDocNumber } from '@/lib/salesStatus';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -354,6 +355,8 @@ function SerialsPage() {
       </div>
 
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
+
+        <SalesTabs active="serials" />
         {failed && (
           <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-4 text-sm">
             <span className="text-red-300 font-semibold">{t('Could not read the register.')}</span>

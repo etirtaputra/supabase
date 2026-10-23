@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-23T08:06:40Z",
+    title: "Penjualan: menu jadi empat, Sales Orders menampilkan yang perlu ditindaklanjuti",
+    details: [
+      "Menu Penjualan kini empat: Sales Orders (paling atas), Products, Customers, dan Support Letters. Invoices, Delivery, Serial Numbers, dan After Sales jadi tab di bagian atas Sales Orders.",
+      "Gudang, layanan purna jual, dan keuangan tetap melihat layar kerjanya sendiri di menu.",
+      "Sales Orders punya strip \"Perlu tindakan\": penawaran yang menunggu jawaban (seminggu lebih, atau kedaluwarsa), pesanan belum dikirim (dengan barang yang kurang), sudah terkirim tapi belum ditagih, dan faktur belum dibayar (yang lewat jatuh tempo di atas). Setiap baris langsung membuka dokumennya.",
+      "Menu kini hanya menampilkan layar yang memang boleh dibuka oleh peran tersebut.",
+    ],
+  },
+  {
     at: "2026-10-23T00:30:48Z",
     title: "Pembelian: menu jadi empat, Deal Lookup menampilkan yang perlu ditindaklanjuti",
     details: [

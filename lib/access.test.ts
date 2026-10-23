@@ -76,12 +76,16 @@ test('an unregistered path is open — registering it is how a page gets a gate'
  * Stock — for owner and buy admin alike (owner: "same 4 entries for buy admin
  * too"). New Deal, Progress, Payments, Lead Times, Receive Goods and Landed
  * Cost are search-only and one click away from the screens that use them.
+ * 2026-10-23: Sales is four entries — Sales Orders, Products, Customers, Support
+ * Letters (owner: "go ahead" on the click data: Invoices, Delivery, Serial
+ * Numbers and After Sales had 1 view between them in a month). They are tabs on
+ * Sales Orders now, and stay in the menu of every role that cannot open Sales
+ * Orders — the warehouse, the service desk, finance, buy admin.
  */
 const EXPECTED: Record<UserRole, string[]> = {
   owner: [
     '/', '/purchasing?tab=lookup', '/purchasing?tab=catalog', '/suppliers', '/stock',
-    '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials', '/aftersales',
-    '/support-letters', '/banks', '/spend-cash', '/specs',
+    '/sales', '/products', '/customers', '/support-letters', '/banks', '/spend-cash', '/specs',
     '/pricing', '/proposals', '/proposals/bom', '/settings', '/import-export',
   ],
   buy_admin: [
@@ -89,16 +93,11 @@ const EXPECTED: Record<UserRole, string[]> = {
     '/products', '/delivery', '/serials', '/banks', '/specs', '/import-export',
   ],
   sell_admin: [
-    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
-    '/aftersales', '/support-letters', '/banks', '/specs', '/pricing', '/import-export',
+    '/', '/sales', '/products', '/customers', '/support-letters', '/banks', '/specs', '/pricing', '/import-export',
   ],
-  sales: [
-    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
-    '/aftersales', '/support-letters',
-  ],
+  sales: ['/', '/sales', '/products', '/customers', '/support-letters'],
   engineer: [
-    '/', '/customers', '/products', '/sales', '/invoices', '/delivery', '/serials',
-    '/aftersales', '/support-letters', '/proposals', '/proposals/bom',
+    '/', '/sales', '/products', '/customers', '/support-letters', '/proposals', '/proposals/bom',
   ],
   warehouse: ['/', '/stock', '/delivery', '/serials'],
   aftersales: ['/', '/customers', '/serials', '/aftersales'],

@@ -61,6 +61,14 @@ export interface Destination {
   keywords?: string;
   /** In the menu, or search-only (deep links, tabs). */
   inNav?: boolean;
+  /**
+   * In the menu ONLY for a role that cannot open this page: the screen is a
+   * tab there (owner, 2026-10-23: Invoices, Delivery, Serial Numbers and After
+   * Sales are tabs on Sales Orders). Whoever has Sales Orders reaches it in one
+   * click from there; whoever's job it is alone — the warehouse, the service
+   * desk, finance — keeps it in their menu.
+   */
+  navUnlessOpen?: string;
 }
 
 export const DESTINATIONS: Destination[] = [
@@ -137,17 +145,8 @@ export const DESTINATIONS: Destination[] = [
     keywords: 'procurement buying purchase' },
 
   // ── Sales (owner's wording 2026-08-07; the section gate stays `sellSide`) ──
-  // Gated on the capability alone: the service desk keeps customer records
-  // current as part of a service call, without being a sell-side role.
-  { href: '/customers', label: 'Customers', group: 'Sales', section: null, cap: 'canManageCustomers', inNav: true,
-    hint: 'CRM — customers, contacts, account managers',
-    keywords: 'crm clients contacts buyers' },
-  // Products lives with Sales — it is the list the sales team quotes from, in
-  // their own words (internal description, tier price, live stock; never a
-  // brand or supplier model). The item's OTHER lenses sit in Catalog.
-  { href: '/products', label: 'Products', group: 'Sales', section: null, cap: 'canViewSellingPrice', inNav: true,
-    hint: 'What we sell, with tier prices and live stock',
-    keywords: 'catalogue catalog items selling price tier products' },
+  // Sales Orders leads (owner, 2026-10-23: the most-opened sell-side screen);
+  // Invoices, Delivery, Serial Numbers and After Sales are its tabs.
   { href: '/sales', label: 'Sales Orders', group: 'Sales', section: 'sellSide', cap: 'canEditSalesDocs', inNav: true,
     hint: 'Quotations → orders → invoices → delivery (DQ → PQ → SO)',
     keywords: 'sales quotation dq pq sq so price quote order penawaran' },
@@ -159,18 +158,29 @@ export const DESTINATIONS: Destination[] = [
   { href: '/sales/library', label: 'Sales · Description Library', group: 'Sales', section: 'sellSide', cap: 'canManageUsers', inNav: false,
     hint: 'Curated line texts that feed the item picker',
     keywords: 'library descriptions text' },
-  { href: '/invoices', label: 'Invoices', group: 'Sales', section: null, caps: ['canEditSalesDocs', 'canRecordReceipts'], inNav: true,
+  // Products lives with Sales — it is the list the sales team quotes from, in
+  // their own words (internal description, tier price, live stock; never a
+  // brand or supplier model). The item's OTHER lenses sit in Catalog.
+  { href: '/products', label: 'Products', group: 'Sales', section: null, cap: 'canViewSellingPrice', inNav: true,
+    hint: 'What we sell, with tier prices and live stock',
+    keywords: 'catalogue catalog items selling price tier products' },
+  // Gated on the capability alone: the service desk keeps customer records
+  // current as part of a service call, without being a sell-side role.
+  { href: '/customers', label: 'Customers', group: 'Sales', section: null, cap: 'canManageCustomers', inNav: true,
+    hint: 'CRM — customers, contacts, account managers',
+    keywords: 'crm clients contacts buyers' },
+  { href: '/invoices', label: 'Invoices', group: 'Sales', section: null, caps: ['canEditSalesDocs', 'canRecordReceipts'], inNav: true, navUnlessOpen: '/sales',
     hint: 'Accounts receivable — issued, received, outstanding',
     keywords: 'ar receivable billing tagihan' },
-  { href: '/delivery', label: 'Delivery', group: 'Sales', section: null, caps: ['canEditSalesDocs', 'canManageStock'], inNav: true,
+  { href: '/delivery', label: 'Delivery', group: 'Sales', section: null, caps: ['canEditSalesDocs', 'canManageStock'], inNav: true, navUnlessOpen: '/sales',
     hint: 'Delivery orders and Surat Jalan',
     keywords: 'do surat jalan shipping dispatch' },
   // The unit register: the warehouse writes it while packing, after-sales reads
   // it from a label. Both sides of that need the door.
-  { href: '/serials', label: 'Serial Numbers', group: 'Sales', section: null, caps: ['canManageStock', 'canEditSalesDocs', 'canHandleService'], inNav: true,
+  { href: '/serials', label: 'Serial Numbers', group: 'Sales', section: null, caps: ['canManageStock', 'canEditSalesDocs', 'canHandleService'], inNav: true, navUnlessOpen: '/sales',
     hint: 'Record the serial numbers on a delivery, and find the order from one',
     keywords: 'serial number sn unit register nomor seri warranty label' },
-  { href: '/aftersales', label: 'After Sales', group: 'Sales', section: null, cap: 'canHandleService', inNav: true,
+  { href: '/aftersales', label: 'After Sales', group: 'Sales', section: null, cap: 'canHandleService', inNav: true, navUnlessOpen: '/sales',
     hint: 'Service & warranty cases — repairs, replacements, complaints',
     keywords: 'service warranty klaim garansi rma repair replacement complaint case claim' },
   { href: '/support-letters', label: 'Support Letters', group: 'Sales', section: 'sellSide', inNav: true,
@@ -347,7 +357,8 @@ export const destinationsFor = (perms: RolePermissions | null): Destination[] =>
  * out is not.
  */
 export const menuDestinationsFor = (perms: RolePermissions | null): Destination[] =>
-  (perms ? DESTINATIONS.filter((d) => d.inNav && destinationAllowed(perms, d)) : []);
+  (perms ? DESTINATIONS.filter((d) => d.inNav && destinationAllowed(perms, d)
+    && !(d.navUnlessOpen && canOpenPath(perms, d.navUnlessOpen))) : []);
 
 /**
  * May this role open this path? Screens call this for their own gate, so what

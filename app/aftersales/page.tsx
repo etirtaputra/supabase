@@ -25,6 +25,7 @@ import { useT } from '@/hooks/useT';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import SalesTabs from '@/components/ui/SalesTabs';
 import RichDropdown from '@/components/ui/RichDropdown';
 import LayoutToggle from '@/components/ui/LayoutToggle';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
@@ -486,6 +487,8 @@ function AfterSalesPage() {
       </div>
 
       <main className="max-w-[1400px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
+
+        <SalesTabs active="aftersales" />
         {toast && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-200">{toast}</div>}
 
         {/* ── Filters ── */}

@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import SalesTabs from '@/components/ui/SalesTabs';
 import { displayDocNumber } from '@/lib/salesStatus';
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
@@ -152,6 +153,8 @@ export default function DeliveryPage() {
       </div>
 
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-6">
+
+        <SalesTabs active="delivery" />
         <div className="relative">
           <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search DO / SO / invoice number, customer…')}

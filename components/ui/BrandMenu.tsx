@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useT } from '@/hooks/useT';
 import OnlineUsers from './OnlineUsers';
 import { ROLE_PERMISSIONS, type RolePermissions } from '@/constants/roles';
-import { DESTINATIONS, entryMatches, pageLabelFor, orderedNavGroups, orderedGroupItems, sectionAllowed, menuDestinationsFor, type NavSection } from '@/constants/navigation';
+import { DESTINATIONS, entryMatches, pageLabelFor, orderedNavGroups, orderedGroupItems, menuDestinationsFor, type NavSection } from '@/constants/navigation';
 import { useIsDesktop } from '@/hooks/useIsDesktop';
 import { useSettings } from '@/hooks/useSettings';
 import { useTheme } from '@/hooks/useTheme';
@@ -288,8 +288,12 @@ export default function BrandMenu({
   // Gate each ENTRY by its own flow + capability, not the group's — a mixed
   // group like Catalog (buy-side Item Editor, sell-side Products) must show a
   // buyer its parts and a seller theirs, and appear for either.
+  // The entry list itself is `menuDestinationsFor` — the one the access test
+  // pins per role — so an either-or gate (`caps`) and a tab that only shows for
+  // roles without its parent screen (`navUnlessOpen`) count here too.
+  const inMenu = new Set(menuDestinationsFor(perms).map((d) => d.href));
   const groups = !roleKnown ? [] : buildAppGroups(menuOrder, menuItemOrder)
-    .map((g) => ({ ...g, apps: g.apps.filter((a) => (!a.cap || !!perms[a.cap]) && sectionAllowed(perms, a.section)) }))
+    .map((g) => ({ ...g, apps: g.apps.filter((a) => inMenu.has(a.href)) }))
     .filter((g) => g.apps.length > 0);
   const allLinks = groups.flatMap((g) => g.apps.map((a) => ({ href: a.href, label: a.label, section: a.section })));
   // Configuration entries, same source, shown under Admin

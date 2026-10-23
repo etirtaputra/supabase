@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import SalesTabs from '@/components/ui/SalesTabs';
 import { displayDocNumber } from '@/lib/salesStatus';
 import { fmtDay, fmtInt, fmtIdr } from '@/lib/formatters';
 import FitText from '@/components/ui/FitText';
@@ -152,6 +153,8 @@ export default function InvoicesPage() {
       </div>
 
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
+
+        <SalesTabs active="invoices" />
         {/* AR KPIs */}
         <div className="grid grid-cols-3 gap-3">
           {[

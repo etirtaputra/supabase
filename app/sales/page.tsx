@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { canOpenPath } from '@/constants/navigation';
 import BrandMenu from '@/components/ui/BrandMenu';
+import SalesTabs from '@/components/ui/SalesTabs';
+import SalesInbox from '@/components/ui/SalesInbox';
 import SalesMigrationBanner from '@/components/ui/SalesMigrationBanner';
 import { SALES_STATUS as STATUS, milestoneIndex, displayDocNumber, docNumberCls } from '@/lib/salesStatus';
 import { fmtDay, fmtInt, fmtRupiah, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
@@ -26,10 +28,12 @@ interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string; case_id?: string | null;
   customer_id: string | null; status: string; grand_total: number; ppn_pct?: number | null; updated_at?: string; revision?: number;
   quote_date?: string | null; valid_until?: string | null;
+  validated_at?: string | null; sent_at?: string | null; accepted_at?: string | null; ordered_at?: string | null; delivery_date?: string | null;
 }
 interface Customer { customer_id: string; display_name: string; legal_name: string; }
 interface PreviewLine { quote_id: string; description: string; quantity: number; unit_price: number; is_section: boolean; sort_order: number; }
-interface InvLite { invoice_id: string; quote_id: string; invoice_number: string; grand_total: number; }
+interface InvLite { invoice_id: string; quote_id: string; invoice_number: string; grand_total: number; issued_at?: string | null; due_date?: string | null; }
+interface RcptLite { quote_id: string; invoice_id?: string | null; amount: number; }
 interface DoLite { do_id: string; quote_id: string; do_number: string; status: string; }
 
 
@@ -93,23 +97,28 @@ export default function SalesListPage() {
   const [invoicesByQuote, setInvoicesByQuote] = useState<Record<string, InvLite[]>>({});
   const [dosByQuote, setDosByQuote] = useState<Record<string, DoLite[]>>({});
   const [paidByInvoice, setPaidByInvoice] = useState<Record<string, number>>({});
+  // The same rows, unsummed — "Needs action" reads them line by line.
+  const [allInvoices, setAllInvoices] = useState<InvLite[]>([]);
+  const [allDos, setAllDos] = useState<DoLite[]>([]);
+  const [allReceipts, setAllReceipts] = useState<RcptLite[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     const [qRes, custRes, rRes, iRes, invRes, doRes] = await Promise.all([
-      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, ppn_pct, updated_at, revision, quote_date, valid_until, case_id').order('updated_at', { ascending: false }),
+      supabase.from('22.0_sales_quotes').select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, grand_total, ppn_pct, updated_at, revision, quote_date, valid_until, case_id, validated_at, sent_at, accepted_at, ordered_at, delivery_date').order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('26.0_customer_receipts').select('quote_id, invoice_id, amount'),
       supabase.from('22.1_sales_quote_items').select('quote_id, description, quantity, unit_price, is_section, sort_order').order('sort_order'),
-      supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number, grand_total').order('created_at'),
+      supabase.from('25.0_sales_invoices').select('invoice_id, quote_id, invoice_number, grand_total, issued_at, due_date').order('created_at'),
       supabase.from('24.0_delivery_orders').select('do_id, quote_id, do_number, status').order('created_at'),
     ]);
     setQuotes((qRes.data as Quote[]) ?? []);
     setCustomers((custRes.data as Customer[]) ?? []);
     const rcv: Record<string, number> = {};
     const paidInv: Record<string, number> = {};
-    for (const r of ((rRes.data as { quote_id: string; invoice_id?: string | null; amount: number }[]) ?? [])) {
+    setAllReceipts((rRes.data as RcptLite[]) ?? []);
+    for (const r of ((rRes.data as RcptLite[]) ?? [])) {
       rcv[r.quote_id] = (rcv[r.quote_id] ?? 0) + (Number(r.amount) || 0);
       if (r.invoice_id) paidInv[r.invoice_id] = (paidInv[r.invoice_id] ?? 0) + (Number(r.amount) || 0);
     }
@@ -119,9 +128,11 @@ export default function SalesListPage() {
     for (const l of ((iRes.data as PreviewLine[]) ?? [])) (grouped[l.quote_id] ??= []).push(l);
     setLinesByQuote(grouped);
     const invG: Record<string, InvLite[]> = {};
+    setAllInvoices((invRes.error ? [] : invRes.data as InvLite[]) ?? []);
     for (const i of ((invRes.error ? [] : invRes.data as InvLite[]) ?? [])) (invG[i.quote_id] ??= []).push(i);
     setInvoicesByQuote(invG);
     const doG: Record<string, DoLite[]> = {};
+    setAllDos((doRes.error ? [] : doRes.data as DoLite[]) ?? []);
     for (const d of ((doRes.error ? [] : doRes.data as DoLite[]) ?? [])) (doG[d.quote_id] ??= []).push(d);
     setDosByQuote(doG);
     setLoading(false);
@@ -268,7 +279,12 @@ export default function SalesListPage() {
         </div>
       </div>
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
+        <SalesTabs active="orders" />
         <SalesMigrationBanner />
+        {!loading && (
+          <SalesInbox quotes={quotes} dos={allDos} invoices={allInvoices} receipts={allReceipts}
+            customerName={(id) => { const c = id ? custById.get(id) : undefined; return c?.display_name || c?.legal_name || ''; }} />
+        )}
         <div className="relative">
           <svg className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z" /></svg>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Search by number, customer, status, product…')}

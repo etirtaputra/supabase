@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-23** · last change: *Purchasing: four menu entries, Needs action on Deal Lookup, Prices sorting* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-23** · last change: *Sales: four menu entries, Needs action on Sales Orders* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,38 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-23 (latest) — Purchasing: four menu entries, Deal Lookup "Needs action", Prices sorting
+### 2026-10-23 (latest) — Sales: four menu entries, Sales Orders "Needs action"
+
+Owner: "go ahead" on the click data (a month: Invoices, Delivery and After
+Sales 0 views, Serial Numbers 1; Sales Orders 29 + New Quotation 15).
+- Menu: Sales = Sales Orders (first) · Products · Customers · Support
+  Letters. New `Destination.navUnlessOpen` (constants/navigation.ts): an
+  entry shows in the menu only for roles that cannot open that path. Set to
+  '/sales' on Invoices, Delivery, Serial Numbers, After Sales — so the
+  warehouse, the service desk, finance and buy admin keep theirs.
+  lib/access.test.ts EXPECTED updated on purpose.
+- BrandMenu now filters entries through `menuDestinationsFor` (it used to
+  check only `cap` + section, so `caps` either-or gates were ignored and
+  e.g. a viewer saw Stock/Invoices/Delivery/Serials and got bounced).
+- `components/ui/SalesTabs.tsx`: Sales Orders | Invoices | Delivery | Serial
+  Numbers | After Sales on all five pages, each tab gated by canOpenPath;
+  no row when a role can open fewer than two.
+- `components/ui/SalesInbox.tsx` at the top of /sales, hidden when empty;
+  logic in `lib/salesInbox.ts` (+test): quotes waiting (validated / sent /
+  accepted, ≥7 days since the last step, or past valid_until), orders not
+  delivered (COMMITTED_STATUSES; partly = a delivered DO; promised
+  delivery_date passed; fetchShortages items named), delivered not
+  invoiced (goods out, invoices < grand_total), invoices unpaid (receipts by
+  invoice_id; order-level receipts spread oldest invoice first; overdue
+  first). Every line links to /sales/<id>. /sales now also selects
+  validated/sent/accepted/ordered_at, delivery_date, invoice issued_at /
+  due_date.
+- Real data on the day: most confirmed orders are Dolibarr imports with no
+  DO or invoice in ICAPROC, so "not delivered" lists them until delivery is
+  recorded here (asked the owner whether delivery/invoicing still happens
+  outside).
+
+### 2026-10-23 — Purchasing: four menu entries, Deal Lookup "Needs action", Prices sorting
 
 Owner: "go ahead, same 4 entries for buy admin too" + "should allow users to
 sort columns Items, Last Cost, Margin, and Lead Time".
