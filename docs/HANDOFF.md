@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-23** · last change: *A non-IDR PO is never saved without its exchange rate* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-23** · last changes: *Corporate text inks: comfort and visibility* and *A non-IDR PO is never saved without its exchange rate* (parallel thread) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,23 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-23 (latest) — Dashboard: Spend & Cash panels
+### 2026-10-23 (latest) — Corporate text inks: comfort and visibility
+
+Owner: "check the color of the Fonts for Corporate Dark and Light … extra
+comfort and visibility" → "go ahead". Measured: Dark hint ink (text-slate-600,
+~820 sites) 2.4:1, disabled (700) 1.5, and white…400 all 9–14:1 (glare, weak
+hierarchy); Light hint 3.5, disabled 1.5. Fix is TEXT-ONLY: new
+`CORPORATE_TEXT_INK` in scripts/generate-palette.js emits `--c-ink-*` vars in
+the two corporate blocks only, and a new `TAILWIND_TEXT_COLORS_JS` (wired as
+`theme.extend.textColor` in app/layout.tsx) reads `text-slate-*` / `text-white`
+through `var(--c-ink-X, var(--c-X))`. Borders/fills keep the old steps; every
+other skin has no ink vars so falls back unchanged (regenerated CSS verified
+identical apart from the inks). Dark: hint 4.5+, disabled ~2.9, top steps
+softened and spaced; Light: hint 4.6+, disabled 2.9. New test in
+lib/palette.test.ts (AA for white…600, ≥2.5 disabled, each step quieter,
+inks corporate-only). The tone-step rule reads the ink too.
+
+### 2026-10-23 — Dashboard: Spend & Cash panels
 
 Owner: "insights spend and cash should be part of dashboard" (/spend-cash had
 3 views in a month; the dashboard 138). Three widgets in

@@ -334,6 +334,29 @@ const CORPORATE_DARK_SURFACES = {
 };
 for (const [name, hex] of Object.entries(CORPORATE_DARK_SURFACES)) corporateDark[name] = { DEFAULT: hexToRgb(hex) };
 
+// TEXT-ONLY INKS (owner, 2026-10-23: "check the color of the Fonts for
+// Corporate Dark and Light … for extra comfort and visibility"). The slate
+// steps do two jobs — `text-slate-600` is a hint, `border-slate-700` a
+// hairline — so moving the ramp to fix the text would have moved every border
+// and fill with it. These variables feed `text-*` ONLY (TAILWIND_TEXT_COLORS_JS
+// falls back to the ordinary step wherever a skin does not set one), so
+// borders, cards and buttons stay exactly as they were.
+//
+// Dark, measured on the page and on a card: the hint ink (slate-600, ~820
+// sites) sat at 2.4:1 and the disabled ink (700) at 1.5 — the first is now
+// 4.5+, the second ~2.9 (still reads as disabled). The top of the ramp was
+// near-white throughout (white … 400 all 9–14:1): softened a touch against
+// glare, and spaced so heading, body, secondary and label separate.
+// Light: only the hint (3.5 → 4.6+) and the disabled ink (1.5 → 2.9) move.
+const CORPORATE_TEXT_INK = {
+  'corporate-dark': {
+    white: '#f1f6f7', 'slate-100': '#e7eff1', 'slate-200': '#dbe6e9', 'slate-300': '#c8d8dc',
+    'slate-400': '#adc2c8', 'slate-500': '#97b0b8', 'slate-600': '#8ba2ad', 'slate-700': '#627886',
+  },
+  corporate: { 'slate-600': '#606f84', 'slate-700': '#8d99aa' },
+};
+const inkBlock = (m) => Object.entries(m).map(([k, h]) => `--c-ink-${k}:${hexToRgb(h)}`).join(';');
+
 // The brand navy, as its own tokens — only the corporate skins define them and
 // only CORPORATE_SHELL_CSS reads them. Light: the Shop's #1f5aa8 (white text
 // 6.9:1). Dark: lifted so it separates from the ocean page while white
@@ -508,7 +531,7 @@ const CORPORATE_SHELL_CSS = [
   // lib/serials.ts, lib/supportLetters.ts and the screen-local maps). A STEP (validated, sent, ordered, in stock)
   // reads neutral and a WAIT (preparing, partly delivered) reads amber; done
   // stays green and a problem stays red — their own colours already say so.
-  `${both('.tone-step')}{color:rgb(var(--c-slate-300))}`,
+  `${both('.tone-step')}{color:rgb(var(--c-ink-slate-300, var(--c-slate-300)))}`,
   `${both('.tone-step[class*="bg-"]')}{background-color:rgb(var(--c-slate-500) / .12);border-color:rgb(var(--c-slate-500) / .25)}`,
   `${both('.tone-wait')}{color:rgb(var(--c-amber-300))}`,
   `${both('.tone-wait[class*="bg-"]')}{background-color:rgb(var(--c-amber-500) / .15);border-color:rgb(var(--c-amber-500) / .3)}`,
@@ -540,15 +563,15 @@ const SHADOW_FIX = ':root[data-theme="light"] [class*="shadow-black"],:root[data
 const css = [
   // CORPORATE IS THE UNATTRIBUTED DEFAULT (owner, 2026-09-28), as terminal
   // was before it: the skin that renders before any script has run.
-  `:root{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)}}`,
+  `:root{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
   `:root[data-theme="terminal"]{${block(terminal, APP_BG_EXTRA.terminal)};${fontBlock(FONTS.terminal)}}`,
   `:root[data-theme="terminal-light"]{${block(terminalLight, APP_BG_EXTRA['terminal-light'])};${fontBlock(FONTS.terminal)}}`,
   `:root[data-theme="dark"]{${block(dark, APP_BG.dark)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="light"]{${block(light, APP_BG.light)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${fontBlock(FONTS.house)}}`,
-  `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)}}`,
-  `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])}}`,
+  `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
+  `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])};${inkBlock(CORPORATE_TEXT_INK['corporate-dark'])}}`,
   SHADOW_FIX,
   TERMINAL_SHELL_CSS,
   CORPORATE_SHELL_CSS,
@@ -562,6 +585,10 @@ const colorEntries = SCALES.map((s) => {
 const surfaceEntries = Object.keys(SURFACES)
   .map((n) => `${n}:'rgb(var(--c-${n}) / <alpha-value>)'`).join(',');
 const colorsJs = `{${colorEntries},white:'rgb(var(--c-white) / <alpha-value>)',${surfaceEntries}}`;
+// Text colours: the same slate and white, read through the text-only ink when
+// a skin sets one (CORPORATE_TEXT_INK), else the ordinary step.
+const inkVar = (n) => `rgb(var(--c-ink-${n}, var(--c-${n})) / <alpha-value>)`;
+const textColorsJs = `{slate:{${STEPS.map((st) => `${st}:'${inkVar(`slate-${st}`)}'`).join(',')}},white:'${inkVar('white')}'}`;
 
 const out = `/**
  * Generated palette — DO NOT hand-edit the tables below; regenerate instead.
@@ -585,6 +612,9 @@ const out = `/**
 export const THEME_VARS_CSS = ${JSON.stringify(css)};
 
 export const TAILWIND_COLORS_JS = ${JSON.stringify(colorsJs)};
+
+/** \`text-slate-*\` and \`text-white\` only: a skin's text-only ink, else the step. */
+export const TAILWIND_TEXT_COLORS_JS = ${JSON.stringify(textColorsJs)};
 
 export type ThemeName = 'dark' | 'light' | 'dim' | 'paper' | 'terminal' | 'terminal-light' | 'corporate' | 'corporate-dark';
 

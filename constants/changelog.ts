@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-23T10:32:52Z",
+    title: "Tampilan: warna teks Corporate lebih nyaman dan mudah dibaca",
+    details: [
+      "Corporate Dark: teks petunjuk dan keterangan kecil kini jelas terbaca (sebelumnya terlalu redup), teks yang dinonaktifkan tetap terlihat, dan judul serta teks utama sedikit dilembutkan agar tidak silau.",
+      "Corporate Light: teks petunjuk sedikit lebih gelap, teks yang dinonaktifkan lebih terlihat.",
+      "Hanya warna teks yang berubah: garis, kartu, dan tombol tetap sama.",
+    ],
+  },
+  {
     at: "2026-10-23T08:26:18Z",
     title: "Dashboard: Spend & Cash kini ada di Dashboard",
     details: [

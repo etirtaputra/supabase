@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import GlobalSpotlight from "@/components/ui/GlobalSpotlight";
 import SettingsLoader from "@/components/ui/SettingsLoader";
 import UsageTracker from "@/components/ui/UsageTracker";
-import { THEME_VARS_CSS, TAILWIND_COLORS_JS } from "@/constants/palette";
+import { THEME_VARS_CSS, TAILWIND_COLORS_JS, TAILWIND_TEXT_COLORS_JS } from "@/constants/palette";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
 export const dynamic = 'force-dynamic';
@@ -51,6 +51,10 @@ tailwind.config = {
         mono: ['var(--font-mono-app)', 'Roboto Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: ${TAILWIND_COLORS_JS},
+      // Text reads through each skin's text-only inks (Corporate, 2026-10-23),
+      // so a hint can be made readable without moving the border that shares
+      // its step.
+      textColor: ${TAILWIND_TEXT_COLORS_JS},
     },
   },
 };

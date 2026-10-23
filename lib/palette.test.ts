@@ -112,6 +112,41 @@ test('the corporate skins keep every text ink readable (4.5:1) on the page and o
   assert.deepEqual(low, [], 'under WCAG AA — a corporate skin that is harder to read is not more professional');
 });
 
+/**
+ * TEXT is read through the text-only inks (`--c-ink-*`, owner 2026-10-23: "extra
+ * comfort and visibility"), which is what a screen actually shows for
+ * text-slate-600 and friends. The hint ink is used ~820 times and was 2.4:1 in
+ * Corporate Dark; the disabled ink must stay readable without passing for live
+ * text.
+ */
+test('the corporate text inks: hints readable, disabled still visible, every step in order', () => {
+  const inkOf = (body: string, v: string) =>
+    new RegExp(`--c-ink-${v}:`).test(body) ? rgbOf(body, `ink-${v}`) : rgbOf(body, v);
+  const low: string[] = [];
+  for (const name of ['corporate', 'corporate-dark']) {
+    const body = blocks().find((b) => b.name === name && b.body.includes('--c-slate-900'))!.body;
+    for (const bg of ['app-bg', 'slate-900']) {
+      const page = rgbOf(body, bg);
+      const ratio = (v: string) => contrast(inkOf(body, v), page);
+      for (const v of ['white', 'slate-100', 'slate-200', 'slate-300', 'slate-400', 'slate-500', 'slate-600']) {
+        if (ratio(v) < 4.5) low.push(`${name}: text ${v} on ${bg} = ${ratio(v).toFixed(2)}`);
+      }
+      if (ratio('slate-700') < 2.5) low.push(`${name}: disabled text on ${bg} = ${ratio('slate-700').toFixed(2)}`);
+      // Each step is quieter than the one before it, so the hierarchy holds.
+      const steps = ['slate-200', 'slate-300', 'slate-400', 'slate-500', 'slate-600', 'slate-700'];
+      for (let i = 1; i < steps.length; i++) {
+        if (ratio(steps[i]) >= ratio(steps[i - 1])) low.push(`${name}: ${steps[i]} is not quieter than ${steps[i - 1]}`);
+      }
+    }
+  }
+  assert.deepEqual(low, []);
+  // Text only, corporate only: no other skin defines an ink, so its text is untouched.
+  for (const b of blocks().filter((x) => x.body.includes('--c-slate-900'))) {
+    const isCorp = b.name.startsWith('corporate') || b.name === '(default)';
+    assert.equal(b.body.includes('--c-ink-'), isCorp, `${b.name} ${isCorp ? 'lacks' : 'carries'} text inks`);
+  }
+});
+
 test('the corporate skin only ADDS — nothing it defines leaks into another skin', () => {
   // The brand tokens exist only in the two corporate blocks…
   // (Only the skins' VARIABLE blocks — a scoped rule such as
