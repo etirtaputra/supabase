@@ -391,6 +391,28 @@ export function ArrivingSoon({ data, buySide }: { data: ArrivingSummary | null; 
  * not items — the late items themselves are Arriving soon's job.
  */
 const VIA_NAME: Record<ShipVia, string> = { Sea: 'Sea', Air: 'Air', Local: 'Local' };
+/**
+ * A whole analysis screen as one dashboard panel — Spend & Cash's three views
+ * (owner, 2026-10-23: "insights spend and cash should be part of dashboard").
+ * The view inside is the same component the full screen draws, not a copy;
+ * the head's link opens it at full width.
+ */
+export function InsightCard({ title, meta, href, children }: {
+  title: string;
+  meta?: string;
+  href: string;
+  children: React.ReactNode;
+}) {
+  const { t } = useT();
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
+      <CardHead title={title} meta={meta}
+        right={<Link href={href} className="text-[11px] text-slate-500 hover:text-sky-300 transition-colors">{t('Full screen')} →</Link>} />
+      <div className="p-4 sm:p-5 min-w-0 overflow-x-auto">{children}</div>
+    </div>
+  );
+}
+
 export function LeadTimesCard({ data }: { data: { leads: SupplierLead[]; names: Map<string, string> } | null }) {
   const { t, tf } = useT();
   const days = (d: number) => (d === 1 ? t('1 day') : tf('{d} days', { d }));

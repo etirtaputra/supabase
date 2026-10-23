@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-23** · last change: *Sales: four menu entries, Needs action on Sales Orders* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-23** · last change: *Dashboard: Spend & Cash panels* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,21 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-23 (latest) — Sales: four menu entries, Sales Orders "Needs action"
+### 2026-10-23 (latest) — Dashboard: Spend & Cash panels
+
+Owner: "insights spend and cash should be part of dashboard" (/spend-cash had
+3 views in a month; the dashboard 138). Three widgets in
+constants/dashboardWidgets.ts, all `section: 'buySide', cap:
+'canViewAnalytics'` (the screen's own gate, so owner only) and listed in the
+test's BUY_SIDE_DATA: `spend` (on), `costBreakdown` (on), `positioning`
+(ships OFF — only places items with a capacity). They render the SAME
+components the screen uses (SpendOverview gained `embedded` to drop its own
+title) inside `InsightCard` (components/dashboard/Widgets.tsx: CardHead +
+"Full screen" → /spend-cash?tab=…). /spend-cash is inNav:false now, so the
+Insights group no longer shows in anyone's menu. lib/access.test.ts and
+lib/dashboardWidgets.test.ts EXPECTED updated on purpose.
+
+### 2026-10-23 — Sales: four menu entries, Sales Orders "Needs action"
 
 Owner: "go ahead" on the click data (a month: Invoices, Delivery and After
 Sales 0 views, Serial Numbers 1; Sales Orders 29 + New Quotation 15).

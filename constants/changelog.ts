@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-23T08:26:18Z",
+    title: "Dashboard: Spend & Cash kini ada di Dashboard",
+    details: [
+      "Ringkasan belanja dan Rincian biaya tampil sebagai panel di Dashboard, di bawah Lead time pemasok.",
+      "Peta posisi tersedia juga, tapi mati secara bawaan: nyalakan lewat Sesuaikan.",
+      "Setiap panel punya tautan \"Layar penuh\". Menu Spend & Cash dihapus; layarnya tetap bisa dicari.",
+    ],
+  },
+  {
     at: "2026-10-23T08:06:40Z",
     title: "Penjualan: menu jadi empat, Sales Orders menampilkan yang perlu ditindaklanjuti",
     details: [

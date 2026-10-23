@@ -81,11 +81,13 @@ test('an unregistered path is open — registering it is how a page gets a gate'
  * Numbers and After Sales had 1 view between them in a month). They are tabs on
  * Sales Orders now, and stay in the menu of every role that cannot open Sales
  * Orders — the warehouse, the service desk, finance, buy admin.
+ * 2026-10-23: Spend & Cash left the menu — its three views are Dashboard panels
+ * (owner: "insights spend and cash should be part of dashboard").
  */
 const EXPECTED: Record<UserRole, string[]> = {
   owner: [
     '/', '/purchasing?tab=lookup', '/purchasing?tab=catalog', '/suppliers', '/stock',
-    '/sales', '/products', '/customers', '/support-letters', '/banks', '/spend-cash', '/specs',
+    '/sales', '/products', '/customers', '/support-letters', '/banks', '/specs',
     '/pricing', '/proposals', '/proposals/bom', '/settings', '/import-export',
   ],
   buy_admin: [

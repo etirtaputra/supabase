@@ -101,6 +101,20 @@ export const DASHBOARD_WIDGETS: DashboardWidget[] = [
   // splits the half-pairs above or below it.
   { key: 'leadTimes', label: 'Supplier lead times', width: 'full', defaultOn: true,
     section: 'buySide', hint: 'How long suppliers take, sea, air and local, and who is running late' },
+  // Spend & Cash's three views (owner, 2026-10-23: "insights spend and cash
+  // should be part of dashboard"). Each reads supplier costs and payments, and
+  // carries the same owner-only analytics gate the screen has always had.
+  // The positioning map ships switched off: it only places items that carry a
+  // capacity, so it is a tick away in Customise rather than a default.
+  { key: 'spend', label: 'Spend overview', width: 'full', defaultOn: true,
+    section: 'buySide', cap: 'canViewAnalytics',
+    hint: 'What we spend, with whom and on what, and how it trends' },
+  { key: 'costBreakdown', label: 'Cost breakdown', width: 'full', defaultOn: true,
+    section: 'buySide', cap: 'canViewAnalytics',
+    hint: 'How spend splits into supplier price, bank fees, landed costs and tax' },
+  { key: 'positioning', label: 'Positioning map', width: 'full', defaultOn: false,
+    section: 'buySide', cap: 'canViewAnalytics',
+    hint: 'Price per unit against capacity, per product category' },
   // The two league tables. Revenue is a sell-side number, so the sell side may
   // rank by it; PROFIT needs what the goods cost us, which is why the profit
   // view is offered only to a role that may already see item economics — and

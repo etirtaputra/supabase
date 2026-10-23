@@ -205,8 +205,11 @@ export const DESTINATIONS: Destination[] = [
   // and what did we EARN.
   // Pricing Intelligence, Cash Cycle and Exchange Rates moved to the Item
   // hub's per-item tabs (2026-08-11) — their keywords moved with them.
-  { href: '/spend-cash', label: 'Spend & Cash', group: 'Insights', section: null, cap: 'canViewAnalytics', inNav: true,
-    hint: 'Spend analytics, cost breakdown, positioning map',
+  // On the Dashboard since 2026-10-23 (owner: "insights spend and cash should
+  // be part of dashboard") — its three views are dashboard panels, and this
+  // screen stays one search away as their full-screen version.
+  { href: '/spend-cash', label: 'Spend & Cash', group: 'Insights', section: null, cap: 'canViewAnalytics', inNav: false,
+    hint: 'Spend analytics, cost breakdown, positioning map — also on the Dashboard',
     keywords: 'insights analytics reports spend tuc costs positioning' },
   // The menu looking at itself. Owner-only, and search-only in the menu — a
   // module whose whole subject is "there are too many menu entries" does not

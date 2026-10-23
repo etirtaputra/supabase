@@ -122,9 +122,11 @@ interface Props {
   poCosts: POCost[];
   quoteItems: PriceQuoteLineItem[];
   isLoading: boolean;
+  /** Inside a Dashboard panel, whose head already names it — skip the title. */
+  embedded?: boolean;
 }
 
-export default function SpendOverview({ components, suppliers, quotes, pos, poItems, poCosts, quoteItems, isLoading }: Props) {
+export default function SpendOverview({ components, suppliers, quotes, pos, poItems, poCosts, quoteItems, isLoading, embedded = false }: Props) {
   const { t } = useT();
   const [period, setPeriod] = useState<Period>('all');
   const [vendorFilter, setVendorFilter] = useState('');
@@ -395,7 +397,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
       {/* Header + period filter */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Spend Overview</h2>
+          {!embedded && <h2 className="text-base md:text-lg font-semibold text-white tracking-tight">Spend Overview</h2>}
           <p className="text-slate-500 text-[11px] mt-0.5">
             PO-committed values converted to IDR equivalent at recorded exchange rates. Cancelled POs excluded.
           </p>

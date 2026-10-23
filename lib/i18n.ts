@@ -645,8 +645,8 @@ export const ID: Record<string, string> = {
     'Surat Dukungan — dukungan kami untuk reseller yang ikut tender',
   'Bank accounts, statements and cash position':
     'Rekening bank, mutasi dan posisi kas',
-  'Spend analytics, cost breakdown, positioning map':
-    'Analisa pengeluaran, rincian biaya, peta posisi',
+  'Spend analytics, cost breakdown, positioning map — also on the Dashboard':
+    'Analisa pengeluaran, rincian biaya, peta posisi — juga ada di Dashboard',
   'GP per item / customer / rep, capital allocation, cash cycle':
     'Laba kotor per barang / pelanggan / sales, alokasi modal, siklus kas',
   'Which screens get opened, by whom, and how many clicks deep':
@@ -2524,6 +2524,16 @@ export const ID: Record<string, string> = {
   '{n} days overdue': 'lewat jatuh tempo {n} hari',
   'due {date}': 'jatuh tempo {date}',
   'no due date': 'tanpa jatuh tempo',
+  // Spend & Cash as Dashboard panels (2026-10-23)
+  'Spend overview': 'Ringkasan belanja',
+  'What we spend, with whom and on what, and how it trends': 'Berapa belanja kita, ke siapa dan untuk apa, serta trennya',
+  'Cost breakdown': 'Rincian biaya',
+  'How spend splits into supplier price, bank fees, landed costs and tax': 'Pembagian belanja: harga pemasok, biaya bank, biaya mendarat, dan pajak',
+  'Positioning map': 'Peta posisi',
+  'Price per unit against capacity, per product category': 'Harga per unit terhadap kapasitas, per kategori produk',
+  'Full screen': 'Layar penuh',
+  'POs with lines and payments': 'PO dengan baris dan pembayaran',
+  'price per unit vs capacity': 'harga per unit vs kapasitas',
   'A supplier quote, not a landed cost: freight, duty and fees are not in it yet.': 'Penawaran pemasok, bukan biaya mendarat: ongkos kirim, bea, dan biaya lain belum termasuk.',
   '{n} of them rest on a supplier quote (marked QUOTE), not a landed cost. A quote leaves out freight, duty and fees, so the true margin is worse than shown, not better.':
     '{n} di antaranya memakai penawaran pemasok (bertanda QUOTE), bukan biaya mendarat. Penawaran belum termasuk ongkos kirim, bea, dan biaya lain, jadi margin sebenarnya lebih buruk dari yang tampil, bukan lebih baik.',
