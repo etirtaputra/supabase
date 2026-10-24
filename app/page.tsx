@@ -20,7 +20,7 @@ import { fetchPosition, type PositionData } from '@/lib/position';
 import { fetchShortages, fetchReorderAlerts, type ShortageAlert, type ReorderAlert } from '@/lib/reorder';
 import {
   KpiTile, QuickActions, ActionQueue, NewArrivals, ArrivingSoon, FeedCard, TopBoard,
-  StockAlerts, PositionStrip, MonthMotion, NextStepCard, ActivityStream, LeadTimesCard, InsightCard,
+  StockAlerts, PositionStrip, MonthMotion, NextStepCard, ActivityStream, LeadTimesCard, InsightCard, FxRatesCard,
 } from '@/components/dashboard/Widgets';
 import SpendOverview from '@/components/ui/SpendOverview';
 import CostBreakdown from '@/components/ui/CostBreakdown';
@@ -340,6 +340,7 @@ export default function Home() {
       case 'newArrivals':   return <NewArrivals rows={arrivedItems} days={newArrivalDays} />;
       case 'arriving':      return <ArrivingSoon data={arriving} buySide={!!perms?.buySide} />;
       case 'leadTimes':     return <LeadTimesCard data={leadTimes} />;
+      case 'fxRates':       return <FxRatesCard />;
       // Spend & Cash, drawn from the same loaded data the KPI tiles use.
       case 'spend':         return <InsightCard title={t('Spend overview')} href="/spend-cash?tab=spend">
                                   <SpendOverview components={data.components} suppliers={data.suppliers} quotes={data.quotes} pos={data.pos}

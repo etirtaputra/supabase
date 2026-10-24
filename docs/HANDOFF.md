@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-24** · last change: *ICAPROC logo: the real ICA silhouette + PROC* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-24** · last change: *Dashboard Exchange rates panel* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,18 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-24 (latest) — ICAPROC logo: the real ICA silhouette + PROC
+### 2026-10-24 (latest) — Dashboard: the daily Exchange rates panel
+
+Owner: "Dashboard in ICAPROC should display the daily currency rates, both
+the real rates and rounded up rates. And log of changes (if any)".
+`FxRatesCard` (components/dashboard/Widgets.tsx), widget `fxRates` (full
+width, after Month in motion, buy side; in BUY_SIDE_DATA and the pinned
+EXPECTED/EXPECTED_START lists). Left: per currency the KlikBCA e-Rate sell
+(▲/▼ vs the previous reading) and buy, rounded up, the company rate in
+force, "x% apart" when beyond 1.5%. Right: the last 5 changes to the
+company rate with who set them. Reads 9.2 + 9.1 itself. FxAutoNotice stays.
+
+### 2026-10-24 — ICAPROC logo: the real ICA silhouette + PROC
 
 Owner: "for logo of the ICAPROC can we use the silhouette of our real logo?
 and perhaps design the PROC? … well proportioned in desktop and mobile" →

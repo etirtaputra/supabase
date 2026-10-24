@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
-import { fmtIdr, fmtInt, parseDate } from '@/lib/formatters';
+import { fmtIdr, fmtInt, fmtDay, parseDate } from '@/lib/formatters';
 import { getSettings } from '@/lib/settings';
 import FitText from '@/components/ui/FitText';
 import { useT } from '@/hooks/useT';
@@ -14,6 +14,10 @@ import type { RankBy, Leaderboard } from '@/lib/salesFacts';
 import type { Feed } from '@/lib/recentFeeds';
 import { leadDigest, type ShipVia, type SupplierLead } from '@/lib/supplierLeadTimes';
 import type { RolePermissions } from '@/constants/roles';
+import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
+import { currentBenchmarks, benchmarkLog, type FxReference } from '@/lib/fxBenchmark';
+import { BCA_CODES, FOLLOW_PCT, roundUpToHundred } from '@/lib/bcaRate';
+import { personName } from '@/lib/quoteFlags';
 
 /**
  * The Dashboard's widgets, lifted out of the page that renders them.
@@ -409,6 +413,107 @@ export function InsightCard({ title, meta, href, children }: {
       <CardHead title={title} meta={meta}
         right={<Link href={href} className="text-[11px] text-slate-500 hover:text-sky-300 transition-colors">{t('Full screen')} →</Link>} />
       <div className="p-4 sm:p-5 min-w-0 overflow-x-auto">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Exchange rates — today's KlikBCA e-Rate, the rate rounded up, the company
+ * rate it feeds, and the latest changes (owner, 2026-10-24: "Dashboard in
+ * ICAPROC should display the daily currency rates, both the real rates and
+ * rounded up rates. And log of changes (if any)"). Reads 9.2 (the morning
+ * readings) and 9.1 (the company rate and its log); both are buy side only.
+ */
+export function FxRatesCard() {
+  const { t, tf } = useT();
+  const { rows } = useFxBenchmarks();
+  const [readings, setReadings] = useState<FxReference[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    createSupabaseClient().from('9.2_fx_reference_rates').select('rate_date, currency, buy, sell, quoted_at')
+      .order('rate_date', { ascending: false }).limit(20)
+      .then(({ data }) => { if (live) setReadings((data ?? []) as FxReference[]); }, () => { if (live) setReadings([]); });
+    return () => { live = false; };
+  }, []);
+  const current = currentBenchmarks(rows);
+  const log = benchmarkLog(rows).slice(0, 5);
+  const latest = (ccy: string) => (readings ?? []).filter((r) => r.currency === ccy);
+  const setter = (source?: string | null, email?: string | null) =>
+    (source === 'bca-erate' ? t('KlikBCA e-Rate (automatic)') : personName(email ?? ''));
+  const currencies = Object.keys(BCA_CODES);
+  return (
+    <div className="bg-slate-900/60 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden">
+      <CardHead title={t('Exchange rates')}
+        meta={(readings ?? [])[0]?.quoted_at ? `KlikBCA e-Rate · ${readings![0].quoted_at}` : ''}
+        right={<Link href="/settings?tab=fx" className="text-[11px] text-slate-500 hover:text-sky-300 transition-colors">{t('Exchange rates')} →</Link>} />
+      {readings === null ? (
+        <div className="p-4 sm:p-5"><div className="h-16 bg-slate-800/40 rounded-lg animate-pulse" /></div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 lg:divide-x divide-slate-800/70">
+          <div className="divide-y divide-slate-800/60">
+            {currencies.map((c) => {
+              const [today, before] = latest(c);
+              const company = current.get(c);
+              const sell = today ? Number(today.sell) : null;
+              const move = sell != null && before ? (sell / Number(before.sell) - 1) * 100 : null;
+              const rounded = sell != null ? roundUpToHundred(sell) : null;
+              const apart = rounded != null && company ? (rounded / Number(company.rate) - 1) * 100 : null;
+              return (
+                <div key={c} className="px-4 sm:px-5 py-3 grid grid-cols-[2.25rem_1fr_1fr_1fr] items-baseline gap-x-3">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">{c}</span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] uppercase tracking-wider text-slate-500">{t('e-Rate sell')}</span>
+                    <span className="text-sm font-semibold text-slate-200 tabular-nums">{sell != null ? fmtInt(sell) : '—'}</span>
+                    {move != null && Math.abs(move) >= 0.05 && (
+                      <span className={`sm:ml-1.5 block sm:inline text-[11px] tabular-nums ${move > 0 ? 'text-red-300' : 'text-emerald-300'}`}>{move > 0 ? '▲' : '▼'} {Math.abs(move).toFixed(1)}%</span>
+                    )}
+                    {today?.buy != null && <span className="block text-[11px] text-slate-500 tabular-nums">{tf('buy {rate}', { rate: fmtInt(Number(today.buy)) })}</span>}
+                  </span>
+                  <span>
+                    <span className="block text-[10px] uppercase tracking-wider text-slate-500">{t('Rounded up')}</span>
+                    <span className="text-sm font-semibold text-slate-200 tabular-nums">{rounded != null ? fmtInt(rounded) : '—'}</span>
+                  </span>
+                  <span className="text-right min-w-0">
+                    <span className="block text-[10px] uppercase tracking-wider text-slate-500">{t('Company rate')}</span>
+                    <span className="text-base font-bold text-white tabular-nums">{company ? fmtInt(Number(company.rate)) : '—'}</span>
+                    {apart != null && Math.abs(apart) > FOLLOW_PCT && (
+                      <span className="block text-[11px] text-amber-300 tabular-nums">{tf('{pct}% apart', { pct: apart.toFixed(1) })}</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+            {(readings ?? []).length === 0 && (
+              <p className="px-4 sm:px-5 py-3 text-[12px] text-slate-500">{t('No KlikBCA reading yet: the first one arrives with the morning check.')}</p>
+            )}
+          </div>
+          <div className="border-t lg:border-t-0 border-slate-800/70">
+            <p className="px-4 sm:px-5 pt-3 text-[10px] uppercase tracking-wider text-slate-500">{t('Changes to the company rate')}</p>
+            {log.length === 0 ? (
+              <p className="px-4 sm:px-5 py-3 text-[12px] text-slate-500">{t('No rate has been set yet.')}</p>
+            ) : (
+              <div className="pb-2">
+                {log.map((r) => {
+                  const rate = Number(r.rate);
+                  const chg = r.previous ? (rate / r.previous - 1) * 100 : null;
+                  return (
+                    <div key={r.benchmark_id} className="px-4 sm:px-5 py-1.5 flex flex-wrap items-baseline gap-x-3 text-[12px]">
+                      <span className="text-slate-500 tabular-nums w-16 shrink-0">{fmtDay(r.set_at)}</span>
+                      <span className="font-semibold text-slate-300 w-9">{r.currency}</span>
+                      <span className="font-semibold text-white tabular-nums">{fmtInt(rate)}</span>
+                      <span className="text-slate-500 tabular-nums">
+                        {r.previous == null ? t('first rate')
+                          : <>{tf('was {rate}', { rate: fmtInt(r.previous) })} <span className={chg! > 0 ? 'text-red-300' : 'text-emerald-300'}>({chg! > 0 ? '+' : ''}{chg!.toFixed(1)}%)</span></>}
+                      </span>
+                      <span className={`ml-auto ${r.source === 'bca-erate' ? 'text-sky-300' : 'text-slate-400'}`}>{setter(r.source, r.set_by_email)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

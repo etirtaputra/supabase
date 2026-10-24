@@ -76,6 +76,11 @@ export const DASHBOARD_WIDGETS: DashboardWidget[] = [
   { key: 'motion', label: 'Month in motion', width: 'half', defaultOn: true,
     section: null, caps: ['buySide', 'sellSide'],
     hint: 'This month so far against the same days of last month' },
+  // Today's exchange rates: the KlikBCA e-Rate, rounded up, the company rate
+  // and its log (owner, 2026-10-24). Reads 9.1/9.2, buy side only. Full width
+  // so it never splits the half-pairs around it.
+  { key: 'fxRates', label: 'Exchange rates', width: 'full', defaultOn: true,
+    section: 'buySide', hint: 'KlikBCA e-Rate today, rounded up, the company rate and its changes' },
   // The four buy-side KPIs. Separate widgets on purpose: someone who watches
   // cash out every morning should be able to keep that tile and drop the
   // catalog count, which changes once a week.

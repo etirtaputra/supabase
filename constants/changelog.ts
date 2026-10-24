@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-24T00:32:04Z",
+    title: "Dashboard: panel Kurs harian",
+    details: [
+      "Panel baru \"Kurs\" di Dashboard: KlikBCA e-Rate hari ini (jual dan beli, dengan perubahan dari kemarin), angka yang dibulatkan ke atas, dan kurs perusahaan yang berlaku untuk USD dan CNY.",
+      "Di sebelahnya: perubahan kurs perusahaan terakhir, siapa yang mengubah (Anda atau KlikBCA otomatis), dan berapa persen.",
+    ],
+  },
+  {
     at: "2026-10-24T00:23:39Z",
     title: "Ikon tab browser kini logo ICA",
     details: ["Ikon di tab browser, bookmark, dan layar utama ponsel kini logo ICA putih di atas biru logo."],

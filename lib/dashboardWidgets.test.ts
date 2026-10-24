@@ -33,12 +33,14 @@ const keysFor = (role: UserRole) => visibleWidgets(ROLE_PERMISSIONS[role], HOUSE
  * purpose — a diff here is someone gaining or losing a panel.
  */
 const EXPECTED: Record<UserRole, string[]> = {
+  // Exchange rates joined 2026-10-24 (owner: "Dashboard … should display the
+  // daily currency rates"), for every buy-side role.
   // Spend overview and cost breakdown joined 2026-10-23 (Spend & Cash moved
   // onto the Dashboard); the positioning map ships off, one tick away.
-  owner: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'spend', 'costBreakdown', 'topProducts', 'topCustomers', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
+  owner: ['position', 'queue', 'nextStep', 'motion', 'fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'spend', 'costBreakdown', 'topProducts', 'topCustomers', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
   // Buy-side-only roles see no sales league table: revenue by customer is a
   // sell-side number, and they have no sell-side.
-  buy_admin: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
+  buy_admin: ['position', 'queue', 'nextStep', 'motion', 'fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
   sell_admin: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
   sales: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
   engineer: ['position', 'queue', 'nextStep', 'motion', 'newArrivals', 'arriving', 'topProducts', 'topCustomers', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
@@ -49,10 +51,10 @@ const EXPECTED: Record<UserRole, string[]> = {
   // Read-only deal lookup and nothing else. An empty dashboard is the honest
   // answer — panels that could only ever say "nothing here" say nothing.
   viewer: [],
-  data_entry: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
+  data_entry: ['position', 'queue', 'nextStep', 'motion', 'fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
   // Legacy finance: buy-side money, but no stock and no sell-side, so no
   // deliveries feed.
-  finance: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'stockAlerts', 'lastPayments', 'activity', 'quickActions'],
+  finance: ['position', 'queue', 'nextStep', 'motion', 'fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'stockAlerts', 'lastPayments', 'activity', 'quickActions'],
 };
 
 test('what each role sees on the dashboard is what we meant it to see', () => {
@@ -67,7 +69,7 @@ test('what each role sees on the dashboard is what we meant it to see', () => {
  * read forwards or backwards is buy-side, and a sell-side login must never
  * meet one of these on a dashboard it customised.
  */
-const BUY_SIDE_DATA = ['kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'stockAlerts', 'leadTimes', 'spend', 'costBreakdown', 'positioning'];
+const BUY_SIDE_DATA = ['fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'stockAlerts', 'leadTimes', 'spend', 'costBreakdown', 'positioning'];
 
 test('a widget fed by buy-side data is never offered to a sell-side role', () => {
   for (const key of BUY_SIDE_DATA) {
@@ -229,9 +231,9 @@ test('the registry is well formed — unique keys, a known width, a hint', () =>
  * rearranged underneath them.
  */
 const EXPECTED_START: Record<UserRole, string[]> = {
-  owner: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'spend', 'costBreakdown', 'topProducts', 'topCustomers', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
+  owner: ['position', 'queue', 'nextStep', 'motion', 'fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'spend', 'costBreakdown', 'topProducts', 'topCustomers', 'stockAlerts', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
   // Procurement opens on the blockage, not the cash position.
-  buy_admin: ['queue', 'stockAlerts', 'arriving', 'newArrivals', 'position', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'leadTimes', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
+  buy_admin: ['queue', 'stockAlerts', 'arriving', 'newArrivals', 'position', 'nextStep', 'motion', 'fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'leadTimes', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
   sell_admin: ['queue', 'position', 'topCustomers', 'topProducts', 'nextStep', 'motion', 'newArrivals', 'arriving', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
   sales: ['queue', 'newArrivals', 'topCustomers', 'position', 'nextStep', 'motion', 'arriving', 'topProducts', 'lastPayments', 'lastDeliveries', 'lastCases', 'activity', 'quickActions'],
   // EPC starts the two sales league tables switched OFF — offered, unticked.
@@ -239,8 +241,8 @@ const EXPECTED_START: Record<UserRole, string[]> = {
   warehouse: ['arriving', 'lastDeliveries', 'quickActions'],
   aftersales: ['lastCases', 'quickActions'],
   viewer: [],
-  data_entry: ['queue', 'stockAlerts', 'arriving', 'newArrivals', 'position', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'leadTimes', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
-  finance: ['position', 'queue', 'nextStep', 'motion', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'stockAlerts', 'lastPayments', 'activity', 'quickActions'],
+  data_entry: ['queue', 'stockAlerts', 'arriving', 'newArrivals', 'position', 'nextStep', 'motion', 'fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'leadTimes', 'lastPayments', 'lastDeliveries', 'activity', 'quickActions'],
+  finance: ['position', 'queue', 'nextStep', 'motion', 'fxRates', 'kpiPaid', 'kpiStockValue', 'kpiActivePos', 'kpiComponents', 'newArrivals', 'arriving', 'leadTimes', 'stockAlerts', 'lastPayments', 'activity', 'quickActions'],
 };
 
 const startFor = (role: UserRole) =>
