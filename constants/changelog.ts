@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-24T00:01:52Z",
+    title: "Logo ICAPROC baru: logo ICA asli + PROC",
+    details: [
+      "Logo di menu dan di halaman masuk kini memakai bentuk logo ICA yang asli, diikuti PROC dengan huruf lebih ringan dan berjarak.",
+      "Tema terang: ICA biru logo dan PROC abu-abu. Tema gelap: ICA putih dan PROC abu-abu kehijauan.",
+      "Ukurannya sama di semua halaman: 22 px di desktop, 19 px di ponsel.",
+    ],
+  },
+  {
     at: "2026-10-23T23:26:13Z",
     title: "Kurs: dicek otomatis tiap pagi dari KlikBCA e-Rate, dan riwayat bisa diubah",
     details: [

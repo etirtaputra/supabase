@@ -1,4 +1,5 @@
 'use client';
+import IcaprocLogo from '@/components/ui/IcaprocLogo';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -219,11 +220,15 @@ function useHeaderSqueeze(): [number, React.RefObject<HTMLDivElement | null>] {
 }
 
 export default function BrandMenu({
-  wordmarkClass = 'text-xl font-bold',
   subtitle,
   mobileNav = true,
   showStatus = true,
-}: { wordmarkClass?: string; subtitle?: string; mobileNav?: boolean; showStatus?: boolean }) {
+}: {
+  /** No longer read: the wordmark is the ICAPROC logo (2026-10-24), sized the
+   *  same on every page so its proportions hold. Kept so callers still type. */
+  wordmarkClass?: string;
+  subtitle?: string; mobileNav?: boolean; showStatus?: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
@@ -511,8 +516,8 @@ export default function BrandMenu({
             onClick={() => setOpen((o) => !o)}
             aria-label="Open menu"
             aria-expanded={open}
-            className={`${wordmarkClass} text-white tracking-tight hover:text-emerald-300 transition-colors`}>
-            ICAPROC
+            className="block py-1 hover:opacity-80 transition-opacity">
+            <IcaprocLogo />
           </button>
           <button
             onClick={() => setOpen((o) => !o)}

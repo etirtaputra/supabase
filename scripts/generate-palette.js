@@ -397,6 +397,10 @@ const FONTS = {
     mono: "'IBM Plex Sans', Inter, system-ui, sans-serif",
   },
 };
+// The ICA logo's own colour (owner, 2026-10-24: the wordmark is the real logo
+// now). The master blue on a light page; white on a dark one, where that blue
+// would vanish. Read only by components/ui/IcaprocLogo.tsx.
+const logoVar = (onLight) => `--c-logo:${onLight ? hexToRgb('#003ca6') : hexToRgb('#ffffff')}`;
 const fontBlock = (f) => `--font-app:${f.sans};--font-mono-app:${f.mono}`;
 
 /**
@@ -563,15 +567,15 @@ const SHADOW_FIX = ':root[data-theme="light"] [class*="shadow-black"],:root[data
 const css = [
   // CORPORATE IS THE UNATTRIBUTED DEFAULT (owner, 2026-09-28), as terminal
   // was before it: the skin that renders before any script has run.
-  `:root{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
-  `:root[data-theme="terminal"]{${block(terminal, APP_BG_EXTRA.terminal)};${fontBlock(FONTS.terminal)}}`,
-  `:root[data-theme="terminal-light"]{${block(terminalLight, APP_BG_EXTRA['terminal-light'])};${fontBlock(FONTS.terminal)}}`,
-  `:root[data-theme="dark"]{${block(dark, APP_BG.dark)};${fontBlock(FONTS.house)}}`,
-  `:root[data-theme="light"]{${block(light, APP_BG.light)};${fontBlock(FONTS.house)}}`,
-  `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)};${fontBlock(FONTS.house)}}`,
-  `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${fontBlock(FONTS.house)}}`,
-  `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
-  `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])};${inkBlock(CORPORATE_TEXT_INK['corporate-dark'])}}`,
+  `:root{${block(corporate, APP_BG_EXTRA.corporate)};${logoVar(true)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
+  `:root[data-theme="terminal"]{${block(terminal, APP_BG_EXTRA.terminal)};${logoVar(false)};${fontBlock(FONTS.terminal)}}`,
+  `:root[data-theme="terminal-light"]{${block(terminalLight, APP_BG_EXTRA['terminal-light'])};${logoVar(true)};${fontBlock(FONTS.terminal)}}`,
+  `:root[data-theme="dark"]{${block(dark, APP_BG.dark)};${logoVar(false)};${fontBlock(FONTS.house)}}`,
+  `:root[data-theme="light"]{${block(light, APP_BG.light)};${logoVar(true)};${fontBlock(FONTS.house)}}`,
+  `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)};${logoVar(false)};${fontBlock(FONTS.house)}}`,
+  `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${logoVar(true)};${fontBlock(FONTS.house)}}`,
+  `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${logoVar(true)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
+  `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${logoVar(false)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])};${inkBlock(CORPORATE_TEXT_INK['corporate-dark'])}}`,
   SHADOW_FIX,
   TERMINAL_SHELL_CSS,
   CORPORATE_SHELL_CSS,

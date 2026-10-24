@@ -1,4 +1,5 @@
 'use client';
+import IcaprocLogo from '@/components/ui/IcaprocLogo';
 import { useState } from 'react';
 import { createSupabaseClient } from '@/lib/supabase';
 import { ROLE_PERMISSIONS, type UserRole } from '@/constants/roles';
@@ -100,8 +101,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400 tracking-tight">
-            ICAPROC
+          <h1 className="flex justify-center">
+            <IcaprocLogo className="h-9 sm:h-10" />
           </h1>
           <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest">Supply Chain</p>
         </div>

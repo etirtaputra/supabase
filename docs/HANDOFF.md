@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-24** · last change: *FX benchmark follows KlikBCA e-Rate each morning; log editable* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-24** · last change: *ICAPROC logo: the real ICA silhouette + PROC* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,22 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-24 (latest) — FX benchmark follows KlikBCA e-Rate each morning; log editable
+### 2026-10-24 (latest) — ICAPROC logo: the real ICA silhouette + PROC
+
+Owner: "for logo of the ICAPROC can we use the silhouette of our real logo?
+and perhaps design the PROC? … well proportioned in desktop and mobile" →
+three options previewed → "go with B".
+- `components/ui/IcaprocLogo.tsx`: one SVG. ICA = the master logo traced
+  (potrace, overlay-checked against the artwork); PROC = Montserrat SemiBold
+  outlines at the same cap height, tracked wider. ICA fills `--c-logo`
+  (new palette var in scripts/generate-palette.js: #003CA6 on the light
+  skins, white on the dark ones); PROC is `text-slate-500` (the corporate
+  text ink). Height h-[19px] / md:h-[22px]; `w-auto` keeps the ratio.
+- Used by BrandMenu (every page; `wordmarkClass` is now ignored, kept in the
+  type) and the login page (h-9/sm:h-10).
+- Measured in the rig: 158.7×22 desktop, 137×19 phone, no horizontal scroll.
+
+### 2026-10-24 — FX benchmark follows KlikBCA e-Rate each morning; log editable
 
 Owner: "option 1, use BCA e-Rate, warn above 1.5% / round up to the nearest
 hundreds digit (18.128 → 18.200, CNY/CNH 2.745 → 2.800) / Check daily every
