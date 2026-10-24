@@ -3,8 +3,15 @@
 > **Read this before your first query. Never guess a table name.**
 >
 > Written 2026-09-06, revised 2026-09-07, 2026-09-09, 2026-09-11, 2026-09-19,
-> 2026-10-09, 2026-10-11 and 2026-10-23, against `main` @ the commit that carries it. Row counts are from
+> 2026-10-09, 2026-10-11, 2026-10-23 and 2026-10-24, against `main` @ the commit that carries it. Row counts are from
 > those days and drift; the NAMES and the RULES are what matter.
+>
+> **v11 (2026-10-24) corrects §5 on `9.1_fx_benchmark_rates`.** Its rows CAN
+> be edited (rate and note, by an owner; the database stamps `edited_at` and
+> `edited_by_email`), and a server job adds rows by itself each morning
+> (`source = 'bca-erate'`; a typed one is `'manual'`). v10 said "never edited,
+> owner writes only". An agent with the `owner` role is NOT refused by the
+> database — only the rule stops it.
 >
 > **v10 (2026-10-23) adds three tables.** `9.1_fx_benchmark_rates` — the
 > COMPANY exchange rate per currency, as a log (newest row per currency = the
@@ -255,13 +262,21 @@ means nothing is waiting, not that the feature is switched off.
 
 **Exchange rates — three tables, three different facts:**
 - `9.1_fx_benchmark_rates` — the **company rate** per currency (USD, CNY), set
-  by the owner in Settings › Exchange rates. The log IS the table: the current
-  rate is the newest row per currency (`set_at`); "our rate on 13 Oct" is the
-  newest row on or before that day. Rows are added, never edited. A new PO's
-  `exchange_rate` starts from it (`GET /api/agent/purchasing/rate`, `source:
-  "benchmark"`); a saved PO keeps its own rate. **Owner writes only.**
-- `9.2_fx_reference_rates` — what the bank published each morning (buy/sell
-  per currency). Written only by a scheduled job. Read-only.
+  by the owner in Settings › Exchange rates, or by the morning job. The log IS
+  the table: the current rate is the newest row per currency (`set_at`); "our
+  rate on 13 Oct" is the newest row on or before that day. `source` says who
+  set it: `manual` (a person) or `bca-erate` (the job at 08:30 WIB, which adds
+  a row when the KlikBCA e-Rate sell, rounded up to the next hundred, is more
+  than 1.5% from the rate in force). An owner may correct a row's `rate` and
+  `note`; `set_at`, `set_by_email` and `source` never change, and the edit is
+  stamped in `edited_at` / `edited_by_email`. A new PO's `exchange_rate`
+  starts from it (`GET /api/agent/purchasing/rate`, `source: "benchmark"`);
+  a saved PO keeps its own rate. **Agents never write it — and an agent login
+  with the `owner` role is not refused by the database, so the rule is the only
+  guard.**
+- `9.2_fx_reference_rates` — what KlikBCA e-Rate published each morning
+  (`rate_date`, `currency`, `buy`, `sell`, `quoted_at`), one row per currency
+  per Jakarta day. Written only by the server job. Read-only.
 - `9.0_exchange_rate_history` — an old record of rates actually paid per PO
   (18 rows). The app does not use it. Do not quote it as a current rate.
 
@@ -605,8 +620,8 @@ Counts drift. Names do not.
 | `7.0_competitor_prices` | 5 | |
 | `8.0_component_links` | 5 | `brand_equivalent` · `normalized` · `successor` |
 | `9.0_exchange_rate_history` | 5 | old paid rates per PO; unused by the app |
-| `9.1_fx_benchmark_rates` | 5 | **the company rate** per currency, as a log; newest row = current. Owner writes only |
-| `9.2_fx_reference_rates` | 5 | the bank's morning buy/sell rates; scheduled job only |
+| `9.1_fx_benchmark_rates` | 5 | **the company rate** per currency, as a log; newest row = current; `source` manual / bca-erate. Agents never write it |
+| `9.2_fx_reference_rates` | 5 | KlikBCA e-Rate buy/sell each morning; server job only |
 | `payment_batches` | 5, 5d | no number prefix; predates the convention |
 
 ### Catalogue — §1

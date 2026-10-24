@@ -3,6 +3,14 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v8, 2026-10-24** — a correction to v7, no new procedure. v7 said the
+> database refuses an agent's write to `9.1_fx_benchmark_rates`. It does NOT
+> refuse MIRA: her login has the `owner` role, and the table lets owners add
+> and correct rates. The rule is unchanged — never write it — but it is held
+> by this document, not by the database. Also: the company rate can now change
+> by itself each morning (the KlikBCA e-Rate check), so ask the endpoint for
+> every PO; never reuse a rate you were given earlier. Rule 7 changed.
+>
 > **v7, 2026-10-23 (later the same day)** — the COMPANY RATE. The owner sets one
 > exchange rate per currency (USD, CNY) in Settings › Exchange rates
 > (`9.1_fx_benchmark_rates`). A new PO starts from it: the rate endpoint now
@@ -82,7 +90,13 @@ An agent that remembers nothing else from this document must still obey these se
      Never copy the PO's rate or the company rate into a payment: the paid rate is
      compared with the company rate, and a copied rate makes that comparison say
      "paid exactly at plan". See §5.
-   - Never write `9.1_fx_benchmark_rates` (owner only; the database refuses it).
+   - Ask the endpoint for EVERY PO. The company rate can change by itself each morning
+     (a server job follows the KlikBCA e-Rate when it moves more than 1.5%), so a rate
+     you were given yesterday may be stale.
+   - Never write `9.1_fx_benchmark_rates` or `9.2_fx_reference_rates` — not to add a
+     rate, not to correct one. **The database will NOT stop you**: your login has the
+     `owner` role, and owners may add and edit company rates. Only Eric sets them.
+     A rate you think is wrong is a finding for Eric.
 
 ## Escalate to a human, do not guess
 

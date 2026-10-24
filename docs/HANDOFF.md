@@ -5246,7 +5246,17 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    exchange_rate → read back → report any other null-rate PO). Those three
    PO dates (13–23 Oct) precede the first company rate, so the paid-vs-company
    comparison will never include them. Guard trigger still not attached
-   (owner's SQL card). The
+   (owner's SQL card). **Same night, packs corrected → runbook v8, schema
+   v11:** a8d5385 (benchmark thread) made `9.1` editable by owners and added
+   the 08:30 WIB KlikBCA job (`source` manual / bca-erate); and MIRA's login
+   (`user_profiles.role = 'owner'`) is NOT refused by the database on `9.1` —
+   v7/v10 and the agent rule had said it was. Rule now: never write 9.1/9.2,
+   the rule is the only guard; ask the endpoint for every PO. Drive: runbook
+   v8 `1AZ0YMH-9o1TDAERr3_0-hfNf8hFbIjzd`, schema v11
+   `1JY7vju88LHDuOUscONwTsfnuSmk1KG6L`, INDEX
+   `1QIMZpCqQQ0l-P5R9bvXPH3PJPc55geXf`; v7, v10 and the previous INDEX
+   trashed. Open question for the owner: MIRA holds the `owner` role, which
+   also lets her change company rates and anything else an owner can. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
