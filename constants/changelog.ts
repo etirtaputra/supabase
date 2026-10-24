@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-24T00:50:32Z",
+    title: "Deal Lookup: dikelompokkan per pemasok",
+    details: [
+      "Daftar Deal Lookup kini dibagi per pemasok, seperti bagian di proposal EPC: nama pemasok, jumlah deal, ringkasan tahap, total dipesan, dan sisa yang harus ditransfer.",
+      "Di dalam setiap pemasok, PO dan penawaran diurutkan menurut tanggal, terbaru di atas. Pemasok dengan deal terbaru tampil paling atas.",
+      "Setiap bagian bisa dilipat; ada tombol Tutup semua / Buka semua. Filter tahap (Active, Quotes, dll.) tetap berlaku di dalam setiap pemasok.",
+    ],
+  },
+  {
     at: "2026-10-24T00:32:04Z",
     title: "Dashboard: panel Kurs harian",
     details: [

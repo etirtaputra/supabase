@@ -39,13 +39,13 @@ import PurchasingInbox from './PurchasingInbox';
 import { BAR_INPUT, BAR_SELECT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON_SKY } from '@/constants/controls';
 import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { compareToBenchmark } from '@/lib/fxBenchmark';
+import { groupByVendor, NO_VENDOR } from '@/lib/dealVendors';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Rows a section renders before it offers "show all". Paging, not truncation:
- *  the count beside the heading is always the true one. */
-const SECTION_PAGE = 25;
-const FLAT_PAGE = 50;
+/** Deals a vendor section renders before it offers "show all". Paging, not
+ *  truncation: the count beside the heading is always the true one. */
+const SECTION_PAGE = 10;
 
 const QUOTE_STATUSES = ['Open', 'Accepted', 'Replaced', 'Rejected', 'Expired'] as const;
 const PO_STATUSES    = ['Draft', 'Sent', 'Confirmed', 'Replaced', 'Partially Received', 'Fully Received', 'Cancelled'] as const;
@@ -395,35 +395,6 @@ function dealStage(g: DealGroup): 'quote' | 'draft' | 'active' | 'received' | 'c
   return 'active';
 }
 
-/** The SECTION a deal belongs to in the default list (owner, 2026-08-14):
- *  an OPEN quote is a decision waiting to be made and must not drown between
- *  running POs. An ACCEPTED quote is already in motion even before its PO
- *  exists; a rejected/expired one is dead weight and sinks to the bottom. */
-type DealSection = 'open' | 'process' | 'draft' | 'received' | 'completed' | 'void';
-function dealSection(g: DealGroup): DealSection {
-  const stage = dealStage(g);
-  if (stage === 'active') return 'process';
-  if (stage === 'draft') return 'draft';
-  if (stage === 'received') return 'received';
-  if (stage === 'completed') return 'completed';
-  if (stage === 'superseded') return 'void';
-  // No PO yet — the quote's own status decides which pile it sits on
-  if (g.quotes.some((q) => q.status === 'Accepted')) return 'process';
-  if (g.quotes.length > 0 && g.quotes.every((q) => ['Rejected', 'Expired', 'Replaced'].includes(q.status ?? ''))) return 'void';
-  return 'open';
-}
-
-const DEAL_SECTIONS: { key: DealSection; label: string; accent: string; hint: string }[] = [
-  // In process leads (owner, 2026-08-14): the running money comes first,
-  // the decision pile right under it.
-  { key: 'process',   label: 'In process',                  accent: 'text-indigo-300',  hint: 'Accepted quotes and active POs — ordered or about to be, goods not fully in.' },
-  { key: 'open',      label: 'Quotes — awaiting an answer', accent: 'text-emerald-300', hint: 'No PO yet and not accepted — decide, negotiate, or let them lapse.' },
-  { key: 'draft',     label: 'Drafts — never issued',       accent: 'text-slate-500',   hint: 'Purchase orders still in Draft: not sent to the supplier, no goods coming, no money running. Issue one or let it go.' },
-  { key: 'received',  label: 'Received — balance open',     accent: 'text-emerald-400', hint: 'Goods fully received, supplier not fully paid.' },
-  { key: 'completed', label: 'Completed',                   accent: 'text-slate-400',   hint: 'Received and settled.' },
-  { key: 'void',      label: 'Void / replaced',             accent: 'text-slate-600',   hint: 'Cancelled, replaced, rejected or expired.' },
-];
-
 /** Drag handle. Same six-dot grip the proposal editor uses, so "this row can
  *  be moved" reads the same everywhere in the app. */
 const GRIP = (
@@ -592,8 +563,9 @@ export default function DealLookupTab({
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
   // Which sections the user has asked to see in full. A section renders its
   // first PAGE rows and says how many it is holding back — never a silent cut.
-  const [fullSections, setFullSections]       = useState<Set<DealSection>>(new Set());
-  const [flatShowAll, setFlatShowAll]         = useState(false);
+  // Vendor sections (owner, 2026-10-24): which are folded, and which show all their deals.
+  const [fullSections, setFullSections]       = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed]             = useState<Set<string>>(new Set());
   // Column-header sort for the table view: click a title to sort by it, click
   // again to flip. Text columns start A→Z; date and money start biggest-first.
   const [colSort, setColSort] = useState<{ key: 'pi' | 'supplier' | 'date' | 'stage' | 'total' | 'paid' | 'outstanding'; dir: 'asc' | 'desc' } | null>(null);
@@ -824,6 +796,10 @@ export default function DealLookupTab({
   const filtered = useMemo(
     () => (stageFilter === 'all' ? scoped : scoped.filter((g) => dealStage(g) === stageFilter)),
     [scoped, stageFilter]);
+  // The list is sectioned by VENDOR, like the sections of an EPC proposal
+  // (owner, 2026-10-24): each supplier's deals together, newest first, and the
+  // vendor with the newest deal on top. A stage chip narrows the deals inside.
+  const vendorSections = useMemo(() => groupByVendor(filtered), [filtered]);
 
   // The three figures that used to be big cards on the By Vendor page. They
   // read off `filtered`, so they describe exactly the rows on screen — pick a
@@ -2770,7 +2746,7 @@ export default function DealLookupTab({
 
   // ── Compact table view ───────────────────────────────────────────────────
 
-  const renderDealTable = (groups: DealGroup[]) => {
+  const renderDealTable = (groups: DealGroup[], showSupplier = true) => {
     // Header sort overrides the incoming order until cleared by another click
     const STAGE_ORDER = ['quote', 'draft', 'active', 'received', 'completed', 'superseded'];
     const refOf = (g: DealGroup) => g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`);
@@ -2799,7 +2775,7 @@ export default function DealLookupTab({
             {([
               ['pi', 'PI #', 'text-left'], ['supplier', 'Supplier', 'text-left'], ['date', 'Date', 'text-left'], ['stage', 'Stage', 'text-left'],
               ['total', 'Total', 'text-right'], ['paid', 'Paid', 'text-right'], ['outstanding', 'To transfer', 'text-right'],
-            ] as const).map(([k, label, align]) => (
+            ] as const).filter(([k]) => showSupplier || k !== 'supplier').map(([k, label, align]) => (
               <th key={k} className={`py-2 px-3 whitespace-nowrap ${align}`}>
                 <button onClick={() => clickCol(k)} title={`Sort by ${label.toLowerCase()} — click again to flip`}
                   className={`inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-widest transition-colors ${
@@ -2862,6 +2838,7 @@ export default function DealLookupTab({
                     )}
                   </span>
                 </td>
+                {showSupplier && (
                 <td className="py-2 px-3 whitespace-nowrap">
                   {g.supplier?.supplier_code && (
                     <span className="inline-block px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none mr-1.5">
@@ -2870,6 +2847,7 @@ export default function DealLookupTab({
                   )}
                   <span className="text-slate-400">{g.supplier?.supplier_name ?? '—'}</span>
                 </td>
+                )}
                 <td className="py-2 px-3 text-slate-400 whitespace-nowrap tabular-nums">{fmtDate(g.latestDate)}</td>
                 <td className="py-2 px-3 whitespace-nowrap">
                   <span className={`text-[10px] font-bold uppercase tracking-wide ${stageTxtCls[stage]}`}>
@@ -3054,7 +3032,7 @@ export default function DealLookupTab({
                 which is what made the separate page unnecessary. Not buttons:
                 nothing to click, so nothing that looks clickable. */}
             {money.ordered > 0 && (
-              <div className={`${BAR_BTN} ml-auto gap-3 px-3 bg-slate-800/60 border-slate-700/60 cursor-default`}
+              <div className={`${BAR_BTN} ml-auto gap-3 px-3 max-w-full overflow-x-auto bg-slate-800/60 border-slate-700/60 cursor-default`}
                 title="Across the deals currently shown. Paid is ordered minus outstanding.">
                 <span className="text-slate-500">Ordered <span className="text-slate-200 font-semibold tabular-nums">{fmtIdr(money.ordered)}</span></span>
                 <span className="text-slate-500">Paid <span className="text-emerald-300 font-semibold tabular-nums">{fmtIdr(money.paid)}</span></span>
@@ -3097,64 +3075,66 @@ export default function DealLookupTab({
             </div>
           )}
 
-          {/* ── Deal list or table ── */}
-          {/* "All" renders in WORK-ORDER SECTIONS: open quotes (decisions) never
-              drown between running POs. A stage chip narrows to one bucket, so
-              that view stays flat. Column sort applies within each section. */}
+          {/* ── Deal list or table, one section per vendor ── */}
           {filtered.length === 0 ? (
             <p className="text-xs text-slate-600 italic py-6 text-center">No deals found</p>
-          ) : stageFilter !== 'all' ? (
-            (() => {
-              const shown = flatShowAll ? filtered : filtered.slice(0, FLAT_PAGE);
-              return (
-                <>
-                  {tableView ? renderDealTable(shown) : (
-                    <div className="space-y-1.5">{shown.map((g) => renderDealRow(g))}</div>
-                  )}
-                  {filtered.length > shown.length && (
-                    <button onClick={() => setFlatShowAll(true)}
-                      className="mt-2 w-full py-2 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
-                      {tf('Show all {n} — {m} more not shown', { n: filtered.length, m: filtered.length - shown.length })}
-                    </button>
-                  )}
-                </>
-              );
-            })()
           ) : (
-            <div className="space-y-5">
-              {DEAL_SECTIONS.map(({ key, label, accent, hint }) => {
-                const rows = filtered.filter((g) => dealSection(g) === key);
-                if (!rows.length) return null;
-                const shown = fullSections.has(key) ? rows : rows.slice(0, SECTION_PAGE);
-                // The section heading answers "how much cash does this pile
-                // need", so it is the TRANSFER total at today's rate — the
-                // same basis as the column under it. The books figure (ordered
-                // − outstanding at PO rates) keeps its own home in the
-                // position trio above, where it is labelled as a position.
-                const out = key === 'process' || key === 'received'
-                  ? rows.reduce((s, g) => s + (balanceOf(g).idr || 0), 0) : 0;
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                <span>{vendorSections.length === 1 ? t('1 vendor') : tf('{n} vendors', { n: vendorSections.length })}</span>
+                <button type="button"
+                  onClick={() => setCollapsed(collapsed.size >= vendorSections.length ? new Set() : new Set(vendorSections.map((v) => v.key)))}
+                  className="ml-auto font-semibold text-slate-400 hover:text-white transition-colors">
+                  {collapsed.size >= vendorSections.length ? t('Expand all') : t('Collapse all')}
+                </button>
+              </div>
+              {vendorSections.map((v) => {
+                const open = !collapsed.has(v.key);
+                const shown = fullSections.has(v.key) ? v.deals : v.deals.slice(0, SECTION_PAGE);
+                const ordered = v.deals.reduce((sum, g) => sum + g.totalIdr, 0);
+                // The TRANSFER total at today's rate — the same basis as the
+                // column under it.
+                const out = v.deals.reduce((sum, g) => sum + (balanceOf(g).idr || 0), 0);
+                const stages = new Map<string, number>();
+                for (const g of v.deals) stages.set(dealStage(g), (stages.get(dealStage(g)) ?? 0) + 1);
+                const STAGE_WORD: [string, string][] = [['quote', 'Quote'], ['draft', 'Draft PO'], ['active', 'Active PO'], ['received', 'Received'], ['completed', 'Completed'], ['superseded', 'Void']];
                 return (
-                  <div key={key}>
-                    <div className="flex items-baseline gap-2 mb-1.5" title={hint}>
-                      <span className={`text-[11px] font-bold uppercase tracking-widest ${accent}`}>{label}</span>
-                      <span className="text-[10px] text-slate-600 tabular-nums">{rows.length}</span>
-                      {out > 0 && (
-                        <span className="ml-auto text-[10px] text-slate-500 tabular-nums"
-                          title="What is still to be transferred on these deals, converted at today's reference rate">
-                          to transfer ≈ {fmtIdr(out)}
-                        </span>
+                  <section key={v.key} className="rounded-xl border border-slate-800/80 bg-slate-900/30">
+                    <button type="button" aria-expanded={open}
+                      onClick={() => setCollapsed((prev) => { const n = new Set(prev); if (n.has(v.key)) n.delete(v.key); else n.add(v.key); return n; })}
+                      className="w-full flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-left hover:bg-white/[0.03] rounded-xl transition-colors">
+                      <svg className={`w-3.5 h-3.5 text-slate-500 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                      {v.code && (
+                        <span className="px-1.5 py-0.5 bg-sky-500/15 border border-sky-500/30 text-sky-300 text-[10px] font-bold rounded leading-none">{v.code}</span>
                       )}
-                    </div>
-                    {tableView ? renderDealTable(shown) : (
-                      <div className="space-y-1.5">{shown.map((g) => renderDealRow(g))}</div>
+                      <span className="text-[13px] font-bold text-white">{v.key === NO_VENDOR ? t('No vendor') : v.name || '—'}</span>
+                      <span className="text-[11px] text-slate-500 tabular-nums">{v.deals.length === 1 ? t('1 deal') : tf('{n} deals', { n: v.deals.length })}</span>
+                      <span className="text-[11px] text-slate-500">
+                        {STAGE_WORD.filter(([k]) => stages.get(k)).map(([k, w]) => `${t(w)} ${stages.get(k)}`).join(' · ')}
+                      </span>
+                      <span className="ml-auto flex items-baseline gap-3 text-[11px] text-slate-500 tabular-nums">
+                        {ordered > 0 && <span>{t('Ordered')} <span className="text-slate-300 font-semibold">{fmtIdr(ordered)}</span></span>}
+                        {out > 0 && (
+                          <span title="What is still to be transferred on these deals, converted at today's reference rate">
+                            {t('to transfer')} ≈ <span className="text-amber-300 font-semibold">{fmtIdr(out)}</span>
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                    {open && (
+                      <div className="px-2 pb-2">
+                        {tableView ? renderDealTable(shown, false) : (
+                          <div className="space-y-1.5">{shown.map((g) => renderDealRow(g, false))}</div>
+                        )}
+                        {v.deals.length > shown.length && (
+                          <button onClick={() => setFullSections((prev) => new Set(prev).add(v.key))}
+                            className="mt-2 w-full py-2 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
+                            {tf('Show all {n} — {m} more not shown', { n: v.deals.length, m: v.deals.length - shown.length })}
+                          </button>
+                        )}
+                      </div>
                     )}
-                    {rows.length > shown.length && (
-                      <button onClick={() => setFullSections((prev) => new Set(prev).add(key))}
-                        className="mt-2 w-full py-2 rounded-lg border border-slate-800 text-[11px] text-slate-400 hover:text-white hover:bg-slate-800/60 transition-colors">
-                        {tf('Show all {n} — {m} more not shown', { n: rows.length, m: rows.length - shown.length })}
-                      </button>
-                    )}
-                  </div>
+                  </section>
                 );
               })}
             </div>

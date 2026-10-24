@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-24** · last change: *Dashboard Exchange rates panel* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-24** · last change: *Deal Lookup sectioned by vendor* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,23 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-24 (latest) — Dashboard: the daily Exchange rates panel
+### 2026-10-24 (latest) — Deal Lookup sectioned by vendor
+
+Owner: "arranged by sections from the different Vendors, the organization is
+like sections in EPC proposal … arrange the PO within that vendors by date.
+And the quote should also be arranged by vendors."
+- `lib/dealVendors.ts` (+test) groupByVendor: one section per supplier, deals
+  newest first, sections by their newest deal, "No vendor" last.
+- DealLookupTab: the stage work-order sections (DEAL_SECTIONS/dealSection,
+  2026-08-14) and the flat stage-chip list are replaced by vendor sections in
+  every view; stage chips still filter inside them. Section head: chevron
+  (fold), code, name, deal count, stage counts, Ordered and to-transfer ≈.
+  10 deals per section, then "Show all". Collapse all / Expand all. Inside a
+  section the card and the table drop the supplier (showSupplier=false).
+- The Ordered/Paid/Outstanding strip is contained (max-w-full overflow-x-auto):
+  it pushed the phone page to 551 px wide before this change.
+
+### 2026-10-24 — Dashboard: the daily Exchange rates panel
 
 Owner: "Dashboard in ICAPROC should display the daily currency rates, both
 the real rates and rounded up rates. And log of changes (if any)".
