@@ -5272,7 +5272,18 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    MIRA Sonnet 5 → Opus 5.5 (≈2× per token, same tokenizer), MANDA Opus 4.6 →
    Opus 5.5 (≈ same bill: cheaper per token, ≈30 % more tokens), not Fable.
    Still holds: rotate keys only inside the existing Anthropic account
-   (signed-thinking 400 on accounts created on/after 2026-08-31). The
+   (signed-thinking 400 on accounts created on/after 2026-08-31). **Owner:
+   go — cards written** (briefing "Model upgrade to Opus 5.5 · 24 Oct").
+   Method: Hermes' `/model` command from Telegram (rc.38-v0.21.5
+   `hermes_cli/commands.py`: not cli_only; `--session` = trial that `/new`
+   discards, `--global` = persist), with `/status` before and after. MIRA:
+   snapshot → copy config.yaml → `/status` → `/new` + `/model
+   claude-opus-5-5 --session` + read-only test → `--global`; fallback = edit
+   the `model:` line in Config + Restart Gateway; rollback `/model
+   claude-sonnet-5 --global`. Delegation (Haiku 4.5) and compression left
+   alone. MANDA ~2 days later: her `anthropic/claude-opus-4.6` slug means the
+   provider may not be `anthropic` — the exact name is given from her
+   `/status` paste. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
