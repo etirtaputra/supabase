@@ -20,6 +20,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-24T00:12:57Z",
+    title: "Logo: PROC lebih rapat dan sedikit lebih kecil",
+    details: ["PROC kini 80% dari tinggi ICA, berada di tengah secara vertikal, dengan jarak huruf lebih rapat."],
+  },
+  {
     at: "2026-10-24T00:01:52Z",
     title: "Logo ICAPROC baru: logo ICA asli + PROC",
     details: [

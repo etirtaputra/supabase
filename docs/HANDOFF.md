@@ -145,13 +145,14 @@ and perhaps design the PROC? … well proportioned in desktop and mobile" →
 three options previewed → "go with B".
 - `components/ui/IcaprocLogo.tsx`: one SVG. ICA = the master logo traced
   (potrace, overlay-checked against the artwork); PROC = Montserrat SemiBold
-  outlines at the same cap height, tracked wider. ICA fills `--c-logo`
+  outlines at 80% of ICA's cap height, centred vertically, lightly tracked
+  (owner: "too spaced out … slightly smaller … centralized vertically"). ICA fills `--c-logo`
   (new palette var in scripts/generate-palette.js: #003CA6 on the light
   skins, white on the dark ones); PROC is `text-slate-500` (the corporate
   text ink). Height h-[19px] / md:h-[22px]; `w-auto` keeps the ratio.
 - Used by BrandMenu (every page; `wordmarkClass` is now ignored, kept in the
   type) and the login page (h-9/sm:h-10).
-- Measured in the rig: 158.7×22 desktop, 137×19 phone, no horizontal scroll.
+- Measured in the rig: 134×22 desktop, 116×19 phone, no horizontal scroll.
 
 ### 2026-10-24 — FX benchmark follows KlikBCA e-Rate each morning; log editable
 
