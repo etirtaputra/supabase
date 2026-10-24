@@ -5256,7 +5256,23 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    `1JY7vju88LHDuOUscONwTsfnuSmk1KG6L`, INDEX
    `1QIMZpCqQQ0l-P5R9bvXPH3PJPc55geXf`; v7, v10 and the previous INDEX
    trashed. Open question for the owner: MIRA holds the `owner` role, which
-   also lets her change company rates and anything else an owner can. The
+   also lets her change company rates and anything else an owner can.**24 Oct — model upgrade re-checked (owner asked).** The 8.4 blocker
+   is gone: in Hermes `rc.38-v0.21.5` (and v0.22.5, HEAD 14e1e43a) the
+   Anthropic path sends `tool_choice: auto` unless a caller passes
+   "required" or a tool name, and NO caller does (git grep over every `.py`);
+   the old `anthropic_adapter.py:3066/3072` lines no longer exist. The same
+   file names `claude-opus-5-5` / `claude-sonnet-5-5` / `claude-fable`
+   (mandatory thinking, between-tools off) and drops temperature/top_p/top_k
+   on 4.7+, so the 400s that API version 2026-10-21 makes universal are
+   handled. Checked against the git tag, not the Hostinger image itself.
+   Docs fetched 24 Oct: Fable 5.1 $10/$50 · Opus 5.5 $4/$20 · Sonnet 5.5
+   $2/$10 · Haiku 5.5 from $0.10/$0.50; Opus 4.6 and Sonnet 5 Active (retire
+   not before 2027-02-05 / 2027-06-30); Haiku 4.5 (MIRA's delegation) Active,
+   not before 2026-10-15, no deprecation notice yet. Recommendation given:
+   MIRA Sonnet 5 → Opus 5.5 (≈2× per token, same tokenizer), MANDA Opus 4.6 →
+   Opus 5.5 (≈ same bill: cheaper per token, ≈30 % more tokens), not Fable.
+   Still holds: rotate keys only inside the existing Anthropic account
+   (signed-thinking 400 on accounts created on/after 2026-08-31). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
