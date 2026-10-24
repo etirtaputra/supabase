@@ -5306,13 +5306,14 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    claude-sonnet-5 --global`, MANDA `/model anthropic/claude-opus-4.6
    --global`. **Done 24 Oct 00:16 UTC: all three DMs show `claude-opus-5-5`
    (anthropic).** But the "ICA AI Agents" Telegram GROUP still showed the old
-   models (sessions from 19 Sep). Why (rc.38-v0.21.5): a chat's persisted
-   `model_override` beats config.yaml; `/model --global` clears the override
-   ONLY in the chat where it is sent (`slash_commands_model.py:274-282`), and
-   `/new` CARRIES the override into the new session (`session.py:1273`). So
-   every other chat with an old override keeps its model — I had told the
-   owner a group needs nothing; wrong, corrected. Fix: send `/model
-   claude-opus-5-5 --global` addressed to each bot inside that chat. The
+   models (sessions from 19 Sep). I first blamed a persisted per-chat
+   `model_override` and said `/new` would not help — **wrong**: the owner sent
+   `/new` to each bot in the group and both came back `claude-opus-5-5`
+   (MIRA provider anthropic; MANDA shows "auto", which resolves to the
+   Anthropic key). So a long-lived session keeps the model it was opened
+   with; `/new` in that chat moves it to the global model. Rule: after a
+   `--global` model change, send `/new` in every chat the agent works in
+   (DMs, the group, other users' chats). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
