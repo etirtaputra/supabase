@@ -153,6 +153,10 @@ three options previewed → "go with B".
 - Used by BrandMenu (every page; `wordmarkClass` is now ignored, kept in the
   type) and the login page (h-9/sm:h-10).
 - Measured in the rig: 134×22 desktop, 116×19 phone, no horizontal scroll.
+- Favicon ("use the same logo for the favicon too"): the ICA mark only —
+  ICAPROC is unreadable at 16 px — white on #003CA6 in a rounded square.
+  `app/icon.svg` (letters at 96% width, read best at 16 px), `app/favicon.ico`
+  (16/32/48/256, small sizes from the same art) and `app/apple-icon.png` (180).
 
 ### 2026-10-24 — FX benchmark follows KlikBCA e-Rate each morning; log editable
 

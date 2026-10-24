@@ -20,6 +20,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-24T00:23:39Z",
+    title: "Ikon tab browser kini logo ICA",
+    details: ["Ikon di tab browser, bookmark, dan layar utama ponsel kini logo ICA putih di atas biru logo."],
+  },
+  {
     at: "2026-10-24T00:12:57Z",
     title: "Logo: PROC lebih rapat dan sedikit lebih kecil",
     details: ["PROC kini 80% dari tinggi ICA, berada di tengah secara vertikal, dengan jarak huruf lebih rapat."],
