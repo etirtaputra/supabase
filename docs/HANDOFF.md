@@ -5284,7 +5284,12 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    claude-sonnet-5 --global`. Delegation (Haiku 4.5) and compression left
    alone. MANDA ~2 days later: her `anthropic/claude-opus-4.6` slug means the
    provider may not be `anthropic` — the exact name is given from her
-   `/status` paste. The
+   `/status` paste. **Then the owner: "just change both to Opus 5.5.
+   immediately" and "I'm changing MAX too"** — fast card: `/model
+   claude-opus-5-5 --global`, `/new`, `/status` for MIRA, MANDA and MAX (no
+   trial, no snapshot, owner's choice). Rollbacks: MIRA/MAX `/model
+   claude-sonnet-5 --global`, MANDA `/model anthropic/claude-opus-4.6
+   --global`. Waiting on the three `/status` pastes. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
