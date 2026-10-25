@@ -5329,7 +5329,26 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    Anthropic key). So a long-lived session keeps the model it was opened
    with; `/new` in that chat moves it to the global model. Rule: after a
    `--global` model change, send `/new` in every chat the agent works in
-   (DMs, the group, other users' chats). The
+   (DMs, the group, other users' chats). **25 Oct — owner chose
+   improvements 1 and 2.** (2) `WRITING-STYLE_v2_2026-10-25` adds `## How you
+   report`: result first; job report = Done (checked) / Needs you / Not done,
+   and why (Indonesian labels given); "done" only after a read-back; "I
+   think" for conclusions; one message per result; group chats: answer only
+   when tagged. (1) `MIRA-BOOT-PROMPT_v2` and `MANDA-BOOT-PROMPT_v4` are now
+   each agent's WHOLE `SOUL.md` (182 / 187 lines), as MAX's is (`v7`, 231
+   lines, style block only changed) — Hermes loads `$HERMES_HOME/SOUL.md` on
+   every message (`agent/context_file_sources.py`). MIRA v1 / MANDA v3 had
+   never been installed. Drive: style v2 `1FxIdcFS90Ir7bJ3a8jAfl6OiLW479U1k`,
+   MIRA v2 `1E_Qg6cK-Wy3csiNa4eJ56AeGx8SI7Z0D`, MANDA v4
+   `1Cq9_kht3PdgySD065zOv0SOR6QRoBzM1`, MAX v7
+   `1uB3ShtsrtLmw21luwCKQc4UqI-9Npvss`, INDEX
+   `1gTITuOzNxrYxpGrcNTTIK88OlG0PRNln`; old copies trashed. Install = the
+   agent itself, from the Drive file (never retyped), after a dated backup
+   `SOUL.md.bak-2026-10-25` and a stop check; briefing group "Instructions
+   file + report format · 25 Oct". Plus an owner card to remove MIRA's five
+   dead MCP servers (supabase, vercel, wordpress-com, stripe, unreal-engine;
+   keep basecamp) and, from MANDA's step-7 answer, his clean-up card next
+   (dead MCPs, compression, TELEGRAM_ALLOWED_USERS — his bot is open). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
