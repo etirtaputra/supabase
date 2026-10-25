@@ -5348,7 +5348,16 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    file + report format · 25 Oct". Plus an owner card to remove MIRA's five
    dead MCP servers (supabase, vercel, wordpress-com, stripe, unreal-engine;
    keep basecamp) and, from MANDA's step-7 answer, his clean-up card next
-   (dead MCPs, compression, TELEGRAM_ALLOWED_USERS — his bot is open). The
+   (dead MCPs, compression, TELEGRAM_ALLOWED_USERS — his bot is open).
+   **Agent exam v1** (owner's improvement 3): five questions per agent with
+   the answer key in `docs/agent-exams/AGENT-EXAM_v1_2026-10-25.md` —
+   deliberately OUTSIDE `docs/agents/`, never uploaded to the drive, so the
+   agents cannot read it. Questions only in the briefing ("Agent exam · 25
+   Oct"), `/new` before each, owner's private chat. 2 points each (content +
+   behaviour); an unasked write zeroes the question. Facts are re-read live at
+   grading (the company rate can move each morning). Suggested: a baseline
+   run before the SOUL.md installs, a second run after; the results table is
+   at the end of the key file. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
