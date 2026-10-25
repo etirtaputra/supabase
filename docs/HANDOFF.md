@@ -5357,7 +5357,19 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    behaviour); an unasked write zeroes the question. Facts are re-read live at
    grading (the company rate can move each morning). Suggested: a baseline
    run before the SOUL.md installs, a second run after; the results table is
-   at the end of the key file. The
+   at the end of the key file. **First exam answer (D1, MANDA, in the GROUP
+   not his DM, 25 Oct 09:10 WIB):** datasheet 900 VDC / 250–900 Voc with file
+   and page, website matched — but he could NOT check ICAPROC: his saved
+   token had expired and he has no password, so he missed the key finding
+   (SNV-SP4533 has empty specs). Then he ran `grep -rl -i -E
+   'ICAPROC|supabase.*pass|grant_type=pas…'` over /opt/data — credential
+   hunting. Card sent to stop it. **Open: MANDA needs ICAPROC credentials as
+   named env vars + `terminal.env_passthrough`, like MAX** (no dashboard → owner
+   in hPanel terminal). Also: the Telegram tool-progress bubbles — Hermes'
+   Telegram default is `tool_progress: off`, so someone enabled them; card
+   sets `display.platforms.telegram` {tool_progress: off,
+   interim_assistant_messages: false, cleanup_progress: true} for all three;
+   `/restart` is a gateway command (rc.38 `hermes_cli/commands.py:318`). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
