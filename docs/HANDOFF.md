@@ -5462,7 +5462,19 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    same words are in MIRA v3 and MANDA v5. **Next pack bump (all three, with
    MANDA v6's credential names and allowlist):** the exception becomes
    "Eric's install card, in his own chat: a byte copy, checked by sha256".
-   Until then a reply card tells each agent so. The
+   Until then a reply card tells each agent so. **MANDA step 1 result
+   (owner, host shell — the hPanel terminal can open inside MIRA's
+   container `hermes-agent-r33y-hermes-agent-1`; `exit` first):** no
+   pairing data; `GATEWAY_ALLOW_ALL_USERS` is set (name only seen); no
+   policy/allow lines in config.yaml; `compression.threshold_tokens: null`;
+   display global `tool_progress: all`, `interim_assistant_messages: true`,
+   `cleanup_progress: false`, `platforms.telegram` only `streaming: true`.
+   So **anyone on Telegram can use MANDA, who has a shell on the VPS** — his
+   SOUL's "YOUR TELEGRAM BOT IS OPEN" was right. Step 2 closes it: once any
+   allowlist env var is set, `_principal_authorized` never reaches the
+   `GATEWAY_ALLOW_ALL_USERS` fallback (authz_mixin.py:690–713), and an
+   unknown DM is ignored, not offered pairing. Remove the flag itself when
+   MANDA moves to Compose (§8.7 B3). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
