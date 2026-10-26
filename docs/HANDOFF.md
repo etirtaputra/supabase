@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-26** · last change: *agents track — MIRA v3 and MANDA v5 installed (sha256-checked); MANDA lock-down cards (§8.6)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-26** · last change: *agents track — all three SOUL.md installed (sha256-checked); MANDA login + lock-down cards (§8.6)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5447,7 +5447,22 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    `docker restart`. Ids are typed on the box only. If step 1 shows an
    allow-all flag, MANDA v5's "YOUR TELEGRAM BOT IS OPEN" stays true until
    step 2; after it, v6 can say who may talk to him. Still open for MANDA:
-   ICAPROC credentials as env vars + `terminal.env_passthrough`. The
+   ICAPROC credentials as env vars + `terminal.env_passthrough` — owner
+   card "MANDA step 3" (hPanel terminal): `hermes config set` writes
+   ICAPROC_URL / ICAPROC_ANON_KEY / ICAPROC_EMAIL (`project@ptmbs.co`) to
+   `/opt/data/.env`, the password via a hidden `read -r` prompt (never in
+   chat or history), `terminal.env_passthrough` as a YAML list (refuses to
+   run over a non-empty list — line 1 checks), backups `*.bak-2026-10-26c`,
+   `docker restart`; then a read-only sign-in check card for MANDA that also
+   retires his saved token file. **MAX v8 INSTALLED (26 Oct):** `sed -n
+   '88,325p'` → 238 lines, sha256 `0e7f9f5e…c84bb9` matches, mode stays
+   0600; one top-level `display:` (his `printf` append did not duplicate
+   it). He flagged that v8's exception — "a SOUL.md install … which Hermes
+   asks him to approve" — cannot happen (no shell-side gate, above); the
+   same words are in MIRA v3 and MANDA v5. **Next pack bump (all three, with
+   MANDA v6's credential names and allowlist):** the exception becomes
+   "Eric's install card, in his own chat: a byte copy, checked by sha256".
+   Until then a reply card tells each agent so. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
