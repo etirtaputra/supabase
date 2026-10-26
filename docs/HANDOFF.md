@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-24** · last change: *Deal Lookup sectioned by vendor* — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-26** · last change: *agents track — boot prompts MIRA v3 / MANDA v5 / MAX v8 on Drive, install cards (§8.6)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5380,7 +5380,33 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    the SOUL.md installs. Sanctioned routes: MIRA/MAX dashboard Config; MANDA
    `docker exec hermes-agent-manda hermes config set display.platforms.telegram.<key> <value>`
    in the hPanel terminal. A bare YAML `off` is fine (Hermes normalises it,
-   `gateway/display_config.py`). The
+   `gateway/display_config.py`). **MAX's answer (26 Oct):** one terminal
+   `printf '…' >> config.yaml`; Hermes did not refuse it — his "smart"
+   approval auto-approved the command. So the file-tool guard does not cover
+   the shell, and the card that asked agents to edit their own config was
+   Claude's mistake, not theirs. Check his config for TWO top-level
+   `display:` keys (PyYAML keeps the last and silently drops the first);
+   merge in his dashboard if so (step 7 of his install card asks him to
+   count them, read-only). The rule now lives in every SOUL.md: **boot
+   prompts MIRA v3 / MANDA v5 / MAX v8** (commit b0ef7d0) add "YOUR OWN SETUP
+   IS NOT YOURS TO CHANGE" — no config/.env/Hermes-setting edit by file
+   tool, shell or script; say which line and why, Eric changes it; the one
+   exception is a SOUL.md install Eric sends (Hermes asks him to approve).
+   SOUL blocks: 189 / 194 / 238 lines, all ending "line and stop.". MAX v8
+   is installed as a WHOLE-file replace (v7's card replaced only the style
+   section). Drive: MIRA v3 `1-4r4HR7BMT62ODfgO4rD9gzwNEpAL9sU`, MANDA v5
+   `1YKA0bC4MwX8Bwaqq2LEYXSKl50bZO8wc`, MAX v8
+   `1QEJBEuXSg9RCzL8EjJziqNtGoiVlnP8C`, INDEX
+   `18D4EzgRoKDTbda4rbiYyv1Np_lQhfhAN` (sizes match the repo); the
+   2026-10-25 copies are trashed. Briefing group "Instructions file + report
+   format · 26 Oct" (backup `SOUL.md.bak-2026-10-26`). **MIRA, same day,
+   with the quiet config applied (dashboard: display quiet, compression
+   `threshold_tokens: 150000`, only the `basecamp` MCP):** answered
+   PIO-2026021 = PO Sent, result first, source named — the report format
+   works before the install. She found three stale pack copies in her skill
+   folder (schema v7, runbook v2, boot v1), fetched the current ones, and
+   asked before deleting the old ones — correct; her install card's step 7
+   now tells her to delete every copy onboarding does not name. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
