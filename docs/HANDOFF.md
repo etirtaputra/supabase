@@ -251,6 +251,10 @@ on bank slips".
   Lookup money line: "Rate paid X vs company Y · Rp Z more/less".
 - For the MIRA thread: the rate endpoint now answers with the company rate
   first (source "benchmark"); the runbook's rule 7 wording should say so.
+- **MIRA keeps the owner role** (owner, 2026-10-26: "MIRA will be one of my
+  assistants, so she can get owner's role"). So the database lets her add and
+  edit company rates like the owner; what she does with that is set by her
+  runbook, not by a lock. Do not raise it again.
 
 ### 2026-10-23 — Corporate text inks: comfort and visibility
 
