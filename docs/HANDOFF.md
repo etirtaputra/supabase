@@ -5369,7 +5369,18 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    Telegram default is `tool_progress: off`, so someone enabled them; card
    sets `display.platforms.telegram` {tool_progress: off,
    interim_assistant_messages: false, cleanup_progress: true} for all three;
-   `/restart` is a gateway command (rc.38 `hermes_cli/commands.py:318`). The
+   `/restart` is a gateway command (rc.38 `hermes_cli/commands.py:318`).
+   **26 Oct:** Hermes REFUSES an agent's file-tool write to its own
+   config.yaml (`tools/file_tools_write_guards.py`: "Agent cannot modify
+   security-sensitive configuration" — so a prompt-injected agent cannot turn
+   off exec approvals). MIRA hit it and correctly did not work around it.
+   MAX reported "done" — if he used a terminal `sed`, he bypassed the guard;
+   asked him (card). Writes to SOUL.md ALWAYS need a human approval in the
+   chat (same file, "Protected agent-instruction files") — the owner approves
+   the SOUL.md installs. Sanctioned routes: MIRA/MAX dashboard Config; MANDA
+   `docker exec hermes-agent-manda hermes config set display.platforms.telegram.<key> <value>`
+   in the hPanel terminal. A bare YAML `off` is fine (Hermes normalises it,
+   `gateway/display_config.py`). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
