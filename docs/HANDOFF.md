@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-26** · last change: *agents track — all three SOUL.md installed (sha256-checked); MANDA login + lock-down cards (§8.6)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-26** · last change: *agents track — all three SOUL.md installed; MANDA signs in to ICAPROC (§8.6)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5490,7 +5490,17 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    `TELEGRAM_ALLOWED_USERS`, straight into `/opt/data/.env`. Rule for this
    box: **never `hermes config set` a secret on MANDA**; write `.env`
    directly. The `env_passthrough` list, compression 150000 and the three
-   quiet keys did save to config.yaml correctly. The
+   quiet keys did save to config.yaml correctly. **Done the same day:**
+   config.yaml cleaned (0 `ICAPROC_` keys), `.env` holds the four
+   `ICAPROC_` names (anon key copied from MAX's `.env` by pipe, 226-byte
+   line), restart → **MANDA signed in: HTTP 200, onboarding 200, role
+   engineer, `project@ptmbs.co`, solar pack v5; visible signals no_specs,
+   quote_quiet, stock_short, unpriced; hidden ar_overdue, below_cost,
+   landed_cost_open, po_late** — reported as hidden, not zero. His old
+   `/opt/data/.hermes/supabase_token.json` is deleted and his
+   icaproc-supabase skill now says token in memory only. Owner to confirm
+   the password was rotated before it went into `.env`. Still open:
+   `TELEGRAM_ALLOWED_USERS` (step 6), exam D1 re-run. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
