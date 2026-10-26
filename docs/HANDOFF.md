@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-26** · last change: *agents track — MIRA v3 installed (sha256-checked); SOUL.md has no shell-side approval gate (§8.6)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-26** · last change: *agents track — MIRA v3 and MANDA v5 installed (sha256-checked); MANDA lock-down cards (§8.6)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5426,7 +5426,28 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    `f55750c1…5ebc68`, MAX `0e7f9f5e…c84bb9` (the `## Who you are` block,
    trailing newline included). She had written "future installs use the file
    tool" into her skill; a reply card asks her to remove it (the file tool
-   retypes the text). The
+   retypes the text). **MANDA v5 INSTALLED (26 Oct):** `sed -n '28,221p'`
+   of the Drive file (id `1YKA0bC4…ZO8wc`, 249 lines) → 194 lines, sha256
+   `f55750c1…5ebc68` matches; backup `SOUL.md.bak-2026-10-26` (68 lines, the
+   v3-era file: 6 identity lines, v3 design rules, `## How you write`).
+   Read-only answers: **no MCP servers at all** (nothing to clean up — the
+   "dead MCPs" were MIRA's); compression = defaults (`threshold: 0.5`, no
+   `threshold_tokens`), so he compresses at half the window;
+   `TELEGRAM_ALLOWED_USERS` not set. That alone does NOT mean open:
+   `gateway/authz_mixin.py:_principal_authorized` admits a sender by
+   platform allow-all, the pairing store, an env/config allowlist, or
+   `GATEWAY_ALLOW_ALL_USERS`, else default deny — so someone is in by
+   pairing or an allow-all flag. Owner cards: step 1 read-only (`hermes
+   pairing list`, ALLOW* setting NAMES, policy lines in config.yaml,
+   compression and display); step 2 with backups
+   (`config.yaml.bak-2026-10-26b`, `.env.bak-2026-10-26`) sets
+   `TELEGRAM_ALLOWED_USERS` (a bare UPPER_SNAKE key, so `hermes config set`
+   writes it to `/opt/data/.env` — `hermes_cli/config_env_routing.py`),
+   `compression.threshold_tokens 150000`, the three quiet-mode keys, then
+   `docker restart`. Ids are typed on the box only. If step 1 shows an
+   allow-all flag, MANDA v5's "YOUR TELEGRAM BOT IS OPEN" stays true until
+   step 2; after it, v6 can say who may talk to him. Still open for MANDA:
+   ICAPROC credentials as env vars + `terminal.env_passthrough`. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
