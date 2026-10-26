@@ -5474,7 +5474,23 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    allowlist env var is set, `_principal_authorized` never reaches the
    `GATEWAY_ALLOW_ALL_USERS` fallback (authz_mixin.py:690–713), and an
    unknown DM is ignored, not offered pairing. Remove the flag itself when
-   MANDA moves to Compose (§8.7 B3). The
+   MANDA moves to Compose (§8.7 B3). **MANDA step 3 went wrong (26 Oct) —
+   his Hermes is OLDER than the source clone:** `hermes config set
+   ICAPROC_*` wrote the four names as top-level keys in
+   `/opt/data/config.yaml` ("not a recognized config key — saved anyway"),
+   not to `.env`, and **printed each value back** — the password appeared
+   in clear in the owner's terminal and was pasted into the Claude chat.
+   It must be rotated (owner, Supabase SQL editor; never in chat). The
+   anon key arrived masked (`eyJhbGci•••…`): the copy path replaced it with
+   bullets, so MANDA saw 8 characters and Supabase answered 401 "Invalid
+   API key". Fix sent: remove the four keys from config.yaml (Hermes' own
+   Python + PyYAML, after a fresh backup `.bak-2026-10-26d`), copy URL and
+   anon key from MAX's `.env` into MANDA's by pipe (no value on screen),
+   append the email, the NEW password by hidden prompt, and
+   `TELEGRAM_ALLOWED_USERS`, straight into `/opt/data/.env`. Rule for this
+   box: **never `hermes config set` a secret on MANDA**; write `.env`
+   directly. The `env_passthrough` list, compression 150000 and the three
+   quiet keys did save to config.yaml correctly. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
