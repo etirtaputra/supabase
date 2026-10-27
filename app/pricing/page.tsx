@@ -43,6 +43,7 @@ import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { computeTUCMap, getComponentCost, fxFromHistory } from '@/lib/computeTUC';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { resolveCost, BASIS_NOTE, BASIS_TAG, type ResolvedCost } from '@/lib/costBasis';
+import { incomingCosts, costRise, type CostRise } from '@/lib/incomingCost';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import PricesTab, { type FloorBreach } from '@/components/ui/PricesTab';
@@ -310,6 +311,18 @@ function PricingPage() {
   /** The number alone, for the arithmetic that does not care where it came from. */
   const costOf = useCallback((cid: string): number | null => basisOf(cid).cost, [basisOf]);
 
+  /**
+   * THE NEXT UNIT'S COST (owner, 2026-10-27 — EPEVER LR51100: the reorder PO
+   * went up, Set Pricing still priced on the cheaper landed cost). An open PO
+   * or a newer supplier quote, at its estimated landed cost; `riseOf` answers
+   * only when that is dearer than the basis. See lib/incomingCost.ts.
+   */
+  const incomingByComp = useMemo(() => incomingCosts(
+    { pos: catalog.pos, poItems: catalog.poItems, quotes: catalog.quotes, quoteItems: catalog.quoteItems, receipts }, fx),
+  [catalog.pos, catalog.poItems, catalog.quotes, catalog.quoteItems, receipts, fx]);
+  const riseOf = useCallback((cid: string): CostRise | null => costRise(basisOf(cid).cost, incomingByComp.get(cid)),
+    [basisOf, incomingByComp]);
+
   // ── Prices tab: cost history, lead time ───────────────────────────────────
   const poNumberById = useMemo(() => new Map(catalog.pos.map((p) => [String(p.po_id), p.po_number])), [catalog.pos]);
   const receivedByComp = useMemo(() => {
@@ -575,7 +588,7 @@ function PricingPage() {
                 onRaiseAll={() => void bulkRaise(violations)}
                 onUnpin={(priceId) => void clearOverride(priceId, t('Unpinned: the tier follows the net price again'))} />
             ) : tab === 'set' ? (
-              <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf} basisOf={basisOf}
+              <SetPricingTab comps={comps} tiers={activeSorted} chainFor={chainFor} costOf={costOf} basisOf={basisOf} riseOf={riseOf}
                 stockOf={stockOf}
                 profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits}
                 onAssignProfile={assignItemProfile} canManage={canManage}
@@ -642,6 +655,37 @@ function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', classNam
 
 // ── Set Pricing ───────────────────────────────────────────────────────────────
 /**
+ * The warning under a cost that is about to go up: the next unit's estimated
+ * landed cost, how much dearer, and — on hover — the PO or quote it comes
+ * from, the arithmetic, and how the import uplift was learned.
+ */
+function RiseNote({ rise }: { rise: CostRise }) {
+  const { t, tf } = useT();
+  const inc = rise.incoming;
+  const doc = inc.source === 'po' ? tf('Open PO {ref}', { ref: inc.label }) : tf('Supplier quote {ref}', { ref: inc.label });
+  const price = inc.currency === 'IDR' ? fmtRupiah(inc.unitForeign)
+    : `${inc.currency} ${inc.unitForeign.toLocaleString('en-US')} × ${Math.round(inc.rate).toLocaleString('en-US')}`;
+  const lines = [
+    `${doc} · ${fmtDay(inc.date)} · ${inc.status}`,
+    tf('{price} = {fob} before freight, duty and fees', { price, fob: fmtRupiah(Math.round(inc.fobIdr)) }),
+    inc.uplift != null
+      ? tf('+{pct}% import costs, as on its last delivery → about {est}', { pct: ((inc.uplift - 1) * 100).toFixed(1), est: fmtRupiah(inc.estLandedIdr) })
+      : t('Never delivered before, so no import costs are added: the real landed cost will be HIGHER.'),
+    tf('{pct}% above the cost basis ({cur}).', { pct: rise.risePct.toFixed(1), cur: fmtRupiah(Math.round(rise.current)) }),
+    rise.fobAlreadyAbove ? t('The supplier price alone is already above it.') : '',
+    t('Margins on this row are calculated on the new cost.'),
+  ].filter(Boolean);
+  return (
+    <p className="mt-0.5 text-[10px] text-amber-300 font-semibold cursor-help" title={lines.join('\n')}>
+      ▲ {fmtMoneyCell(inc.estLandedIdr)}
+      <span className="ml-1 px-1 py-px rounded text-[9px] font-bold tracking-wide bg-amber-500/15">
+        {inc.source === 'po' ? 'PO' : 'QUOTE'} +{rise.risePct.toFixed(0)}%
+      </span>
+    </p>
+  );
+}
+
+/**
  * One row per item, one column per active tier, edit and save.
  *
  * This was a MODE on the Item Editor until 2026-08-29 (owner: "it's too
@@ -655,13 +699,15 @@ function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', classNam
  * pinned cell and the tier goes back to the chain.
  */
 function SetPricingTab({
-  comps, tiers, chainFor, costOf, basisOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage, roundStep, priceLog,
+  comps, tiers, chainFor, costOf, basisOf, riseOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage, roundStep, priceLog,
 }: {
   comps: Comp[];
   tiers: Tier[];
   chainFor: (c: Comp, excludeTierId?: string) => Map<string, { price: number | null; overridden: boolean }>;
   costOf: (cid: string) => number | null;
   basisOf: (cid: string) => ResolvedCost;
+  /** The reorder / newer quote is dearer than the basis — null otherwise. */
+  riseOf: (cid: string) => CostRise | null;
   stockOf: (cid: string) => number;
   profileById: Map<string, MarginProfile>;
   ovByKey: Map<string, Override>;
@@ -680,6 +726,8 @@ function SetPricingTab({
   const [wanted, setWanted] = useState<Set<PriceIssue>>(new Set());
   // Scope ANDs with the issue chips — see lib/priceGrid.matchesScope.
   const [scope, setScope] = useState<Set<PriceScope>>(new Set());
+  // "Cost rising" — narrows like a scope chip: only items whose next units cost more.
+  const [risingOnly, setRisingOnly] = useState(false);
   // '' = every category, 'none' = the unclassified pile, else a profile id.
   const [profileFilter, setProfileFilter] = useState<string>('');
   // The PRODUCT category (3.0_components.category) — distinct from the margin
@@ -703,17 +751,23 @@ function SetPricingTab({
       const priceByTier = new Map<string, number | null>();
       for (const t of tiers) priceByTier.set(t.tier_id, chain.get(t.tier_id)?.price ?? null);
       const basis = basisOf(c.component_id);
-      const cost = basis.cost;
+      // PRICE TO REPLACEMENT COST: when the reorder or a newer quote is dearer,
+      // every margin on this tab (tier GP, GP column, floors, band suggestion)
+      // is judged on the next unit's cost, not the cheaper stock on hand. The
+      // cell still shows the basis, with the rise beneath it.
+      const rise = riseOf(c.component_id);
+      const cost = rise ? rise.incoming.estLandedIdr : basis.cost;
       const qty = stockOf(c.component_id);
       const profile = c.margin_profile_id ? profileById.get(c.margin_profile_id) ?? null : null;
       return {
-        c, chain, priceByTier, cost, basis, qty, profile,
+        c, chain, priceByTier, cost, basis, rise, qty, profile,
         issues: issuesFor({ net: c.selling_price_idr, cost, priceByTier, tiers, profile }),
         gp: marginPct(c.selling_price_idr, cost),
       };
     }).filter((r) => {
       if (!matchesIssues(r.issues, wanted)) return false;
-      if (!matchesScope({ qtyOnHand: r.qty, cost: r.cost, provisional: r.basis.provisional }, scope)) return false;
+      if (!matchesScope({ qtyOnHand: r.qty, cost: r.basis.cost, provisional: r.basis.provisional }, scope)) return false;
+      if (risingOnly && !r.rise) return false;
       if (profileFilter === 'none' ? r.profile != null
         : profileFilter !== '' && r.profile?.id !== profileFilter) return false;
       if (catFilter === 'none' ? Boolean(r.c.category)
@@ -739,7 +793,7 @@ function SetPricingTab({
       // Ties fall back to the name, so the order never shuffles between renders.
       return c !== 0 ? c : compareCells(descOf(x.c), descOf(y.c), 'asc');
     });
-  }, [comps, tiers, chainFor, basisOf, stockOf, profileById, search, wanted, scope, profileFilter, catFilter, sortCol, sortDir, priceLog]);
+  }, [comps, tiers, chainFor, basisOf, riseOf, stockOf, profileById, search, wanted, scope, risingOnly, profileFilter, catFilter, sortCol, sortDir, priceLog]);
 
   // Counts sit on the chips, so the size of each problem is visible before
   // anyone clicks — that is what makes this a worklist rather than a filter.
@@ -750,12 +804,14 @@ function SetPricingTab({
       const priceByTier = new Map<string, number | null>();
       for (const t of tiers) priceByTier.set(t.tier_id, chain.get(t.tier_id)?.price ?? null);
       const profile = c.margin_profile_id ? profileById.get(c.margin_profile_id) ?? null : null;
-      for (const i of issuesFor({ net: c.selling_price_idr, cost: costOf(c.component_id), priceByTier, tiers, profile })) {
+      const cost = riseOf(c.component_id)?.incoming.estLandedIdr ?? costOf(c.component_id);
+      for (const i of issuesFor({ net: c.selling_price_idr, cost, priceByTier, tiers, profile })) {
         m.set(i, (m.get(i) ?? 0) + 1);
       }
     }
     return m;
-  }, [comps, tiers, chainFor, costOf, profileById]);
+  }, [comps, tiers, chainFor, costOf, riseOf, profileById]);
+  const risingCount = useMemo(() => comps.filter((c) => riseOf(c.component_id)).length, [comps, riseOf]);
 
   const categories = useMemo(() => {
     const m = new Map<string, number>();
@@ -884,8 +940,12 @@ function SetPricingTab({
           <Chip key={id} label={SCOPE_LABEL[id]} count={scopeCounts.get(id) ?? 0} on={scope.has(id)}
             tone="scope" onClick={() => { setScope((w) => toggle(w, id)); setPage(200); }} />
         ))}
-        {(wanted.size > 0 || scope.size > 0 || profileFilter !== '' || catFilter !== '') && (
-          <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); setProfileFilter(''); setCatFilter(''); }}
+        {/* Items whose reorder or newer quote costs more than the basis — the
+            prices most likely to be stale. Narrows, like the scope chips. */}
+        <Chip label={`▲ ${t('Cost rising')}`} count={risingCount} on={risingOnly}
+          tone="scope" onClick={() => { setRisingOnly((v) => !v); setPage(200); }} />
+        {(wanted.size > 0 || scope.size > 0 || risingOnly || profileFilter !== '' || catFilter !== '') && (
+          <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); setRisingOnly(false); setProfileFilter(''); setCatFilter(''); }}
             className="ml-1 text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">
             {t('Clear')}
           </button>
@@ -960,9 +1020,9 @@ function SetPricingTab({
                       expected case (landed) carries no badge: a tag on every
                       row is a tag nobody reads. */}
                   <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap" title={BASIS_NOTE[r.basis.basis]}>
-                    {r.cost == null ? <span className="text-slate-600">—</span> : (
-                      <span className={r.basis.provisional ? 'text-amber-300/90' : 'text-slate-400'}>
-                        {fmtMoneyCell(r.cost)}
+                    {r.basis.cost == null ? <span className="text-slate-600">—</span> : (
+                      <span className={r.rise ? 'text-slate-500' : r.basis.provisional ? 'text-amber-300/90' : 'text-slate-400'}>
+                        <span className={r.rise ? 'line-through decoration-slate-600' : ''}>{fmtMoneyCell(r.basis.cost)}</span>
                         {BASIS_TAG[r.basis.basis] && (
                           <span className={`ml-1 align-middle px-1 py-px rounded text-[9px] font-bold tracking-wide ${
                             r.basis.provisional ? 'bg-amber-500/15 text-amber-300' : 'bg-slate-800 text-slate-500'
@@ -970,6 +1030,11 @@ function SetPricingTab({
                         )}
                       </span>
                     )}
+                    {/* THE NEXT UNIT COSTS MORE (owner, 2026-10-27). The basis
+                        above is struck through because nothing on this row is
+                        judged on it any more: every GP, floor and suggestion
+                        uses this number. The hover says where it came from. */}
+                    {r.rise && <RiseNote rise={r.rise} />}
                   </td>
                   {tiers.map((t, i) => {
                     const k = keyOf(cid, t.tier_id);

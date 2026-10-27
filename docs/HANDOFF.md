@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *Dolibarr survey v2 (retries, small pages, saves per section); API is under `/dolibarr`, the 403 was the web root, not a block*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *Set Pricing warns when the reorder / newer quote costs more, and prices on it (lib/incomingCost.ts)*; last module change: *the same* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,32 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-27 (latest) — Dolibarr survey v2; the "block" was a wrong address
+### 2026-10-27 (latest) — Set Pricing: the next unit costs more (replacement cost)
+
+Owner: *"for items that are in reorder or quoted, we need to see whether the
+landed cost or the new quote item is higher, and please warn the user in
+Setting SELLING PRICES"* — EPEVER LR51100A landed at Rp 9,477,538 (PIO-008,
+USD 509 @ 17,490); the Confirmed reorder PIO-017 is USD 539 @ 17,912 =
+Rp 9,654,568 FOB, ≈ Rp 10,278,288 landed. The screen priced on landed only
+(`resolveCost`: landed wins outright), so the Rp 11m net read 13.8% GP
+instead of 6.6%.
+- `lib/incomingCost.ts` (+ 11 tests): newest open PO line (Sent / Confirmed /
+  Partially Received, at the PO's own rate; Drafts excluded, 148 stale) or
+  live supplier quote (Open / Accepted, dated after the item's last receipt,
+  at the company rate); est. landed = FOB × the item's own uplift from its
+  last landing (landed ÷ PO price, accepted in 1–2×, else raw FOB, flagged
+  provisional). `costRise()` only reports a rise ≥ 1%.
+- `app/pricing/page.tsx`, **Set Pricing tab only**: basis struck through,
+  `▲ est · PO/QUOTE +x%` under it (`RiseNote`, hover = document, arithmetic,
+  uplift); the row's tier GP, GP column, issue chips and band suggestion use
+  the incoming cost; chip "▲ Cost rising". The Overview floor audit and Prices
+  tab still judge on the basis — say so if the owner wants them moved too.
+- Measured on production 2026-10-27: 296 active items have something
+  incoming; 17 landed-basis items rise (LR51100 +8.4%; NINGBO LE WS3-6510
+  +9.5%; KMI cables 12–15% from the Anugrah 2026-10-12 nota; KSTAR GP806S
+  +6.6%; EPEVER XTRA3210N-G3 +6.0% → GP 26.4 → 22.0%…). Not yet seen in a browser.
+
+### 2026-10-27 — Dolibarr survey v2; the "block" was a wrong address
 
 - **Correction:** Dolibarr's API is at `https://erp.indodaya.co.id/dolibarr/api/index.php`
   (16.0.1). The web root answers 403 to everyone; the entry below misread that

@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T08:32:00Z",
+    title: "Atur Harga Jual: peringatan bila harga beli berikutnya lebih mahal",
+    details: [
+      "Bila sebuah barang punya PO yang masih berjalan (Sent, Confirmed, Partially Received) atau penawaran pemasok yang lebih baru dari penerimaan terakhir, biayanya dibandingkan dengan dasar biaya sekarang. Jika lebih mahal, muncul ▲ di bawah dasar biaya: perkiraan biaya landed barang berikutnya dan berapa persen lebih mahal.",
+      "Perkiraan memakai biaya impor barang itu sendiri dari pengiriman terakhirnya (ongkir, bea, biaya). Arahkan kursor ke ▲ untuk melihat PO atau penawarannya dan hitungannya.",
+      "Pada baris itu, laba kotor setiap tier, kolom GP, batas minimum dan saran harga dihitung dari biaya baru yang lebih tinggi, bukan dari stok lama yang lebih murah. Contoh: EPEVER LR51100A — landed Rp 9,48 jt, PO PIO-017 ≈ Rp 10,28 jt (+8,4%); GP harga net Rp 11 jt turun dari 13,8% menjadi 6,6%.",
+      "Tombol filter baru \"▲ Biaya naik\" menampilkan hanya barang-barang ini.",
+    ],
+  },
+  {
     at: "2026-10-27T07:44:00Z",
     title: "Survei Dolibarr: versi 2, tahan koneksi terputus",
     details: [

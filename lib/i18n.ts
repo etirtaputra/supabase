@@ -1597,6 +1597,16 @@ export const ID: Record<string, string> = {
   // ── Money columns, 2026-09-28: the unit sits in the header, "Harga (Rp)" ──
   'Price': 'Harga',
   'Cost basis': 'Dasar biaya',
+  // Set Pricing: the next unit costs more (lib/incomingCost.ts, 2026-10-27)
+  'Cost rising': 'Biaya naik',
+  'Open PO {ref}': 'PO terbuka {ref}',
+  'Supplier quote {ref}': 'Penawaran pemasok {ref}',
+  '{price} = {fob} before freight, duty and fees': '{price} = {fob} sebelum ongkos kirim, bea dan biaya',
+  '+{pct}% import costs, as on its last delivery → about {est}': '+{pct}% biaya impor, seperti pengiriman terakhir → sekitar {est}',
+  'Never delivered before, so no import costs are added: the real landed cost will be HIGHER.': 'Belum pernah diterima, jadi biaya impor belum ditambahkan: biaya landed sebenarnya akan LEBIH TINGGI.',
+  '{pct}% above the cost basis ({cur}).': '{pct}% di atas dasar biaya ({cur}).',
+  'The supplier price alone is already above it.': 'Harga pemasok saja sudah di atasnya.',
+  'Margins on this row are calculated on the new cost.': 'Margin di baris ini dihitung dari biaya baru.',
   'Floor': 'Batas bawah',
   'Override': 'Penyesuaian',
   'Tier default': 'Bawaan tier',
