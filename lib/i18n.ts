@@ -1606,6 +1606,8 @@ export const ID: Record<string, string> = {
   '+{pct}% import costs, as on {supplier}’s last delivery → about {est}': '+{pct}% biaya impor, seperti pengiriman terakhir dari {supplier} → sekitar {est}',
   '+{pct}% import costs, as on this item’s last delivery from another supplier → about {est}': '+{pct}% biaya impor, seperti pengiriman terakhir barang ini dari pemasok lain → sekitar {est}',
   'Import costs learned from {ref}.': 'Biaya impor dipelajari dari {ref}.',
+  'Learned from a delivery where the price included freight, but this order is FOB/EXW: the sea freight may be missing, so the real cost can be higher.': 'Dipelajari dari pengiriman yang harganya sudah termasuk ongkir, tetapi pesanan ini FOB/EXW: ongkir laut mungkin belum masuk, jadi biaya sebenarnya bisa lebih tinggi.',
+  'Learned from a delivery where we paid the freight, but this order includes it: the estimate may be on the high side.': 'Dipelajari dari pengiriman yang ongkirnya kita bayar, tetapi pesanan ini sudah termasuk ongkir: perkiraan mungkin sedikit terlalu tinggi.',
   'Includes +{pct}% estimated import costs.': 'Termasuk perkiraan biaya impor +{pct}%.',
   'A supplier quote plus about {pct}% estimated import costs: nothing has landed yet.': 'Penawaran pemasok ditambah perkiraan biaya impor sekitar {pct}%: belum ada barang yang diterima.',
   '{pct}% already paid at the bank rate; the rest at today’s company rate.': '{pct}% sudah dibayar dengan kurs bank; sisanya dengan kurs perusahaan hari ini.',

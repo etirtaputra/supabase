@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *import markup read from PO bills (add-ons ÷ principal); quote basis carries it; KSTAR 'under-booked' flag withdrawn*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *import markup learned on the same freight terms (FOB/EXW vs CIF/DDP) — TCP 306*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -221,6 +221,17 @@ instead of 6.6%.
   are status "Fully Received" with NO receipt in the stock ledger — their goods
   never entered ICAPROC stock, so on-hand and landed cost miss them. Ask the
   owner before receiving them (GRN on /stock).
+- **Owner: "how about tcp306 price? no change?"** Supplier price USD 25.70 on
+  every EPEVER PO since 2025 — but PIO-017 is **FOB Shenzhen**, and the markup
+  was PIO-008's (CIF Jakarta, +0.75%), so the sea freight was missing. Now
+  `freightTerms(incoterms)` → 'buyer' (EXW/FCA/FAS/FOB) | 'seller' (CFR/CIF/
+  CPT/CIP/DAP/DPU/DDP) | null; `upliftFor` tries every tier (item+supplier →
+  supplier → item elsewhere) on MATCHING terms first, then any terms with
+  `termsMatch:false` (RiseNote warns the freight may be missing). Quotes carry
+  no terms (null). Measured: TCP 306 learns PIO-2025019 FOB +12.18% → next ≈
+  Rp 522,303 (net Rp 600k: GP 20.2 → 12.9%); LR51100 learns PIO-003 (EXW)
+  +7.02% → ≈ Rp 10,450,322 (+10.3%, net Rp 12m: 21.0 → 12.9%). termsMatch:
+  33 true, 262 null (no terms on the doc or history).
 - Measured on production 2026-10-27: 296 active items have something
   incoming; 17 landed-basis items rise (LR51100 +8.4%; NINGBO LE WS3-6510
   +9.5%; KMI cables 12–15% from the Anugrah 2026-10-12 nota; KSTAR GP806S

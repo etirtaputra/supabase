@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { incomingCosts, costRise, poRate, RISE_THRESHOLD_PCT,
+import { incomingCosts, costRise, poRate, freightTerms, RISE_THRESHOLD_PCT,
          type IncPo, type IncPoLine, type IncQuote, type IncQuoteLine, type IncReceipt, type IncPoCost } from './incomingCost.ts';
 import type { FxRate } from './computeTUC.ts';
 
@@ -261,4 +261,53 @@ test('a local rupiah supplier really can land at ~0%: that is learned', () => {
   assert.equal(inc.uplift, 1);
   assert.equal(inc.upliftSource, 'item');
   assert.equal(inc.provisional, false);
+});
+
+// ── Who pays the freight (owner, 2026-10-27, on EPEVER TCP 306) ─────────────
+
+test('freightTerms: FOB/EXW → we pay the freight; CIF/DDP → the price includes it', () => {
+  for (const t of ['FOB Shenzhen', 'EXW Huizhou', 'fca', 'FAS Ningbo']) assert.equal(freightTerms(t), 'buyer', t);
+  for (const t of ['CIF Jakarta', 'CFR', 'C&F Jakarta', 'DDP', 'DAP Jakarta', 'CPT']) assert.equal(freightTerms(t), 'seller', t);
+  for (const t of [null, '', 'Sea', 'franco']) assert.equal(freightTerms(t), null, String(t));
+});
+
+test('TCP 306: a FOB reorder learns from the last FOB delivery, not the newer CIF one', () => {
+  // EPEVER, production 2026-10-27: PIO-2025019 FOB (freight on top, +12%), PIO-008 CIF (+0.75%),
+  // reorder PIO-017 FOB. The CIF markup would leave the sea freight out.
+  const fobOld: IncPo = withSup({ po_id: 'p19', po_number: 'PIO-2025019', po_date: '2025-09-03', status: 'Fully Received', currency: 'USD', exchange_rate: 16_470, total_value: 1_000, incoterms: 'FOB Shenzhen' }, EPEVER);
+  const cif: IncPo = withSup({ ...OLD_PO, incoterms: 'CIF Jakarta' }, EPEVER);
+  const reorder: IncPo = withSup({ ...NEW_PO, incoterms: 'FOB Shenzhen' }, EPEVER);
+  const lines: IncPoLine[] = [
+    { po_id: 'p19', component_id: 'tcp306', unit_cost: 25.7, currency: 'USD' },
+    { po_id: 'po-008', component_id: 'tcp306', unit_cost: 25.7, currency: 'USD' },
+    { po_id: 'po-017', component_id: 'tcp306', unit_cost: 25.7, currency: 'USD' },
+  ];
+  const costs: IncPoCost[] = [...COSTS,
+    { po_id: 'p19', cost_category: 'balance_payment', amount: 1_000 * 16_470, currency: 'IDR' },
+    { po_id: 'p19', cost_category: 'freight_cost', amount: 1_000 * 16_470 * 0.12, currency: 'IDR' }];
+  const inc = incomingCosts({ pos: [fobOld, cif, reorder], poItems: lines, quotes: [], quoteItems: [], receipts: [], poCosts: costs }, FX).get('tcp306')!;
+  assert.equal(inc.freightTerms, 'buyer');
+  assert.equal(inc.upliftRef, 'PIO-2025019');
+  assert.equal(inc.termsMatch, true);
+  assert.ok(Math.abs(inc.uplift! - 1.12) < 1e-9, `got ${inc.uplift}`);
+});
+
+test('only other-terms history: it is used, and flagged so the missing freight is visible', () => {
+  const cif: IncPo = withSup({ ...OLD_PO, incoterms: 'CIF Jakarta' }, EPEVER);
+  const reorder: IncPo = withSup({ ...NEW_PO, incoterms: 'FOB Shenzhen' }, EPEVER);
+  const inc = incomingCosts({ pos: [cif, reorder], poItems: LINES, quotes: [], quoteItems: [], receipts: [RECEIPT], poCosts: COSTS }, FX).get(CID)!;
+  assert.equal(inc.upliftRef, 'PIO-008-ISL-05-2026');
+  assert.equal(inc.termsMatch, false);
+});
+
+test('a supplier-level markup on matching terms beats an item-level one on the wrong terms', () => {
+  const cif: IncPo = withSup({ ...OLD_PO, incoterms: 'CIF Jakarta' }, EPEVER);                       // has LR51100, CIF
+  const fobOther: IncPo = withSup({ po_id: 'pf', po_number: 'PIO-FOB', po_date: '2026-01-12', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000, total_value: 100, incoterms: 'FOB Shenzhen' }, EPEVER);
+  const reorder: IncPo = withSup({ ...NEW_PO, incoterms: 'FOB Shenzhen' }, EPEVER);
+  const inc = incomingCosts({ pos: [cif, fobOther, reorder], poItems: [...LINES, { po_id: 'pf', component_id: 'other', unit_cost: 100, currency: 'USD' }],
+    quotes: [], quoteItems: [], receipts: [RECEIPT],
+    poCosts: [...COSTS, paid('pf', 100, 17_000), { po_id: 'pf', cost_category: 'freight_cost', amount: 100 * 17_000 * 0.098, currency: 'IDR' }] }, FX).get(CID)!;
+  assert.equal(inc.upliftSource, 'supplier');
+  assert.equal(inc.upliftRef, 'PIO-FOB');
+  assert.equal(inc.termsMatch, true);
 });

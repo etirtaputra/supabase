@@ -80,7 +80,24 @@ const UPLIFT_MAX = 2;
 const OPEN_PO = new Set(['Sent', 'Confirmed', 'Partially Received']);
 const LIVE_QUOTE = new Set(['Open', 'Accepted']);
 
-export interface IncPo { po_id: string | number; po_number?: string | null; po_date?: string | null; status?: string | null; currency?: string | null; exchange_rate?: number | string | null; supplier_id?: string | null; quote_id?: string | number | null; total_value?: number | string | null }
+export interface IncPo { po_id: string | number; po_number?: string | null; po_date?: string | null; status?: string | null; currency?: string | null; exchange_rate?: number | string | null; supplier_id?: string | null; quote_id?: string | number | null; total_value?: number | string | null; incoterms?: string | null }
+
+/**
+ * WHO PAYS THE FREIGHT (owner, 2026-10-27, on EPEVER TCP 306: the reorder
+ * PIO-017 is FOB Shenzhen, but the markup came from PIO-008, CIF Jakarta —
+ * +0.75% instead of the ~10% EPEVER's FOB orders carry). Learn a markup only
+ * from POs shipped on the same footing:
+ *   'buyer'  — EXW, FCA, FAS, FOB: we pay the sea/air freight on top.
+ *   'seller' — CFR, CIF, CPT, CIP, DAP, DPU, DDP: the price includes it.
+ * null when the PO says nothing (and for quotes, which carry no terms).
+ */
+export type FreightTerms = 'buyer' | 'seller';
+export function freightTerms(incoterms: string | null | undefined): FreightTerms | null {
+  const t = (incoterms ?? '').trim().toUpperCase();
+  if (/^(EXW|FCA|FAS|FOB)\b/.test(t)) return 'buyer';
+  if (/^(CFR|CNF|C&F|CIF|CPT|CIP|DAP|DPU|DAT|DDP|DDU)\b/.test(t)) return 'seller';
+  return null;
+}
 /** A PO payment row (6.0_po_costs). Only principal categories count toward the exchange rate. */
 export interface IncPoCost { po_id: string | number; cost_category: string; amount: number | string; currency?: string | null; exchange_rate?: number | string | null }
 
@@ -159,6 +176,13 @@ export interface IncomingCost {
   upliftSource: UpliftSource | null;
   /** The PO number it was learned from. */
   upliftRef: string | null;
+  /**
+   * The incoming PO's freight terms, and whether the markup was learned on the
+   * same terms. `false` = only a delivery on the OTHER terms could teach it
+   * (say, a CIF markup on a FOB order): the freight may be missing.
+   */
+  freightTerms: FreightTerms | null;
+  termsMatch: boolean | null;
   /** The supplier of the incoming PO / quote, when known. */
   supplierId: string | null;
   /** fobIdr × uplift — what a unit will cost once it lands. */
@@ -201,7 +225,7 @@ export function incomingCosts(
   // One lesson per delivered, fully paid PO line: that PO's import markup
   // (ADDON_CATS ÷ principal, both in rupiah). Every line of a PO shares it —
   // the true-up allocates the add-ons by value.
-  interface Lesson { cid: string; date: string; poId: string; poNo: string; supplier: string | null; uplift: number; weight: number }
+  interface Lesson { cid: string; date: string; poId: string; poNo: string; supplier: string | null; uplift: number; weight: number; terms: FreightTerms | null }
   const lessons: Lesson[] = [];
   for (const po of input.pos) {
     if (po.status !== 'Fully Received') continue;
@@ -222,46 +246,53 @@ export function incomingCosts(
     const date = poArrived.get(k) ?? day(po.po_date);
     for (const l of input.poItems) {
       if (String(l.po_id) !== k) continue;
-      lessons.push({ cid: l.component_id, date, poId: k, poNo: po.po_number || 'PO', supplier: supplierOfPo(po), uplift, weight: principal });
+      lessons.push({ cid: l.component_id, date, poId: k, poNo: po.po_number || 'PO', supplier: supplierOfPo(po), uplift, weight: principal, terms: freightTerms(po.incoterms) });
     }
   }
   const sane = (u: number) => u >= UPLIFT_MIN && u <= UPLIFT_MAX;
   const newestFirst = (a: Lesson, b: Lesson) => b.date.localeCompare(a.date);
   lessons.sort(newestFirst);
 
-  // 1 + 3: per item (and per item × supplier), the newest sane delivery.
-  const byItemSupplier = new Map<string, Lesson>();
-  const byItem = new Map<string, Lesson>();
+  // The newest sane lesson per key — each key kept twice: any terms, and per terms.
+  const newest = new Map<string, Lesson>();
+  const keep = (k: string, l: Lesson) => { if (!newest.has(k)) newest.set(k, l); };
   for (const l of lessons) {
     if (!sane(l.uplift)) continue;
-    if (l.supplier && !byItemSupplier.has(`${l.cid}|${l.supplier}`)) byItemSupplier.set(`${l.cid}|${l.supplier}`, l);
-    if (!byItem.has(l.cid)) byItem.set(l.cid, l);
-  }
-  // 2: per supplier, the markup of its most recently delivered, fully paid PO.
-  const bySupplier = new Map<string, { uplift: number; ref: string }>();
-  for (const l of lessons) {
-    if (!l.supplier || bySupplier.has(l.supplier) || !sane(l.uplift)) continue;
-    bySupplier.set(l.supplier, { uplift: l.uplift, ref: l.poNo });
+    for (const t of ['*', l.terms ?? '?']) {
+      if (l.supplier) { keep(`is|${l.cid}|${l.supplier}|${t}`, l); keep(`s|${l.supplier}|${t}`, l); }
+      keep(`i|${l.cid}|${t}`, l);
+    }
   }
 
-  const upliftFor = (cid: string, supplier: string | null): { uplift: number; source: UpliftSource; ref: string } | null => {
-    const own = supplier ? byItemSupplier.get(`${cid}|${supplier}`) : undefined;
-    if (own) return { uplift: own.uplift, source: 'item', ref: own.poNo };
-    const sup = supplier ? bySupplier.get(supplier) : undefined;
-    if (sup) return { uplift: sup.uplift, source: 'supplier', ref: sup.ref };
-    const any = byItem.get(cid);
-    if (any) return { uplift: any.uplift, source: 'item_elsewhere', ref: any.poNo };
+  /**
+   * Most specific first, and SAME FREIGHT TERMS before anything else: this
+   * item from this supplier → this supplier → this item elsewhere, each tried
+   * on matching terms first; only then on any terms (and said so).
+   */
+  const upliftFor = (cid: string, supplier: string | null, terms: FreightTerms | null):
+    { uplift: number; source: UpliftSource; ref: string; termsMatch: boolean | null } | null => {
+    const tiers: [string, UpliftSource][] = [];
+    if (supplier) tiers.push([`is|${cid}|${supplier}`, 'item'], [`s|${supplier}`, 'supplier']);
+    tiers.push([`i|${cid}`, 'item_elsewhere']);
+    const passes: string[] = terms ? [terms, '*'] : ['*'];
+    // Matching terms across every tier first, then any terms across every tier.
+    for (const t of passes) {
+      for (const [k, source] of tiers) {
+        const l = newest.get(`${k}|${t}`);
+        if (l) return { uplift: l.uplift, source, ref: l.poNo, termsMatch: terms ? l.terms === terms : null };
+      }
+    }
     return null;
   };
 
   const best = new Map<string, IncomingCost>();
-  const offer = (cid: string, c: Omit<IncomingCost, 'uplift' | 'upliftSource' | 'upliftRef' | 'estLandedIdr' | 'provisional'>) => {
+  const offer = (cid: string, c: Omit<IncomingCost, 'uplift' | 'upliftSource' | 'upliftRef' | 'termsMatch' | 'estLandedIdr' | 'provisional'>) => {
     if (!(c.fobIdr > 0) || !c.date) return;
     const prev = best.get(cid);
     if (prev && (prev.date > c.date || (prev.date === c.date && prev.source === 'po'))) return;
-    const u = upliftFor(cid, c.supplierId);
+    const u = upliftFor(cid, c.supplierId, c.freightTerms);
     best.set(cid, {
-      ...c, uplift: u?.uplift ?? null, upliftSource: u?.source ?? null, upliftRef: u?.ref ?? null,
+      ...c, uplift: u?.uplift ?? null, upliftSource: u?.source ?? null, upliftRef: u?.ref ?? null, termsMatch: u?.termsMatch ?? null,
       estLandedIdr: Math.round(c.fobIdr * (u?.uplift ?? 1)), provisional: u == null,
     });
   };
@@ -276,7 +307,7 @@ export function incomingCosts(
     offer(l.component_id, {
       rateSource: pr.source, ratePaidPct: pr.paidPct,
       source: 'po', label: po.po_number || 'PO', date: day(po.po_date), status: po.status ?? '',
-      currency: cur, unitForeign: unit, rate, fobIdr: unit * rate, supplierId: supplierOfPo(po),
+      currency: cur, unitForeign: unit, rate, fobIdr: unit * rate, supplierId: supplierOfPo(po), freightTerms: freightTerms(po.incoterms),
     });
   }
   for (const l of input.quoteItems) {
@@ -290,7 +321,7 @@ export function incomingCosts(
     const unit = n(l.unit_price);
     offer(l.component_id, {
       source: 'quote', label: q.pi_number || 'Quote', date: d, status: q.status ?? '',
-      currency: cur, unitForeign: unit, rate, fobIdr: unit * rate, supplierId: q.supplier_id || null,
+      currency: cur, unitForeign: unit, rate, fobIdr: unit * rate, supplierId: q.supplier_id || null, freightTerms: null,
       rateSource: cur === 'IDR' ? 'paid' : fx[cur]?.source === 'benchmark' ? 'benchmark' : 'po', ratePaidPct: 0,
     });
   }

@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T10:48:00Z",
+    title: "Biaya impor dipelajari dari PO dengan syarat pengiriman yang sama (FOB vs CIF)",
+    details: [
+      "PO FOB/EXW (ongkir laut kita bayar sendiri) kini belajar persentase biaya impor dari pengiriman FOB/EXW sebelumnya, dan PO CIF/DDP dari pengiriman CIF/DDP. Sebelumnya PO FOB bisa memakai persentase dari pengiriman CIF, sehingga ongkir laut tidak terhitung.",
+      "Contoh: EPEVER TCP 306 — harga USD 25,70 tidak berubah, tetapi PO PIO-017 berstatus FOB Shenzhen. Biaya impor kini diambil dari pengiriman FOB terakhirnya (PIO-2025019, +12,2%): pesanan berikutnya ≈ Rp 522 rb, GP harga Rp 600 rb turun dari 20,2% menjadi 12,9%.",
+      "Bila hanya ada riwayat dengan syarat yang berbeda, persentase itu tetap dipakai tetapi ▲ memberi tahu bahwa ongkir mungkin belum termasuk.",
+    ],
+  },
+  {
     at: "2026-10-27T09:54:00Z",
     title: "Biaya impor dari tagihan PO, dan barang ber-QUOTE tidak lagi tampil ▲ palsu",
     details: [

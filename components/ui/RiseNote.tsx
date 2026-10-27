@@ -43,6 +43,9 @@ export default function RiseNote({ rise, supplierName, showRefs }: {
       : t('No company rate for this currency: converted at the rate on the PO.'),
     upliftLine,
     showRefs && inc.upliftRef ? tf('Import costs learned from {ref}.', { ref: inc.upliftRef }) : '',
+    inc.termsMatch === false ? (inc.freightTerms === 'buyer'
+      ? t('Learned from a delivery where the price included freight, but this order is FOB/EXW: the sea freight may be missing, so the real cost can be higher.')
+      : t('Learned from a delivery where we paid the freight, but this order includes it: the estimate may be on the high side.')) : '',
     tf('{pct}% above the current cost ({cur}).', { pct: rise.risePct.toFixed(1), cur: fmtRupiah(Math.round(rise.current)) }),
     rise.fobAlreadyAbove ? t('The supplier price alone is already above it.') : '',
     t('Margins on this row are calculated on the new cost.'),
