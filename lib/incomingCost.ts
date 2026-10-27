@@ -29,12 +29,22 @@
  * latest price is the one the next order will be placed at.
  *
  * FOB IS NOT LANDED. A PO or quote price excludes freight, duty, PIB and bank
- * charges, so comparing it raw against a landed cost flatters it. The item's
- * own last landing tells us its import uplift (landed ÷ the PO price it landed
- * from — LR51100: 9,477,538 ÷ (509 × 17,490) = 1.065), and the estimate
- * applies it. With no landing to learn from, the raw price is used and flagged
- * `provisional` — it can only be too LOW, never too high, so a warning it
- * raises is real.
+ * charges, so comparing it raw against a landed cost flatters it. The estimate
+ * applies an import UPLIFT (landed ÷ the PO price it landed from — LR51100:
+ * 9,477,538 ÷ (509 × 17,490) = 1.065) learned from past deliveries, and the
+ * rise is measured on that estimated landed cost, never on the bare FOB.
+ *
+ * WHERE THE UPLIFT COMES FROM (owner, 2026-10-27: *"it should use the previous
+ * estimated Landed Cost mark up from the same supplier"*), most specific first:
+ *   1. `item`           — this item's last delivery FROM THE SAME SUPPLIER.
+ *                         Duty is set per product (HS code), so the item's own
+ *                         history with that supplier is the closest match.
+ *   2. `supplier`       — the same supplier's last delivered PO, all its lines
+ *                         together, weighted by value (Σ landed ÷ Σ FOB). This
+ *                         is what prices an item that supplier has never sent.
+ *   3. `item_elsewhere` — this item's last delivery from another supplier.
+ *   4. none             — the raw price, flagged `provisional`: it can only be
+ *                         too LOW, never too high, so a warning it raises is real.
  */
 import type { FxRate } from './computeTUC.ts';
 
@@ -48,16 +58,26 @@ export const RISE_THRESHOLD_PCT = 1;
 /** An uplift outside this band is a data error (wrong rate, unit mismatch), not an import cost. */
 const UPLIFT_MIN = 1;
 const UPLIFT_MAX = 2;
+/**
+ * An IMPORT (foreign-currency PO) that "landed" at under +0.5% did not land
+ * free — its freight and duty were never added to the receipt. Measured
+ * 2026-10-27: several KSTAR deliveries sit at exactly the USD price. Learning
+ * 0% from them would understate every estimate for that supplier, so they
+ * teach nothing. A rupiah PO from a local supplier really can land at ~0%.
+ */
+const IMPORT_UPLIFT_MIN = 1.005;
 
 const OPEN_PO = new Set(['Sent', 'Confirmed', 'Partially Received']);
 const LIVE_QUOTE = new Set(['Open', 'Accepted']);
 
-export interface IncPo { po_id: string | number; po_number?: string | null; po_date?: string | null; status?: string | null; currency?: string | null; exchange_rate?: number | string | null }
+export interface IncPo { po_id: string | number; po_number?: string | null; po_date?: string | null; status?: string | null; currency?: string | null; exchange_rate?: number | string | null; supplier_id?: string | null; quote_id?: string | number | null }
 export interface IncPoLine { po_id: string | number; component_id: string; unit_cost: number | string; currency?: string | null }
-export interface IncQuote { quote_id: string | number; pi_number?: string | null; quote_date?: string | null; status?: string | null; currency?: string | null }
+export interface IncQuote { quote_id: string | number; pi_number?: string | null; quote_date?: string | null; status?: string | null; currency?: string | null; supplier_id?: string | null }
 export interface IncQuoteLine { quote_id: string | number; component_id: string; unit_price: number | string; currency?: string | null }
 /** A goods-in movement (30.0, source_type 'receipt'): landed IDR per unit, and the PO it came from. */
-export interface IncReceipt { component_id: string; unit_cost_idr: number | string | null; moved_at: string; source_id: string | null }
+export interface IncReceipt { component_id: string; unit_cost_idr: number | string | null; moved_at: string; source_id: string | null; quantity?: number | string | null }
+
+export type UpliftSource = 'item' | 'supplier' | 'item_elsewhere';
 
 export interface IncomingCost {
   source: 'po' | 'quote';
@@ -72,8 +92,14 @@ export interface IncomingCost {
   rate: number;
   /** unitForeign × rate — before freight, duty and fees. */
   fobIdr: number;
-  /** landed ÷ FOB from this item's last landing, or null when it never landed from a priced PO. */
+  /** landed ÷ FOB learned from a past delivery (see UpliftSource), or null when there is none. */
   uplift: number | null;
+  /** Which past delivery the uplift was learned from. */
+  upliftSource: UpliftSource | null;
+  /** The PO number it was learned from. */
+  upliftRef: string | null;
+  /** The supplier of the incoming PO / quote, when known. */
+  supplierId: string | null;
   /** fobIdr × uplift — what a unit will cost once it lands. */
   estLandedIdr: number;
   /** No uplift known: the estimate is the raw FOB and can only be too low. */
@@ -91,35 +117,77 @@ export function incomingCosts(
   const poById = new Map(input.pos.map((p) => [String(p.po_id), p]));
   const quoteById = new Map(input.quotes.map((q) => [String(q.quote_id), q]));
 
-  // The newest landing per item: when it arrived, and the uplift it implies.
-  const lastIn = new Map<string, { date: string; uplift: number | null }>();
+  const supplierOfPo = (po: IncPo | undefined): string | null =>
+    po ? (po.supplier_id || (po.quote_id != null ? quoteById.get(String(po.quote_id))?.supplier_id : null) || null) : null;
+
+  // Every past delivery that can teach an uplift: landed IDR vs the FOB of
+  // the PO line it came from, at that PO's own rate.
+  interface Lesson { cid: string; date: string; poId: string; poNo: string; supplier: string | null; landed: number; fob: number; qty: number; imported: boolean }
+  const lessons: Lesson[] = [];
+  // When each item last arrived — any delivery, usable uplift or not. A quote
+  // older than this is history the landed cost has already absorbed.
+  const lastArrived = new Map<string, string>();
   for (const r of input.receipts) {
-    const landed = n(r.unit_cost_idr);
     const d = day(r.moved_at);
-    const prev = lastIn.get(r.component_id);
-    if (prev && prev.date > d) continue;
-    let uplift: number | null = null;
+    if ((lastArrived.get(r.component_id) ?? '') < d) lastArrived.set(r.component_id, d);
+    const landed = n(r.unit_cost_idr);
     const po = r.source_id ? poById.get(String(r.source_id)) : undefined;
     const line = po && input.poItems.find((l) => String(l.po_id) === String(po.po_id) && l.component_id === r.component_id);
-    if (po && line && landed > 0) {
-      const cur = line.currency || po.currency || 'IDR';
-      const rate = cur === 'IDR' ? 1 : n(po.exchange_rate) || rateOf(fx, cur);
-      const fob = n(line.unit_cost) * rate;
-      const u = fob > 0 ? landed / fob : 0;
-      if (u >= UPLIFT_MIN && u <= UPLIFT_MAX) uplift = u;
-    }
-    // A later landing with no usable uplift still moves the "arrived" date,
-    // but keeps the uplift we learned from the one before.
-    lastIn.set(r.component_id, { date: d, uplift: uplift ?? prev?.uplift ?? null });
+    if (!po || !line || !(landed > 0)) continue;
+    const cur = line.currency || po.currency || 'IDR';
+    const rate = cur === 'IDR' ? 1 : n(po.exchange_rate) || rateOf(fx, cur);
+    const fob = n(line.unit_cost) * rate;
+    if (!(fob > 0)) continue;
+    lessons.push({ cid: r.component_id, date: d, poId: String(po.po_id), poNo: po.po_number || 'PO',
+      supplier: supplierOfPo(po), landed, fob, qty: n(r.quantity) || 1, imported: cur !== 'IDR' });
+  }
+  const sane = (u: number, imported: boolean) => u >= (imported ? IMPORT_UPLIFT_MIN : UPLIFT_MIN) && u <= UPLIFT_MAX;
+  const newestFirst = (a: Lesson, b: Lesson) => b.date.localeCompare(a.date);
+  lessons.sort(newestFirst);
+
+  // 1 + 3: per item (and per item × supplier), the newest sane delivery.
+  const byItemSupplier = new Map<string, Lesson>();
+  const byItem = new Map<string, Lesson>();
+  for (const l of lessons) {
+    if (!sane(l.landed / l.fob, l.imported)) continue;
+    if (l.supplier && !byItemSupplier.has(`${l.cid}|${l.supplier}`)) byItemSupplier.set(`${l.cid}|${l.supplier}`, l);
+    if (!byItem.has(l.cid)) byItem.set(l.cid, l);
+  }
+  // 2: per supplier, its most recently delivered PO, every line weighted by value.
+  const bySupplier = new Map<string, { uplift: number; ref: string }>();
+  const poLessons = new Map<string, Lesson[]>();
+  for (const l of lessons) (poLessons.get(l.poId) ?? poLessons.set(l.poId, []).get(l.poId)!).push(l);
+  const posNewestFirst = [...poLessons.values()].sort((a, b) => newestFirst(a[0], b[0]));
+  for (const ls of posNewestFirst) {
+    const sup = ls[0].supplier;
+    if (!sup || bySupplier.has(sup)) continue;
+    const landed = ls.reduce((s, l) => s + l.landed * l.qty, 0);
+    const fob = ls.reduce((s, l) => s + l.fob * l.qty, 0);
+    const u = fob > 0 ? landed / fob : 0;
+    // An unbooked import PO is skipped, and the supplier's PO before it gets the chance.
+    if (sane(u, ls[0].imported)) bySupplier.set(sup, { uplift: u, ref: ls[0].poNo });
   }
 
+  const upliftFor = (cid: string, supplier: string | null): { uplift: number; source: UpliftSource; ref: string } | null => {
+    const own = supplier ? byItemSupplier.get(`${cid}|${supplier}`) : undefined;
+    if (own) return { uplift: own.landed / own.fob, source: 'item', ref: own.poNo };
+    const sup = supplier ? bySupplier.get(supplier) : undefined;
+    if (sup) return { uplift: sup.uplift, source: 'supplier', ref: sup.ref };
+    const any = byItem.get(cid);
+    if (any) return { uplift: any.landed / any.fob, source: 'item_elsewhere', ref: any.poNo };
+    return null;
+  };
+
   const best = new Map<string, IncomingCost>();
-  const offer = (cid: string, c: Omit<IncomingCost, 'uplift' | 'estLandedIdr' | 'provisional'>) => {
+  const offer = (cid: string, c: Omit<IncomingCost, 'uplift' | 'upliftSource' | 'upliftRef' | 'estLandedIdr' | 'provisional'>) => {
     if (!(c.fobIdr > 0) || !c.date) return;
     const prev = best.get(cid);
     if (prev && (prev.date > c.date || (prev.date === c.date && prev.source === 'po'))) return;
-    const uplift = lastIn.get(cid)?.uplift ?? null;
-    best.set(cid, { ...c, uplift, estLandedIdr: Math.round(c.fobIdr * (uplift ?? 1)), provisional: uplift == null });
+    const u = upliftFor(cid, c.supplierId);
+    best.set(cid, {
+      ...c, uplift: u?.uplift ?? null, upliftSource: u?.source ?? null, upliftRef: u?.ref ?? null,
+      estLandedIdr: Math.round(c.fobIdr * (u?.uplift ?? 1)), provisional: u == null,
+    });
   };
 
   for (const l of input.poItems) {
@@ -130,21 +198,21 @@ export function incomingCosts(
     const unit = n(l.unit_cost);
     offer(l.component_id, {
       source: 'po', label: po.po_number || 'PO', date: day(po.po_date), status: po.status ?? '',
-      currency: cur, unitForeign: unit, rate, fobIdr: unit * rate,
+      currency: cur, unitForeign: unit, rate, fobIdr: unit * rate, supplierId: supplierOfPo(po),
     });
   }
   for (const l of input.quoteItems) {
     const q = quoteById.get(String(l.quote_id));
     if (!q || !LIVE_QUOTE.has(q.status ?? '')) continue;
     const d = day(q.quote_date);
-    const arrived = lastIn.get(l.component_id)?.date;
+    const arrived = lastArrived.get(l.component_id);
     if (arrived && d <= arrived) continue;
     const cur = l.currency || q.currency || 'IDR';
     const rate = cur === 'IDR' ? 1 : rateOf(fx, cur);
     const unit = n(l.unit_price);
     offer(l.component_id, {
       source: 'quote', label: q.pi_number || 'Quote', date: d, status: q.status ?? '',
-      currency: cur, unitForeign: unit, rate, fobIdr: unit * rate,
+      currency: cur, unitForeign: unit, rate, fobIdr: unit * rate, supplierId: q.supplier_id || null,
     });
   }
   return best;

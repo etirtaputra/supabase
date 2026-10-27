@@ -114,3 +114,101 @@ test('costRise: only a rise of at least the threshold, never a fall', () => {
   assert.equal(costRise(null, inc), null, 'no current cost: nothing to compare');
   assert.equal(costRise(9_000_000, undefined), null);
 });
+
+// ── Where the uplift comes from (owner, 2026-10-27: "the previous estimated
+//    Landed Cost mark up from the same supplier") ───────────────────────────
+
+const EPEVER = 'sup-epever';
+const OTHER = 'sup-other';
+const withSup = (po: IncPo, supplier_id: string | null): IncPo => ({ ...po, supplier_id });
+
+test('LR51100 with suppliers: its own last delivery from EPEVER sets the uplift', () => {
+  const inc = incomingCosts({ pos: [withSup(OLD_PO, EPEVER), withSup(NEW_PO, EPEVER)], poItems: LINES,
+    quotes: [], quoteItems: [], receipts: [RECEIPT] }, FX).get(CID)!;
+  assert.equal(inc.upliftSource, 'item');
+  assert.equal(inc.upliftRef, 'PIO-008-ISL-05-2026');
+  assert.equal(inc.supplierId, EPEVER);
+});
+
+test('an item the supplier never sent takes that supplier’s last delivery, weighted by value', () => {
+  // EPEVER's last delivered PO carried two other items: 10 × USD 100 landing at
+  // 1.10 and 2 × USD 1,000 landing at 1.20. Value-weighted: (1,100 + 2,400) ÷ 3,000.
+  const po: IncPo = withSup({ po_id: 'po-x', po_number: 'PIO-X', po_date: '2026-06-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000 }, EPEVER);
+  const lines: IncPoLine[] = [
+    { po_id: 'po-x', component_id: 'a', unit_cost: 100, currency: 'USD' },
+    { po_id: 'po-x', component_id: 'b', unit_cost: 1_000, currency: 'USD' },
+    { po_id: 'po-017', component_id: 'new-item', unit_cost: 200, currency: 'USD' },
+  ];
+  const receipts: IncReceipt[] = [
+    { component_id: 'a', unit_cost_idr: 100 * 17_000 * 1.10, moved_at: '2026-07-01', source_id: 'po-x', quantity: 10 },
+    { component_id: 'b', unit_cost_idr: 1_000 * 17_000 * 1.20, moved_at: '2026-07-01', source_id: 'po-x', quantity: 2 },
+  ];
+  const inc = incomingCosts({ pos: [po, withSup(NEW_PO, EPEVER)], poItems: lines, quotes: [], quoteItems: [], receipts }, FX).get('new-item')!;
+  assert.equal(inc.upliftSource, 'supplier');
+  assert.equal(inc.upliftRef, 'PIO-X');
+  assert.ok(Math.abs(inc.uplift! - 3_500 / 3_000) < 1e-9, `got ${inc.uplift}`);
+  assert.equal(inc.estLandedIdr, Math.round(200 * 17_912 * 3_500 / 3_000));
+  assert.equal(inc.provisional, false);
+});
+
+test('the same-supplier history beats the item’s history with another supplier', () => {
+  const otherPo: IncPo = withSup({ po_id: 'po-o', po_number: 'PO-OTHER', po_date: '2026-08-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000 }, OTHER);
+  const supPo: IncPo = withSup({ po_id: 'po-s', po_number: 'PO-EPEVER-OLD', po_date: '2026-03-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000 }, EPEVER);
+  const lines: IncPoLine[] = [
+    { po_id: 'po-o', component_id: CID, unit_cost: 500, currency: 'USD' },
+    { po_id: 'po-s', component_id: 'z', unit_cost: 100, currency: 'USD' },
+    LINES[1],
+  ];
+  const receipts: IncReceipt[] = [
+    { component_id: CID, unit_cost_idr: 500 * 17_000 * 1.30, moved_at: '2026-09-01', source_id: 'po-o', quantity: 5 },
+    { component_id: 'z', unit_cost_idr: 100 * 17_000 * 1.08, moved_at: '2026-04-01', source_id: 'po-s', quantity: 5 },
+  ];
+  const inc = incomingCosts({ pos: [otherPo, supPo, withSup(NEW_PO, EPEVER)], poItems: lines, quotes: [], quoteItems: [], receipts }, FX).get(CID)!;
+  assert.equal(inc.upliftSource, 'supplier', 'EPEVER’s own markup, not the other supplier’s');
+  assert.ok(Math.abs(inc.uplift! - 1.08) < 1e-9);
+});
+
+test('no history with this supplier at all: the item’s delivery from another supplier, said so', () => {
+  const inc = incomingCosts({ pos: [withSup(OLD_PO, OTHER), withSup(NEW_PO, EPEVER)], poItems: LINES,
+    quotes: [], quoteItems: [], receipts: [RECEIPT] }, FX).get(CID)!;
+  assert.equal(inc.upliftSource, 'item_elsewhere');
+  assert.equal(inc.provisional, false);
+});
+
+test('a PO with no supplier of its own takes it from the quote it was raised from', () => {
+  const q: IncQuote = { ...NEW_Q, status: 'Accepted', supplier_id: EPEVER };
+  const po: IncPo = { ...NEW_PO, supplier_id: null, quote_id: 'q2' };
+  const inc = incomingCosts({ pos: [withSup(OLD_PO, EPEVER), po], poItems: LINES, quotes: [q], quoteItems: [], receipts: [RECEIPT] }, FX).get(CID)!;
+  assert.equal(inc.supplierId, EPEVER);
+  assert.equal(inc.upliftSource, 'item');
+});
+
+test('a quote carries its supplier, and uses that supplier’s markup', () => {
+  const inc = incomingCosts({ pos: [withSup(OLD_PO, EPEVER)], poItems: [LINES[0]],
+    quotes: [{ ...NEW_Q, supplier_id: EPEVER }], quoteItems: [{ quote_id: 'q2', component_id: 'brand-new', unit_price: 300, currency: 'USD' }],
+    receipts: [RECEIPT] }, FX).get('brand-new')!;
+  assert.equal(inc.upliftSource, 'supplier');
+  assert.equal(inc.upliftRef, 'PIO-008-ISL-05-2026');
+  assert.equal(inc.estLandedIdr, Math.round(300 * 18_000 * (9_477_538 / (509 * 17_490))));
+});
+
+test('an import received at its bare USD price taught nothing: freight and duty were never booked', () => {
+  // KSTAR, 2026-10-27: deliveries sitting at exactly the PO price.
+  const unbooked = { ...RECEIPT, unit_cost_idr: 509 * 17_490 };
+  const inc = incomingCosts({ pos: [withSup(OLD_PO, EPEVER), withSup(NEW_PO, EPEVER)], poItems: LINES,
+    quotes: [], quoteItems: [], receipts: [unbooked] }, FX).get(CID)!;
+  assert.equal(inc.uplift, null);
+  assert.equal(inc.provisional, true, 'shown as the bare price, flagged as an underestimate');
+});
+
+test('a local rupiah supplier really can land at ~0%: that is learned', () => {
+  const po: IncPo = withSup({ po_id: 'loc', po_number: 'PO-LOCAL', po_date: '2026-09-01', status: 'Fully Received', currency: 'IDR' }, 'sup-local');
+  const next: IncPo = withSup({ po_id: 'loc2', po_number: 'PO-LOCAL-2', po_date: '2026-10-12', status: 'Confirmed', currency: 'IDR' }, 'sup-local');
+  const inc = incomingCosts({ pos: [po, next], poItems: [
+      { po_id: 'loc', component_id: 'cable', unit_cost: 60_000, currency: 'IDR' },
+      { po_id: 'loc2', component_id: 'cable', unit_cost: 69_000, currency: 'IDR' }],
+    quotes: [], quoteItems: [], receipts: [{ component_id: 'cable', unit_cost_idr: 60_000, moved_at: '2026-09-05', source_id: 'loc', quantity: 100 }] }, FX).get('cable')!;
+  assert.equal(inc.uplift, 1);
+  assert.equal(inc.upliftSource, 'item');
+  assert.equal(inc.provisional, false);
+});

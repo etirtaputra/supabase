@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T08:51:00Z",
+    title: "Biaya pesanan berikutnya: biaya impor dipelajari dari pemasok yang sama",
+    details: [
+      "Perkiraan biaya landed pesanan berikutnya kini menambahkan persentase biaya impor (ongkir, bea, biaya) dari pengiriman sebelumnya dari PEMASOK YANG SAMA: pertama dari barang itu sendiri dari pemasok tersebut, lalu dari pengiriman terakhir pemasok itu secara keseluruhan, baru dari pemasok lain.",
+      "Barang yang belum pernah dikirim pemasok itu kini juga mendapat perkiraan yang wajar: 204 dari 296 barang yang sedang dipesan atau ditawarkan memakai persentase pemasoknya.",
+      "Kiriman impor yang tercatat tepat di harga USD (biaya impornya belum dibukukan) tidak dipakai sebagai acuan, karena 0% akan membuat perkiraan terlalu rendah.",
+      "Arahkan kursor ke ▲ untuk melihat dari pengiriman mana persentase itu diambil.",
+    ],
+  },
+  {
     at: "2026-10-27T08:47:00Z",
     title: "Harga Jual › Harga dan audit batas minimum: memakai biaya pesanan berikutnya bila lebih mahal",
     details: [

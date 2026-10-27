@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *replacement cost now also drives the Prices tab and the floor audit*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *incoming-cost uplift learned from the same supplier (item → supplier PO → elsewhere)*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -167,6 +167,20 @@ instead of 6.6%.
   incoming cost for every margin and the keep-margin suggestion, and adds the
   filter "Next order costs more". `lib/costBasis.test.ts`'s source guard
   widened to accept `provisional: rise ? rise.incoming.provisional : basis.provisional`.
+- **Same day, owner: uplift "from the same supplier".** `upliftFor()` chain:
+  `item` (this item's last delivery from the incoming doc's supplier) →
+  `supplier` (that supplier's last delivered PO, Σ landed×qty ÷ Σ FOB×qty) →
+  `item_elsewhere` → none (raw FOB, provisional). Supplier = PO.supplier_id,
+  else the PO's quote's; a quote's own supplier_id. Receipts now load
+  `quantity`. An IMPORT lesson under +0.5% is skipped (`IMPORT_UPLIFT_MIN`):
+  KSTAR GRNs sit at exactly the USD price (landed cost never trued up), and a
+  learned 0% understated them; IDR POs may teach ~0%. `RiseNote` names the
+  source + supplier, PO refs only for buy-side (`showRefs`). Measured
+  2026-10-27: of 296 incoming items, supplier 204 · item 15 · none 78; landed-
+  basis rises 17 → 22 (EPEVER XTRA4415N/1210N/2210N now learn EPEVER's +7.9%
+  instead of their own unbooked 0%; EPEVER UP1500 GP 28.4 → 22.9%).
+  **Data flag for the owner:** KSTAR landings carry only ~0.7% import cost —
+  its freight/duty look under-booked in the landed-cost true-up.
 - Measured on production 2026-10-27: 296 active items have something
   incoming; 17 landed-basis items rise (LR51100 +8.4%; NINGBO LE WS3-6510
   +9.5%; KMI cables 12–15% from the Anugrah 2026-10-12 nota; KSTAR GP806S

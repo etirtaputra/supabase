@@ -8,18 +8,35 @@ import type { CostRise } from '@/lib/incomingCost';
  * landed cost, how much dearer, and — on hover — the PO or quote it comes
  * from, the arithmetic, and how the import uplift was learned.
  */
-export default function RiseNote({ rise }: { rise: CostRise }) {
+export default function RiseNote({ rise, supplierName, showRefs }: {
+  rise: CostRise;
+  /** The incoming document's supplier, for the "as on {supplier}'s last delivery" line. */
+  supplierName?: string | null;
+  /** PO / PI numbers are buy-side detail: a sell-side admin sees the cost, not the order. */
+  showRefs: boolean;
+}) {
   const { t, tf } = useT();
   const inc = rise.incoming;
-  const doc = inc.source === 'po' ? tf('Open PO {ref}', { ref: inc.label }) : tf('Supplier quote {ref}', { ref: inc.label });
+  const doc = !showRefs ? (inc.source === 'po' ? t('Open PO') : t('Supplier quote'))
+    : inc.source === 'po' ? tf('Open PO {ref}', { ref: inc.label }) : tf('Supplier quote {ref}', { ref: inc.label });
+  const sup = supplierName || t('this supplier');
+  const pct = inc.uplift != null ? ((inc.uplift - 1) * 100).toFixed(1) : '';
+  const est = fmtRupiah(inc.estLandedIdr);
+  // Where the import markup was learned (lib/incomingCost.ts, UpliftSource).
+  const upliftLine = inc.upliftSource === 'item'
+    ? tf('+{pct}% import costs, as on this item’s last delivery from {supplier} → about {est}', { pct, supplier: sup, est })
+    : inc.upliftSource === 'supplier'
+      ? tf('+{pct}% import costs, as on {supplier}’s last delivery → about {est}', { pct, supplier: sup, est })
+      : inc.upliftSource === 'item_elsewhere'
+        ? tf('+{pct}% import costs, as on this item’s last delivery from another supplier → about {est}', { pct, est })
+        : t('Never delivered before, so no import costs are added: the real landed cost will be HIGHER.');
   const price = inc.currency === 'IDR' ? fmtRupiah(inc.unitForeign)
     : `${inc.currency} ${inc.unitForeign.toLocaleString('en-US')} × ${Math.round(inc.rate).toLocaleString('en-US')}`;
   const lines = [
     `${doc} · ${fmtDay(inc.date)} · ${inc.status}`,
     tf('{price} = {fob} before freight, duty and fees', { price, fob: fmtRupiah(Math.round(inc.fobIdr)) }),
-    inc.uplift != null
-      ? tf('+{pct}% import costs, as on its last delivery → about {est}', { pct: ((inc.uplift - 1) * 100).toFixed(1), est: fmtRupiah(inc.estLandedIdr) })
-      : t('Never delivered before, so no import costs are added: the real landed cost will be HIGHER.'),
+    upliftLine,
+    showRefs && inc.upliftRef ? tf('Import costs learned from {ref}.', { ref: inc.upliftRef }) : '',
     tf('{pct}% above the current cost ({cur}).', { pct: rise.risePct.toFixed(1), cur: fmtRupiah(Math.round(rise.current)) }),
     rise.fobAlreadyAbove ? t('The supplier price alone is already above it.') : '',
     t('Margins on this row are calculated on the new cost.'),

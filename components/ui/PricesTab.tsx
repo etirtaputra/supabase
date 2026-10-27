@@ -84,7 +84,7 @@ interface Row {
 }
 
 export default function PricesTab({
-  comps, tiers, chainAt, paidOf, receivedOf, basisCost, stockCost, stockOf, leadOf, priceLog, incomingOf, tierName,
+  comps, tiers, chainAt, paidOf, receivedOf, basisCost, stockCost, stockOf, leadOf, priceLog, incomingOf, supplierNameOf, tierName,
   canManage, saving, onSaveNet, showPoNumbers, canSeeCompetitors, canOpenItem, roundStep,
   floor, pinned, initialFilter, totalLeakage, bulkBusy, onRaise, onRaiseAll, onUnpin,
 }: {
@@ -101,6 +101,7 @@ export default function PricesTab({
   priceLog: Map<string, PriceLogLite[]>;
   /** The open PO / newer supplier quote for this item, at its estimated landed cost. */
   incomingOf: (componentId: string) => IncomingCost | null;
+  supplierNameOf: (supplierId: string | null) => string | null;
   tierName: (tierId: string | null) => string;
   canManage: boolean;
   saving: boolean;
@@ -346,7 +347,7 @@ export default function PricesTab({
                         <span className={`font-bold tabular-nums ${r.rise ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-100'}`}>{fmtMoneyCell(r.lastCost)}</span>{trendTag(r.trend)}
                         {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
                         <p className="text-[11px] text-slate-500">{r.costFromQuote ? t('supplier quote') : fmtDay(r.trend.last?.date)}</p>
-                        {r.rise && <RiseNote rise={r.rise} />}
+                        {r.rise && <RiseNote rise={r.rise} supplierName={supplierNameOf(r.rise.incoming.supplierId)} showRefs={showPoNumbers} />}
                       </>) : <span className="text-slate-600">—</span>}
                     </td>
                     <td className="px-3 py-2 text-right">{priceInput(r)}</td>
@@ -381,7 +382,7 @@ export default function PricesTab({
                     <span className={`font-bold tabular-nums ${r.rise ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-100'}`}>{r.lastCost != null ? fmtRupiah(r.lastCost) : '—'}</span>{trendTag(r.trend)}
                     {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
                     <span className="block text-[11px] text-slate-500">{r.costFromQuote ? t('supplier quote') : r.trend.last ? fmtDay(r.trend.last.date) : t('no cost yet')}</span>
-                    {r.rise && <RiseNote rise={r.rise} />}
+                    {r.rise && <RiseNote rise={r.rise} supplierName={supplierNameOf(r.rise.incoming.supplierId)} showRefs={showPoNumbers} />}
                   </span>
                   <span>
                     <span className={`font-bold tabular-nums ${marginCls(m, floor1)}`}>{m == null ? '—' : `${m.toFixed(1)}%`}</span>

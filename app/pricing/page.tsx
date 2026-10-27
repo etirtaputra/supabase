@@ -68,7 +68,7 @@ interface Comp {
   margin_profile_id: string | null; norm_value: number | null;
 }
 /** A goods-in movement: landed cost per unit, stamped by the receive page. */
-interface Receipt { component_id: string; unit_cost_idr: number | null; moved_at: string; source_id: string | null }
+interface Receipt { component_id: string; unit_cost_idr: number | null; moved_at: string; source_id: string | null; quantity: number | null }
 interface Bal { component_id: string; qty_on_hand: number; avg_cost_idr: number | null; }
 /** One logged price change (21.3, written by triggers — see the migration). */
 interface PriceLog {
@@ -205,7 +205,7 @@ function PricingPage() {
       // Goods received at landed cost — the newest cost of an item whose PO is
       // not paid yet (Prices tab). And receipt dates, for lead times.
       selectAll<Receipt>((f, t) => supabase.from('30.0_stock_movements')
-        .select('component_id, unit_cost_idr, moved_at, source_id')
+        .select('component_id, unit_cost_idr, moved_at, source_id, quantity')
         .eq('source_type', 'receipt').eq('direction', 'in').order('movement_id').range(f, t)),
       selectAll<LtGrn>((f, t) => supabase.from('30.2_goods_receipts').select('po_id, received_at').order('grn_id').range(f, t)),
     ]);
@@ -326,6 +326,8 @@ function PricingPage() {
   const riseOf = useCallback((cid: string): CostRise | null => costRise(basisOf(cid).cost, incomingByComp.get(cid)),
     [basisOf, incomingByComp]);
   const incomingOf = useCallback((cid: string) => incomingByComp.get(cid) ?? null, [incomingByComp]);
+  const supplierNames = useMemo(() => new Map(catalog.suppliers.map((x) => [String(x.supplier_id), x.supplier_name])), [catalog.suppliers]);
+  const supplierNameOf = useCallback((id: string | null) => (id ? supplierNames.get(id) ?? null : null), [supplierNames]);
 
   // ── Prices tab: cost history, lead time ───────────────────────────────────
   const poNumberById = useMemo(() => new Map(catalog.pos.map((p) => [String(p.po_id), p.po_number])), [catalog.pos]);
@@ -585,7 +587,7 @@ function PricingPage() {
               <PricesTab
                 comps={comps.map((c) => ({ component_id: c.component_id, name: descOf(c), category: c.category, norm_value: c.norm_value, selling_price_idr: c.selling_price_idr }))}
                 tiers={activeSorted} chainAt={chainAt} paidOf={paidOf} receivedOf={receivedOf} basisCost={basisCost}
-                stockCost={stockCostOf} stockOf={stockOf} leadOf={leadOf} priceLog={priceLog} incomingOf={incomingOf}
+                stockCost={stockCostOf} stockOf={stockOf} leadOf={leadOf} priceLog={priceLog} incomingOf={incomingOf} supplierNameOf={supplierNameOf}
                 tierName={(tid) => (tid ? tierById.get(tid)?.name : activeSorted[0]?.name) ?? 'Net'}
                 canManage={canManage} saving={savingRows}
                 onSaveNet={(cid, v) => saveEdits([{ component_id: cid, tier_id: null, value: v }])}
@@ -603,7 +605,8 @@ function PricingPage() {
                 stockOf={stockOf}
                 profileById={profileById} ovByKey={ovByKey} saving={savingRows} onSave={saveEdits}
                 onAssignProfile={assignItemProfile} canManage={canManage}
-                roundStep={priceRoundingStep} priceLog={priceLog} />
+                roundStep={priceRoundingStep} priceLog={priceLog}
+                supplierNameOf={supplierNameOf} showPoNumbers={!!profile && ROLE_PERMISSIONS[profile.role].buySide} />
             ) : (
               <PriceHistoryTab log={allLog} compById={compById} tiers={tiers} />
             )}
@@ -680,6 +683,7 @@ function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', classNam
  */
 function SetPricingTab({
   comps, tiers, chainFor, costOf, basisOf, riseOf, stockOf, profileById, ovByKey, saving, onSave, onAssignProfile, canManage, roundStep, priceLog,
+  supplierNameOf, showPoNumbers,
 }: {
   comps: Comp[];
   tiers: Tier[];
@@ -700,6 +704,9 @@ function SetPricingTab({
   roundStep: number;
   /** Logged price changes per component, newest first (21.3). */
   priceLog: Map<string, PriceLog[]>;
+  supplierNameOf: (supplierId: string | null) => string | null;
+  /** PO numbers are buy-side detail — same rule as the Prices tab. */
+  showPoNumbers: boolean;
 }) {
   const { t, tf } = useT();
   const [search, setSearch] = useState('');
@@ -1014,7 +1021,7 @@ function SetPricingTab({
                         above is struck through because nothing on this row is
                         judged on it any more: every GP, floor and suggestion
                         uses this number. The hover says where it came from. */}
-                    {r.rise && <RiseNote rise={r.rise} />}
+                    {r.rise && <RiseNote rise={r.rise} supplierName={supplierNameOf(r.rise.incoming.supplierId)} showRefs={showPoNumbers} />}
                   </td>
                   {tiers.map((t, i) => {
                     const k = keyOf(cid, t.tier_id);
