@@ -321,8 +321,8 @@ function PricingPage() {
    * only when that is dearer than the basis. See lib/incomingCost.ts.
    */
   const incomingByComp = useMemo(() => incomingCosts(
-    { pos: catalog.pos, poItems: catalog.poItems, quotes: catalog.quotes, quoteItems: catalog.quoteItems, receipts }, fx),
-  [catalog.pos, catalog.poItems, catalog.quotes, catalog.quoteItems, receipts, fx]);
+    { pos: catalog.pos, poItems: catalog.poItems, quotes: catalog.quotes, quoteItems: catalog.quoteItems, receipts, poCosts: catalog.poCosts }, fx),
+  [catalog.pos, catalog.poItems, catalog.quotes, catalog.quoteItems, catalog.poCosts, receipts, fx]);
   const riseOf = useCallback((cid: string): CostRise | null => costRise(basisOf(cid).cost, incomingByComp.get(cid)),
     [basisOf, incomingByComp]);
   const incomingOf = useCallback((cid: string) => incomingByComp.get(cid) ?? null, [incomingByComp]);

@@ -35,6 +35,12 @@ export default function RiseNote({ rise, supplierName, showRefs }: {
   const lines = [
     `${doc} · ${fmtDay(inc.date)} · ${inc.status}`,
     tf('{price} = {fob} before freight, duty and fees', { price, fob: fmtRupiah(Math.round(inc.fobIdr)) }),
+    // Which exchange rate, and why (owner, 2026-10-27: the benchmark until the final rate is known).
+    inc.currency === 'IDR' ? ''
+      : inc.rateSource === 'blend' ? tf('{pct}% already paid at the bank rate; the rest at today’s company rate.', { pct: inc.ratePaidPct.toFixed(0) })
+      : inc.rateSource === 'benchmark' ? t('Not paid yet: converted at today’s company rate.')
+      : inc.rateSource === 'paid' ? t('Fully paid: converted at the rate the bank charged.')
+      : t('No company rate for this currency: converted at the rate on the PO.'),
     upliftLine,
     showRefs && inc.upliftRef ? tf('Import costs learned from {ref}.', { ref: inc.upliftRef }) : '',
     tf('{pct}% above the current cost ({cur}).', { pct: rise.risePct.toFixed(1), cur: fmtRupiah(Math.round(rise.current)) }),

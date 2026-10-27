@@ -70,7 +70,56 @@ const IMPORT_UPLIFT_MIN = 1.005;
 const OPEN_PO = new Set(['Sent', 'Confirmed', 'Partially Received']);
 const LIVE_QUOTE = new Set(['Open', 'Accepted']);
 
-export interface IncPo { po_id: string | number; po_number?: string | null; po_date?: string | null; status?: string | null; currency?: string | null; exchange_rate?: number | string | null; supplier_id?: string | null; quote_id?: string | number | null }
+export interface IncPo { po_id: string | number; po_number?: string | null; po_date?: string | null; status?: string | null; currency?: string | null; exchange_rate?: number | string | null; supplier_id?: string | null; quote_id?: string | number | null; total_value?: number | string | null }
+/** A PO payment row (6.0_po_costs). Only principal categories count toward the exchange rate. */
+export interface IncPoCost { po_id: string | number; cost_category: string; amount: number | string; currency?: string | null; exchange_rate?: number | string | null }
+
+/** Supplier principal — the money that converts currency. Freight, tax and fees never do. */
+const PRINCIPAL = new Set(['down_payment', 'balance_payment', 'additional_balance_payment', 'overpayment_credit']);
+
+/**
+ * Where the rate on a PO came from (owner, 2026-10-27: *"if we do not know the
+ * final exchange rate yet, we can use the benchmark first, as it is updated
+ * daily anyways"*):
+ *   'paid'       — fully paid: the rate the bank actually charged.
+ *   'blend'      — part paid: the paid share at its real rate, the rest at the
+ *                  company benchmark (Settings › Exchange rates, follows
+ *                  KlikBCA e-Rate each morning).
+ *   'benchmark'  — nothing paid yet: all at the benchmark.
+ *   'po'         — no benchmark for this currency: the rate typed on the PO.
+ */
+export type RateSource = 'paid' | 'blend' | 'benchmark' | 'po';
+export interface PoRate { rate: number; source: RateSource; paidPct: number }
+
+/**
+ * The rupiah rate a PO will cost, as best we know it today. Payment rows in
+ * the PO's currency carry the bank rate; rupiah rows carry it when the person
+ * typed one, else the PO's rate stands in for that slice.
+ */
+export function poRate(po: IncPo, costs: IncPoCost[], fx: Record<string, FxRate>): PoRate {
+  const cur = po.currency || 'IDR';
+  if (cur === 'IDR') return { rate: 1, source: 'paid', paidPct: 100 };
+  const typed = n(po.exchange_rate);
+  const bench = rateOf(fx, cur);
+  let paidF = 0, paidIdr = 0;
+  for (const c of costs) {
+    if (!PRINCIPAL.has(c.cost_category)) continue;
+    const amt = n(c.amount);
+    const r = n(c.exchange_rate) || typed;
+    if (!amt || !(r > 0)) continue;
+    if ((c.currency || cur) === 'IDR') { paidIdr += amt; paidF += amt / r; }
+    else { paidF += amt; paidIdr += amt * r; }
+  }
+  const total = n(po.total_value);
+  const rest = bench > 0 ? bench : typed;
+  if (paidF > 0 && (total <= 0 || paidF >= total * 0.995)) {
+    return { rate: paidIdr / paidF, source: 'paid', paidPct: 100 };
+  }
+  if (paidF > 0 && total > 0) {
+    return { rate: (paidIdr + (total - paidF) * rest) / total, source: bench > 0 ? 'blend' : 'po', paidPct: (paidF / total) * 100 };
+  }
+  return { rate: rest, source: bench > 0 ? 'benchmark' : 'po', paidPct: 0 };
+}
 export interface IncPoLine { po_id: string | number; component_id: string; unit_cost: number | string; currency?: string | null }
 export interface IncQuote { quote_id: string | number; pi_number?: string | null; quote_date?: string | null; status?: string | null; currency?: string | null; supplier_id?: string | null }
 export interface IncQuoteLine { quote_id: string | number; component_id: string; unit_price: number | string; currency?: string | null }
@@ -88,8 +137,11 @@ export interface IncomingCost {
   currency: string;
   /** Price per unit in the document's currency. */
   unitForeign: number;
-  /** Rate used to convert: the PO's own, or the company/latest rate for a quote. */
+  /** Rate used to convert — see RateSource. A quote converts at the company benchmark. */
   rate: number;
+  rateSource: RateSource;
+  /** Share of the PO already paid (0 for a quote), for the "29% paid at 17,912" line. */
+  ratePaidPct: number;
   /** unitForeign × rate — before freight, duty and fees. */
   fobIdr: number;
   /** landed ÷ FOB learned from a past delivery (see UpliftSource), or null when there is none. */
@@ -111,11 +163,18 @@ const day = (s: string | null | undefined) => (s ?? '').slice(0, 10);
 
 /** Newest incoming cost per component. Items with nothing on order or quoted are absent. */
 export function incomingCosts(
-  input: { pos: IncPo[]; poItems: IncPoLine[]; quotes: IncQuote[]; quoteItems: IncQuoteLine[]; receipts: IncReceipt[] },
+  input: { pos: IncPo[]; poItems: IncPoLine[]; quotes: IncQuote[]; quoteItems: IncQuoteLine[]; receipts: IncReceipt[]; poCosts?: IncPoCost[] },
   fx: Record<string, FxRate>,
 ): Map<string, IncomingCost> {
   const poById = new Map(input.pos.map((p) => [String(p.po_id), p]));
   const quoteById = new Map(input.quotes.map((q) => [String(q.quote_id), q]));
+  const costsByPo = new Map<string, IncPoCost[]>();
+  for (const c of input.poCosts ?? []) (costsByPo.get(String(c.po_id)) ?? costsByPo.set(String(c.po_id), []).get(String(c.po_id))!).push(c);
+  const rateCache = new Map<string, PoRate>();
+  const rateOfPo = (po: IncPo): PoRate => {
+    const k = String(po.po_id);
+    return rateCache.get(k) ?? rateCache.set(k, poRate(po, costsByPo.get(k) ?? [], fx)).get(k)!;
+  };
 
   const supplierOfPo = (po: IncPo | undefined): string | null =>
     po ? (po.supplier_id || (po.quote_id != null ? quoteById.get(String(po.quote_id))?.supplier_id : null) || null) : null;
@@ -135,7 +194,9 @@ export function incomingCosts(
     const line = po && input.poItems.find((l) => String(l.po_id) === String(po.po_id) && l.component_id === r.component_id);
     if (!po || !line || !(landed > 0)) continue;
     const cur = line.currency || po.currency || 'IDR';
-    const rate = cur === 'IDR' ? 1 : n(po.exchange_rate) || rateOf(fx, cur);
+    // The rate this PO really cost (paid, else blended with the benchmark), so
+    // the uplift learned is freight and duty, not last year's rupiah.
+    const rate = cur === 'IDR' ? 1 : rateOfPo(po).rate;
     const fob = n(line.unit_cost) * rate;
     if (!(fob > 0)) continue;
     lessons.push({ cid: r.component_id, date: d, poId: String(po.po_id), poNo: po.po_number || 'PO',
@@ -194,9 +255,11 @@ export function incomingCosts(
     const po = poById.get(String(l.po_id));
     if (!po || !OPEN_PO.has(po.status ?? '')) continue;
     const cur = l.currency || po.currency || 'IDR';
-    const rate = cur === 'IDR' ? 1 : n(po.exchange_rate) || rateOf(fx, cur);
+    const pr = cur === 'IDR' ? { rate: 1, source: 'paid' as RateSource, paidPct: 100 } : rateOfPo(po);
+    const rate = pr.rate;
     const unit = n(l.unit_cost);
     offer(l.component_id, {
+      rateSource: pr.source, ratePaidPct: pr.paidPct,
       source: 'po', label: po.po_number || 'PO', date: day(po.po_date), status: po.status ?? '',
       currency: cur, unitForeign: unit, rate, fobIdr: unit * rate, supplierId: supplierOfPo(po),
     });
@@ -213,6 +276,7 @@ export function incomingCosts(
     offer(l.component_id, {
       source: 'quote', label: q.pi_number || 'Quote', date: d, status: q.status ?? '',
       currency: cur, unitForeign: unit, rate, fobIdr: unit * rate, supplierId: q.supplier_id || null,
+      rateSource: cur === 'IDR' ? 'paid' : fx[cur]?.source === 'benchmark' ? 'benchmark' : 'po', ratePaidPct: 0,
     });
   }
   return best;

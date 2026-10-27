@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T09:08:00Z",
+    title: "Biaya pesanan berikutnya: kurs benchmark sampai kurs final diketahui",
+    details: [
+      "Untuk PO yang belum lunas, bagian yang sudah dibayar dihitung dengan kurs bank yang sebenarnya, dan sisanya dengan kurs benchmark perusahaan hari ini (diperbarui setiap pagi dari KlikBCA e-Rate). PO yang belum dibayar sama sekali memakai benchmark sepenuhnya; PO yang sudah lunas memakai kurs yang dibayar.",
+      "Contoh: PO PIO-017 (EPEVER LR51100A) — 29% sudah dibayar di 17.912, sisanya di 18.200 → kurs 18.116. Perkiraan biaya landed ≈ Rp 10,40 jt (+9,7%); GP harga net Rp 11 jt menjadi 5,5%.",
+      "Persentase biaya impor dari pengiriman sebelumnya juga dihitung dengan kurs yang benar-benar dibayar, sehingga selisih kurs tidak terhitung dua kali.",
+      "Arahkan kursor ke ▲ untuk melihat kurs mana yang dipakai.",
+    ],
+  },
+  {
     at: "2026-10-27T08:51:00Z",
     title: "Biaya pesanan berikutnya: biaya impor dipelajari dari pemasok yang sama",
     details: [

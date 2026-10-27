@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *incoming-cost uplift learned from the same supplier (item → supplier PO → elsewhere)*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *incoming cost: paid share at the bank rate, unpaid at the company benchmark (`poRate`)*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -181,6 +181,19 @@ instead of 6.6%.
   instead of their own unbooked 0%; EPEVER UP1500 GP 28.4 → 22.9%).
   **Data flag for the owner:** KSTAR landings carry only ~0.7% import cost —
   its freight/duty look under-booked in the landed-cost true-up.
+- **Same day, owner: "if we do not know the final exchange rate yet, use the
+  benchmark first".** `poRate(po, costs, fx)`: principal rows (6.0, PRINCIPAL
+  cats) — PO-currency rows at their bank rate, IDR rows at their typed rate
+  else the PO's — fully paid (≥ 99.5%) → `paid` (bank rate); part paid →
+  `blend` (paid share at its rate, rest at `fx` = benchmark); unpaid →
+  `benchmark`; no benchmark → `po`. Used for the incoming PO AND for the past
+  deliveries the uplift is learned from (else FX gets counted twice). Quotes
+  already converted at the benchmark. Page passes `catalog.poCosts`; RiseNote
+  explains the rate. Measured 2026-10-27: incoming items' rates benchmark 133 ·
+  paid/IDR 152 · blend 12; LR51100 PIO-017 18,116 (29% @ 17,912 + rest @
+  18,200) → est Rp 10,399,762 (+9.7%), GP 13.8 → 5.5%. CNY moved most: the
+  benchmark is 2,800 vs unpaid KSTAR POs typed at 2,626 (MP9101S-RT +12.8%).
+  Landed-basis rises: 26.
 - Measured on production 2026-10-27: 296 active items have something
   incoming; 17 landed-basis items rise (LR51100 +8.4%; NINGBO LE WS3-6510
   +9.5%; KMI cables 12–15% from the Anugrah 2026-10-12 nota; KSTAR GP806S
