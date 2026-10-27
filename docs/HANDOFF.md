@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-26** · last change: *agents track — all three SOUL.md installed; MANDA signs in to ICAPROC (§8.6)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *§6 is now the Dolibarr → ICAPROC transition (Shop parked as §6b)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
