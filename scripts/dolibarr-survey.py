@@ -2,7 +2,7 @@
 """
 Dolibarr survey: READ-ONLY. Counts what is in Dolibarr before the move to ICAPROC.
 
-    DOLIBARR_API_KEY=... python3 scripts/dolibarr-survey.py [--out DIR] [--url URL] [--page N]
+    DOLIBARR_API_KEY=... python3 scripts/dolibarr-survey.py [--out DIR] [--url URL] [--page N] [--resume]
 
 The Indodaya API lives under /dolibarr (https://erp.indodaya.co.id/dolibarr/api/
 index.php); the web root itself answers 403. That is the default.
@@ -17,7 +17,8 @@ Writes two files into DIR (default ./dolibarr-survey-YYYY-MM-DD):
                 (ref, customer id, date, total, status).
 
 Both files are rewritten after every section, so a run that dies half-way
-still leaves everything read so far (`"complete": false` says it is partial).
+still leaves everything read so far (`"complete": false` says it is partial);
+`--resume` reads only the sections it is missing.
 
 Standard library only, so it runs anywhere python3 does: the sandbox, the
 Jakarta VPS (MIRA: /opt/hermes/.venv/bin/python3), a laptop.
@@ -49,7 +50,7 @@ PROPOSAL = {-1: 'cancelled', 0: 'draft', 1: 'open', 2: 'signed', 3: 'not signed'
 ORDER = {-1: 'cancelled', 0: 'draft', 1: 'validated', 2: 'shipping', 3: 'delivered'}
 INVOICE = {0: 'draft', 1: 'unpaid', 2: 'paid', 3: 'abandoned'}
 INVOICE_TYPE = {0: 'standard', 1: 'replacement', 2: 'credit note', 3: 'deposit', 4: 'proforma', 5: 'situation'}
-SHIPMENT = {0: 'draft', 1: 'validated', 2: 'closed'}
+SHIPMENT = {-1: 'cancelled', 0: 'draft', 1: 'validated', 2: 'closed'}
 SUPPLIER_ORDER = {0: 'draft', 1: 'validated', 2: 'approved', 3: 'ordered', 4: 'partly received',
                   5: 'received', 6: 'cancelled', 7: 'refused', 9: 'cancelled'}
 SUPPLIER_PROPOSAL = {0: 'draft', 1: 'validated', 2: 'signed', 3: 'not signed', 4: 'closed'}
@@ -149,14 +150,19 @@ class Dolibarr:
         and [] on newer ones; both mean "nothing here". 401/403 means this key
         may not read it; 501 or a 404 on the endpoint itself means the module
         is off."""
-        rows, page = [], 0
+        rows, page, seen = [], 0, set()
         while True:
             params = {'limit': self.page, 'page': page, 'sortfield': 't.rowid', 'sortorder': 'ASC'}
             params.update(extra or {})
             status, data = self.get(endpoint, params)
             if status == 200 and isinstance(data, list):
-                rows.extend(data)
-                if len(data) < self.page:
+                # Some endpoints (bankaccounts/{id}/lines) ignore limit/page and
+                # answer the WHOLE list every time: a page with nothing new
+                # means we already have it all. Without this the loop never ends.
+                fresh = [r for r in data if not isinstance(r, dict) or r.get('id') is None or r.get('id') not in seen]
+                seen.update(r.get('id') for r in fresh if isinstance(r, dict) and r.get('id') is not None)
+                rows.extend(fresh)
+                if len(data) < self.page or not fresh:
                     return rows, 'ok'
                 page += 1
                 continue
@@ -425,6 +431,8 @@ def main(argv=None):
     p.add_argument('--url', default=os.environ.get('DOLIBARR_URL'), help='Dolibarr URL (default $DOLIBARR_URL)')
     p.add_argument('--out', default=f'dolibarr-survey-{dt.date.today().isoformat()}')
     p.add_argument('--page', type=int, default=PAGE, help=f'rows per request (default {PAGE})')
+    p.add_argument('--resume', action='store_true',
+                   help='keep the sections an earlier, unfinished run already saved in --out and read only the rest')
     a = p.parse_args(argv)
 
     key = os.environ.get('DOLIBARR_API_KEY', '')
@@ -444,6 +452,18 @@ def main(argv=None):
               'dolibarr': {'base': api.base, 'version': version}, 'complete': False}
     keys = {}
     os.makedirs(a.out, exist_ok=True)
+    done = set()
+    if a.resume and os.path.exists(os.path.join(a.out, 'survey.json')):
+        with open(os.path.join(a.out, 'survey.json'), encoding='utf-8') as f:
+            old = json.load(f)
+        with open(os.path.join(a.out, 'keys.json'), encoding='utf-8') as f:
+            keys = json.load(f)
+        done = {k for k in old if k not in ('generated_at', 'dolibarr', 'complete', 'api_calls', 'retries',
+                                             'modules_enabled', 'other_modules')}
+        done |= {f'other:{k}' for k in old.get('other_modules', {})}
+        survey.update({k: v for k, v in old.items() if k not in ('generated_at', 'complete', 'api_calls', 'retries')})
+        survey['resumed_from'] = old.get('generated_at')
+        print(f'Resuming: {len(done)} sections kept from {old.get("generated_at")}')
 
     def save():
         survey['api_calls'], survey['retries'] = api.calls, api.retries
@@ -459,6 +479,9 @@ def main(argv=None):
     save()
 
     def step(label, fn):
+        if label in done:
+            print(f'  {label}: kept from the earlier run', flush=True)
+            return
         print(f'  reading {label} …', flush=True)
         fn()
         save()
@@ -475,7 +498,7 @@ def main(argv=None):
     step('products', products)
     step('thirdparties', thirdparties)
     step('contacts', contacts)
-    keys['open_documents'] = {}
+    keys.setdefault('open_documents', {})
     for name, endpoint, names, dates, money in DOCUMENTS:
         def doc(name=name, endpoint=endpoint, names=names, dates=dates, money=money):
             survey[name], keys['open_documents'][name] = survey_documents(api, name, endpoint, names, dates, money)
@@ -483,13 +506,13 @@ def main(argv=None):
     step('stock', lambda: survey.__setitem__('stock', survey_stock(api)))
     step('bank', lambda: survey.__setitem__('bank', survey_bank(api)))
     step('users', lambda: survey.__setitem__('users', survey_users(api)))
-    survey['other_modules'] = {}
+    survey.setdefault('other_modules', {})
     for name, endpoint, dates in OTHERS:
         def other(name=name, endpoint=endpoint, dates=dates):
             rows, note = api.list_all(endpoint)
             survey['other_modules'][name] = {'note': note, 'count': len(rows),
                                              'dates': span([when(r, dates) for r in rows]) if dates else None}
-        step(name, other)
+        step(f'other:{name}', other)
     survey['complete'] = True
     save()
 

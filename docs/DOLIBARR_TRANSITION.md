@@ -1,7 +1,9 @@
 # Dolibarr → ICAPROC transition — survey and batch plan
 
-**Status: 2026-10-27 — PLAN, awaiting the owner's go-ahead. Nothing has been
-written to production, and nothing is ever written to Dolibarr.**
+**Status: 2026-10-27 (evening) — survey DONE, batch 0 (matching report) DONE
+and with the owner. Batch 1 waits for the owner's answers in the workbook and
+a "go". Nothing has been written to production, and nothing is ever written
+to Dolibarr.**
 HANDOFF §6 points here; this file is the long-lived plan the batch threads
 work from. Update the status line and §5 as batches land.
 
@@ -17,7 +19,7 @@ location filter.
 
 | From | Result |
 |---|---|
-| This Claude sandbox, `/dolibarr/api/…` | Reaches Dolibarr: **401 Unauthorized** with the environment's `DOLIBARR_API_KEY` (32 chars, clean, rejected as header and as query param). The key in this environment is not one Dolibarr accepts: owner to check it (regenerated? another user? user disabled?). |
+| This Claude sandbox, `/dolibarr/api/…` | ~~401 with the old key `f1bf68c0`~~. **200 since 2026-10-27 with the owner's new key** (fingerprint `09259a68`, 12 chars; user "eric", admin). The full survey ran from here. |
 | MIRA (Jakarta VPS), her own key | **200**, reads products, third parties, contacts, proposals, orders. |
 | Long reads, both places | The server **resets long responses** part-way (MIRA: once during orders, once during invoices). Survey v2 retries and reads small pages. |
 | Vercel production | Untested. Check that `DOLIBARR_URL` includes `/dolibarr`. |
@@ -61,6 +63,76 @@ that cut 35% of responses half-way: 21 drops, all recovered, same counts.
   appears. Tested against a fake Dolibarr: 29 requests, all GET, the key absent
   from both output files. Against the real server here it stops after one
   request with a clear message.
+
+## 2b. What Dolibarr holds (survey 2026-10-27, read from the sandbox)
+
+Run: 11:07–12:05 UTC, ~1,600 GETs (plus the looping bank reads, below), 0 writes. Files (survey.json, keys.json)
+stay in the session scratchpad — never in git.
+
+| Module | Count | Open | Dates | Notes |
+|---|---|---|---|---|
+| Products | 791 (773 goods, 18 services) | — | 2022-11 → 2026-10 | 231 with stock > 0, **58 with NEGATIVE stock** (cables −414…); 695 with a price, 343 with a cost; no barcodes |
+| Third parties | 5,771 | — | 2022-11 → 2026-10 | **583 customers**, 5,158 prospects (client=2/3), 23 suppliers, 1 both; tax id on 53 only; no price levels used |
+| Contacts | 645 | — | | 631 attached to a company; email on 70, phone on 607 |
+| Proposals | 2,582 | 2,571 | 2022-12 → 2026-10 | 1,753 "open" (sent, never closed — Rp 1.42 trillion on paper), 637 signed, 181 draft, 11 lost. **Status is not kept up: not a real pipeline.** |
+| Orders | 5,115 | 152 | 2021-11 → 2026-10 | 4,840 delivered, 123 cancelled; 4,786 billed. Per year: 2023 1,689 · 2024 1,351 · 2025 972 · 2026 1,039 |
+| Invoices | 4,772 | 144 | 2022-12 → 2026-10 | 4,595 paid; **141 unpaid = Rp 2.65 bn**, oldest 2023-05; 37 deposit invoices, no credit notes |
+| Shipments | 4,728 | 77 | 2022-12 → 2026-11 | 25 cancelled (status −1) |
+| Supplier orders | 95 | 10 | 2024-05 → 2026-10 | USD 78 / CNY 10 / IDR 7 — MIRA's copies of ICAPROC POs (§3) |
+| Receptions | 99 | 2 | 2024-08 → 2026-10 | |
+| Supplier invoices / proposals | 1 / 2 | | 2016, 2022–24 | not used |
+| Stock movements | 11,719 | | 2022-12 → 2026-10 | 1,801 in, 9,918 out, 450 products |
+| Warehouses | 15 | | | ISL-WH, ISL-WH21A, ISL-WH25, ISL-WH63, "Stok retur", and **9 "Stok pribadi <person>"** (stock held by staff) |
+| Bank accounts | 7 | | 2021-11 → 2026-10 | 4,800 lines, **money IN only** (customer receipts; no payments out, none reconciled) — not a bank book |
+| Users | 31 | | | 30 people + `admin`; emails on 3 only; groups SALES (12), SALES ADMIN / AR ADMIN / WAREHOUSE ADMIN / PROYEK (≈10), MANAGEMENT (3), STORE KEEPER, USER GENERAL; 1 inactive |
+| Tickets | 386 | | 2022-12 → 2026-07 | used (after-sales) |
+| Projects, interventions, contracts | — | | | module off (401) |
+| Agenda | ? | | | Dolibarr 503 on the list, twice |
+
+Bug found and fixed on the way: `bankaccounts/{id}/lines` ignores
+`limit`/`page`, so the v2 pager re-read the same list for 20 minutes (2.6 GB)
+until killed. v3 stops when a page brings nothing new, and `--resume` keeps
+the sections already saved. **The shared drive still holds v2** — the v3
+upload was refused by the sandbox's permission check; owner to OK it (or
+upload `scripts/dolibarr-survey.py` as `20-RUNBOOKS/dolibarr-survey_v3_2026-10-27.py`
+and trash v2).
+
+## 2c. Batch 0 — the matching report (2026-10-27)
+
+`lib/dolibarrMatch.ts` (pure, 17 tests) + `scripts/dolibarr-match.ts`
+(keys.json + an ICAPROC snapshot read with SELECTs → match.json). The owner's
+workbook `Dolibarr-tahap0-pencocokan-2026-10-27.xlsx` (Indonesian, a
+"Keputusan" drop-down on every sheet) was built from match.json in the
+scratchpad and sent in chat — it holds customer names, so it is not in git.
+
+Rules: `same` = exact name after case/punctuation/PT·CV/Bpk·Ibu/&·and·dan are
+set aside, to exactly ONE ICAPROC row, claimed by exactly ONE Dolibarr row.
+Spacing/spelling (Karangmas = Karang Mas, Anugerah = Anugrah), similar names
+(≥ 82%), and a short name inside a long one are `possible`. Items: same
+compact name, or the same model code on exactly one item with the same
+ratings and the brand stated; cable sizes normalised ("1 x 185mm" = "185 mm²");
+codes on > 20 items, dimensions (L3600mm) and alloy grades (AL6005-T5) are not
+codes; a code that starts a longer one is `possible`.
+
+| | Already in ICAPROC | Possible — owner confirms | New |
+|---|---|---|---|
+| Customers (583) | **475** | 21 | 87 (3 are placeholders: `13213`, `(PERAKITAN INTERNAL ICASOLAR)`, `(UNTUK AFTER SALES SERVICE)`) |
+| Suppliers (23) | 16 | 2 (Firstpower, Winata) | 5 (one, PT Indodaya Cipta Lestari, is an ICAPROC CUSTOMER) |
+| Items (791) | 185 | 141 | 465 (mostly genuine: Dolibarr's own older catalogue, panel boxes, services, NIDI/SLO fees) |
+| Users (31) | 0 (Dolibarr has emails for 3) | 9 (by name or login) | 22 |
+
+- The 21 possible customers are mostly **Dolibarr's own duplicates** (9
+  pairs: the same company entered twice, e.g. "PT. X" and "PT X") plus the two
+  "Bambang" rows that exist on BOTH sides. The workbook shows open documents
+  per Dolibarr id so the owner can pick which id is the live one.
+- **ICAPROC duplicates (4 pairs):** Karangmas/Karang Mas Sejahtera,
+  Green Energi/Energy Nusantara Mandiri, Lintas Maya/Lintasmaya Multi Media,
+  Bambang/Bpk. Bambang. CUST-00002 and CUST-00458 (Wiratama "Intregasi")
+  are the extra halves; with CUST-00005 (Imigrasi) and CUST-00491 (Kayan)
+  they are the 4 ICAPROC customers no Dolibarr customer points at.
+- Users: Dolibarr login `max` matched ICAPROC `max@icasolar.com`, which is
+  **MAX the AI agent** — the Dolibarr "Max" (warehouse/AR admin, last login
+  2026-10-06) needs the owner's word before anything is linked.
 
 ## 3. What ICAPROC already holds (read 2026-10-27 via Supabase MCP)
 
@@ -113,7 +185,7 @@ After each batch, a **"changed since last batch" sync** keeps it current
 
 | # | Batch | Contents | Done when |
 |---|---|---|---|
-| 0 | Survey + matching report | survey files; "already in ICAPROC / new / possible match" lists for customers, suppliers, items, users | owner has read it. **No writes.** |
+| 0 | Survey + matching report — **DONE 2026-10-27** (§2b, §2c) | survey files; "already in ICAPROC / new / possible match" lists for customers, suppliers, items, users | owner has read it. **No writes.** |
 | 1 | Reference data | users mapping; items (link, add missing); customers (link the 485, add missing); suppliers; contacts; warehouses; bank account mapping | every Dolibarr party/product used by an open document resolves to exactly one ICAPROC row |
 | 2 | Open work | open proposals, open orders + lines, undelivered shipments, unpaid invoices with part-payments; open supplier orders reconciled; stock opening balance; bank opening balances | open totals equal Dolibarr's to the rupiah |
 | 3 | History, month by month | newest month first (most useful to Position/demand), back to the beginning: orders, lines, invoices, payments, shipments | each month's counts and totals match |
@@ -126,3 +198,12 @@ After each batch, a **"changed since last batch" sync** keeps it current
 2. Stock opening balance: count, or Dolibarr's levels.
 3. How far back history goes (all years, or from a given year).
 4. Prices: ICAPROC stays the authority (Dolibarr only fills blanks)?
+5. **(new, from the survey)** The 5,158 prospects: move them, move only those
+   with a proposal, or leave them in Dolibarr?
+6. The 9 "Stok pribadi" warehouses (stock held by staff): one location each in
+   ICAPROC, or fold into the main warehouse at cut-over? 58 products sit
+   NEGATIVE in Dolibarr — a reason to open stock from a count, not its levels.
+7. The 1,753 never-closed "open" proposals: bring only the last N months as
+   open, the rest as history (closed)?
+8. The workbook's "Keputusan" columns: possible customers/suppliers/items,
+   duplicates on both sides, and which Dolibarr users get ICAPROC accounts.

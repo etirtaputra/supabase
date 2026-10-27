@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T12:10:00Z",
+    title: "Pindah dari Dolibarr, tahap 0: survei selesai dan laporan pencocokan",
+    details: [
+      "Kunci API Dolibarr yang baru berfungsi. Survei membaca seluruh isi Dolibarr (hanya membaca): barang, pelanggan, pemasok, kontak, penawaran, pesanan, faktur, pengiriman, dokumen pembelian, stok, bank, dan pengguna beserta hak aksesnya.",
+      "Laporan pencocokan: setiap pelanggan, pemasok, barang, dan pengguna Dolibarr diberi satu jawaban — sudah ada di ICAPROC, mungkin sama (perlu dikonfirmasi pemilik), atau baru. \"Sudah ada\" hanya diberikan bila namanya sama persis dengan tepat satu data ICAPROC, supaya riwayat seorang pelanggan tidak pernah tertempel ke pelanggan lain.",
+      "Data yang tercatat dua kali (di Dolibarr maupun di ICAPROC) ikut ditandai, agar diputuskan dulu mana yang dipakai.",
+      "Belum ada data yang dipindah: ICAPROC dan Dolibarr tidak berubah sama sekali.",
+    ],
+  },
+  {
     at: "2026-10-27T10:58:00Z",
     title: "Pindah dari Dolibarr: catatan serah terima untuk langkah berikutnya",
     details: [

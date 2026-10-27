@@ -55,3 +55,16 @@ test('the key is read from the environment and only sent as the DOLAPIKEY header
 test('no key or credential is checked in', () => {
   assert.ok(!/DOLAPIKEY['"]?\s*[:=]\s*['"][A-Za-z0-9]{12,}/.test(SRC));
 });
+
+test('a list endpoint that ignores paging cannot loop forever', () => {
+  // bankaccounts/{id}/lines answers the whole list on every page; on
+  // 2026-10-27 the survey re-read it for 20 minutes (2.6 GB) until killed.
+  assert.match(CODE, /if len\(data\) < self\.page or not fresh:/);
+  assert.match(CODE, /r\.get\('id'\) not in seen/);
+});
+
+test('--resume keeps what an earlier run saved, open documents included', () => {
+  assert.match(CODE, /p\.add_argument\('--resume'/);
+  assert.match(CODE, /keys\.setdefault\('open_documents', \{\}\)/);
+  assert.ok(!/keys\['open_documents'\] = \{\}/.test(CODE), 'open documents reset on resume');
+});
