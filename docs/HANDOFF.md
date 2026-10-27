@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *import markup learned on the same freight terms (FOB/EXW vs CIF/DDP) — TCP 306*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *§6 handoff: the owner updated the Dolibarr key — the next session runs the survey first (old key fingerprint `f1bf68c0`)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4615,25 +4615,65 @@ ICAPROC. But for that we need to transition the data and users, and we need to
 do it in batches so it doesn't interrupt the transition and make it as seamless
 as possible."*
 
-**Status 2026-10-27 — survey + plan done, waiting on the owner. Read
-`docs/DOLIBARR_TRANSITION.md` first: it has the access finding, what ICAPROC
-already holds, the mapping and gaps, the batches and the owner's open decisions.**
-- The API is at `https://erp.indodaya.co.id/dolibarr/api/index.php` (the root
-  is 403 for everyone; NOT a location block). From here it answers 401: the
-  key in this environment is rejected. MIRA runs
-  `20-RUNBOOKS/dolibarr-survey_v2_2026-10-27.py` → `90-OUTPUT/` (read with the
-  Google Drive MCP). For the import pipeline: a READ-ONLY Dolibarr user
-  `icaproc-sync` whose key goes into Vercel and this environment.
-- Next thread: read the survey files, produce the matching report (batch 0,
-  no writes), then build the gaps in DOLIBARR_TRANSITION §4 once approved.
+**Status 2026-10-27 (end of thread) — survey + plan done; the survey has NOT
+run yet. Read `docs/DOLIBARR_TRANSITION.md` first: it has the access finding,
+what ICAPROC already holds, the mapping and gaps, the batches and the owner's
+open decisions.**
+
+**FIRST THING IN THE NEXT SESSION (owner asked: "check the Dolibarr key and
+run the survey"):**
+1. Fingerprint the key without printing it:
+   `python3 -c "import os,hashlib;k=os.environ.get('DOLIBARR_API_KEY','');print(len(k),hashlib.sha256(k.encode()).hexdigest()[:8])"`
+   The OLD, rejected key is **`f1bf68c0`** (32 chars). The owner put a new one
+   in the environment secret on 2026-10-27 — a new session should show a
+   DIFFERENT fingerprint. Same fingerprint → the secret did not change; tell
+   the owner (Settings › environment secret `DOLIBARR_API_KEY`).
+2. One GET: `curl -sS -o /dev/null -w '%{http_code}' -H "DOLAPIKEY: $DOLIBARR_API_KEY" https://erp.indodaya.co.id/dolibarr/api/index.php/status`
+   → 200 expected. 401 with a new fingerprint = the key itself is wrong (copied
+   from another user, or regenerated after copying) — tell the owner, do not
+   guess.
+3. Run the survey (READ-ONLY, GET only, guarded by `lib/dolibarrSurvey.test.ts`),
+   output in the scratchpad, never in the repo:
+   `python3 -I scripts/dolibarr-survey.py --url https://erp.indodaya.co.id/dolibarr --out <scratchpad>/dolibarr-survey-YYYY-MM-DD`
+   It saves after every section (`"complete": false` until done) and retries
+   the server's connection resets; add `--page 10` if resets persist.
+   `keys.json` holds customer/supplier names — keep it out of git and chat.
+4. Bring the owner the summary table (counts, open vs closed, date ranges, per
+   month, users + rights), then **batch 0: the matching report** — Dolibarr
+   third parties vs the 490 `20.0_customers` (485 bulk-loaded 2026-08-01, no
+   `external_ref`: match by normalised name, PT/CV/punctuation-insensitive) and
+   the 38 `2.0_suppliers`; products vs `3.0_components.supplier_model`; users
+   vs `user_profiles`. Already / new / "possible match, please confirm". **No
+   writes** — production data changes need the owner's go-ahead.
+
+**Other facts the next thread needs:**
+- The API is at `https://erp.indodaya.co.id/dolibarr/api/index.php` (Dolibarr
+  16.0.1). The web root is 403 for everyone — an early "location block" note
+  was WRONG. This sandbox reaches the server fine.
+- MIRA route (alternative): she has the v2 paste-ready message (in the
+  2026-10-27 thread, also reconstructable from `20-RUNBOOKS/dolibarr-survey_v2_2026-10-27.py`
+  + `--url https://erp.indodaya.co.id/dolibarr`); results would land in
+  `90-OUTPUT/dolibarr-survey-2026-10-27/` (Drive MCP). Her v1 run died on
+  connection resets; v2 fixes that. Nothing in `90-OUTPUT` yet as of 10:50 UTC.
+- Vercel Production also has `DOLIBARR_URL` / `DOLIBARR_API_KEY`. Nothing in
+  the app reads them yet; when the import pipeline is built, check the URL
+  ends in `/dolibarr` and that it is the new key (redeploy after an env change).
+- Owner's choice on the key: their OWN key is fine (a read-only `icaproc-sync`
+  user was offered as optional extra safety). Either way: only ever READ.
+- Open decisions (DOLIBARR_TRANSITION §6): stock opening (count vs Dolibarr
+  levels), how far back history goes, ICAPROC as price authority.
+- Also open, NOT Dolibarr: 4 KSTAR POs "Fully Received" with no stock receipt
+  (EB.42278, EB.42277, PIO-2026011, PIO-2026013, ≈ Rp 4.36bn) — owner to
+  confirm the goods arrived before anyone posts GRNs (§4, 2026-10-27).
 
 **Access (set up by the owner on 2026-10-27):**
 - Dolibarr: `https://erp.indodaya.co.id/dolibarr/api/index.php` (REST, header `DOLAPIKEY`; the bare `/api/index.php` is 403).
 - Vercel Production env: `DOLIBARR_URL`, `DOLIBARR_API_KEY` (key of Dolibarr
   user "Eric" — likely full rights: **only ever READ Dolibarr**, never write).
 - Claude cloud environment: `erp.indodaya.co.id` allowed, secret
-  `DOLIBARR_API_KEY` — available in a NEW session; check with one GET first.
-  Never print the key; never put it in the repo.
+  `DOLIBARR_API_KEY` — loaded when a session STARTS (a changed secret needs a
+  new session). Check with one GET first. Never print the key; never put it
+  in the repo.
 
 **What already exists — build on it, do not fork:**
 - `lib/dataPorting.ts` + `app/import-export/page.tsx`: CSV import/export made

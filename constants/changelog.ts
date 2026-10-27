@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T10:58:00Z",
+    title: "Pindah dari Dolibarr: catatan serah terima untuk langkah berikutnya",
+    details: [
+      "Catatan internal diperbarui: sesi berikutnya langsung mengecek kunci API Dolibarr yang baru dan menjalankan survei (hanya membaca). Belum ada data yang dipindah.",
+    ],
+  },
+  {
     at: "2026-10-27T10:48:00Z",
     title: "Biaya impor dipelajari dari PO dengan syarat pengiriman yang sama (FOB vs CIF)",
     details: [
