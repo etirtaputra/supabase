@@ -44,6 +44,7 @@ import { computeTUCMap, getComponentCost, fxFromHistory } from '@/lib/computeTUC
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { resolveCost, BASIS_NOTE, BASIS_TAG, type ResolvedCost } from '@/lib/costBasis';
 import { incomingCosts, costRise, type CostRise } from '@/lib/incomingCost';
+import RiseNote from '@/components/ui/RiseNote';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_BTN_ON_SKY } from '@/constants/controls';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import PricesTab, { type FloorBreach } from '@/components/ui/PricesTab';
@@ -107,6 +108,8 @@ interface Violation {
    * rupiah is not real money yet, so it is counted separately.
    */
   provisional: boolean;
+  /** Judged on the next order's estimated cost (it is dearer than the basis), not the stock in hand. */
+  onIncoming: boolean;
 }
 
 /** The page reads ?filter= from the URL, which Next.js only allows inside a Suspense boundary. */
@@ -322,6 +325,7 @@ function PricingPage() {
   [catalog.pos, catalog.poItems, catalog.quotes, catalog.quoteItems, receipts, fx]);
   const riseOf = useCallback((cid: string): CostRise | null => costRise(basisOf(cid).cost, incomingByComp.get(cid)),
     [basisOf, incomingByComp]);
+  const incomingOf = useCallback((cid: string) => incomingByComp.get(cid) ?? null, [incomingByComp]);
 
   // ── Prices tab: cost history, lead time ───────────────────────────────────
   const poNumberById = useMemo(() => new Map(catalog.pos.map((p) => [String(p.po_id), p.po_number])), [catalog.pos]);
@@ -357,7 +361,12 @@ function PricingPage() {
     const out: Violation[] = [];
     for (const c of comps) {
       const basis = basisOf(c.component_id);
-      const cost = basis.cost;
+      // Replacement cost (owner, 2026-10-27): when the reorder or a newer
+      // quote is dearer, the floor is checked against THAT — a price that
+      // clears the floor on the cheap stock in hand breaches it on the next
+      // container. Same rule as Set Pricing.
+      const rise = riseOf(c.component_id);
+      const cost = rise ? rise.incoming.estLandedIdr : basis.cost;
       if (cost == null) continue;
       const onHand = Math.max(0, Number(bals.get(c.component_id)?.qty_on_hand) || 0);
       const chain = chainFor(c);
@@ -379,20 +388,22 @@ function PricingPage() {
           // is ~0 anyway — but the flag is what stops a provisional breach
           // being read as a settled one.
           leakage: minPrice != null ? Math.max(0, minPrice - price) * onHand : 0,
-          ov, defaultCompliant, provisional: basis.provisional,
+          ov, defaultCompliant,
+          provisional: rise ? rise.incoming.provisional : basis.provisional,
+          onIncoming: !!rise,
         });
       }
     }
     // Worst economics first: biggest at-stake rupiah, then deepest GP gap.
     return out.sort((a, b) => (b.leakage - a.leakage) || (a.gp - b.gp));
-  }, [comps, activeSorted, bals, basisOf, chainFor, ovByKey]);
+  }, [comps, activeSorted, bals, basisOf, riseOf, chainFor, ovByKey]);
 
   const totalLeakage = useMemo(() => violations.reduce((s, v) => s + v.leakage, 0), [violations]);
   // Prices tab: the Floor Audit and the Overrides list, per item (2026-10-22 — the tabs became filters).
   const floorByComp = useMemo(() => {
     const m = new Map<string, FloorBreach[]>();
     for (const v of violations) {
-      const e: FloorBreach = { componentId: v.comp.component_id, tierId: v.tier.tier_id, tierName: v.tier.name, minPrice: v.minPrice, leakage: v.leakage, provisional: v.provisional };
+      const e: FloorBreach = { componentId: v.comp.component_id, tierId: v.tier.tier_id, tierName: v.tier.name, minPrice: v.minPrice, leakage: v.leakage, provisional: v.provisional, onIncoming: v.onIncoming };
       (m.get(e.componentId) ?? m.set(e.componentId, []).get(e.componentId)!).push(e);
     }
     return m;
@@ -574,7 +585,7 @@ function PricingPage() {
               <PricesTab
                 comps={comps.map((c) => ({ component_id: c.component_id, name: descOf(c), category: c.category, norm_value: c.norm_value, selling_price_idr: c.selling_price_idr }))}
                 tiers={activeSorted} chainAt={chainAt} paidOf={paidOf} receivedOf={receivedOf} basisCost={basisCost}
-                stockCost={stockCostOf} stockOf={stockOf} leadOf={leadOf} priceLog={priceLog}
+                stockCost={stockCostOf} stockOf={stockOf} leadOf={leadOf} priceLog={priceLog} incomingOf={incomingOf}
                 tierName={(tid) => (tid ? tierById.get(tid)?.name : activeSorted[0]?.name) ?? 'Net'}
                 canManage={canManage} saving={savingRows}
                 onSaveNet={(cid, v) => saveEdits([{ component_id: cid, tier_id: null, value: v }])}
@@ -654,37 +665,6 @@ function SortTh({ col, label, sortCol, sortDir, onSort, align = 'left', classNam
 }
 
 // ── Set Pricing ───────────────────────────────────────────────────────────────
-/**
- * The warning under a cost that is about to go up: the next unit's estimated
- * landed cost, how much dearer, and — on hover — the PO or quote it comes
- * from, the arithmetic, and how the import uplift was learned.
- */
-function RiseNote({ rise }: { rise: CostRise }) {
-  const { t, tf } = useT();
-  const inc = rise.incoming;
-  const doc = inc.source === 'po' ? tf('Open PO {ref}', { ref: inc.label }) : tf('Supplier quote {ref}', { ref: inc.label });
-  const price = inc.currency === 'IDR' ? fmtRupiah(inc.unitForeign)
-    : `${inc.currency} ${inc.unitForeign.toLocaleString('en-US')} × ${Math.round(inc.rate).toLocaleString('en-US')}`;
-  const lines = [
-    `${doc} · ${fmtDay(inc.date)} · ${inc.status}`,
-    tf('{price} = {fob} before freight, duty and fees', { price, fob: fmtRupiah(Math.round(inc.fobIdr)) }),
-    inc.uplift != null
-      ? tf('+{pct}% import costs, as on its last delivery → about {est}', { pct: ((inc.uplift - 1) * 100).toFixed(1), est: fmtRupiah(inc.estLandedIdr) })
-      : t('Never delivered before, so no import costs are added: the real landed cost will be HIGHER.'),
-    tf('{pct}% above the cost basis ({cur}).', { pct: rise.risePct.toFixed(1), cur: fmtRupiah(Math.round(rise.current)) }),
-    rise.fobAlreadyAbove ? t('The supplier price alone is already above it.') : '',
-    t('Margins on this row are calculated on the new cost.'),
-  ].filter(Boolean);
-  return (
-    <p className="mt-0.5 text-[10px] text-amber-300 font-semibold cursor-help" title={lines.join('\n')}>
-      ▲ {fmtMoneyCell(inc.estLandedIdr)}
-      <span className="ml-1 px-1 py-px rounded text-[9px] font-bold tracking-wide bg-amber-500/15">
-        {inc.source === 'po' ? 'PO' : 'QUOTE'} +{rise.risePct.toFixed(0)}%
-      </span>
-    </p>
-  );
-}
-
 /**
  * One row per item, one column per active tier, edit and save.
  *

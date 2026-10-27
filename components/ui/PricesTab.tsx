@@ -9,6 +9,8 @@ import { marginPct, belowFloor, priceForMargin } from '@/lib/priceGrid';
 import { roundUpToStep } from '@/lib/tierPricing';
 import { costHistory, costTrend, similarTo, restockGap, type CostPoint, type CostTrend } from '@/lib/priceInsight';
 import type { ProductLead } from '@/lib/supplierLeadTimes';
+import { costRise, type CostRise, type IncomingCost } from '@/lib/incomingCost';
+import RiseNote from '@/components/ui/RiseNote';
 
 /**
  * Selling Prices › Prices — the three questions on one row (owner, 2026-10-22):
@@ -49,12 +51,14 @@ export interface FloorBreach {
   leakage: number;
   /** The cost behind it is a quote, not a landed cost. */
   provisional: boolean;
+  /** Judged on the next order's estimated cost (dearer than the stock in hand). */
+  onIncoming?: boolean;
 }
 export interface PriceLogLite { tier_id: string | null; old_price_idr: number | null; new_price_idr: number | null; changed_at: string; changed_by_email: string | null }
 
 type SortCol = 'item' | 'cost' | 'margin' | 'lead';
-type Filter = 'priced' | 'up' | 'low' | 'one' | 'floor' | 'pinned' | 'unpriced';
-const FILTERS: Filter[] = ['priced', 'up', 'low', 'one', 'floor', 'pinned', 'unpriced'];
+type Filter = 'priced' | 'up' | 'rising' | 'low' | 'one' | 'floor' | 'pinned' | 'unpriced';
+const FILTERS: Filter[] = ['priced', 'up', 'rising', 'low', 'one', 'floor', 'pinned', 'unpriced'];
 const LOW_MARGIN = 15;
 const UP_PCT = 5;
 
@@ -62,8 +66,17 @@ interface Row {
   c: PricesComp;
   points: CostPoint[];
   trend: CostTrend;
-  /** The cost the margin is measured against: the last purchase, else the page's cost basis (a quote). */
+  /**
+   * The cost the margin is measured against: the last purchase, else the
+   * page's cost basis (a quote) — or, when the reorder / a newer quote is
+   * dearer than that, the next order's estimated landed cost (owner,
+   * 2026-10-27: price to replacement cost).
+   */
   cost: number | null;
+  /** The last purchase / basis, before any incoming rise — what "Last cost" shows. */
+  lastCost: number | null;
+  /** The next order costs more than `lastCost` (lib/incomingCost.ts). */
+  rise: CostRise | null;
   costFromQuote: boolean;
   stockCost: number | null;
   stock: number;
@@ -71,7 +84,7 @@ interface Row {
 }
 
 export default function PricesTab({
-  comps, tiers, chainAt, paidOf, receivedOf, basisCost, stockCost, stockOf, leadOf, priceLog, tierName,
+  comps, tiers, chainAt, paidOf, receivedOf, basisCost, stockCost, stockOf, leadOf, priceLog, incomingOf, tierName,
   canManage, saving, onSaveNet, showPoNumbers, canSeeCompetitors, canOpenItem, roundStep,
   floor, pinned, initialFilter, totalLeakage, bulkBusy, onRaise, onRaiseAll, onUnpin,
 }: {
@@ -86,6 +99,8 @@ export default function PricesTab({
   stockOf: (componentId: string) => number;
   leadOf: (componentId: string) => ProductLead | null;
   priceLog: Map<string, PriceLogLite[]>;
+  /** The open PO / newer supplier quote for this item, at its estimated landed cost. */
+  incomingOf: (componentId: string) => IncomingCost | null;
   tierName: (tierId: string | null) => string;
   canManage: boolean;
   saving: boolean;
@@ -124,15 +139,18 @@ export default function PricesTab({
     const points = costHistory(paidOf(c.component_id), receivedOf(c.component_id));
     const trend = costTrend(points);
     const basis = basisCost(c.component_id);
+    const lastCost = trend.last?.unitCost ?? basis.cost;
+    const rise = costRise(lastCost, incomingOf(c.component_id));
     return {
       c, points, trend,
-      cost: trend.last?.unitCost ?? basis.cost,
+      cost: rise ? rise.incoming.estLandedIdr : lastCost,
+      lastCost, rise,
       costFromQuote: !trend.last && basis.cost != null,
       stockCost: stockCost(c.component_id),
       stock: stockOf(c.component_id),
       lead: leadOf(c.component_id),
     };
-  }), [comps, paidOf, receivedOf, basisCost, stockCost, stockOf, leadOf]);
+  }), [comps, paidOf, receivedOf, basisCost, stockCost, stockOf, leadOf, incomingOf]);
 
   const netOf = (r: Row): number | null => {
     const d = drafts.get(r.c.component_id);
@@ -148,6 +166,7 @@ export default function PricesTab({
       case 'unpriced': return !priced;
       case 'priced': return priced;
       case 'up': return priced && r.trend.dir === 'up' && (r.trend.changePct ?? 0) >= UP_PCT;
+      case 'rising': return r.rise != null;
       case 'low': { const m = t1Margin(r); return priced && m != null && m < LOW_MARGIN; }
       case 'one': return priced && r.trend.dir === 'first';
       case 'floor': return priced && floor.has(r.c.component_id);
@@ -156,7 +175,7 @@ export default function PricesTab({
   };
   // Plain arithmetic over ~1,000 rows on each render: cheaper than keeping a
   // memo honest about drafts typed into any of them.
-  const counts: Record<Filter, number> = { priced: 0, up: 0, low: 0, one: 0, floor: 0, pinned: 0, unpriced: 0 };
+  const counts: Record<Filter, number> = { priced: 0, up: 0, rising: 0, low: 0, one: 0, floor: 0, pinned: 0, unpriced: 0 };
   for (const r of rows) for (const f of Object.keys(counts) as Filter[]) if (matches(r, f)) counts[f] += 1;
 
   const q = search.trim().toLowerCase();
@@ -246,6 +265,7 @@ export default function PricesTab({
         <select value={filter} onChange={(e) => setFilter(e.target.value as Filter)} className={`${BAR_SELECT} flex-shrink-0`}>
           <option value="priced">{tf('Priced items ({n})', { n: counts.priced })}</option>
           <option value="up">{tf('Cost went up ({n})', { n: counts.up })}</option>
+          <option value="rising">{tf('Next order costs more ({n})', { n: counts.rising })}</option>
           <option value="low">{tf('Margin under 15% ({n})', { n: counts.low })}</option>
           <option value="one">{tf('Only 1 purchase ({n})', { n: counts.one })}</option>
           <option value="floor">{tf('Below floor ({n})', { n: counts.floor })}</option>
@@ -322,10 +342,11 @@ export default function PricesTab({
                     className={`border-b border-slate-800/60 cursor-pointer transition-colors ${sel?.c.component_id === r.c.component_id ? 'bg-sky-500/10' : 'hover:bg-white/[0.03]'}`}>
                     <td className="px-3 py-2.5"><p className="font-semibold text-slate-100 truncate" title={r.c.name}>{r.c.name}</p></td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
-                      {r.cost != null ? (<>
-                        <span className="font-bold text-slate-100 tabular-nums">{fmtMoneyCell(r.cost)}</span>{trendTag(r.trend)}
+                      {r.lastCost != null ? (<>
+                        <span className={`font-bold tabular-nums ${r.rise ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-100'}`}>{fmtMoneyCell(r.lastCost)}</span>{trendTag(r.trend)}
                         {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
                         <p className="text-[11px] text-slate-500">{r.costFromQuote ? t('supplier quote') : fmtDay(r.trend.last?.date)}</p>
+                        {r.rise && <RiseNote rise={r.rise} />}
                       </>) : <span className="text-slate-600">—</span>}
                     </td>
                     <td className="px-3 py-2 text-right">{priceInput(r)}</td>
@@ -357,9 +378,10 @@ export default function PricesTab({
                 </span>
                 <span className="mt-1.5 grid grid-cols-[1.5fr_.9fr_.6fr] gap-2">
                   <span>
-                    <span className="font-bold text-slate-100 tabular-nums">{r.cost != null ? fmtRupiah(r.cost) : '—'}</span>{trendTag(r.trend)}
+                    <span className={`font-bold tabular-nums ${r.rise ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-100'}`}>{r.lastCost != null ? fmtRupiah(r.lastCost) : '—'}</span>{trendTag(r.trend)}
                     {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
                     <span className="block text-[11px] text-slate-500">{r.costFromQuote ? t('supplier quote') : r.trend.last ? fmtDay(r.trend.last.date) : t('no cost yet')}</span>
+                    {r.rise && <RiseNote rise={r.rise} />}
                   </span>
                   <span>
                     <span className={`font-bold tabular-nums ${marginCls(m, floor1)}`}>{m == null ? '—' : `${m.toFixed(1)}%`}</span>
@@ -460,7 +482,7 @@ function PriceDetail({ r, tiers, net, chain, priceInput, catalog, priceLog, tier
         <div>
           <p className={`text-2xl font-bold leading-none tabular-nums ${marginCls(m1, tiers[0]?.margin_floor_pct ?? 0)}`}>{m1 == null ? '—' : `${m1.toFixed(1)}%`}</p>
           <p className="text-[11.5px] text-slate-500 mt-1">
-            {r.costFromQuote ? t('margin on the supplier quote') : t('margin at last cost')}
+            {r.rise ? t('margin at the next order’s cost') : r.costFromQuote ? t('margin on the supplier quote') : t('margin at last cost')}
             {stockM != null && m1 != null && Math.abs(stockM - m1) >= 1 && <><br />{tf('{pct} on current stock', { pct: `${stockM.toFixed(1)}%` })}</>}
           </p>
         </div>
@@ -489,7 +511,8 @@ function PriceDetail({ r, tiers, net, chain, priceInput, catalog, priceLog, tier
                     {breach?.minPrice != null && (
                       <button type="button" onClick={() => onRaise(breach)}
                         className="px-2 py-1 rounded-md border border-red-500/40 text-red-200 hover:bg-red-500/10"
-                        title={breach.provisional ? t('The floor is checked against a supplier quote: nothing has landed yet.') : t('The floor is checked against the landed cost of stock in hand.')}>
+                        title={breach.onIncoming ? t('The floor is checked against the next order’s cost, which is higher than the stock in hand.')
+                          : breach.provisional ? t('The floor is checked against a supplier quote: nothing has landed yet.') : t('The floor is checked against the landed cost of stock in hand.')}>
                         {tf('Under the {pct}% floor: raise to {price}', { pct: tr.margin_floor_pct, price: fmtInt(breach.minPrice) })}
                       </button>
                     )}

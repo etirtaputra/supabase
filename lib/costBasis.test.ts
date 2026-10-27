@@ -201,7 +201,9 @@ test('the cost column does not claim to be landed cost', () => {
 test('the floor audit separates proven breaches from quoted ones', () => {
   const src = pricingPage();
   assert.ok(src.includes('provisionalViolations'), 'the audit no longer counts provisional breaches');
-  assert.match(src, /provisional: basis\.provisional/, 'a violation does not record its basis');
+  // Since 2026-10-27 a breach may be judged on the next order's cost (lib/incomingCost.ts),
+  // and then carries THAT estimate's provisional flag — still never dropped.
+  assert.match(src, /provisional: (rise \? rise\.incoming\.provisional : )?basis\.provisional/, 'a violation does not record its basis');
   // And it must say which direction the error runs.
   assert.match(src, /worse than shown, not better/, 'the audit caveat no longer states the direction of the bias');
 });

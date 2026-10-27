@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T08:47:00Z",
+    title: "Harga Jual › Harga dan audit batas minimum: memakai biaya pesanan berikutnya bila lebih mahal",
+    details: [
+      "Tab Harga kini menunjukkan ▲ yang sama seperti Edit massal: biaya terakhir dicoret, dan di bawahnya perkiraan biaya pesanan berikutnya (PO terbuka atau penawaran pemasok yang lebih baru) bila lebih mahal. Margin setiap tier dan saran harga dihitung dari biaya itu.",
+      "Filter baru di tab Harga: \"Pesanan berikutnya lebih mahal\".",
+      "Audit batas minimum (filter \"Di bawah batas\", tombol Naikkan ke batas, dan uang yang dipertaruhkan) juga memakai biaya pesanan berikutnya bila lebih mahal, sehingga harga yang aman untuk stok lama tetapi rugi untuk kiriman berikutnya ikut tertangkap.",
+    ],
+  },
+  {
     at: "2026-10-27T08:32:00Z",
     title: "Atur Harga Jual: peringatan bila harga beli berikutnya lebih mahal",
     details: [

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *Set Pricing warns when the reorder / newer quote costs more, and prices on it (lib/incomingCost.ts)*; last module change: *the same* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *replacement cost now also drives the Prices tab and the floor audit*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -156,8 +156,17 @@ instead of 6.6%.
 - `app/pricing/page.tsx`, **Set Pricing tab only**: basis struck through,
   `▲ est · PO/QUOTE +x%` under it (`RiseNote`, hover = document, arithmetic,
   uplift); the row's tier GP, GP column, issue chips and band suggestion use
-  the incoming cost; chip "▲ Cost rising". The Overview floor audit and Prices
-  tab still judge on the basis — say so if the owner wants them moved too.
+  the incoming cost; chip "▲ Cost rising".
+- **Same day, owner: "apply it to the Overview and Prices tabs too".** (There
+  is no Overview tab since 2026-10-22 — the floor audit is the Prices tab's
+  "Below floor" filter, fed by `violations` in the page.) `violations` now
+  judge on the incoming cost when it rises (`onIncoming` on the breach, its
+  own provisional flag; tooltip says so); PricesTab gets `incomingOf`, measures
+  the rise against its OWN last cost (last purchase, else basis), strikes the
+  last cost, shows `RiseNote` (moved to `components/ui/RiseNote.tsx`), uses the
+  incoming cost for every margin and the keep-margin suggestion, and adds the
+  filter "Next order costs more". `lib/costBasis.test.ts`'s source guard
+  widened to accept `provisional: rise ? rise.incoming.provisional : basis.provisional`.
 - Measured on production 2026-10-27: 296 active items have something
   incoming; 17 landed-basis items rise (LR51100 +8.4%; NINGBO LE WS3-6510
   +9.5%; KMI cables 12–15% from the Anugrah 2026-10-12 nota; KSTAR GP806S
