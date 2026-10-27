@@ -4477,7 +4477,51 @@ has not decided.
 
 ---
 
-## 6. NEXT MODULE — the Shop (icasolar.com storefront), continued
+## 6. NEXT MODULE — Dolibarr → ICAPROC transition (data and users, in batches)
+
+Owner, 2026-10-27: *"our next big task is to transition Dolibarr usage to
+ICAPROC. But for that we need to transition the data and users, and we need to
+do it in batches so it doesn't interrupt the transition and make it as seamless
+as possible."*
+
+**Access (set up by the owner on 2026-10-27):**
+- Dolibarr: `https://erp.indodaya.co.id/api/index.php` (REST, header `DOLAPIKEY`).
+- Vercel Production env: `DOLIBARR_URL`, `DOLIBARR_API_KEY` (key of Dolibarr
+  user "Eric" — likely full rights: **only ever READ Dolibarr**, never write).
+- Claude cloud environment: `erp.indodaya.co.id` allowed, secret
+  `DOLIBARR_API_KEY` — available in a NEW session; check with one GET first.
+  Never print the key; never put it in the repo.
+
+**What already exists — build on it, do not fork:**
+- `lib/dataPorting.ts` + `app/import-export/page.tsx`: CSV import/export made
+  for this cutover; idempotent via `external_ref` + `external_source` (partial
+  unique index, migrations/import_export_traceability.sql). Dependency order
+  customers → contacts → orders → order_lines → invoices → receipts. Imports
+  are DOCUMENTS: they never write stock movements (no double counting).
+- `POST /api/agent/sales/mirror` (MIRA mirrors a Dolibarr SO; totals via
+  lib/salesTotals.ts) and `POST /api/agent/sales/stock` (posts Dolibarr
+  stock-outs). Several SOs are already mirrored (`external_source` 'dolibarr'
+  / 'Dolibarr' — normalise, do not duplicate).
+- §8: MIRA reads Dolibarr with her own key; her runbook may need a line when
+  the source of truth for a module moves.
+
+**First step — survey, then a plan for approval (no import yet):**
+1. GET Dolibarr read-only: which modules are actually used and how much data
+   (products, thirdparties as customers/suppliers, contacts, proposals,
+   orders, invoices, payments, shipments, supplier orders/invoices, stock,
+   bank accounts, users and their rights). Counts, date ranges, open vs closed.
+2. Map each to ICAPROC tables, name the gaps, and what is already in ICAPROC
+   (so the same customer/item is matched, not created twice).
+3. Propose the batches: reference data (items, customers, suppliers, user
+   mapping) → open work (open quotes, open SOs, unpaid invoices, open POs) →
+   history month by month → per-team user switch (purchasing, sales,
+   finance), Dolibarr read-only for a cooling-off period. Each batch: dry run
+   → owner reviews → import → verify counts/totals against Dolibarr. A sync of
+   "changed since last batch" until cutover.
+4. Plain-language plan to the owner for "go ahead" before writing anything to
+   production (standing rule).
+
+## 6b. PARKED — the Shop (icasolar.com storefront), continued
 
 ### 6.00 BOM Calculator — next steps (owner's current track, 2026-10-11)
 
