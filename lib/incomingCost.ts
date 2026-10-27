@@ -10,13 +10,11 @@
  *
  * The cost basis (lib/costBasis.ts) rightly prefers the ledger's landed cost:
  * it is the only number goods that actually arrived proved. But it looks
- * BACKWARDS. LR51100 landed at Rp 9,477,538 from a USD 509 PO; the reorder
- * (PIO-017, Confirmed) is USD 539 at 17,912 — Rp 9,654,568 before freight,
- * already above the landed cost, and ≈ Rp 10.28m once it lands with the same
- * import costs. Priced on the landed cost, the net of Rp 11m reads 13.8% GP;
- * on the stock that is coming it is 6.6%. A distributor prices to
- * REPLACEMENT cost — the stock on hand is sold once, the price has to fund
- * the next container.
+ * BACKWARDS. LR51100 landed at Rp 9,477,538; the reorder (PIO-017, Confirmed)
+ * is USD 539 — at today's rates ≈ Rp 9.84m once it lands, and the Rp 12m net
+ * that reads 21% GP on the stock in hand is ~18% on the stock that is coming.
+ * A distributor prices to REPLACEMENT cost — the stock on hand is sold once,
+ * the price has to fund the next container.
  *
  * WHAT COUNTS AS "INCOMING":
  *   - an open PO line: status Sent, Confirmed or Partially Received, at the
@@ -28,21 +26,18 @@
  * The NEWEST of these wins (a tie goes to the PO). Newest, not highest: the
  * latest price is the one the next order will be placed at.
  *
- * FOB IS NOT LANDED. A PO or quote price excludes freight, duty, PIB and bank
- * charges, so comparing it raw against a landed cost flatters it. The estimate
- * applies an import UPLIFT (landed ÷ the PO price it landed from — LR51100:
- * 9,477,538 ÷ (509 × 17,490) = 1.065) learned from past deliveries, and the
- * rise is measured on that estimated landed cost, never on the bare FOB.
+ * FOB IS NOT LANDED. A PO or quote price excludes freight, duty, local
+ * delivery and bank charges. The estimate adds the supplier's import MARKUP,
+ * read from the bills of a past delivered PO (see ADDON_CATS), and the rise is
+ * measured on that estimated landed cost, never on the bare FOB.
  *
- * WHERE THE UPLIFT COMES FROM (owner, 2026-10-27: *"it should use the previous
+ * WHERE THE MARKUP COMES FROM (owner, 2026-10-27: *"it should use the previous
  * estimated Landed Cost mark up from the same supplier"*), most specific first:
- *   1. `item`           — this item's last delivery FROM THE SAME SUPPLIER.
- *                         Duty is set per product (HS code), so the item's own
- *                         history with that supplier is the closest match.
- *   2. `supplier`       — the same supplier's last delivered PO, all its lines
- *                         together, weighted by value (Σ landed ÷ Σ FOB). This
- *                         is what prices an item that supplier has never sent.
- *   3. `item_elsewhere` — this item's last delivery from another supplier.
+ *   1. `item`           — the last fully paid PO that carried this item, from
+ *                         the SAME supplier.
+ *   2. `supplier`       — that supplier's last fully paid, delivered PO. This
+ *                         prices an item the supplier has never sent.
+ *   3. `item_elsewhere` — the last fully paid PO for this item, other supplier.
  *   4. none             — the raw price, flagged `provisional`: it can only be
  *                         too LOW, never too high, so a warning it raises is real.
  */
@@ -55,17 +50,32 @@ const rateOf = (fx: Record<string, FxRate>, ccy: string): number => Number(fx[cc
 /** A rise smaller than this is exchange-rate rounding, not news. */
 export const RISE_THRESHOLD_PCT = 1;
 
-/** An uplift outside this band is a data error (wrong rate, unit mismatch), not an import cost. */
+/**
+ * THE IMPORT MARKUP, FROM THE BILLS (2026-10-27). A delivered, fully paid PO
+ * says what getting its goods here cost on top of the goods themselves:
+ *
+ *     markup = 1 + (freight + duty + local delivery + courier + bank fees)
+ *                  ÷ (the supplier principal paid, in rupiah)
+ *
+ * VAT and income tax are excluded (creditable, and excluded from landed cost
+ * everywhere else); a penalty is excluded (a one-off, not a forecast). No
+ * exchange rate enters it — both sides are rupiah actually paid.
+ *
+ * CORRECTION, 2026-10-27. Earlier versions learned the markup as landed ÷
+ * (PO price × rate) from the stock receipts. That mixed currency into it: rupiah
+ * payments booked without a rate made EB.41875 look +7% (its rate was really
+ * 2,669, not the 2,502 typed), and PIO-008's extra balance payments made
+ * LR51100 look +6.5% when its freight, duty and fees were +0.75% (EPEVER and
+ * KSTAR both ship CIF; China duty is ~0). The receipts-based reading also
+ * called KSTAR "under-booked", which it is not.
+ */
+export const ADDON_CATS = new Set([
+  'freight_cost', 'local_import_duty', 'local_delivery', 'dhl_advance_payment_fee',
+  'full_amount_bank_fee', 'telex_bank_fee', 'value_today_bank_fee', 'admin_bank_fee', 'inter_bank_transfer_fee',
+]);
+/** A markup outside this band is a booking error, not an import cost. */
 const UPLIFT_MIN = 1;
 const UPLIFT_MAX = 2;
-/**
- * An IMPORT (foreign-currency PO) that "landed" at under +0.5% did not land
- * free — its freight and duty were never added to the receipt. Measured
- * 2026-10-27: several KSTAR deliveries sit at exactly the USD price. Learning
- * 0% from them would understate every estimate for that supplier, so they
- * teach nothing. A rupiah PO from a local supplier really can land at ~0%.
- */
-const IMPORT_UPLIFT_MIN = 1.005;
 
 const OPEN_PO = new Set(['Sent', 'Confirmed', 'Partially Received']);
 const LIVE_QUOTE = new Set(['Open', 'Accepted']);
@@ -125,7 +135,6 @@ export interface IncQuote { quote_id: string | number; pi_number?: string | null
 export interface IncQuoteLine { quote_id: string | number; component_id: string; unit_price: number | string; currency?: string | null }
 /** A goods-in movement (30.0, source_type 'receipt'): landed IDR per unit, and the PO it came from. */
 export interface IncReceipt { component_id: string; unit_cost_idr: number | string | null; moved_at: string; source_id: string | null; quantity?: number | string | null }
-
 export type UpliftSource = 'item' | 'supplier' | 'item_elsewhere';
 
 export interface IncomingCost {
@@ -179,30 +188,44 @@ export function incomingCosts(
   const supplierOfPo = (po: IncPo | undefined): string | null =>
     po ? (po.supplier_id || (po.quote_id != null ? quoteById.get(String(po.quote_id))?.supplier_id : null) || null) : null;
 
-  // Every past delivery that can teach an uplift: landed IDR vs the FOB of
-  // the PO line it came from, at that PO's own rate.
-  interface Lesson { cid: string; date: string; poId: string; poNo: string; supplier: string | null; landed: number; fob: number; qty: number; imported: boolean }
-  const lessons: Lesson[] = [];
-  // When each item last arrived — any delivery, usable uplift or not. A quote
-  // older than this is history the landed cost has already absorbed.
+  // When each item last arrived — a quote older than this is history the
+  // landed cost has already absorbed.
   const lastArrived = new Map<string, string>();
+  const poArrived = new Map<string, string>();
   for (const r of input.receipts) {
     const d = day(r.moved_at);
     if ((lastArrived.get(r.component_id) ?? '') < d) lastArrived.set(r.component_id, d);
-    const landed = n(r.unit_cost_idr);
-    const po = r.source_id ? poById.get(String(r.source_id)) : undefined;
-    const line = po && input.poItems.find((l) => String(l.po_id) === String(po.po_id) && l.component_id === r.component_id);
-    if (!po || !line || !(landed > 0)) continue;
-    const cur = line.currency || po.currency || 'IDR';
-    // The rate this PO really cost (paid, else blended with the benchmark), so
-    // the uplift learned is freight and duty, not last year's rupiah.
-    const rate = cur === 'IDR' ? 1 : rateOfPo(po).rate;
-    const fob = n(line.unit_cost) * rate;
-    if (!(fob > 0)) continue;
-    lessons.push({ cid: r.component_id, date: d, poId: String(po.po_id), poNo: po.po_number || 'PO',
-      supplier: supplierOfPo(po), landed, fob, qty: n(r.quantity) || 1, imported: cur !== 'IDR' });
+    if (r.source_id && (poArrived.get(String(r.source_id)) ?? '') < d) poArrived.set(String(r.source_id), d);
   }
-  const sane = (u: number, imported: boolean) => u >= (imported ? IMPORT_UPLIFT_MIN : UPLIFT_MIN) && u <= UPLIFT_MAX;
+
+  // One lesson per delivered, fully paid PO line: that PO's import markup
+  // (ADDON_CATS ÷ principal, both in rupiah). Every line of a PO shares it —
+  // the true-up allocates the add-ons by value.
+  interface Lesson { cid: string; date: string; poId: string; poNo: string; supplier: string | null; uplift: number; weight: number }
+  const lessons: Lesson[] = [];
+  for (const po of input.pos) {
+    if (po.status !== 'Fully Received') continue;
+    const k = String(po.po_id);
+    const costs = costsByPo.get(k) ?? [];
+    const cur = po.currency || 'IDR';
+    if (cur !== 'IDR' && rateOfPo(po).source !== 'paid') continue;   // bills not final
+    const typed = n(po.exchange_rate);
+    let principal = 0, addons = 0;
+    for (const c of costs) {
+      const amt = n(c.amount);
+      if (PRINCIPAL.has(c.cost_category)) {
+        principal += (c.currency || cur) === 'IDR' ? amt : amt * (n(c.exchange_rate) || typed || rateOf(fx, c.currency || cur));
+      } else if (ADDON_CATS.has(c.cost_category)) addons += amt;
+    }
+    if (!(principal > 0)) continue;
+    const uplift = 1 + addons / principal;
+    const date = poArrived.get(k) ?? day(po.po_date);
+    for (const l of input.poItems) {
+      if (String(l.po_id) !== k) continue;
+      lessons.push({ cid: l.component_id, date, poId: k, poNo: po.po_number || 'PO', supplier: supplierOfPo(po), uplift, weight: principal });
+    }
+  }
+  const sane = (u: number) => u >= UPLIFT_MIN && u <= UPLIFT_MAX;
   const newestFirst = (a: Lesson, b: Lesson) => b.date.localeCompare(a.date);
   lessons.sort(newestFirst);
 
@@ -210,32 +233,24 @@ export function incomingCosts(
   const byItemSupplier = new Map<string, Lesson>();
   const byItem = new Map<string, Lesson>();
   for (const l of lessons) {
-    if (!sane(l.landed / l.fob, l.imported)) continue;
+    if (!sane(l.uplift)) continue;
     if (l.supplier && !byItemSupplier.has(`${l.cid}|${l.supplier}`)) byItemSupplier.set(`${l.cid}|${l.supplier}`, l);
     if (!byItem.has(l.cid)) byItem.set(l.cid, l);
   }
-  // 2: per supplier, its most recently delivered PO, every line weighted by value.
+  // 2: per supplier, the markup of its most recently delivered, fully paid PO.
   const bySupplier = new Map<string, { uplift: number; ref: string }>();
-  const poLessons = new Map<string, Lesson[]>();
-  for (const l of lessons) (poLessons.get(l.poId) ?? poLessons.set(l.poId, []).get(l.poId)!).push(l);
-  const posNewestFirst = [...poLessons.values()].sort((a, b) => newestFirst(a[0], b[0]));
-  for (const ls of posNewestFirst) {
-    const sup = ls[0].supplier;
-    if (!sup || bySupplier.has(sup)) continue;
-    const landed = ls.reduce((s, l) => s + l.landed * l.qty, 0);
-    const fob = ls.reduce((s, l) => s + l.fob * l.qty, 0);
-    const u = fob > 0 ? landed / fob : 0;
-    // An unbooked import PO is skipped, and the supplier's PO before it gets the chance.
-    if (sane(u, ls[0].imported)) bySupplier.set(sup, { uplift: u, ref: ls[0].poNo });
+  for (const l of lessons) {
+    if (!l.supplier || bySupplier.has(l.supplier) || !sane(l.uplift)) continue;
+    bySupplier.set(l.supplier, { uplift: l.uplift, ref: l.poNo });
   }
 
   const upliftFor = (cid: string, supplier: string | null): { uplift: number; source: UpliftSource; ref: string } | null => {
     const own = supplier ? byItemSupplier.get(`${cid}|${supplier}`) : undefined;
-    if (own) return { uplift: own.landed / own.fob, source: 'item', ref: own.poNo };
+    if (own) return { uplift: own.uplift, source: 'item', ref: own.poNo };
     const sup = supplier ? bySupplier.get(supplier) : undefined;
     if (sup) return { uplift: sup.uplift, source: 'supplier', ref: sup.ref };
     const any = byItem.get(cid);
-    if (any) return { uplift: any.landed / any.fob, source: 'item_elsewhere', ref: any.poNo };
+    if (any) return { uplift: any.uplift, source: 'item_elsewhere', ref: any.poNo };
     return null;
   };
 

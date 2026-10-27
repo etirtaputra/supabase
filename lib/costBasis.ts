@@ -63,6 +63,11 @@ export interface ResolvedCost {
    * Any margin built on it reads better than the truth. Never suppress this.
    */
   provisional: boolean;
+  /**
+   * A quote basis with the supplier's estimated import markup added (Selling
+   * Prices, lib/incomingCost.ts) — the % added. Absent on every other basis.
+   */
+  importPct?: number;
 }
 
 export const NO_COST: ResolvedCost = { cost: null, basis: 'none', asOf: '', provisional: false };

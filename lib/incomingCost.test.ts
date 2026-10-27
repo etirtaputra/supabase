@@ -12,13 +12,22 @@ const CID = 'lr51100';
 const FX: Record<string, FxRate> = { USD: { rate: 18_000, date: '2026-10-23', source: 'benchmark', label: 'company rate' } };
 
 // Production rows, trimmed to what the rule reads.
-const OLD_PO: IncPo = { po_id: 'po-008', po_number: 'PIO-008-ISL-05-2026', po_date: '2026-05-13', status: 'Fully Received', currency: 'USD', exchange_rate: 17_490, total_value: 10_180 };
+const OLD_PO: IncPo = { po_id: 'po-008', po_number: 'PIO-008-ISL-05-2026', po_date: '2026-05-13', status: 'Fully Received', currency: 'USD', exchange_rate: 17_490, total_value: 61_957 };
 const NEW_PO: IncPo = { po_id: 'po-017', po_number: 'PIO-017-ISL-09-2026', po_date: '2026-09-30', status: 'Confirmed', currency: 'USD', exchange_rate: 17_912, total_value: 93_100 };
 /** A fully-paid PO at a given bank rate — what every delivered PO in these fixtures is. */
 const paid = (po_id: string, usd: number, rate: number): IncPoCost => ({ po_id, cost_category: 'balance_payment', amount: usd, currency: 'USD', exchange_rate: rate });
-// PIO-008 paid in full at 17,490; PIO-017's 29% deposit at 17,912 (production, 2026-10-08).
-const COSTS: IncPoCost[] = [paid('po-008', 10_180, 17_490),
+// Production bills, 2026-10-27. PIO-008: Rp 1,145,100,988 principal in rupiah rows without a
+// rate; freight-side add-ons Rp 8,533,254 (local delivery, bank fees) — CIF, so no freight;
+// VAT and income tax booked too, and never part of the markup. PIO-017: the 29% deposit at 17,912.
+const COSTS: IncPoCost[] = [
+  { po_id: 'po-008', cost_category: 'balance_payment', amount: 1_145_100_988, currency: 'IDR' },
+  { po_id: 'po-008', cost_category: 'local_delivery', amount: 6_696_559, currency: 'IDR' },
+  { po_id: 'po-008', cost_category: 'full_amount_bank_fee', amount: 1_836_695, currency: 'IDR' },
+  { po_id: 'po-008', cost_category: 'local_vat', amount: 125_000_000, currency: 'IDR' },
+  { po_id: 'po-008', cost_category: 'local_income_tax', amount: 28_000_000, currency: 'IDR' },
   { po_id: 'po-017', cost_category: 'down_payment', amount: 27_044, currency: 'USD', exchange_rate: 17_912 }];
+/** PIO-008's import markup: add-ons ÷ principal, both rupiah actually paid. */
+const U008 = 1 + 8_533_254 / 1_145_100_988;
 /** PIO-017 today: the paid 29% at 17,912, the unpaid rest at the company benchmark (18,000 in FX). */
 const PIO017_RATE = (27_044 * 17_912 + (93_100 - 27_044) * 18_000) / 93_100;
 const LINES: IncPoLine[] = [
@@ -47,31 +56,31 @@ test('LR51100: the Confirmed reorder is the incoming cost — paid share at its 
 
 test('poRate: unpaid → benchmark; fully paid → the bank rate; no benchmark → the PO rate', () => {
   assert.deepEqual(poRate(NEW_PO, [], FX), { rate: 18_000, source: 'benchmark', paidPct: 0 });
-  const full = poRate(OLD_PO, [paid('po-008', 10_180, 17_600)], FX);
+  const full = poRate(OLD_PO, [paid('po-008', 61_957, 17_600)], FX);
   assert.equal(full.source, 'paid');
   assert.equal(full.rate, 17_600);
   assert.deepEqual(poRate(NEW_PO, [], {}), { rate: 17_912, source: 'po', paidPct: 0 });
   // A rupiah payment carries its own rate when typed, else the PO's stands in.
-  const idr = poRate(OLD_PO, [{ po_id: 'po-008', cost_category: 'balance_payment', amount: 10_180 * 17_700, currency: 'IDR', exchange_rate: 17_700 }], FX);
+  const idr = poRate(OLD_PO, [{ po_id: 'po-008', cost_category: 'balance_payment', amount: 61_957 * 17_700, currency: 'IDR', exchange_rate: 17_700 }], FX);
   assert.equal(idr.source, 'paid');
   assert.ok(Math.abs(idr.rate - 17_700) < 1e-6);
   // Freight, tax and fees never move the rate.
   assert.equal(poRate(NEW_PO, [{ po_id: 'po-017', cost_category: 'freight', amount: 5_000, currency: 'USD', exchange_rate: 15_000 }], FX).source, 'benchmark');
 });
 
-test('LR51100: uplift learned from its own last landing (at the rate PIO-008 was paid), applied to the reorder', () => {
+test('LR51100: the markup is PIO-008’s add-ons ÷ principal (+0.75%), applied to the reorder', () => {
   const inc = all().get(CID)!;
-  const uplift = 9_477_538 / (509 * 17_490);
-  assert.ok(Math.abs(inc.uplift! - uplift) < 1e-9);
-  assert.equal(inc.estLandedIdr, Math.round(539 * PIO017_RATE * uplift));
+  assert.ok(Math.abs(inc.uplift! - U008) < 1e-12, `got ${inc.uplift}`);
+  assert.ok(Math.abs((inc.uplift! - 1) * 100 - 0.745) < 0.001, 'VAT and income tax are not in it');
+  assert.equal(inc.estLandedIdr, Math.round(539 * PIO017_RATE * U008));
   assert.equal(inc.provisional, false);
-  assert.ok(inc.estLandedIdr > 10_250_000 && inc.estLandedIdr < 10_400_000, `≈ Rp 10.31m at an 18,000 benchmark, got ${inc.estLandedIdr}`);
+  assert.ok(inc.estLandedIdr > 9_700_000 && inc.estLandedIdr < 9_800_000, `≈ Rp 9.76m at an 18,000 benchmark, got ${inc.estLandedIdr}`);
 });
 
 test('LR51100: the rise is flagged, and the supplier price alone already beats landed', () => {
   const r = costRise(9_477_538, all().get(CID))!;
   assert.ok(r);
-  assert.ok(r.risePct > 8.5 && r.risePct < 9, `≈ 8.8% at an 18,000 benchmark, got ${r.risePct}`);
+  assert.ok(r.risePct > 2.5 && r.risePct < 3.5, `≈ 3.0% at an 18,000 benchmark, got ${r.risePct}`);
   assert.equal(r.fobAlreadyAbove, true);
 });
 
@@ -115,9 +124,9 @@ test('never landed: raw FOB, flagged provisional (it can only be too low)', () =
   assert.equal(inc.provisional, true);
 });
 
-test('an absurd uplift (wrong rate, unit mismatch) is ignored, not applied', () => {
-  const bad = { ...RECEIPT, unit_cost_idr: 539 * 17_490 * 5 };
-  const inc = incomingCosts({ pos: [OLD_PO, NEW_PO], poItems: LINES, quotes: [], quoteItems: [], receipts: [bad] }, FX).get(CID)!;
+test('an absurd markup (add-ons above the goods themselves: a booking error) is ignored, not applied', () => {
+  const inc = incomingCosts({ pos: [OLD_PO, NEW_PO], poItems: LINES, quotes: [], quoteItems: [], receipts: [RECEIPT],
+    poCosts: [...COSTS, { po_id: 'po-008', cost_category: 'freight_cost', amount: 2_000_000_000, currency: 'IDR' }] }, FX).get(CID)!;
   assert.equal(inc.uplift, null);
   assert.equal(inc.provisional, true);
 });
@@ -147,56 +156,47 @@ const withSup = (po: IncPo, supplier_id: string | null): IncPo => ({ ...po, supp
 
 test('LR51100 with suppliers: its own last delivery from EPEVER sets the uplift', () => {
   const inc = incomingCosts({ pos: [withSup(OLD_PO, EPEVER), withSup(NEW_PO, EPEVER)], poItems: LINES,
-    quotes: [], quoteItems: [], receipts: [RECEIPT] }, FX).get(CID)!;
+    quotes: [], quoteItems: [], receipts: [RECEIPT], poCosts: COSTS }, FX).get(CID)!;
   assert.equal(inc.upliftSource, 'item');
   assert.equal(inc.upliftRef, 'PIO-008-ISL-05-2026');
   assert.equal(inc.supplierId, EPEVER);
 });
 
-test('an item the supplier never sent takes that supplier’s last delivery, weighted by value', () => {
-  // EPEVER's last delivered PO carried two other items: 10 × USD 100 landing at
-  // 1.10 and 2 × USD 1,000 landing at 1.20. Value-weighted: (1,100 + 2,400) ÷ 3,000.
-  const po: IncPo = withSup({ po_id: 'po-x', po_number: 'PIO-X', po_date: '2026-06-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000 }, EPEVER);
+test('an item the supplier never sent takes that supplier’s last delivered PO markup', () => {
+  // EPEVER's last delivered PO: USD 3,000 paid at 17,000 (Rp 51m), Rp 5.1m freight → +10%.
+  const po: IncPo = withSup({ po_id: 'po-x', po_number: 'PIO-X', po_date: '2026-06-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000, total_value: 3_000 }, EPEVER);
   const lines: IncPoLine[] = [
     { po_id: 'po-x', component_id: 'a', unit_cost: 100, currency: 'USD' },
-    { po_id: 'po-x', component_id: 'b', unit_cost: 1_000, currency: 'USD' },
     { po_id: 'po-017', component_id: 'new-item', unit_cost: 200, currency: 'USD' },
   ];
-  const receipts: IncReceipt[] = [
-    { component_id: 'a', unit_cost_idr: 100 * 17_000 * 1.10, moved_at: '2026-07-01', source_id: 'po-x', quantity: 10 },
-    { component_id: 'b', unit_cost_idr: 1_000 * 17_000 * 1.20, moved_at: '2026-07-01', source_id: 'po-x', quantity: 2 },
-  ];
-  const inc = incomingCosts({ pos: [{ ...po, total_value: 3_000 }, withSup(NEW_PO, EPEVER)], poItems: lines, quotes: [], quoteItems: [], receipts,
-    poCosts: [paid('po-x', 3_000, 17_000)] }, FX).get('new-item')!;
+  const inc = incomingCosts({ pos: [po, withSup(NEW_PO, EPEVER)], poItems: lines, quotes: [], quoteItems: [], receipts: [],
+    poCosts: [paid('po-x', 3_000, 17_000), { po_id: 'po-x', cost_category: 'freight_cost', amount: 5_100_000, currency: 'IDR' }] }, FX).get('new-item')!;
   assert.equal(inc.upliftSource, 'supplier');
   assert.equal(inc.upliftRef, 'PIO-X');
-  assert.ok(Math.abs(inc.uplift! - 3_500 / 3_000) < 1e-9, `got ${inc.uplift}`);
+  assert.ok(Math.abs(inc.uplift! - 1.10) < 1e-9, `got ${inc.uplift}`);
   assert.equal(inc.rateSource, 'benchmark', 'nothing paid on the reorder: the benchmark converts it');
-  assert.equal(inc.estLandedIdr, Math.round(200 * 18_000 * 3_500 / 3_000));
+  assert.equal(inc.estLandedIdr, Math.round(200 * 18_000 * 1.10));
   assert.equal(inc.provisional, false);
 });
 
 test('the same-supplier history beats the item’s history with another supplier', () => {
-  const otherPo: IncPo = withSup({ po_id: 'po-o', po_number: 'PO-OTHER', po_date: '2026-08-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000 }, OTHER);
-  const supPo: IncPo = withSup({ po_id: 'po-s', po_number: 'PO-EPEVER-OLD', po_date: '2026-03-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000 }, EPEVER);
+  const otherPo: IncPo = withSup({ po_id: 'po-o', po_number: 'PO-OTHER', po_date: '2026-08-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000, total_value: 500 }, OTHER);
+  const supPo: IncPo = withSup({ po_id: 'po-s', po_number: 'PO-EPEVER-OLD', po_date: '2026-03-01', status: 'Fully Received', currency: 'USD', exchange_rate: 17_000, total_value: 100 }, EPEVER);
   const lines: IncPoLine[] = [
     { po_id: 'po-o', component_id: CID, unit_cost: 500, currency: 'USD' },
     { po_id: 'po-s', component_id: 'z', unit_cost: 100, currency: 'USD' },
     LINES[1],
   ];
-  const receipts: IncReceipt[] = [
-    { component_id: CID, unit_cost_idr: 500 * 17_000 * 1.30, moved_at: '2026-09-01', source_id: 'po-o', quantity: 5 },
-    { component_id: 'z', unit_cost_idr: 100 * 17_000 * 1.08, moved_at: '2026-04-01', source_id: 'po-s', quantity: 5 },
-  ];
-  const inc = incomingCosts({ pos: [{ ...otherPo, total_value: 500 }, { ...supPo, total_value: 100 }, withSup(NEW_PO, EPEVER)], poItems: lines, quotes: [], quoteItems: [], receipts,
-    poCosts: [paid('po-o', 500, 17_000), paid('po-s', 100, 17_000)] }, FX).get(CID)!;
+  const inc = incomingCosts({ pos: [otherPo, supPo, withSup(NEW_PO, EPEVER)], poItems: lines, quotes: [], quoteItems: [], receipts: [],
+    poCosts: [paid('po-o', 500, 17_000), { po_id: 'po-o', cost_category: 'freight_cost', amount: 500 * 17_000 * 0.30, currency: 'IDR' },
+              paid('po-s', 100, 17_000), { po_id: 'po-s', cost_category: 'freight_cost', amount: 100 * 17_000 * 0.08, currency: 'IDR' }] }, FX).get(CID)!;
   assert.equal(inc.upliftSource, 'supplier', 'EPEVER’s own markup, not the other supplier’s');
   assert.ok(Math.abs(inc.uplift! - 1.08) < 1e-9);
 });
 
 test('no history with this supplier at all: the item’s delivery from another supplier, said so', () => {
   const inc = incomingCosts({ pos: [withSup(OLD_PO, OTHER), withSup(NEW_PO, EPEVER)], poItems: LINES,
-    quotes: [], quoteItems: [], receipts: [RECEIPT] }, FX).get(CID)!;
+    quotes: [], quoteItems: [], receipts: [RECEIPT], poCosts: COSTS }, FX).get(CID)!;
   assert.equal(inc.upliftSource, 'item_elsewhere');
   assert.equal(inc.provisional, false);
 });
@@ -204,7 +204,7 @@ test('no history with this supplier at all: the item’s delivery from another s
 test('a PO with no supplier of its own takes it from the quote it was raised from', () => {
   const q: IncQuote = { ...NEW_Q, status: 'Accepted', supplier_id: EPEVER };
   const po: IncPo = { ...NEW_PO, supplier_id: null, quote_id: 'q2' };
-  const inc = incomingCosts({ pos: [withSup(OLD_PO, EPEVER), po], poItems: LINES, quotes: [q], quoteItems: [], receipts: [RECEIPT] }, FX).get(CID)!;
+  const inc = incomingCosts({ pos: [withSup(OLD_PO, EPEVER), po], poItems: LINES, quotes: [q], quoteItems: [], receipts: [RECEIPT], poCosts: COSTS }, FX).get(CID)!;
   assert.equal(inc.supplierId, EPEVER);
   assert.equal(inc.upliftSource, 'item');
 });
@@ -216,16 +216,38 @@ test('a quote carries its supplier, and uses that supplier’s markup', () => {
   assert.equal(inc.rateSource, 'benchmark');
   assert.equal(inc.upliftSource, 'supplier');
   assert.equal(inc.upliftRef, 'PIO-008-ISL-05-2026');
-  assert.equal(inc.estLandedIdr, Math.round(300 * 18_000 * (9_477_538 / (509 * 17_490))));
+  assert.equal(inc.estLandedIdr, Math.round(300 * 18_000 * U008));
 });
 
-test('an import received at its bare USD price taught nothing: freight and duty were never booked', () => {
-  // KSTAR, 2026-10-27: deliveries sitting at exactly the PO price.
-  const unbooked = { ...RECEIPT, unit_cost_idr: 509 * 17_490 };
+test('no exchange rate enters the markup: rupiah payments booked without a rate (KSTAR EB.41875)', () => {
+  // Production, 2026-10-27: CNY 796,020 typed at 2,502, paid Rp 2,124,757,246 in rupiah rows with no
+  // rate (really ~2,669). Add-ons Rp 8,295,421 (delivery, duty, bank). CIF + ACFTA duty → +0.39%.
+  // The receipts-based reading turned the rate gap into "+7% import costs".
+  const po: IncPo = withSup({ po_id: 'eb41875', po_number: 'EB.41875', po_date: '2026-04-08', status: 'Fully Received', currency: 'CNY', exchange_rate: 2_502, total_value: 796_020 }, 'sup-kstar');
+  const next: IncPo = withSup({ po_id: 'nx', po_number: 'PIO-NEXT', po_date: '2026-10-01', status: 'Confirmed', currency: 'CNY', exchange_rate: 2_626, total_value: 1_000 }, 'sup-kstar');
+  const lines: IncPoLine[] = [{ po_id: 'eb41875', component_id: 'ups', unit_cost: 1_000, currency: 'CNY' }, { po_id: 'nx', component_id: 'ups', unit_cost: 1_100, currency: 'CNY' }];
+  const fx = { ...FX, CNY: { rate: 2_800, date: '2026-10-23', source: 'benchmark' as const, label: 'company rate' } };
+  const inc = incomingCosts({ pos: [po, next], poItems: lines, quotes: [], quoteItems: [],
+    receipts: [{ component_id: 'ups', unit_cost_idr: 1_000 * 2_502, moved_at: '2026-07-16', source_id: 'eb41875', quantity: 10 }],
+    poCosts: [
+      { po_id: 'eb41875', cost_category: 'balance_payment', amount: 2_124_757_246, currency: 'IDR' },
+      { po_id: 'eb41875', cost_category: 'local_delivery', amount: 7_900_400, currency: 'IDR' },
+      { po_id: 'eb41875', cost_category: 'local_import_duty', amount: 345_643, currency: 'IDR' },
+      { po_id: 'eb41875', cost_category: 'admin_bank_fee', amount: 49_378, currency: 'IDR' },
+      { po_id: 'eb41875', cost_category: 'local_vat', amount: 231_808_460, currency: 'IDR' },
+      { po_id: 'eb41875', cost_category: 'penalty_fee', amount: 5_000_000, currency: 'IDR' },
+    ] }, fx).get('ups')!;
+  assert.equal(inc.upliftSource, 'item');
+  assert.ok(Math.abs(inc.uplift! - (1 + 8_295_421 / 2_124_757_246)) < 1e-12, `got ${inc.uplift}`);
+  assert.ok((inc.uplift! - 1) * 100 < 0.4, 'VAT and the penalty stay out of it');
+});
+
+test('a PO not yet paid in full teaches nothing: its landed cost is not final', () => {
   const inc = incomingCosts({ pos: [withSup(OLD_PO, EPEVER), withSup(NEW_PO, EPEVER)], poItems: LINES,
-    quotes: [], quoteItems: [], receipts: [unbooked] }, FX).get(CID)!;
+    quotes: [], quoteItems: [], receipts: [RECEIPT],
+    poCosts: [{ po_id: 'po-008', cost_category: 'down_payment', amount: 3_000, currency: 'USD', exchange_rate: 17_490 }] }, FX).get(CID)!;
   assert.equal(inc.uplift, null);
-  assert.equal(inc.provisional, true, 'shown as the bare price, flagged as an underestimate');
+  assert.equal(inc.provisional, true);
 });
 
 test('a local rupiah supplier really can land at ~0%: that is learned', () => {
@@ -234,7 +256,8 @@ test('a local rupiah supplier really can land at ~0%: that is learned', () => {
   const inc = incomingCosts({ pos: [po, next], poItems: [
       { po_id: 'loc', component_id: 'cable', unit_cost: 60_000, currency: 'IDR' },
       { po_id: 'loc2', component_id: 'cable', unit_cost: 69_000, currency: 'IDR' }],
-    quotes: [], quoteItems: [], receipts: [{ component_id: 'cable', unit_cost_idr: 60_000, moved_at: '2026-09-05', source_id: 'loc', quantity: 100 }] }, FX).get('cable')!;
+    quotes: [], quoteItems: [], receipts: [{ component_id: 'cable', unit_cost_idr: 60_000, moved_at: '2026-09-05', source_id: 'loc', quantity: 100 }],
+    poCosts: [{ po_id: 'loc', cost_category: 'balance_payment', amount: 6_000_000, currency: 'IDR' }] }, FX).get('cable')!;
   assert.equal(inc.uplift, 1);
   assert.equal(inc.upliftSource, 'item');
   assert.equal(inc.provisional, false);

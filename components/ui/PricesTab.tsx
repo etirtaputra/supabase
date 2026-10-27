@@ -78,6 +78,8 @@ interface Row {
   /** The next order costs more than `lastCost` (lib/incomingCost.ts). */
   rise: CostRise | null;
   costFromQuote: boolean;
+  /** The quote cost includes this % of estimated import costs (the supplier's markup). */
+  quoteImportPct: number | null;
   stockCost: number | null;
   stock: number;
   lead: ProductLead | null;
@@ -94,7 +96,7 @@ export default function PricesTab({
   chainAt: (componentId: string, net: number | null) => Map<string, { price: number | null; overridden: boolean }>;
   paidOf: (componentId: string) => { label: string; date: string; unitCost: number }[];
   receivedOf: (componentId: string) => { label: string; date: string; unitCost: number }[];
-  basisCost: (componentId: string) => { cost: number | null; provisional: boolean };
+  basisCost: (componentId: string) => { cost: number | null; provisional: boolean; importPct?: number };
   stockCost: (componentId: string) => number | null;
   stockOf: (componentId: string) => number;
   leadOf: (componentId: string) => ProductLead | null;
@@ -147,6 +149,7 @@ export default function PricesTab({
       cost: rise ? rise.incoming.estLandedIdr : lastCost,
       lastCost, rise,
       costFromQuote: !trend.last && basis.cost != null,
+      quoteImportPct: !trend.last && basis.importPct != null ? basis.importPct : null,
       stockCost: stockCost(c.component_id),
       stock: stockOf(c.component_id),
       lead: leadOf(c.component_id),
@@ -345,7 +348,7 @@ export default function PricesTab({
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {r.lastCost != null ? (<>
                         <span className={`font-bold tabular-nums ${r.rise ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-100'}`}>{fmtMoneyCell(r.lastCost)}</span>{trendTag(r.trend)}
-                        {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
+                        {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={r.quoteImportPct != null ? tf('A supplier quote plus about {pct}% estimated import costs: nothing has landed yet.', { pct: r.quoteImportPct.toFixed(1) }) : t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
                         <p className="text-[11px] text-slate-500">{r.costFromQuote ? t('supplier quote') : fmtDay(r.trend.last?.date)}</p>
                         {r.rise && <RiseNote rise={r.rise} supplierName={supplierNameOf(r.rise.incoming.supplierId)} showRefs={showPoNumbers} />}
                       </>) : <span className="text-slate-600">—</span>}
@@ -380,7 +383,7 @@ export default function PricesTab({
                 <span className="mt-1.5 grid grid-cols-[1.5fr_.9fr_.6fr] gap-2">
                   <span>
                     <span className={`font-bold tabular-nums ${r.rise ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-100'}`}>{r.lastCost != null ? fmtRupiah(r.lastCost) : '—'}</span>{trendTag(r.trend)}
-                    {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
+                    {r.costFromQuote && <span className="ml-1.5 align-middle px-1 py-px rounded bg-amber-500/15 text-amber-300 text-[9px] font-bold tracking-wide" title={r.quoteImportPct != null ? tf('A supplier quote plus about {pct}% estimated import costs: nothing has landed yet.', { pct: r.quoteImportPct.toFixed(1) }) : t('A supplier quote, not a landed cost: freight, duty and fees are not in it yet.')}>QUOTE</span>}
                     <span className="block text-[11px] text-slate-500">{r.costFromQuote ? t('supplier quote') : r.trend.last ? fmtDay(r.trend.last.date) : t('no cost yet')}</span>
                     {r.rise && <RiseNote rise={r.rise} supplierName={supplierNameOf(r.rise.incoming.supplierId)} showRefs={showPoNumbers} />}
                   </span>

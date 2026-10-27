@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T09:54:00Z",
+    title: "Biaya impor dari tagihan PO, dan barang ber-QUOTE tidak lagi tampil ▲ palsu",
+    details: [
+      "Persentase biaya impor kini dibaca langsung dari tagihan PO yang sudah lunas dan diterima: (ongkir + bea + pengiriman lokal + kurir + biaya bank) ÷ pembayaran barang. PPN, PPh dan denda tidak termasuk. Kurs tidak ikut dihitung, jadi selisih kurs tidak lagi terbaca sebagai biaya impor.",
+      "Hasilnya lebih masuk akal: KSTAR ±0,4% (CIF, bea hampir nol), Ningbo Latitude 1,5%, EPSIVO 4–4,5% (FOB), pemasok lokal ±0%. EPEVER LR51100A: biaya impor PIO-008 hanya 0,75%, sehingga pesanan berikutnya ≈ Rp 9,84 jt (+3,8%), bukan +9,7% seperti sebelumnya.",
+      "Barang yang belum pernah dibeli (dasar biaya = penawaran pemasok, label QUOTE) kini sudah termasuk perkiraan biaya impor pemasoknya. ▲ hanya muncul bila ada dokumen yang benar-benar lebih mahal — sebelumnya ▲ muncul untuk penawaran yang sama (contoh: EPEVER LR25205A).",
+    ],
+  },
+  {
     at: "2026-10-27T09:08:00Z",
     title: "Biaya pesanan berikutnya: kurs benchmark sampai kurs final diketahui",
     details: [

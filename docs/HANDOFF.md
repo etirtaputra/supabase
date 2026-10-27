@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *incoming cost: paid share at the bank rate, unpaid at the company benchmark (`poRate`)*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *import markup read from PO bills (add-ons ÷ principal); quote basis carries it; KSTAR 'under-booked' flag withdrawn*; last module change: *Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -179,8 +179,8 @@ instead of 6.6%.
   2026-10-27: of 296 incoming items, supplier 204 · item 15 · none 78; landed-
   basis rises 17 → 22 (EPEVER XTRA4415N/1210N/2210N now learn EPEVER's +7.9%
   instead of their own unbooked 0%; EPEVER UP1500 GP 28.4 → 22.9%).
-  **Data flag for the owner:** KSTAR landings carry only ~0.7% import cost —
-  its freight/duty look under-booked in the landed-cost true-up.
+  ~~**Data flag for the owner:** KSTAR landings carry only ~0.7% import cost —
+  its freight/duty look under-booked~~ **WITHDRAWN — see the markup entry below.**
 - **Same day, owner: "if we do not know the final exchange rate yet, use the
   benchmark first".** `poRate(po, costs, fx)`: principal rows (6.0, PRINCIPAL
   cats) — PO-currency rows at their bank rate, IDR rows at their typed rate
@@ -194,6 +194,33 @@ instead of 6.6%.
   18,200) → est Rp 10,399,762 (+9.7%), GP 13.8 → 5.5%. CNY moved most: the
   benchmark is 2,800 vs unpaid KSTAR POs typed at 2,626 (MP9101S-RT +12.8%).
   Landed-basis rises: 26.
+- **Same day, owner: "check which KSTAR POs are missing import costs" → none
+  are.** KSTAR ships CIF Jakarta, duty ~0 (ACFTA); its bills carry local
+  delivery + tiny duty + bank fees only (+0.31…0.69%); VAT/PPh are
+  creditable. The receipts sit at PO price × PO rate, but the landed true-up
+  (30.0 `revaluation`, 2026-09-12/13) added the rest. What WAS wrong was this
+  module's markup: learned from receipts (ignoring true-ups) and divided by an
+  FX estimate (rupiah payments without a rate → EB.41875's "paid rate" read
+  2,502, really ~2,669; PIO-008's ~Rp 399m extra balance payments made LR51100
+  look +6.5% when its add-ons were +0.75%). **The markup is now read from the
+  bills:** fully paid, Fully Received PO → `1 + ADDON_CATS ÷ principal IDR`
+  (freight, duty, local delivery, DHL, bank fees; no VAT/PPh/penalty; no FX).
+  `IMPORT_UPLIFT_MIN` removed; band [1, 2]. Measured: KSTAR 0.38–0.39%, Ningbo
+  1.47%, Mibet 1.08%, EPSIVO 3.9–4.5% (FOB), EPEVER 0.75% (CIF PIO-008) /
+  7–10% (PIO-001/003/2025006), locals ~0%. LR51100 next ≈ Rp 9,837,474
+  (+3.8%; net now Rp 12m → GP 21.0 → 18.0%). 25 landed-basis rises.
+- **Owner: "why this item still has Quote?" (EPEVER LR25205A).** Never bought
+  — no PO, no receipt; the only price is EPEVER's WhatsApp quote 2026-04-29
+  (USD 548 × 18,200 = Rp 9,973,600), so the basis is QUOTE. The ▲ "QUOTE +7%"
+  was the SAME quote with EPEVER's markup — not a rise. Fix: the page's
+  `basisOf` now multiplies a `quote` basis by the incoming markup
+  (`ResolvedCost.importPct`, shown in the cell hover and the Prices tab badge);
+  ▲ stays for a dearer document. LR25205A basis → Rp 10,673,882, no ▲.
+- **Real KSTAR gap found on the way (NOT fixed — production data):** EB.42278,
+  EB.42277, PIO-2026011, PIO-2026013 (Aug 2026, ≈ Rp 4.36bn principal paid)
+  are status "Fully Received" with NO receipt in the stock ledger — their goods
+  never entered ICAPROC stock, so on-hand and landed cost miss them. Ask the
+  owner before receiving them (GRN on /stock).
 - Measured on production 2026-10-27: 296 active items have something
   incoming; 17 landed-basis items rise (LR51100 +8.4%; NINGBO LE WS3-6510
   +9.5%; KMI cables 12–15% from the Anugrah 2026-10-12 nota; KSTAR GP806S

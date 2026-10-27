@@ -303,16 +303,13 @@ function PricingPage() {
   const tucMap = useMemo(() => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts),
     [catalog.pos, catalog.poItems, catalog.poCosts]);
 
-  const basisOf = useCallback((cid: string): ResolvedCost => {
+  const rawBasisOf = useCallback((cid: string): ResolvedCost => {
     const ledger = Number(bals.get(cid)?.avg_cost_idr) || 0;
     // Skip the fallback entirely when the ledger already answers — it wins
     // outright, and getComponentCost walks history we would then discard.
     if (ledger > 0) return resolveCost(ledger, null);
     return resolveCost(null, getComponentCost(cid, tucMap, catalog.quotes, catalog.quoteItems, [], undefined, fx));
   }, [bals, tucMap, catalog.quotes, catalog.quoteItems, fx]);
-
-  /** The number alone, for the arithmetic that does not care where it came from. */
-  const costOf = useCallback((cid: string): number | null => basisOf(cid).cost, [basisOf]);
 
   /**
    * THE NEXT UNIT'S COST (owner, 2026-10-27 — EPEVER LR51100: the reorder PO
@@ -323,6 +320,25 @@ function PricingPage() {
   const incomingByComp = useMemo(() => incomingCosts(
     { pos: catalog.pos, poItems: catalog.poItems, quotes: catalog.quotes, quoteItems: catalog.quoteItems, receipts, poCosts: catalog.poCosts }, fx),
   [catalog.pos, catalog.poItems, catalog.quotes, catalog.quoteItems, catalog.poCosts, receipts, fx]);
+
+  /**
+   * A QUOTE BASIS CARRIES ITS IMPORT COSTS (owner, 2026-10-27, on EPEVER
+   * LR25205A: "why this item still has Quote?"). An item never bought is
+   * costed off a supplier quote, which is FOB — so the ▲ used to fire against
+   * the SAME quote with the supplier's import markup added, reading as a price
+   * rise that was not one. The markup now goes into the basis itself; the
+   * QUOTE tag stays (nothing has landed), and ▲ is left for a document that
+   * really is dearer.
+   */
+  const basisOf = useCallback((cid: string): ResolvedCost => {
+    const b = rawBasisOf(cid);
+    const u = incomingByComp.get(cid)?.uplift;
+    if (b.basis !== 'quote' || b.cost == null || !u || u <= 1) return b;
+    return { ...b, cost: Math.round(b.cost * u), importPct: (u - 1) * 100 };
+  }, [rawBasisOf, incomingByComp]);
+
+  /** The number alone, for the arithmetic that does not care where it came from. */
+  const costOf = useCallback((cid: string): number | null => basisOf(cid).cost, [basisOf]);
   const riseOf = useCallback((cid: string): CostRise | null => costRise(basisOf(cid).cost, incomingByComp.get(cid)),
     [basisOf, incomingByComp]);
   const incomingOf = useCallback((cid: string) => incomingByComp.get(cid) ?? null, [incomingByComp]);
@@ -344,7 +360,7 @@ function PricingPage() {
   const paidOf = useCallback((cid: string) => (tucMap.get(cid)?.entries ?? [])
     .map((e) => ({ label: /^PO [0-9a-f-]{20,}$/i.test(e.label) ? '' : e.label, date: e.date, unitCost: e.unitCost })), [tucMap]);
   const receivedOf = useCallback((cid: string) => receivedByComp.get(cid) ?? [], [receivedByComp]);
-  const basisCost = useCallback((cid: string) => { const b = basisOf(cid); return { cost: b.cost, provisional: b.provisional }; }, [basisOf]);
+  const basisCost = useCallback((cid: string) => { const b = basisOf(cid); return { cost: b.cost, provisional: b.provisional, importPct: b.importPct }; }, [basisOf]);
   const stockCostOf = useCallback((cid: string): number | null => Number(bals.get(cid)?.avg_cost_idr) || null, [bals]);
   const leadByComp = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1006,7 +1022,8 @@ function SetPricingTab({
                       "cleared" here gets breached the day the goods land. The
                       expected case (landed) carries no badge: a tag on every
                       row is a tag nobody reads. */}
-                  <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap" title={BASIS_NOTE[r.basis.basis]}>
+                  <td className="px-3 py-1.5 text-right tabular-nums whitespace-nowrap"
+                    title={r.basis.importPct != null ? `${BASIS_NOTE[r.basis.basis]}\n${tf('Includes +{pct}% estimated import costs.', { pct: r.basis.importPct.toFixed(1) })}` : BASIS_NOTE[r.basis.basis]}>
                     {r.basis.cost == null ? <span className="text-slate-600">—</span> : (
                       <span className={r.rise ? 'text-slate-500' : r.basis.provisional ? 'text-amber-300/90' : 'text-slate-400'}>
                         <span className={r.rise ? 'line-through decoration-slate-600' : ''}>{fmtMoneyCell(r.basis.cost)}</span>
