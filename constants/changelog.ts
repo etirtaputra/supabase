@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T05:56:00Z",
+    title: "Pindah dari Dolibarr ke ICAPROC: survei dan rencana (belum ada data yang dipindah)",
+    details: [
+      "Persiapan pindah dari Dolibarr dimulai. Tahap ini hanya membaca dan menghitung: tidak ada data di ICAPROC yang berubah, dan Dolibarr tidak pernah ditulis.",
+      "Rencananya bertahap: data induk (barang, pelanggan, pemasok, pengguna) → pekerjaan yang masih berjalan → riwayat per bulan → pindah per tim. Setiap tahap dicoba dulu, diperiksa, baru dimasukkan, lalu jumlah dan totalnya dicocokkan dengan Dolibarr.",
+      "Pelanggan dan barang yang sudah ada di ICAPROC akan dicocokkan, tidak dibuat dua kali.",
+    ],
+  },
+  {
     at: "2026-10-24T00:50:32Z",
     title: "Deal Lookup: dikelompokkan per pemasok",
     details: [

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *§6 is now the Dolibarr → ICAPROC transition (Shop parked as §6b)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *Dolibarr transition: survey script + batch plan (no import yet; Dolibarr blocks this sandbox, 403)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,27 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-24 (latest) — Deal Lookup sectioned by vendor
+### 2026-10-27 (latest) — Dolibarr transition: survey script and batch plan (NO import)
+
+- **Dolibarr refuses this sandbox**: 403 on every path (`/`, `/robots.txt`,
+  `/api/…`), key or no key. The page is the server's own Apache 403 through
+  Cloudflare, so it is a location/IP filter on the server, not the key. MIRA's
+  VPS is in **Jakarta** (Hostinger data centre `dci`, read via the Hostinger
+  API) and reaches it. Vercel (US East by default) is expected to fail the same way.
+- `scripts/dolibarr-survey.py`: read-only survey (GET only, stdlib Python so
+  it runs on the VPS) → `survey.json` (counts, open/closed, per month, money,
+  bank, users + rights) and `keys.json` (matching keys, open documents).
+  Guarded by `lib/dolibarrSurvey.test.ts`. Tested against a fake Dolibarr (29 GETs,
+  zero other verbs, key absent from output).
+- Uploaded to the shared drive `20-RUNBOOKS/dolibarr-survey_v1_2026-10-27.py`
+  for MIRA to run; results to `90-OUTPUT/`.
+- ICAPROC side surveyed: 485 of 490 customers were bulk-loaded 2026-08-01
+  with no `external_ref` (= match by name, backfill ids, never re-create);
+  1,060 items all with a unique `supplier_model`; purchasing already lives in
+  ICAPROC; 10 mirrored sales docs with `Dolibarr`/`dolibarr` spelling.
+- The plan: **`docs/DOLIBARR_TRANSITION.md`**. Awaiting the owner's go-ahead.
+
+### 2026-10-24 — Deal Lookup sectioned by vendor
 
 Owner: "arranged by sections from the different Vendors, the organization is
 like sections in EPC proposal … arrange the PO within that vendors by date.
@@ -4483,6 +4503,18 @@ Owner, 2026-10-27: *"our next big task is to transition Dolibarr usage to
 ICAPROC. But for that we need to transition the data and users, and we need to
 do it in batches so it doesn't interrupt the transition and make it as seamless
 as possible."*
+
+**Status 2026-10-27 — survey + plan done, waiting on the owner. Read
+`docs/DOLIBARR_TRANSITION.md` first: it has the access finding, what ICAPROC
+already holds, the mapping and gaps, the batches and the owner's open decisions.**
+- Dolibarr answers this sandbox 403 on EVERY path (server-side location/IP
+  filter; the key is fine). The survey runs from MIRA's Jakarta VPS:
+  `20-RUNBOOKS/dolibarr-survey_v1_2026-10-27.py` → results in `90-OUTPUT/`
+  (read them with the Google Drive MCP). For the import pipeline, the owner
+  is asked to let `/api/` through and to make a READ-ONLY Dolibarr user
+  `icaproc-sync` whose key replaces his own.
+- Next thread: read the survey files, produce the matching report (batch 0,
+  no writes), then build the gaps in DOLIBARR_TRANSITION §4 once approved.
 
 **Access (set up by the owner on 2026-10-27):**
 - Dolibarr: `https://erp.indodaya.co.id/api/index.php` (REST, header `DOLAPIKEY`).
