@@ -9,24 +9,28 @@ work from. Update the status line and §5 as batches land.
 
 ## 1. Access: what reaches Dolibarr, and what does not
 
-| From | Result (2026-10-27) |
+**Corrected 2026-10-27 (MIRA's run):** the API is at
+**`https://erp.indodaya.co.id/dolibarr/api/index.php`** (Dolibarr 16.0.1). The
+web ROOT answers Apache 403 to everyone, which is what the first survey hit
+and wrongly read as "this sandbox is blocked by location". There is no
+location filter.
+
+| From | Result |
 |---|---|
-| This Claude sandbox (egress via a US data centre, Cloudflare ray `IAD`) | **403 on every path**, even `/` and `/robots.txt`, with or without the key. The 403 page is the Dolibarr server's own Apache page (`Apache/2.4.51 (Win64) PHP/7.3.33`) passed through Cloudflare, so the server filters by caller location/IP before Dolibarr runs. The key is not the problem. |
-| MIRA's VPS — Hostinger `srv1938892`, data centre **Jakarta** (`31.97.221.88`) | Works; MIRA has read Dolibarr by API key since September. |
-| Vercel production functions | Untested. Vercel's default region is US East, the same as this sandbox, so expect the same 403. |
+| This Claude sandbox, `/dolibarr/api/…` | Reaches Dolibarr: **401 Unauthorized** with the environment's `DOLIBARR_API_KEY` (32 chars, clean, rejected as header and as query param). The key in this environment is not one Dolibarr accepts: owner to check it (regenerated? another user? user disabled?). |
+| MIRA (Jakarta VPS), her own key | **200**, reads products, third parties, contacts, proposals, orders. |
+| Long reads, both places | The server **resets long responses** part-way (MIRA: once during orders, once during invoices). Survey v2 retries and reads small pages. |
+| Vercel production | Untested. Check that `DOLIBARR_URL` includes `/dolibarr`. |
 
-Two ways forward, which can run together:
+Ways forward:
 
-- **A. Survey now from Jakarta.** MIRA runs `scripts/dolibarr-survey.py` on
-  the VPS and drops the two JSON files into `ICAPROC AI AGENTS/90-OUTPUT/`;
-  the next thread reads them from Drive. No change to the Dolibarr server.
-- **B. Let ICAPROC reach the API itself (needed for the import pipeline).**
-  Whoever runs the Dolibarr server lets `/api/` through for any caller (the key
-  still guards it), **and** the owner creates a dedicated Dolibarr user
-  `icaproc-sync` with READ rights only, whose key replaces the owner's own in
-  Vercel (`DOLIBARR_API_KEY`) and in this environment. A read-only user means
-  the guard is in Dolibarr itself as well as in our code. B is what makes a
-  batch a button in ICAPROC rather than files carried around by hand, and
+- **A. Survey from MIRA now** with v2 (`20-RUNBOOKS/dolibarr-survey_v2_2026-10-27.py`),
+  files to `90-OUTPUT/`.
+- **B. ICAPROC reads Dolibarr itself (needed for the import pipeline).** With
+  no location filter, all it takes is a working key. The owner creates a
+  dedicated Dolibarr user `icaproc-sync` with READ rights only, and its key
+  replaces his own in Vercel and in this environment. The guard then sits in
+  Dolibarr as well as in our code. B makes a batch a button in ICAPROC, and
   makes the "changed since last batch" sync automatic.
 
 ## 2. The survey tool
@@ -37,6 +41,12 @@ here, or a laptop):
 ```
 DOLIBARR_API_KEY=… python3 scripts/dolibarr-survey.py --out dolibarr-survey-2026-10-27
 ```
+
+v2 (2026-10-27): defaults to the `/dolibarr` base; pages of 25 (`--page N`);
+a dropped connection, short read or cut-off JSON is retried 5 times (2–32 s);
+both files are rewritten after every section with `"complete": false` until
+the end, so a failed run keeps what it read. Tested against a fake server
+that cut 35% of responses half-way: 21 drops, all recovered, same counts.
 
 - `survey.json`: per module: count, open vs closed, status breakdown, date
   range, documents per month, money per status, unpaid totals, lines; stock
@@ -112,7 +122,7 @@ After each batch, a **"changed since last batch" sync** keeps it current
 
 ## 6. Decisions for the owner
 
-1. Survey route A (MIRA, today) and/or B (open `/api/`, read-only Dolibarr user).
+1. Survey route A (MIRA, v2) and B (a read-only Dolibarr user `icaproc-sync`; fix the key in this environment and Vercel).
 2. Stock opening balance: count, or Dolibarr's levels.
 3. How far back history goes (all years, or from a given year).
 4. Prices: ICAPROC stays the authority (Dolibarr only fills blanks)?

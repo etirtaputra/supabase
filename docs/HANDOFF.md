@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *Dolibarr transition: survey script + batch plan (no import yet; Dolibarr blocks this sandbox, 403)*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *Dolibarr survey v2 (retries, small pages, saves per section); API is under `/dolibarr`, the 403 was the web root, not a block*; last module change: *Deal Lookup sectioned by vendor* (2026-10-24) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,9 +138,21 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-27 (latest) — Dolibarr transition: survey script and batch plan (NO import)
+### 2026-10-27 (latest) — Dolibarr survey v2; the "block" was a wrong address
 
-- **Dolibarr refuses this sandbox**: 403 on every path (`/`, `/robots.txt`,
+- **Correction:** Dolibarr's API is at `https://erp.indodaya.co.id/dolibarr/api/index.php`
+  (16.0.1). The web root answers 403 to everyone; the entry below misread that
+  as a location block. From this sandbox the real path answers **401**: the
+  environment's `DOLIBARR_API_KEY` is rejected (owner to check). MIRA's key works.
+- MIRA's run died twice on "Connection reset by peer" mid-response (orders,
+  then invoices) and lost everything, because files were written only at the end.
+  **v2**: pages of 25, retries (5×, 2–32 s) on resets/short reads/cut-off
+  JSON/429/5xx, saves both files after every section (`complete: false` until done),
+  default base `/dolibarr`. Drive: v2 in `20-RUNBOOKS`, v1 trashed.
+
+### 2026-10-27 — Dolibarr transition: survey script and batch plan (NO import)
+
+- ~~**Dolibarr refuses this sandbox**~~ **WRONG, see the entry above: the API is under `/dolibarr`.** 403 on every path (`/`, `/robots.txt`,
   `/api/…`), key or no key. The page is the server's own Apache 403 through
   Cloudflare, so it is a location/IP filter on the server, not the key. MIRA's
   VPS is in **Jakarta** (Hostinger data centre `dci`, read via the Hostinger
@@ -4507,17 +4519,17 @@ as possible."*
 **Status 2026-10-27 — survey + plan done, waiting on the owner. Read
 `docs/DOLIBARR_TRANSITION.md` first: it has the access finding, what ICAPROC
 already holds, the mapping and gaps, the batches and the owner's open decisions.**
-- Dolibarr answers this sandbox 403 on EVERY path (server-side location/IP
-  filter; the key is fine). The survey runs from MIRA's Jakarta VPS:
-  `20-RUNBOOKS/dolibarr-survey_v1_2026-10-27.py` → results in `90-OUTPUT/`
-  (read them with the Google Drive MCP). For the import pipeline, the owner
-  is asked to let `/api/` through and to make a READ-ONLY Dolibarr user
-  `icaproc-sync` whose key replaces his own.
+- The API is at `https://erp.indodaya.co.id/dolibarr/api/index.php` (the root
+  is 403 for everyone; NOT a location block). From here it answers 401: the
+  key in this environment is rejected. MIRA runs
+  `20-RUNBOOKS/dolibarr-survey_v2_2026-10-27.py` → `90-OUTPUT/` (read with the
+  Google Drive MCP). For the import pipeline: a READ-ONLY Dolibarr user
+  `icaproc-sync` whose key goes into Vercel and this environment.
 - Next thread: read the survey files, produce the matching report (batch 0,
   no writes), then build the gaps in DOLIBARR_TRANSITION §4 once approved.
 
 **Access (set up by the owner on 2026-10-27):**
-- Dolibarr: `https://erp.indodaya.co.id/api/index.php` (REST, header `DOLAPIKEY`).
+- Dolibarr: `https://erp.indodaya.co.id/dolibarr/api/index.php` (REST, header `DOLAPIKEY`; the bare `/api/index.php` is 403).
 - Vercel Production env: `DOLIBARR_URL`, `DOLIBARR_API_KEY` (key of Dolibarr
   user "Eric" — likely full rights: **only ever READ Dolibarr**, never write).
 - Claude cloud environment: `erp.indodaya.co.id` allowed, secret

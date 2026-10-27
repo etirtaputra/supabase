@@ -2,7 +2,10 @@
 """
 Dolibarr survey: READ-ONLY. Counts what is in Dolibarr before the move to ICAPROC.
 
-    DOLIBARR_API_KEY=... python3 scripts/dolibarr-survey.py [--out DIR] [--url URL]
+    DOLIBARR_API_KEY=... python3 scripts/dolibarr-survey.py [--out DIR] [--url URL] [--page N]
+
+The Indodaya API lives under /dolibarr (https://erp.indodaya.co.id/dolibarr/api/
+index.php); the web root itself answers 403. That is the default.
 
 Writes two files into DIR (default ./dolibarr-survey-YYYY-MM-DD):
 
@@ -12,6 +15,9 @@ Writes two files into DIR (default ./dolibarr-survey-YYYY-MM-DD):
   keys.json     what the import needs to MATCH rather than duplicate: product
                 refs, third-party names and codes, and the open documents
                 (ref, customer id, date, total, status).
+
+Both files are rewritten after every section, so a run that dies half-way
+still leaves everything read so far (`"complete": false` says it is partial).
 
 Standard library only, so it runs anywhere python3 does: the sandbox, the
 Jakarta VPS (MIRA: /opt/hermes/.venv/bin/python3), a laptop.
@@ -34,8 +40,9 @@ import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 
-PAGE = 100          # Dolibarr's default page size; some installs cap it here
+PAGE = 25           # small pages: the server resets long responses (orders carry their lines)
 PAUSE = 0.05        # be gentle with a production server
+RETRIES = 5         # a dropped connection is retried, waiting 2, 4, 8, 16, 32 s
 
 # ── Status words (Dolibarr's numeric codes) ──────────────────────────────────
 PROPOSAL = {-1: 'cancelled', 0: 'draft', 1: 'open', 2: 'signed', 3: 'not signed', 4: 'billed'}
@@ -85,15 +92,19 @@ OTHERS = [
 
 
 class Dolibarr:
-    def __init__(self, base, key):
+    def __init__(self, base, key, page=PAGE):
         self.base = base.rstrip('/')
         self.key = key
+        self.page = page
         self.calls = 0
+        self.retries = 0
 
     def get(self, path, params=None):
         """The ONLY function that talks to Dolibarr. GET, always.
 
-        Returns (status, data). data is parsed JSON, or the error text."""
+        Returns (status, data). data is parsed JSON, or the error text.
+        A connection the server drops part-way (reset, short read, cut-off
+        JSON) is retried RETRIES times; a GET is safe to repeat."""
         url = f'{self.base}/{path.lstrip("/")}'
         if params:
             url += '?' + urllib.parse.urlencode(params)
@@ -102,21 +113,34 @@ class Dolibarr:
             'Accept': 'application/json',
             'User-Agent': 'icaproc-dolibarr-survey/1 (read-only)',
         })
-        self.calls += 1
-        time.sleep(PAUSE)
-        try:
-            with urllib.request.urlopen(req, timeout=60) as r:
-                body = r.read().decode('utf-8', 'replace')
-                return r.status, (json.loads(body) if body.strip() else None)
-        except urllib.error.HTTPError as e:
-            text = e.read().decode('utf-8', 'replace')[:300]
+        for attempt in range(RETRIES + 1):
+            self.calls += 1
+            time.sleep(PAUSE)
             try:
-                text = json.loads(text)
-            except ValueError:
-                pass
-            return e.code, text
-        except (urllib.error.URLError, TimeoutError) as e:
-            return 0, str(getattr(e, 'reason', e))
+                with urllib.request.urlopen(req, timeout=120) as r:
+                    body = r.read().decode('utf-8', 'replace')
+                    return r.status, (json.loads(body) if body.strip() else None)
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 502, 503, 504) and attempt < RETRIES:
+                    self._wait(attempt, f'HTTP {e.code}', path)
+                    continue
+                text = e.read().decode('utf-8', 'replace')[:300]
+                try:
+                    text = json.loads(text)
+                except ValueError:
+                    pass
+                return e.code, text
+            except Exception as e:  # reset, short read, timeout, cut-off JSON
+                if attempt < RETRIES:
+                    self._wait(attempt, type(e).__name__, path)
+                    continue
+                return 0, f'{type(e).__name__}: {getattr(e, "reason", e)}'
+
+    def _wait(self, attempt, why, path):
+        self.retries += 1
+        delay = 2 ** (attempt + 1)
+        print(f'    {why} on {path}; retrying in {delay}s ({attempt + 1}/{RETRIES})', flush=True)
+        time.sleep(delay)
 
     def list_all(self, endpoint, extra=None):
         """Every row of a list endpoint. Returns (rows, note).
@@ -127,12 +151,12 @@ class Dolibarr:
         is off."""
         rows, page = [], 0
         while True:
-            params = {'limit': PAGE, 'page': page, 'sortfield': 't.rowid', 'sortorder': 'ASC'}
+            params = {'limit': self.page, 'page': page, 'sortfield': 't.rowid', 'sortorder': 'ASC'}
             params.update(extra or {})
             status, data = self.get(endpoint, params)
             if status == 200 and isinstance(data, list):
                 rows.extend(data)
-                if len(data) < PAGE:
+                if len(data) < self.page:
                     return rows, 'ok'
                 page += 1
                 continue
@@ -145,6 +169,8 @@ class Dolibarr:
                 return rows, f'forbidden for this key ({status})'
             if status == 501:
                 return rows, 'module off (501)'
+            if status == 0:
+                return rows, f'stopped after {len(rows)} rows: {str(data)[:120]}'
             return rows, f'error {status}: {str(data)[:120]}'
 
 
@@ -390,7 +416,7 @@ def _flatten(perms, prefix=''):
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def api_base(url):
-    url = (url or 'https://erp.indodaya.co.id').rstrip('/')
+    url = (url or 'https://erp.indodaya.co.id/dolibarr').rstrip('/')
     return url if url.endswith('/api/index.php') else url + '/api/index.php'
 
 
@@ -398,13 +424,14 @@ def main(argv=None):
     p = argparse.ArgumentParser(description='Read-only survey of a Dolibarr instance.')
     p.add_argument('--url', default=os.environ.get('DOLIBARR_URL'), help='Dolibarr URL (default $DOLIBARR_URL)')
     p.add_argument('--out', default=f'dolibarr-survey-{dt.date.today().isoformat()}')
+    p.add_argument('--page', type=int, default=PAGE, help=f'rows per request (default {PAGE})')
     a = p.parse_args(argv)
 
     key = os.environ.get('DOLIBARR_API_KEY', '')
     if not key:
         print('DOLIBARR_API_KEY is not set.', file=sys.stderr)
         return 2
-    api = Dolibarr(api_base(a.url), key)
+    api = Dolibarr(api_base(a.url), key, max(1, a.page))
 
     status, info = api.get('status')
     if status != 200:
@@ -414,34 +441,57 @@ def main(argv=None):
     print(f'Connected: Dolibarr {version or "?"}')
 
     survey = {'generated_at': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'),
-              'dolibarr': {'base': api.base, 'version': version}}
+              'dolibarr': {'base': api.base, 'version': version}, 'complete': False}
     keys = {}
+    os.makedirs(a.out, exist_ok=True)
+
+    def save():
+        survey['api_calls'], survey['retries'] = api.calls, api.retries
+        for name, obj in (('survey.json', survey), ('keys.json', keys)):
+            tmp = os.path.join(a.out, name + '.tmp')
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(obj, f, ensure_ascii=False, indent=1)
+            os.replace(tmp, os.path.join(a.out, name))
 
     status, mods = api.get('setup/modules')
     survey['modules_enabled'] = sorted(mods) if status == 200 and isinstance(mods, list) else f'not readable ({status})'
 
-    survey['products'], keys['products'] = survey_products(api)
-    survey['thirdparties'], keys['thirdparties'] = survey_thirdparties(api)
-    survey['contacts'] = survey_contacts(api)
+    save()
+
+    def step(label, fn):
+        print(f'  reading {label} …', flush=True)
+        fn()
+        save()
+
+    def products():
+        survey['products'], keys['products'] = survey_products(api)
+
+    def thirdparties():
+        survey['thirdparties'], keys['thirdparties'] = survey_thirdparties(api)
+
+    def contacts():
+        survey['contacts'] = survey_contacts(api)
+
+    step('products', products)
+    step('thirdparties', thirdparties)
+    step('contacts', contacts)
     keys['open_documents'] = {}
     for name, endpoint, names, dates, money in DOCUMENTS:
-        print(f'  reading {name} …', flush=True)
-        survey[name], keys['open_documents'][name] = survey_documents(api, name, endpoint, names, dates, money)
-    survey['stock'] = survey_stock(api)
-    survey['bank'] = survey_bank(api)
-    survey['users'] = survey_users(api)
+        def doc(name=name, endpoint=endpoint, names=names, dates=dates, money=money):
+            survey[name], keys['open_documents'][name] = survey_documents(api, name, endpoint, names, dates, money)
+        step(name, doc)
+    step('stock', lambda: survey.__setitem__('stock', survey_stock(api)))
+    step('bank', lambda: survey.__setitem__('bank', survey_bank(api)))
+    step('users', lambda: survey.__setitem__('users', survey_users(api)))
     survey['other_modules'] = {}
     for name, endpoint, dates in OTHERS:
-        rows, note = api.list_all(endpoint)
-        survey['other_modules'][name] = {'note': note, 'count': len(rows),
-                                         'dates': span([when(r, dates) for r in rows]) if dates else None}
-    survey['api_calls'] = api.calls
-
-    os.makedirs(a.out, exist_ok=True)
-    with open(os.path.join(a.out, 'survey.json'), 'w', encoding='utf-8') as f:
-        json.dump(survey, f, ensure_ascii=False, indent=1)
-    with open(os.path.join(a.out, 'keys.json'), 'w', encoding='utf-8') as f:
-        json.dump(keys, f, ensure_ascii=False, indent=1)
+        def other(name=name, endpoint=endpoint, dates=dates):
+            rows, note = api.list_all(endpoint)
+            survey['other_modules'][name] = {'note': note, 'count': len(rows),
+                                             'dates': span([when(r, dates) for r in rows]) if dates else None}
+        step(name, other)
+    survey['complete'] = True
+    save()
 
     print(f'\n{"what":<20}{"count":>8}{"open":>8}  dates')
     for name in ['products', 'thirdparties', 'contacts'] + [d[0] for d in DOCUMENTS]:
@@ -452,7 +502,7 @@ def main(argv=None):
     print(f'{"stock movements":<20}{survey["stock"]["movements"]["count"]:>8}')
     print(f'{"bank accounts":<20}{survey["bank"]["count"]:>8}')
     print(f'{"users":<20}{survey["users"]["count"]:>8}')
-    print(f'\n{api.calls} GET requests, nothing written to Dolibarr. Files in {a.out}/')
+    print(f'\n{api.calls} GET requests ({api.retries} retried), nothing written to Dolibarr. Files in {a.out}/')
     return 0
 
 

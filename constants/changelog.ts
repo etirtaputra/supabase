@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-27T07:44:00Z",
+    title: "Survei Dolibarr: versi 2, tahan koneksi terputus",
+    details: [
+      "Server Dolibarr memutus jawaban yang panjang di tengah jalan. Alat survei kini membaca per halaman kecil, mencoba lagi bila koneksi terputus, dan menyimpan hasil setiap bagian, sehingga tidak ada yang hilang bila berhenti di tengah.",
+      "Tetap hanya membaca: tidak ada yang ditulis ke Dolibarr maupun ke data ICAPROC.",
+    ],
+  },
+  {
     at: "2026-10-27T05:56:00Z",
     title: "Pindah dari Dolibarr ke ICAPROC: survei dan rencana (belum ada data yang dipindah)",
     details: [
