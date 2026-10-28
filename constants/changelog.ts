@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-28T05:40:00Z",
+    title: "Catatan internal: perintah untuk agen AI selalu dalam blok kode",
+    details: [
+      "Saat pesan diteruskan lewat ponsel ke Telegram, dua tanda hubung (--) bisa berubah menjadi tanda pisah panjang (—) dan perintahnya ditolak. Mulai sekarang setiap perintah untuk MIRA/MANDA ditulis dalam blok kode.",
+    ],
+  },
+  {
     at: "2026-10-28T00:01:00Z",
     title: "Alat survei Dolibarr versi 3 kini juga ada di drive bersama",
     details: [

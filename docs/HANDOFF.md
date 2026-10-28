@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *survey v3 replaces v2 on the shared drive (20-RUNBOOKS)*; before that: *Dolibarr batch 0 — new key works (`09259a68`), full read-only survey done, matching report (lib/dolibarrMatch.ts) and the owner's workbook; survey v3 (bank-lines loop fixed, `--resume`)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; before that: *survey v3 replaces v2 on the shared drive*; then: *Dolibarr batch 0 — new key works (`09259a68`), full read-only survey done, matching report (lib/dolibarrMatch.ts) and the owner's workbook; survey v3 (bank-lines loop fixed, `--resume`)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5019,6 +5019,13 @@ The owner talks to the agents in Telegram on his phone. **You cannot reach
 Telegram** — anything for an agent is written as a paste-ready message (the
 briefing artifact, §8.3) and the owner relays it; the agents' replies come back
 the same way, pasted into the chat.
+
+**Commands in a paste-ready message go in a code block, one per line.** On the
+way through chat → phone → Telegram, a double hyphen in running text can turn
+into a long dash (`--url` → `—url`), and the script refuses it; MIRA caught
+this on 2026-10-28. Code blocks survive the trip unchanged. (Same day: MIRA's
+`DOLIBARR_URL` exists once, ends in `/dolibarr`; her
+`references/dolibarr-survey.md` names survey v3 and says to always pass `--url`.)
 
 ### 8.1 What runs where
 
