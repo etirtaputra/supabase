@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-28T00:01:00Z",
+    title: "Alat survei Dolibarr versi 3 kini juga ada di drive bersama",
+    details: [
+      "Versi lama (v2) di folder 20-RUNBOOKS bisa berputar tanpa henti saat membaca mutasi bank; sudah diganti dengan versi 3 yang sama persis dengan yang dipakai ICAPROC, dan versi lama dibuang ke tempat sampah.",
+    ],
+  },
+  {
     at: "2026-10-27T12:10:00Z",
     title: "Pindah dari Dolibarr, tahap 0: survei selesai dan laporan pencocokan",
     details: [

@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *Dolibarr batch 0 — new key works (`09259a68`), full read-only survey done, matching report (lib/dolibarrMatch.ts) and the owner's workbook; survey v3 (bank-lines loop fixed, `--resume`)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-27** · last change: *survey v3 replaces v2 on the shared drive (20-RUNBOOKS)*; before that: *Dolibarr batch 0 — new key works (`09259a68`), full read-only survey done, matching report (lib/dolibarrMatch.ts) and the owner's workbook; survey v3 (bank-lines loop fixed, `--resume`)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -151,8 +151,9 @@ page, and it is how the team learns anything changed.)
   stops on a page with nothing new; `--resume` keeps saved sections; shipment
   status −1 = cancelled. 2 guards added to `lib/dolibarrSurvey.test.ts`;
   checked against a fake paging-blind endpoint (2 calls, all rows).
-  **Drive still has v2** — the upload was refused by the sandbox permission
-  check (owner to OK).
+  Drive: owner OK'd it — `20-RUNBOOKS/dolibarr-survey_v3_2026-10-27.py`
+  uploaded (sha256 `53ae2134…`, same as the repo, checked by download), v2
+  trashed.
 - **Batch 0:** `lib/dolibarrMatch.ts` (17 tests; pure, no I/O) +
   `scripts/dolibarr-match.ts` (`node scripts/dolibarr-match.ts --survey …
   --icaproc … --out …`). Customers 475 already / 21 possible / 87 new;
@@ -4671,8 +4672,8 @@ Dolibarr holds), §2c (the matching), §6 (open decisions) first.**
   16.0.1). The web root is 403 for everyone — an early "location block" note
   was WRONG. This sandbox reaches the server fine.
 - The survey now runs from THIS sandbox (key `09259a68`); MIRA's route is no
-  longer needed. If she ever runs v2 from the drive it will loop on bank
-  lines — v3 is in the repo.
+  longer needed. The drive copy is v3 (v2, which looped on bank lines, is
+  trashed).
 - MIRA route (old alternative): she has the v2 paste-ready message (in the
   2026-10-27 thread, also reconstructable from `20-RUNBOOKS/dolibarr-survey_v2_2026-10-27.py`
   + `--url https://erp.indodaya.co.id/dolibarr`); results would land in

@@ -92,10 +92,9 @@ stay in the session scratchpad — never in git.
 Bug found and fixed on the way: `bankaccounts/{id}/lines` ignores
 `limit`/`page`, so the v2 pager re-read the same list for 20 minutes (2.6 GB)
 until killed. v3 stops when a page brings nothing new, and `--resume` keeps
-the sections already saved. **The shared drive still holds v2** — the v3
-upload was refused by the sandbox's permission check; owner to OK it (or
-upload `scripts/dolibarr-survey.py` as `20-RUNBOOKS/dolibarr-survey_v3_2026-10-27.py`
-and trash v2).
+the sections already saved. On the shared drive (owner's OK, same evening):
+`20-RUNBOOKS/dolibarr-survey_v3_2026-10-27.py`, byte-identical to the repo
+(sha256 checked after download); v2 trashed.
 
 ## 2c. Batch 0 — the matching report (2026-10-27)
 
