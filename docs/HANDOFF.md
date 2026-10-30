@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-27** · last change: *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; before that: *survey v3 replaces v2 on the shared drive*; then: *Dolibarr batch 0 — new key works (`09259a68`), full read-only survey done, matching report (lib/dolibarrMatch.ts) and the owner's workbook; survey v3 (bank-lines loop fixed, `--resume`)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-30** · last change: *agents track — purchasing sync runbook v8 §11.5 + `drive_order_folder` script: one folder per order, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5762,7 +5762,35 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    `/opt/data/.hermes/supabase_token.json` is deleted and his
    icaproc-supabase skill now says token in memory only. Owner to confirm
    the password was rotated before it went into `.env`. Still open:
-   `TELEGRAM_ALLOWED_USERS` (step 6), exam D1 re-run. The
+   `TELEGRAM_ALLOWED_USERS` (step 6), exam D1 re-run. **30 Oct — Drive
+   duplicate check (commit b251814):** EPSIVO PIO-016-ISL-09-2026 had two
+   folders for five weeks (MIRA filed into her `20260918 Epsivo VFD Price
+   List…` quote folder while Enrica's PI folder held the documents; merged,
+   kept `1ZdK17RgDC4w8OI-YaKEfitCVN7ojwO7o` under Epsivo Dongguan
+   `1zD95bD52SJkZQG1rB3xbwJtHqGxGjGo0`). `PURCHASING-SYNC-RUNBOOK_v8_2026-10-30`
+   adds §11.5 (one folder per order = the PI folder; folder date = the PI's
+   date; every supplier folder searched by every written form of PI/PO/
+   invoice and every ICAPROC link, the quote's too; md5 BEFORE upload across
+   the supplier's tree; uploads only via the script; "did you upload X" =
+   a link) and the companion script
+   `docs/agents/scripts/drive_order_folder_v1_2026-10-30.py` (find / existing
+   / upload; exit 2 = stop and ask Eric; refuses a second folder, a file
+   already there, an amount in a name, an overwrite; reads back), sha256
+   `d2471609…6c59`, 19 unit tests (`python3 -m unittest
+   docs/agents/scripts/test_drive_order_folder.py`, fake Drive replaying the
+   case). MIRA's own prompt listed `PIO-2026016` as a form of PIO-016 —
+   wrong (§2: another order); the script keeps them apart. Drive: runbook v8
+   `10xXp4m1wL0nnMzzbjk_6qUphWhz5J2b_`, script
+   `1PGK71S8N0rzojdmvbSfIrIzmnotXdYfw` (20-RUNBOOKS), INDEX
+   `1ddhP8SUKodvYzMTyup1naxP7gTdWglu4`; v7 and the 26 Oct INDEX trashed.
+   Briefing "Drive duplicate check · 30 Oct": MIRA part 1 (sha256-checked
+   install + read-only test: find → one folder, existing → match, dry-run
+   upload → exit 2), part 2 (backup outside `skills/`, lossless split of her
+   117,508-char SKILL.md — sha256 of intro + moved sections = old file —
+   plus a §11.5 block and upload_file → script), MANDA one line. Open for
+   the owner: §5-A lets MIRA rename ANY file to the convention (owner rule
+   v5) — she renamed Enrica's 11 files unasked and asks whether that should
+   need a yes; and confirm file 1's PI date (folder now `20260921`). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
