@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-30** · last change: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v8 §11.5 + `drive_order_folder` script: one folder per order, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-30** · last change: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5800,7 +5800,17 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    plus a §11.5 block and upload_file → script), MANDA one line. Open for
    the owner: §5-A lets MIRA rename ANY file to the convention (owner rule
    v5) — she renamed Enrica's 11 files unasked and asks whether that should
-   need a yes; and confirm file 1's PI date (folder now `20260921`). The
+   need a yes; and confirm file 1's PI date (folder now `20260921`).
+   **Answered the same day → runbook v9 (`PURCHASING-SYNC-RUNBOOK_v9_2026-10-30`,
+   Drive `1UWdlbqK4cVYhUh-qOq9VHeekRyisyYqO`; v8 trashed; INDEX
+   `1mz5ED-EDXkKLb1vOQ6kC6I72-2DM38WI`):** owner — *"Just rename any folder
+   to the right naming conventions; this is on purpose, to create
+   alignment"* → renaming a FOLDER moved §5-B → §5-A, any folder or file,
+   whoever made it (the ISL `<nn> <SUPPLIER>` accounting folders keep their
+   own pattern). Folder name (§11.6): `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`,
+   date = the PI's; freight or PO not known yet → left out, added by a
+   rename later. The script needs no change (it matches numbers anywhere in
+   a name). Briefing part 1 now names v9. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA

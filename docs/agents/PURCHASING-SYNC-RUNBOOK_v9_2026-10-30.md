@@ -3,6 +3,13 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v9 (2026-10-30), owner's rules:** *"Just rename any folder to the right
+> naming conventions — this is on purpose, to create alignment."* ·
+> *"Folder naming convention is `YYYYMMDD {PI no.} {PO no}, SEA/AIR
+> (freight), [items]`."* New §11.6, the folder name. Renaming a FOLDER moved
+> from §5-B to §5-A: MIRA renames any order folder, and any file, to the
+> convention, whoever made it, and reports `old → new`.
+>
 > **v8 (2026-10-30), from a real duplicate:** on EPSIVO PIO-016-ISL-09-2026
 > MIRA filed the PO, an invoice and slips into her own price-list folder
 > (`20260918 Epsivo VFD Price List…`) while Enrica's order folder
@@ -83,7 +90,7 @@ write).
 
 | Place | Role | What it holds for one order |
 |---|---|---|
-| **Google Drive** (G) | the EVIDENCE | purchasing shared drive only. ONE folder per order inside one folder per supplier: `YYYYMMDD <PI>, <PO> [items]`, `YYYYMMDD` = the PI's date (`20260921 PI-2026092101, PIO-016-ISL-09-2026 [...]`). A quote's folder never becomes the order folder (§11.5). Files: PI, PO or contract, payment slips, revised PI, shipping documents (CI, PL, BL, Form E), customs (PIB). Names: §11. For PT Indodaya Surya Lestari (ISL) orders only, a second, deliberate set of copies lives in `0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` for accounting (§11.4). |
+| **Google Drive** (G) | the EVIDENCE | purchasing shared drive only. ONE folder per order inside one folder per supplier, named `YYYYMMDD <PI> <PO>, <SEA|AIR>, [items]` (§11.6): `20260921 PI-2026092101 PIO-016-ISL-09-2026, SEA, [solar pump inverter …]`. A quote's folder never becomes the order folder (§11.5). Files: PI, PO or contract, payment slips, revised PI, shipping documents (CI, PL, BL, Form E), customs (PIB). Names: §11. For PT Indodaya Surya Lestari (ISL) orders only, a second, deliberate set of copies lives in `0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` for accounting (§11.4). |
 | **ICAPROC** (I) | the RECORD | `5.0_purchases` (PO, PI, status, received, `track_progress`), `6.0_po_costs` (every payment and fee), `docs_checked_at`, `hard_copy_received_at`. The stage: `GET /api/agent/purchasing/progress`. |
 | **Dolibarr** (D) | the ACCOUNTING ERP | supplier order (`PO26xx-xxxx`), its status (3 = ordered, 4 = partly received, 5 = received) and billed flag; supplier invoices and payments. |
 | **Basecamp** (B) | the TEAM'S VIEW | PROC IMPOR SOLAR → card table **PROGRESS IMPOR**: one card per import, title `SUPPLIER: <PI>, <PO> [items]`. Column = stage. Card steps = checklist. Comments = what changed. Purchasing Import ICL → to-dos per supplier (KSTAR, NINGBO LE, …). |
@@ -173,7 +180,9 @@ can be undone.
 - Basecamp: move a card FORWARD to the endpoint's column; create, tick and
   untick checklist steps; one comment per card per run; mark a card complete
   when it reaches Done; answer an open question on a card.
-- Drive: **rename a file to the convention** (§11) when its name breaks it.
+- Drive: **rename a file or a FOLDER to the convention** (§11.1, §11.6)
+  when its name breaks it — any file or folder, whoever made it (owner,
+  30 Oct: "on purpose, to create alignment").
   Before you rename, find every place that quotes the old name — ICAPROC
   payment notes (`6.0_po_costs.notes`), your own Basecamp comments and
   checklist steps — and update them in the same run. Write `old → new` in the
@@ -214,9 +223,8 @@ can be undone.
 - ICAPROC: any amount that does not equal a PI term; a changed PO total
   (revised PI — it changes line items, PURCHASING-RUNBOOK §4 and §7); a new
   PO; any delete.
-- Drive: moving a DUPLICATE (§11.3) to the trash — name both files; renaming
-  a FOLDER; merging two folders of one order (§11.5) — name both, say which
-  files move where.
+- Drive: moving a DUPLICATE (§11.3) to the trash — name both files; merging
+  two folders of one order (§11.5) — name both, say which files move where.
 - **Dolibarr: every write**, until Eric sets its role. Propose the exact change
   (record, field, from → to).
 - Basecamp: moving a card BACKWARD; trashing anything; an @mention of anyone
@@ -471,11 +479,12 @@ accounting has no Basecamp card):
   orders only. An ISL order with no `<nn> <SUPPLIER>` folder yet: propose it
   (§5-B); do not create it.
 - **Never** move, trash or overwrite anything there, and never rename the
-  `<nn> <SUPPLIER>` folders.
+  `<nn> <SUPPLIER>` folders: they have their own pattern, and §11.6 is for
+  order folders.
 
 ### 11.5 Before you add ANY file or folder
 
-One order has ONE folder: the PI folder, `YYYYMMDD <PI>, <PO> [items]` (§1).
+One order has ONE folder: the PI folder, named by §11.6.
 Every upload and every new folder starts with these steps. The script is
 `drive_order_folder_v1_2026-10-30.py` in 20-RUNBOOKS, installed in your skill
 as `scripts/drive_order_folder.py`. It prints JSON. Exit 0 = go on;
@@ -493,8 +502,8 @@ as `scripts/drive_order_folder.py`. It prints JSON. Exit 0 = go on;
    - **one candidate** → that is the order folder.
    - **two or more** → two folders for one order: stop. Propose the merge
      to Eric (§5-B): which folder stays (the PI folder), which files move.
-   - **none** → create the PI folder by §1, then run `find` again: it must
-     return exactly that folder.
+   - **none** → create the PI folder, named by §11.6, then run `find`
+     again: it must return exactly that folder.
    - `related` lists folders that match only an item model — repeat orders
      are normal; read them, they do not stop you. `warnings` (a link to the
      trash, a link outside the supplier's folder) go in your report.
@@ -522,3 +531,33 @@ as `scripts/drive_order_folder.py`. It prints JSON. Exit 0 = go on;
 6. **"Did you upload X?"** Answer with the file's link and its folder. Look
    with `existing` (when you have the file) or by name in EVERY candidate
    folder from step 1. Never answer "no", or "it is there", from one folder.
+
+### 11.6 The folder name
+
+Owner, 30 Oct:
+
+```
+YYYYMMDD <PI> <PO>, <SEA|AIR>, [<items>]
+```
+
+| Part | Meaning | Example |
+|---|---|---|
+| `YYYYMMDD` | the PI's date, no hyphens | `20260921` |
+| `<PI>` | the PI number exactly as the supplier writes it | `PI-2026092101` |
+| `<PO>` | our PO number, full form, after one space | `PIO-016-ISL-09-2026` |
+| `<SEA\|AIR>` | the freight: `SEA` or `AIR`, from the PI or the shipping document (a BL is sea, an AWB is air) | `SEA` |
+| `[<items>]` | the items, short, in square brackets | `[solar pump inverter EPV230-2SS0.75G, 1.5G, 2.2G, 4.0G, EPV300-4T7.5G]` |
+
+`20260921 PI-2026092101 PIO-016-ISL-09-2026, SEA, [solar pump inverter EPV230-2SS0.75G, 1.5G, 2.2G, 4.0G, EPV300-4T7.5G]`
+
+- **Rename any order folder that breaks this (§5-A)**, whoever made it, and
+  write `old → new` in the card comment and the Telegram report. Before you
+  rename, run `find` (§11.5): rename the ONE order folder; two folders for
+  one order are a merge to propose first.
+- **Freight not known yet** (no PI term, no BL or AWB): leave the part out,
+  and add it by a rename when a document shows it.
+- **No PO yet** (a PI only): leave the PO out, and add it by a rename when
+  the PO is made.
+- Domestic (`-MBS-`) orders have no PI: the PO takes the PI's place. For a
+  case this table does not cover (several PIs, a sample order), copy the
+  earlier folders of the same supplier and keep the order of the parts.
