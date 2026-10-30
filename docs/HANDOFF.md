@@ -5816,7 +5816,18 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    dates, use the file or document's date"* → §11.1: the document's date;
    none shown → the file's own date (photo/scan date, else the original's
    creation date); never the upload, copy or rename day; §11.2 lists the
-   upload-day date as a wrong name. Briefing part 1 now names v10. The
+   upload-day date as a wrong name. Briefing part 1 now names v10. Owner
+   confirmed the space between PI and PO (no comma). **MIRA part 2, steps
+   4–5 done (30 Oct):** backup `/opt/data/backups/icaproc-procurement_2026-10-30.tar.gz`
+   (12,116,587 bytes; the skill folder is 332 MB uncompressed — worth a
+   look later), 30 sections moved whole to `references/skill-01…30-*.md`,
+   sha256 of intro + sections = old SKILL.md (`3c38a359…f231`), SKILL.md
+   117,360 → 5,504 chars. She stopped at step 6 because a read-only command
+   waited for the owner's approval and timed out after 5 minutes. No
+   `upload_file` call exists; 9 places say "upload to a supplier folder"
+   without a method → card "part 2, continue" adds a one-line pointer to the
+   script at each, plus the §11.5 line, a read-back, and a sync of
+   MIRA-SKILL.md to her own 90-OUTPUT folder (skill-12). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
