@@ -4671,8 +4671,10 @@ Dolibarr holds), §2c (the matching), §6 (open decisions) first.**
 - **2026-10-30, owner's request: 8 sales reps given ICAPROC access, role
   `sales`** (allowlist rows written via SQL exactly as Settings › Users does;
   emails are in `allowed_emails`, not here): Ivana, Giyanto, Ibnu (new, not a
-  Dolibarr user), Tri, Sultan, Christiandi, Jo (Cecep Johana) and Parluhutan
-  Sitorus (= Dolibarr "Anton Sitorus", assumed). `sales` can create customers
+  Dolibarr user), Tri (Tri Sulastri), Sultan, Christiandi, Jo (Cecep Johana)
+  and Anton Sitorus (his email is under "Parluhutan" — confirmed by the owner).
+  **Owner: add only, do not notify them yet** — adding sends no email; the
+  login email goes out only when the person requests one on the login page. `sales` can create customers
   and quotations — in Dolibarr they could not. Anything they create before
   batch 1 is ICAPROC-only: the matcher lists it under "ICAPROC saja", never
   creates it twice. They see selling prices, no costs, no Stock page.
