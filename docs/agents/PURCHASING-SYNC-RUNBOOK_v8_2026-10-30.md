@@ -3,6 +3,22 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v8 (2026-10-30), from a real duplicate:** on EPSIVO PIO-016-ISL-09-2026
+> MIRA filed the PO, an invoice and slips into her own price-list folder
+> (`20260918 Epsivo VFD Price List…`) while Enrica's order folder
+> (`20260922 PI-2026092101, PIO/016…`) already held them. She trusted the
+> ICAPROC `document_url` as the only folder, kept the quote folder as the
+> order folder, matched no other written form of the PO number, and checked
+> md5 only after the upload, in one folder. New **§11.5 — before you add ANY
+> file or folder**: one folder per order, the PI folder; every folder of the
+> supplier is searched, by every written form of the numbers and by every
+> ICAPROC link; md5 is checked BEFORE the upload across the supplier's whole
+> folder; uploads go through `drive_order_folder.py upload` only (20-RUNBOOKS,
+> `drive_order_folder_v1_2026-10-30.py`), which refuses a second folder, a
+> file already on Drive, an amount in a name and an overwrite. §1: the folder
+> date is the PI's date. §11.3: the md5 check covers the supplier's folder,
+> not one order folder. "Did you upload X?" is answered with a link (§11.5).
+>
 > **v7 (2026-10-14), owner's rule:** *"Accounting ISL, as the name says, only
 > covers POs of PT Indodaya Surya Lestari."* §11.4: the accounting folder is
 > for ISL orders only; ICL and MBS orders have no accounting folder, and MIRA
@@ -67,7 +83,7 @@ write).
 
 | Place | Role | What it holds for one order |
 |---|---|---|
-| **Google Drive** (G) | the EVIDENCE | purchasing shared drive only. One folder per order inside one folder per supplier: `YYYYMMDD <PI>, <PO> [items]`. Files: PI, PO or contract, payment slips, revised PI, shipping documents (CI, PL, BL, Form E), customs (PIB). Names: §11. For PT Indodaya Surya Lestari (ISL) orders only, a second, deliberate set of copies lives in `0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` for accounting (§11.4). |
+| **Google Drive** (G) | the EVIDENCE | purchasing shared drive only. ONE folder per order inside one folder per supplier: `YYYYMMDD <PI>, <PO> [items]`, `YYYYMMDD` = the PI's date (`20260921 PI-2026092101, PIO-016-ISL-09-2026 [...]`). A quote's folder never becomes the order folder (§11.5). Files: PI, PO or contract, payment slips, revised PI, shipping documents (CI, PL, BL, Form E), customs (PIB). Names: §11. For PT Indodaya Surya Lestari (ISL) orders only, a second, deliberate set of copies lives in `0 Pembelian Impor - Accounting ISL / <year> / <nn> <SUPPLIER>` for accounting (§11.4). |
 | **ICAPROC** (I) | the RECORD | `5.0_purchases` (PO, PI, status, received, `track_progress`), `6.0_po_costs` (every payment and fee), `docs_checked_at`, `hard_copy_received_at`. The stage: `GET /api/agent/purchasing/progress`. |
 | **Dolibarr** (D) | the ACCOUNTING ERP | supplier order (`PO26xx-xxxx`), its status (3 = ordered, 4 = partly received, 5 = received) and billed flag; supplier invoices and payments. |
 | **Basecamp** (B) | the TEAM'S VIEW | PROC IMPOR SOLAR → card table **PROGRESS IMPOR**: one card per import, title `SUPPLIER: <PI>, <PO> [items]`. Column = stage. Card steps = checklist. Comments = what changed. Purchasing Import ICL → to-dos per supplier (KSTAR, NINGBO LE, …). |
@@ -162,8 +178,9 @@ can be undone.
   payment notes (`6.0_po_costs.notes`), your own Basecamp comments and
   checklist steps — and update them in the same run. Write `old → new` in the
   card comment. Never renumber a file that already has a number.
-- Drive: **add a missing document** to the order's folder — first check that
-  it is not already there under another name (§11.3) — when the same
+- Drive: **add a missing document** to the order's folder — first run
+  §11.5: find THE order folder, and check that the file is not already
+  anywhere in the supplier's folder under another name — when the same
   document is attached somewhere you can reach — a Basecamp card or to-do,
   an ICAPROC document link, a Dolibarr attachment, another folder on the
   purchasing drive. Open it first and decide what it is (PI, slip, BL, …);
@@ -198,7 +215,8 @@ can be undone.
   (revised PI — it changes line items, PURCHASING-RUNBOOK §4 and §7); a new
   PO; any delete.
 - Drive: moving a DUPLICATE (§11.3) to the trash — name both files; renaming
-  a FOLDER.
+  a FOLDER; merging two folders of one order (§11.5) — name both, say which
+  files move where.
 - **Dolibarr: every write**, until Eric sets its role. Propose the exact change
   (record, field, from → to).
 - Basecamp: moving a card BACKWARD; trashing anything; an @mention of anyone
@@ -346,6 +364,8 @@ The template is in Indonesian; reply in the language Eric writes to you.
   trash only after Eric's yes.
 - Never put an amount or bank details in Basecamp.
 - Never report a write before you read it back.
+- Never upload to Drive except through `drive_order_folder.py upload`
+  (§11.5). Never create an order folder before `find` says there is none.
 
 ## 11. Drive file names and duplicates
 
@@ -402,9 +422,11 @@ hint, not proof.
 - **Not a duplicate:** a revision (`R1`, `R2`, `Rev`, `V02`, `REVISED PI`),
   the USD and IDR slips of one payment, the parts of a split payment. Keep
   them all.
-- **Before you add a copy (§5-A):** look for the same checksum in the order
-  folder. If it is there, do not add another; make sure the one that is there
-  has the right name.
+- **Before you add a copy (§5-A):** look for the same checksum in EVERY
+  folder of the supplier, not only the order folder (§11.5,
+  `drive_order_folder.py existing`). If it is there, do not add another;
+  make sure the one that is there has the right name and is in the order
+  folder.
 - **Two copies in the SAME order folder:** keep the one with the right name
   (rename the better one if neither is right). Propose the other for the trash
   (§5-B): both names, both links, and "same checksum".
@@ -450,3 +472,53 @@ accounting has no Basecamp card):
   (§5-B); do not create it.
 - **Never** move, trash or overwrite anything there, and never rename the
   `<nn> <SUPPLIER>` folders.
+
+### 11.5 Before you add ANY file or folder
+
+One order has ONE folder: the PI folder, `YYYYMMDD <PI>, <PO> [items]` (§1).
+Every upload and every new folder starts with these steps. The script is
+`drive_order_folder_v1_2026-10-30.py` in 20-RUNBOOKS, installed in your skill
+as `scripts/drive_order_folder.py`. It prints JSON. Exit 0 = go on;
+**exit 2 = stop and ask Eric** (send him the `stop` lines and the
+`candidates`); exit 1 = an error — report it.
+
+1. **Find the order folder — never from one link.** Run
+   `find --supplier-folder <id> --pi <PI> --po <PO> --link <url> ...` with
+   the PI, the PO, every invoice number (`--invoice`), the item models
+   (`--term`), and EVERY ICAPROC `document_url` of the order — the PO's AND
+   the quote's. It lists every folder of the supplier whose name, or a file
+   inside it, carries the PI, the PO or an invoice number in any written
+   form (`PIO/016` = `PIO-016` = `PIO-016-ISL-09-2026`; `PIO-2026016` is
+   another order, §2), plus every folder ICAPROC links to.
+   - **one candidate** → that is the order folder.
+   - **two or more** → two folders for one order: stop. Propose the merge
+     to Eric (§5-B): which folder stays (the PI folder), which files move.
+   - **none** → create the PI folder by §1, then run `find` again: it must
+     return exactly that folder.
+   - `related` lists folders that match only an item model — repeat orders
+     are normal; read them, they do not stop you. `warnings` (a link to the
+     trash, a link outside the supplier's folder) go in your report.
+2. **A quote becomes an order:** the order folder is the PI folder, even when
+   the quote has a folder of its own. Never file the PO, a slip or an invoice
+   into the quote's folder. If the quote folder holds the order's documents,
+   that is two folders for one order: step 1, "two or more".
+3. **Check the file before you upload it:**
+   `existing --supplier-folder <id> <file>` compares its md5 with every file
+   under the supplier's folder. A match → do not upload; make sure the copy
+   that is there has the right name and sits in the order folder. Google
+   Docs, Sheets and Slides have no md5: compare their content.
+4. **Upload only through the script:**
+   `upload --supplier-folder <id> --target <order folder> --name "<§11.1 name>" <file>`
+   with the same `--pi/--po/--link` as step 1. It repeats steps 1 and 3 and
+   refuses (exit 2) a second order folder, a target that is not the order
+   folder, a file already on Drive, a name that breaks §11.1 or holds an
+   amount, and a name already in the folder. It reads the file back (md5 and
+   folder) before it says done. An accounting copy (§11.4):
+   `--accounting-copy --target <the <nn> <SUPPLIER> folder>`. Use
+   `--dry-run` to see the checks without uploading.
+5. **No amounts in a file name.** Names appear in Basecamp comments and
+   checklist steps, which never show an amount (§10). `15. OPS_IDR_…` is
+   right; `15. OPS_IDR 6.000.000_…` is not.
+6. **"Did you upload X?"** Answer with the file's link and its folder. Look
+   with `existing` (when you have the file) or by name in EVERY candidate
+   folder from step 1. Never answer "no", or "it is there", from one folder.

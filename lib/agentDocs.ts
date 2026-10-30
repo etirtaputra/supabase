@@ -72,8 +72,8 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'purchasing-sync',
     title: 'Purchasing sync: Drive, ICAPROC, Dolibarr, Basecamp',
-    file: 'PURCHASING-SYNC-RUNBOOK_v7_2026-10-14.md',
-    audience: 'MIRA: one order the same in all four places; acts where evidence is clear, fills gaps herself first, Drive names and duplicates, Indonesian checklist on every card, tags Enrica only for what needs a person',
+    file: 'PURCHASING-SYNC-RUNBOOK_v8_2026-10-30.md',
+    audience: 'MIRA: one order the same in all four places; acts where evidence is clear, fills gaps herself first, Drive names and duplicates, one folder per order checked BEFORE any upload (§11.5, drive_order_folder.py), Indonesian checklist on every card, tags Enrica only for what needs a person',
     first: false,
   },
   {
