@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-30** · last change: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-30** · last change: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5810,7 +5810,13 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    own pattern). Folder name (§11.6): `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`,
    date = the PI's; freight or PO not known yet → left out, added by a
    rename later. The script needs no change (it matches numbers anywhere in
-   a name). Briefing part 1 now names v9. The
+   a name). **Then v10, same day (`PURCHASING-SYNC-RUNBOOK_v10_2026-10-30`,
+   Drive `1JtWZyBIAqL-AUpc6Z1LfQLFDJ4i6LgNb`; v9 trashed; INDEX
+   `1yHJB19hgthw0NeqGLbJ2v4TEumOGf9Up`):** owner — *"for the file name
+   dates, use the file or document's date"* → §11.1: the document's date;
+   none shown → the file's own date (photo/scan date, else the original's
+   creation date); never the upload, copy or rename day; §11.2 lists the
+   upload-day date as a wrong name. Briefing part 1 now names v10. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
