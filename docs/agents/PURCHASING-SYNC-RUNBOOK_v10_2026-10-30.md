@@ -3,6 +3,11 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v10 (2026-10-30), owner's rule:** *"For the file name dates, use the
+> file or document's date."* §11.1: the date in a file name is the date the
+> document shows; when it shows none, the file's own date — never the day
+> it is uploaded or renamed.
+>
 > **v9 (2026-10-30), owner's rules:** *"Just rename any folder to the right
 > naming conventions — this is on purpose, to create alignment."* ·
 > *"Folder naming convention is `YYYYMMDD {PI no.} {PO no}, SEA/AIR
@@ -194,7 +199,7 @@ can be undone.
   an ICAPROC document link, a Dolibarr attachment, another folder on the
   purchasing drive. Open it first and decide what it is (PI, slip, BL, …);
   name the copy by the folder's pattern (`1. PI_<PI>`, `3. DP…`,
-  `5. BALANCE PAYMENT_<PI>_<date>`, …) with the date the document shows;
+  `5. BALANCE PAYMENT_<PI>_<date>`, …) with the document's date (§11.1);
   never overwrite a file with the same name; say in the comment where the
   original is. (13 Oct: the TRISINDO PO-038 card carries a supplier document
   with the order total as `IMG_2220.jpeg`; its Drive folder has no payment
@@ -399,8 +404,16 @@ if there is none, use the closest pattern below with a plain descriptive type
 | ` <k>` | the part number when a payment is split | `BALANCE PAYMENT 1`, `BALANCE PAYMENT 2` |
 | `<CUR>_` | on a payment slip: `USD` for the transfer, `IDR` for the rupiah debit. One payment often has both files | `DP30_USD_…` and `DP30_IDR_…` |
 | `<PI>` | the PI number exactly as the supplier writes it (hyphens kept); several PIs joined by `, ` | `PJ-260827-22 V02`, `LC26050010, LC26050011, LC26050017` |
-| `<YYYY-MM-DD>` | the date the DOCUMENT shows (PI date, transfer date), with hyphens | `2026-09-03` |
+| `<YYYY-MM-DD>` | the DOCUMENT's date (PI date, transfer date, invoice date, BL date), with hyphens. If the document shows no date, the file's own date. Never the day it is uploaded or renamed | `2026-09-03` |
 | ` (<note>)` | optional, for a remark that must stay | `(R2, 20261012 updated - added TCP306)`, `(NOT VALUE TDY)` |
+
+**The date (owner, 30 Oct: "use the file or document's date").** Read it on
+the document: the PI's date, the slip's transfer date, the invoice's date,
+the BL's date. Only when the document shows no date, use the file's own date
+(the photo's or scan's date, else the original file's creation date, not the
+copy's). Never the day you upload, copy or rename it. A name whose date is
+the upload day while the document shows another date is wrong (§11.2): fix
+the date, keep the number.
 
 Both `BALANCE` and `BALANCE PAYMENT`, and both `DP` and `DP30`, are correct —
 do not rename a file only to swap one for the other. Domestic (`-MBS-`)
@@ -414,6 +427,7 @@ This applies to the order folders AND the accounting folder (§11.4).
 |---|---|---|
 | no number, no type, or no PI | `ICA PI KST226-6815 UPS.xls` (folder `20260811 PIO-2026011, EB.42277, EB.42278`) | give it the full name; the next free number in the folder |
 | date without hyphens | `1. PI_LC26020005_20260206.pdf`, `11. OPS_PI2026070901_20260820.jpeg` | `2026-02-06` — keep the number |
+| the upload day, not the document's date | a slip dated 23 Sep named `…_2026-10-30` | the document's date (§11.1) — keep the number |
 | stray space or symbol | `1. PI_ PJ-251222-18-Rev_2026-03-05.pdf` | remove it |
 | no extension on an uploaded file | `1. PI_KST226-6816_2026-08-14` (a spreadsheet) | leave it if it is a Google Sheet; add the extension if it is an upload |
 
