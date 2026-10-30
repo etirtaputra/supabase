@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-30** · last change: *agents track — purchasing sync runbook v8 §11.5 + `drive_order_folder` script: one folder per order, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-10-30** · last change: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v8 §11.5 + `drive_order_folder` script: one folder per order, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -4668,6 +4668,14 @@ Dolibarr holds), §2c (the matching), §6 (open decisions) first.**
    Dolibarr), how far back history goes, the never-closed proposals, prices.
 
 **Other facts the next thread needs:**
+- **2026-10-30, owner's request: 8 sales reps given ICAPROC access, role
+  `sales`** (allowlist rows written via SQL exactly as Settings › Users does;
+  emails are in `allowed_emails`, not here): Ivana, Giyanto, Ibnu (new, not a
+  Dolibarr user), Tri, Sultan, Christiandi, Jo (Cecep Johana) and Parluhutan
+  Sitorus (= Dolibarr "Anton Sitorus", assumed). `sales` can create customers
+  and quotations — in Dolibarr they could not. Anything they create before
+  batch 1 is ICAPROC-only: the matcher lists it under "ICAPROC saja", never
+  creates it twice. They see selling prices, no costs, no Stock page.
 - The API is at `https://erp.indodaya.co.id/dolibarr/api/index.php` (Dolibarr
   16.0.1). The web root is 403 for everyone — an early "location block" note
   was WRONG. This sandbox reaches the server fine.

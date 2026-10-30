@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-10-30T05:50:00Z",
+    title: "Tim sales mulai bisa masuk ke ICAPROC",
+    details: [
+      "Delapan tenaga penjual mendapat akses dengan peran Sales: melihat produk dan harga jual, mengelola pelanggan, dan membuat penawaran. Harga pokok dan margin tidak terlihat.",
+      "Masuk lewat halaman login ICAPROC dengan email masing-masing: pilih tautan login, lalu klik tautan atau ketik kode 6 angka dari email. Kata sandi bisa dibuat sesudahnya dari dalam aplikasi.",
+    ],
+  },
+  {
     at: "2026-10-28T05:40:00Z",
     title: "Catatan internal: perintah untuk agen AI selalu dalam blok kode",
     details: [
