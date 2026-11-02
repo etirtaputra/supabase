@@ -23,7 +23,8 @@ import { useSettings } from '@/hooks/useSettings';
 import { fmtRp } from '@/lib/formatters';
 import { isOfferable } from '@/lib/itemVisibility';
 import { catalogMatches } from '@/lib/catalogSearch';
-import { computeTUCMap, getComponentCost, fxFromHistory } from '@/lib/computeTUC';
+import { computeTUCMap, pickCost, fxFromHistory } from '@/lib/computeTUC';
+import { useEpcCostBase } from '@/hooks/useEpcCostBase';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
 import { computeBomCalc, linkOptions, type BomCalcDoc, type BomRow, type AcSegment, type RoofRun, type InverterGroup } from '@/lib/bomCalc';
@@ -51,7 +52,7 @@ const newId = (p: string) => `${p}${Date.now().toString(36)}${(uid++).toString(3
 
 export default function BomCalcEditorPage() {
   const { id } = useParams<{ id: string }>();
-  const { ready, user } = useQuotesGate(false, '/proposals/bom');
+  const { ready, user, profile } = useQuotesGate(false, '/proposals/bom');
   const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
@@ -99,12 +100,12 @@ export default function BomCalcEditorPage() {
   const fx = useMemo(() => fxFromHistory(catalog.pos, deriveExchangeRates(catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes), catalog.fxBenchmarks),
     [catalog.pos, catalog.poItems, catalog.poCosts, catalog.quotes, catalog.fxBenchmarks]);
   const offerable = useMemo(() => (catalog.components as Component[]).filter(isOfferable), [catalog.components]);
-  const compById = useMemo(() => new Map((catalog.components as Component[]).map((c) => [String(c.component_id), c])), [catalog.components]);
-  const costFor = useCallback((componentId: string) => {
-    const c = compById.get(componentId);
-    const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
-    return getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, [], { mode, bufferPct: c?.quote_cost_buffer_pct ?? epcCostBufferPct }, fx);
-  }, [compById, tucMap, catalog.quotes, catalog.quoteItems, epcCostBufferPct, fx]);
+  // The engineer's half comes from /api/epc/costs, redacted to Std Cost (hooks/useEpcCostBase).
+  const { baseFor: epcBaseFor } = useEpcCostBase({
+    role: profile?.role, components: catalog.components, tucMap,
+    quotes: catalog.quotes, quoteItems: catalog.quoteItems, fx, globalBufferPct: epcCostBufferPct,
+  });
+  const costFor = useCallback((componentId: string) => pickCost(epcBaseFor(componentId)), [epcBaseFor]);
 
   const res = useMemo(() => (doc ? computeBomCalc(doc) : null), [doc]);
   const links = useMemo(() => (doc && res ? linkOptions(doc, res) : []), [doc, res]);

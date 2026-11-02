@@ -1374,6 +1374,8 @@ export const ID: Record<string, string> = {
   'unit': 'satuan',
   'price': 'harga',
   'no price': 'tanpa harga',
+  'no price data': 'belum ada data harga',
+  'costs unavailable': 'biaya tidak dapat dimuat',
   'Delete': 'Hapus',
   'Used in sales quotes': 'Terpakai di penawaran penjualan',
   'custom lines your team already typed, not in the library yet. Adding one makes it a suggested entry for everyone.':

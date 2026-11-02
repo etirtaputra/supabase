@@ -1,5 +1,5 @@
 import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem } from '../types/database';
-import { TAX_CATS, BALANCE_CATS } from '../constants/costCategories';
+import { TAX_CATS, BALANCE_CATS } from '../constants/costCategories.ts';
 
 /**
  * THE canonical True Unit Cost engine. Catalog's Last Price column,
@@ -151,6 +151,20 @@ export type QuoteCostMode = 'tuc' | 'buffered' | 'hidden';
 export interface QuoteCostOpts {
   mode?: QuoteCostMode;   // default 'tuc' (raw)
   bufferPct?: number;     // applied only when mode === 'buffered'
+}
+
+/**
+ * An item's Cost Basis setting for EPC proposals: its own mode (else "hidden"
+ * when TUC is switched off for quotes, else buffered) and its own buffer, else
+ * the company's (Settings › Defaults). The proposal editor, the proposals list,
+ * the BOM Calculator and /api/epc/costs all read it from here.
+ */
+export function epcCostOpts(
+  c: { quote_cost_mode?: string | null; show_tuc_in_quotes?: boolean | null; quote_cost_buffer_pct?: number | null } | null | undefined,
+  globalBufferPct: number,
+): QuoteCostOpts {
+  const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered')) as QuoteCostMode;
+  return { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct };
 }
 
 /**
@@ -331,6 +345,36 @@ export function getComponentCost(
   opts?: QuoteCostOpts,
   fx: Record<string, FxRate> = {},
 ): ComponentCost | null {
+  return pickCost(costBase(componentId, tucMap, quotes, quoteItems, opts, fx), usedEntries);
+}
+
+/**
+ * The buy-side half of getComponentCost: everything that comes from POs and
+ * supplier quotes, with the Cost Basis buffer applied, BEFORE the "last used"
+ * entries join. It is split out so a role that may not read the buy side
+ * (the Project Engineer, since 2026-09-16) can be handed this half by the
+ * server — redacted — and finish the SAME rule in the browser with pickCost.
+ * One formula; two places it may be computed.
+ */
+export interface CostBase {
+  /** Recommended TUC (already buffered when the mode buffers), or null. */
+  tuc: { cost: number; asOf: string } | null;
+  /** TUC + supplier-quote entries, buffered like `tuc`, newest first. */
+  entries: CostEntry[];
+  /** The Cost Basis buffer was applied (mode 'buffered' and pct > 0). */
+  buffered: boolean;
+}
+
+export const EMPTY_COST_BASE: CostBase = { tuc: null, entries: [], buffered: false };
+
+export function costBase(
+  componentId: string,
+  tucMap: Map<string, TUCResult>,
+  quotes: PriceQuote[],
+  quoteItems: PriceQuoteLineItem[],
+  opts?: QuoteCostOpts,
+  fx: Record<string, FxRate> = {},
+): CostBase {
   const mode: QuoteCostMode = opts?.mode ?? 'tuc';
   const mul = mode === 'buffered' ? 1 + (Math.max(0, opts?.bufferPct ?? 0) / 100) : 1;
   const raw = mode === 'hidden' ? null : (tucMap.get(componentId) ?? null);
@@ -341,10 +385,19 @@ export function getComponentCost(
   const tucEntries = (raw?.entries ?? []).map(applyMul);
   const quoteEntries = quotePriceHistory(componentId, quotes, quoteItems, fx).map(applyMul);
 
-  const history = [...tucEntries, ...quoteEntries, ...usedEntries]
+  return {
+    tuc: raw ? { cost: raw.tuc * mul, asOf: raw.latestPoDate } : null,
+    entries: [...tucEntries, ...quoteEntries].sort((a, b) => b.date.localeCompare(a.date)),
+    buffered: mul !== 1,
+  };
+}
+
+/** The second half: TUC wins; otherwise the newest supplier quote or last-used cost. */
+export function pickCost(base: CostBase, usedEntries: CostEntry[] = []): ComponentCost | null {
+  const history = [...base.entries, ...usedEntries]
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  if (raw) return { cost: raw.tuc * mul, source: 'tuc', asOf: raw.latestPoDate, history, buffered: mul !== 1 };
+  if (base.tuc) return { cost: base.tuc.cost, source: 'tuc', asOf: base.tuc.asOf, history, buffered: base.buffered };
   const fallback = history.find((h) => h.kind !== 'tuc');
   if (fallback) {
     // Only a supplier-quote fallback carries the buffer; a last-used fallback
@@ -354,10 +407,31 @@ export function getComponentCost(
       source: fallback.kind,
       asOf: fallback.date,
       history,
-      buffered: mul !== 1 && fallback.kind === 'quote',
+      buffered: base.buffered && fallback.kind === 'quote',
     };
   }
   return null;
+}
+
+/**
+ * What a role without buy-side read may receive (owner's decision 2026-11-02:
+ * "Std Cost only"). The recommended cost, its date and whether it came from a
+ * purchase or a supplier quote — never the supplier: no PO/PI number (labels
+ * like "WA Joe Trisindo to Wendy" name the supplier), no pre-buffer price, no
+ * exchange-rate note or its source PO. Only what is listed here survives.
+ */
+export function redactCostBase(base: CostBase): CostBase {
+  return {
+    tuc: base.tuc ? { cost: base.tuc.cost, asOf: base.tuc.asOf } : null,
+    entries: base.entries.map((e) => ({
+      kind: e.kind,
+      label: e.kind === 'tuc' ? 'Purchase' : 'Supplier quote',
+      date: e.date,
+      unitCost: e.unitCost,
+      ...(e.buffered ? { buffered: true } : {}),
+    })),
+    buffered: base.buffered,
+  };
 }
 
 /** Days since an ISO date; Infinity when unknown. */

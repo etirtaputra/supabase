@@ -6,7 +6,8 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllRows } from '@/lib/fetchAllRows';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
 import { useQuotesGate } from '@/hooks/useQuotesGate';
-import { computeTUCMap, getComponentCost, fxFromHistory, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
+import { computeTUCMap, pickCost, fxFromHistory, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
+import { useEpcCostBase } from '@/hooks/useEpcCostBase';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries, quoteContext, QUOTE_CONTEXT_COLS, type QuoteContextRow } from '@/lib/usedPrices';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
@@ -863,15 +864,18 @@ export default function QuoteEditorPage() {
   // Global Cost Basis buffer % (Settings › Defaults), per-item override on the component
   const { epcCostBufferPct: globalBufferPct, defaultPpnPct } = useSettings();
 
-  const costFor = useCallback((componentId: string) => {
-    const c = compById.get(componentId);
-    // Everyone resolves the item's Std Cost / Hidden setting, so owner and
-    // engineer work from the same recommended cost. Owners additionally see
-    // each entry's raw value in the price-history hover (extra context only).
-    const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
-    return getComponentCost(componentId, tucMap, catalog.quotes, catalog.quoteItems, prevUsed.get(componentId) ?? [],
-      { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct }, fx);
-  }, [tucMap, catalog.quotes, catalog.quoteItems, prevUsed, compById, globalBufferPct, fx]);
+  // Everyone resolves the item's Std Cost / Hidden setting, so owner and
+  // engineer work from the same recommended cost. The engineer cannot read the
+  // supplier tables, so their half comes from /api/epc/costs, redacted to
+  // "Std Cost only" (hooks/useEpcCostBase). Owners additionally see each
+  // entry's raw value in the price-history hover (extra context only).
+  const { baseFor: epcBaseFor, loading: epcLoading, error: epcError } = useEpcCostBase({
+    role: gate.profile?.role, components: catalog.components, tucMap,
+    quotes: catalog.quotes, quoteItems: catalog.quoteItems, fx, globalBufferPct,
+  });
+  const costFor = useCallback(
+    (componentId: string) => pickCost(epcBaseFor(componentId), prevUsed.get(componentId) ?? []),
+    [epcBaseFor, prevUsed]);
 
   // ── System size (Wp) ───────────────────────────────────────────────────────
   // Shared rules in lib/quoteWp.ts (also used by the quotes list): catalog
@@ -2851,7 +2855,7 @@ export default function QuoteEditorPage() {
                                     style={{ left: Math.min(acState.x, Math.max(16, window.innerWidth - 436)), top: acState.y + 4 }}
                                   >
                                     {acResults.comps.map((comp, ci) => {
-                                      const cc = catalogLoading ? null : costFor(comp.component_id);
+                                      const cc = catalogLoading || epcLoading ? null : costFor(comp.component_id);
                                       return (
                                         <button
                                           key={comp.component_id}
@@ -2866,7 +2870,9 @@ export default function QuoteEditorPage() {
                                           </div>
                                           <div className="text-right flex-shrink-0">
                                             {cc ? <p className={`font-semibold text-xs ${cc.buffered ? SOURCE_TEXT.tuc : SOURCE_TEXT[cc.source]}`}>{fmtIdr(cc.cost)}</p>
-                                                : <p className="text-slate-600 text-[10px]">no price data</p>}
+                                                : <p className="text-slate-600 text-[10px]" title={epcError ?? undefined}>
+                                                    {epcError ? t('costs unavailable') : catalogLoading || epcLoading ? '…' : t('no price data')}
+                                                  </p>}
                                             {cc && (
                                               priceAgeDays(cc.asOf) > AGED_PRICE_DAYS ? (
                                                 <p className="text-[10px] text-amber-400 font-semibold" title={`Price is from ${cc.asOf || 'an unknown date'} — consider re-checking with the supplier`}>

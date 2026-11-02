@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-10-30** · last change: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-02** · last change: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 1,090 tests at handoff (2026-10-27), all pass
+npm test             # node --test "lib/**/*.test.ts" — 1,095 tests at handoff (2026-11-02), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,42 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-10-27 (latest) — Dolibarr batch 0: survey done, matching report
+### 2026-11-02 (latest) — EPC: the engineer's "no price data" (Std Cost via the server)
+
+Owner: *"when my engineer looks for the newly input Sunkean Aluminum PV Cables
+in EPC proposals, it says No Price Data"*. Trisindo's WhatsApp quotes
+(2026-11-02, IDR, Open) were in `4.1` and fine. **Cause:** the 2026-09-16
+buy-side read gate closed `4.x`/`5.x`/`6.0` to every role off the buy side,
+and the EPC editor / proposals list / BOM Calculator computed costs from
+those tables IN THE BROWSER — so for `engineer` only "last used in a
+proposal" survived. Proved by impersonating an engineer (rolled back): 0
+quote lines, 0 PO lines visible. Measured: **444 of 521** priced active items
+read "no price data" for an engineer.
+- Owner's decision (asked): **"Std Cost only"** — the engineer sees the
+  recommended cost, its date and PO/Quote; never supplier, raw price, PO/PI
+  number or exchange rate.
+- `lib/computeTUC.ts`: `getComponentCost` split into `costBase` (PO + quote,
+  buffered) and `pickCost` (TUC wins, else newest quote/last-used) — same
+  result, pinned by test; `redactCostBase` keeps only cost/date/kind/STD
+  (labels become "Purchase"/"Supplier quote"); `epcCostOpts` = the per-item
+  Cost Basis rule the three screens had inline. Its `costCategories` import
+  now carries `.ts` so `node --test` can load the module.
+- `GET /api/epc/costs`: `callerFromRequest` → `canEditQuotes` gate → service
+  role reads → `costBase` per component → redacted. Service-role key confirmed
+  set in production (the FX cron writes `9.2` with it daily).
+- `hooks/useEpcCostBase.ts`: buy-side readers compute locally as before; a
+  role with `canEditQuotes` and no `buySide` fetches the route. Editor,
+  `/proposals` (drift check + re-costed duplicate) and the BOM Calculator use
+  it; the editor dropdown says "…" while loading and "costs unavailable"
+  (with the error as hover) instead of a false "no price data".
+- Guards: `lib/epcCosts.test.ts` (5: same formula, redaction keys, route
+  gate order, screens never call `getComponentCost` directly);
+  `lib/itemVisibility.test.ts` lists the route under INCLUDES_ARCHIVED.
+- Expected for the engineer (5% buffer): PV1500DC-AL-K 10 mm² Rp 8,610/m,
+  16 mm² Rp 12,705/m, SK4-ASTE10 Rp 55,650/set, SK4-ASTE16 Rp 86,100/set.
+  **Not yet seen in a browser as an engineer** — owner to have one reload.
+
+### 2026-10-27 — Dolibarr batch 0: survey done, matching report
 
 - New key works: fingerprint **`09259a68`** (12 chars; old rejected
   `f1bf68c0`), `/status` → 200. Full read-only survey from the sandbox:

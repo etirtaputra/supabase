@@ -10,7 +10,8 @@ import { useT } from '@/hooks/useT';
 import { fetchOpenNotes, newestOpenByQuote, openCountByQuote, type QuoteNote } from '@/lib/quoteNotes';
 import { openFlagsByQuote } from '@/lib/quoteFlags';
 import { FlagIcon } from '@/components/ui/QuoteFlags';
-import { computeTUCMap, getComponentCost, fxFromHistory, type TUCResult, type CostEntry } from '@/lib/computeTUC';
+import { computeTUCMap, pickCost, fxFromHistory, type CostEntry } from '@/lib/computeTUC';
+import { useEpcCostBase } from '@/hooks/useEpcCostBase';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
 import { lineWp } from '@/lib/quoteWp';
@@ -269,23 +270,21 @@ export default function QuotesListPage() {
   );
 
 
-  const costOptsFor = useMemo(() => {
-    const byId = new Map(catalog.components.map((c) => [c.component_id, c]));
-    return (componentId: string) => {
-      const c = byId.get(componentId);
-      const mode = (c?.quote_cost_mode ?? (c?.show_tuc_in_quotes === false ? 'hidden' : 'buffered'));
-      return { mode, bufferPct: c?.quote_cost_buffer_pct ?? globalBufferPct };
-    };
-  }, [catalog.components, globalBufferPct]);
+  // The engineer's half comes from /api/epc/costs (hooks/useEpcCostBase), so
+  // the drift check and a re-costed duplicate use the same cost the editor shows.
+  const { baseFor: epcBaseFor, loading: epcLoading } = useEpcCostBase({
+    role: gate.profile?.role, components: catalog.components, tucMap: listTucMap,
+    quotes: catalog.quotes, quoteItems: catalog.quoteItems, fx, globalBufferPct,
+  });
 
   const driftByQuote = useMemo(() => {
     const map = new Map<string, number>();
-    if (!openItems || !usedEntries || catalogLoading) return map;
+    if (!openItems || !usedEntries || catalogLoading || epcLoading) return map;
     for (const it of openItems) {
       if (!it.component_id || it.parent_item_id) continue;
       const stored = Number(it.cost_price);
       if (!(stored > 0)) continue;
-      const cc = getComponentCost(it.component_id, listTucMap, catalog.quotes, catalog.quoteItems, usedEntries.get(it.component_id) ?? [], costOptsFor(it.component_id), fx);
+      const cc = pickCost(epcBaseFor(it.component_id), usedEntries.get(it.component_id) ?? []);
       if (!cc || !(cc.cost > 0)) continue;
       // Flag only cost increases — margin risk; price drops are fine
       if ((cc.cost - stored) / stored > DRIFT_THRESHOLD) {
@@ -293,7 +292,7 @@ export default function QuotesListPage() {
       }
     }
     return map;
-  }, [openItems, usedEntries, catalogLoading, listTucMap, catalog.quotes, catalog.quoteItems, costOptsFor, DRIFT_THRESHOLD]);
+  }, [openItems, usedEntries, catalogLoading, epcLoading, epcBaseFor, DRIFT_THRESHOLD]);
 
   const searchLc = search.trim().toLowerCase();
 
@@ -411,9 +410,6 @@ export default function QuotesListPage() {
       if (!src) throw new Error('Source quote not found');
 
       const usedMap = dupRefresh ? await fetchUsedEntries(supabase) : null;
-      const dupTucMap: Map<string, TUCResult> = dupRefresh
-        ? computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts)
-        : new Map();
       const today = new Date().toISOString().slice(0, 10);
       const newQuoteId = crypto.randomUUID();
 
@@ -471,7 +467,7 @@ export default function QuotesListPage() {
         let cost = it.cost_price, sell = it.sell_price;
         const owner = !!it.supplied_by_owner || ownerSection.has(it.section_id);
         if (dupRefresh && it.component_id && !owner) {
-          const cc = getComponentCost(it.component_id, dupTucMap, catalog.quotes, catalog.quoteItems, usedMap?.get(it.component_id) ?? [], costOptsFor(it.component_id), fx);
+          const cc = pickCost(epcBaseFor(it.component_id), usedMap?.get(it.component_id) ?? []);
           if (cc) {
             const newCost = Math.round(cc.cost);
             const oldCost = Number(it.cost_price), oldSell = Number(it.sell_price);

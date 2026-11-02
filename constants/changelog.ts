@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-02T09:40:00Z",
+    title: "Proposal EPC: engineer kini melihat Std Cost barang baru (bukan lagi \"belum ada data harga\")",
+    details: [
+      "Sejak data pemasok dikunci (September), engineer hanya melihat biaya untuk barang yang pernah dipakai di proposal sebelumnya — 444 dari 521 barang berharga tampil \"no price data\". Contoh: kabel PV aluminium SUNKEAN yang baru dikutip Trisindo.",
+      "Sekarang engineer melihat Std Cost yang sama dengan pemilik (harga PO atau penawaran pemasok terbaru + buffer 5%), tanggalnya, dan apakah dari PO atau penawaran — di editor proposal, daftar proposal, dan BOM Calculator.",
+      "Nama pemasok, harga asli pemasok, nomor PO/PI, dan kurs tetap tidak terlihat oleh engineer.",
+    ],
+  },
+  {
     at: "2026-10-30T05:50:00Z",
     title: "Tim sales mulai bisa masuk ke ICAPROC",
     details: [

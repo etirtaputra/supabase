@@ -125,6 +125,8 @@ const INCLUDES_ARCHIVED: Record<string, string> = {
     'Spotlight finds an item BY NAME so you can open it. Refusing to find a retired item reads as a broken search.',
   'app/api/ask/route.ts':
     'Ask ICAPROC answers history ("what did we pay for X"). An item archived today was still bought last year, and its POs must still have a name.',
+  'app/api/epc/costs/route.ts':
+    'The engineer\u2019s Std Cost must equal the owner\u2019s, and the owner\u2019s editor prices every linked line — an older proposal can still carry an item archived since.',
 };
 
 test('every screen that reads the catalogue says whether archived items belong in it', () => {
