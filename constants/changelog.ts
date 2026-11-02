@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-02T11:04:00Z",
+    title: "Sales admin tidak lagi melihat biaya",
+    details: [
+      "Peran Sales Admin (Ade, dan agen MAX) kini hanya membuat penawaran dengan harga tier: harga terisi otomatis sesuai tier pelanggan, dan semua harga tier tetap bisa dipilih di setiap baris.",
+      "Halaman Harga Jual (biaya, margin per tier, batas margin) dan tautan \"Tiers & floors\" tidak lagi tampil untuk Sales Admin, begitu juga peringatan \"dijual di bawah biaya\" yang menyebut harga pokok.",
+      "Pemilik dan tim pembelian tetap melihat semuanya seperti biasa.",
+    ],
+  },
+  {
     at: "2026-11-02T09:40:00Z",
     title: "Proposal EPC: engineer kini melihat Std Cost barang baru (bukan lagi \"belum ada data harga\")",
     details: [

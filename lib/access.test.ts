@@ -95,7 +95,7 @@ const EXPECTED: Record<UserRole, string[]> = {
     '/products', '/delivery', '/serials', '/banks', '/specs', '/import-export',
   ],
   sell_admin: [
-    '/', '/sales', '/products', '/customers', '/support-letters', '/banks', '/specs', '/pricing', '/import-export',
+    '/', '/sales', '/products', '/customers', '/support-letters', '/banks', '/specs', '/import-export',
   ],
   sales: ['/', '/sales', '/products', '/customers', '/support-letters'],
   engineer: [

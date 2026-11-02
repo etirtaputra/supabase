@@ -25,7 +25,9 @@ export interface AgentCaller {
 /** Which capability each attention signal needs. Mirrors the SQL view's gates. */
 export const SIGNAL_CAPABILITY: Record<string, 'money' | 'buy_side' | 'any'> = {
   ar_overdue: 'money',
-  below_cost: 'money',
+  // Its detail prints the landed cost. Cost is buy-side knowledge: sell_admin
+  // sees money (AR) but never cost (owner, 2026-11-02).
+  below_cost: 'buy_side',
   po_late: 'buy_side',
   quote_quiet: 'any',
   stock_short: 'any',

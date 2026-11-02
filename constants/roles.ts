@@ -4,7 +4,10 @@
 //   buy_admin   — buy-side modules (Catalog, Insights), can edit; sees buy-side
 //                 sensitive info (brand, bank fees, competitor prices, TUC)
 //   sell_admin  — sell-side modules (Customers, Products, Sales, Invoices,
-//                 Delivery), can edit incl. pricing tiers & receipts
+//                 Delivery), can edit incl. receipts. Quotes at the tier
+//                 prices, NEVER sees cost (owner, 2026-11-02: "Ade shouldn't
+//                 see costs, she will only make quotes and select the unit
+//                 price using which tier") — so no Selling Prices screen.
 //   sales       — sell-side operational (Customers, Products, Sales, Invoices);
 //                 manages customers + sales docs, no back-end (pricing/stock/AR)
 //   engineer    — Project Quotes + sell-side sales access
@@ -97,7 +100,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canEdit: true, canExportCsv: true,
     canViewSellingPrice: true, canViewBankFees: false, canViewCompetitorPrices: false, canViewBrand: false,
     canManageUsers: false, canEditQuotes: false,
-    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: true, canManageStock: false, canHandleService: true, canRecordReceipts: true,
+    canManageCustomers: true, canEditSalesDocs: true, canManagePricing: false, canManageStock: false, canHandleService: true, canRecordReceipts: true,
     canViewEconomics: false,
     canViewAnalytics: false,
     canViewBanks: true, canEditBanks: false,

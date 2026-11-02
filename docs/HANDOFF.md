@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-02** · last change: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-02** · last change: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -123,7 +123,7 @@ item/price/spec data eventually feed a public website.
 
 ```bash
 npx tsc --noEmit     # must be clean
-npm test             # node --test "lib/**/*.test.ts" — 1,095 tests at handoff (2026-11-02), all pass
+npm test             # node --test "lib/**/*.test.ts" — 1,098 tests at handoff (2026-11-02), all pass
                      # WATCH THE TOTAL, not just the pass count: a suite that
                      # fails to IMPORT reports as 1 failure, not 26 missing tests
 npx eslint           # 415 problems at handoff (294 errors, 2026-10-02); just don't ADD any
@@ -138,7 +138,33 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-02 (latest) — EPC: the engineer's "no price data" (Std Cost via the server)
+### 2026-11-02 (latest) — sell_admin never sees cost
+
+Owner: *"Ade shouldn't see costs, she will only make quotes and select the
+unit price using which tier."* (Found while fixing the engineer's "no price
+data": Selling Prices was built for owner + sell_admin, and for sell_admin
+~334 items had blank cost/margin — the buy-side read gate again.)
+- `constants/roles.ts`: `sell_admin.canManagePricing` → **false**. Selling
+  Prices, the Products "Tiers & floors" link and product CSV import leave her;
+  `lib/access.test.ts` EXPECTED updated.
+- `agent_attention` (migration `below_cost_cost_roles_only.sql`, applied):
+  the `below_cost` branch ("Sells at X but landed cost is Y") is gated on
+  `can_read_buy_side()` instead of `can_see_money()` (money ≠ cost). Built
+  from the live viewdef; a diff of old vs new live viewdef shows exactly that
+  one line. Impersonation on production: Ade 4 → 0, MAX 4 → 0, owner 4.
+  `lib/agentApi.ts`: `below_cost` capability `money` → `buy_side`.
+- The quote editor needed nothing: tier prices auto-fill per customer, every
+  tier in the unit-price popover, GP owner-only with avg cost not fetched.
+- Guard: `lib/costVisibility.test.ts`.
+- **Still open (noticed, not changed):** RLS lets every signed-in role read
+  `30.1_stock_balances.avg_cost_idr` and `30.0_stock_movements.unit_cost_idr`
+  directly; no sell-side screen fetches them, but the columns are not locked
+  in the database. Closing that needs column-shaped views like the `_open`
+  ones (stock screens + warehouse read those tables). The cost-coverage check
+  and the "browser computes cost from buy-side tables" build test the owner
+  was offered are also not built yet.
+
+### 2026-11-02 — EPC: the engineer's "no price data" (Std Cost via the server)
 
 Owner: *"when my engineer looks for the newly input Sunkean Aluminum PV Cables
 in EPC proposals, it says No Price Data"*. Trisindo's WhatsApp quotes

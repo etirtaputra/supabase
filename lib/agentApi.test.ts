@@ -28,10 +28,10 @@ test('the engineer login (MANDA) sees operations but no money and no buy side', 
   assert.deepEqual(hiddenKinds('engineer'), ['ar_overdue', 'below_cost', 'landed_cost_open', 'po_late']);
 });
 
-test('sell_admin sees money but not the buy side', () => {
+test('sell_admin sees money but not the buy side, and never cost', () => {
   const seen = visibleKinds('sell_admin');
   assert.ok(seen.includes('ar_overdue'), 'AR is a sell-side responsibility');
-  assert.ok(seen.includes('below_cost'));
+  assert.ok(!seen.includes('below_cost'), 'below_cost prints the landed cost (owner, 2026-11-02: Ade never sees cost)');
   assert.ok(!seen.includes('po_late'), 'purchase orders are not theirs');
   assert.ok(!seen.includes('landed_cost_open'), 'nor is the customs bill');
 });
