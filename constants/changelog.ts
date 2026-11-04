@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-04T23:42:00Z",
+    title: "Pustaka deskripsi EPC dan Sales: fondasi baru (tahap 1)",
+    details: [
+      "Pustaka EPC kini berisi 520 entri dari kata-kata yang sudah dipakai di proposal (ejaan ganda seperti \"Equipment transport\" / \"Equipment Transport\" digabung), dan setiap baris teks bebas tersambung ke entrinya. Pustaka Sales terpisah dan berisi 9 entri.",
+      "Kata baru yang diketik engineer atau sales otomatis menjadi entri \"usulan\" untuk disetujui pemilik. Setiap perubahan pustaka tercatat (siapa, kapan, sebelum dan sesudah) dan bisa dibatalkan.",
+      "Menggabung atau mengganti nama entri tidak pernah mengubah proposal/penawaran yang sudah dikirim — hanya draf yang ikut berubah.",
+      "Layar pustaka dan pelengkapan otomatis yang baru menyusul di tahap berikutnya.",
+    ],
+  },
+  {
     at: "2026-11-02T11:04:00Z",
     title: "Sales admin tidak lagi melihat biaya",
     details: [
