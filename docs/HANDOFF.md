@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-02** · last change: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-05** · last change: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,67 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-02 (latest) — sell_admin never sees cost
+### 2026-11-04/05 (latest) — Description libraries v2: EPC + Sales, logged, one autocomplete
+
+Owner: *"EPC Proposal and Sales Quote [need] free-text libraries with
+autocomplete and items from Items Editors … separated … Not all quote comes
+from the items already bought … make sure that this function really works,
+and has logs and the right indexing … autocomplete feature and duplicate merge
+feature."* Decisions (owner, "yes to all three"): merge/rename rewords
+**drafts only** (sent/accepted keep their wording); engineers and sales may
+**add** (entries arrive `proposed`), the owner approves/merges; seed EPC from
+the ~520 wordings already used.
+
+- **DB** (`migrations/description_libraries_v2.sql`, applied; commit f6f1d18):
+  `lib_norm()` = what "the same wording" means (case/punctuation/spacing);
+  `10.4_description_library` / `22.2_sales_description_library` gain
+  `status`, `aliases` (+ generated `alias_keys`, GIN), `merged_into`,
+  `archived_at`, audit columns; unique normalised key among live rows.
+  Lines carry `library_entry_id`, set by trigger `lib_link` (SECURITY
+  DEFINER; auto-creates a `proposed` entry for a new wording; a catalogue
+  line has none). **No write policy on either library** — the only write path
+  is `library_create/edit/merge/archive/approve/undo` (each checks the role,
+  each logs before/after to `10.5_library_log`; undo refused while a later
+  change touched the same entries). Usage views `v_epc_library_usage` /
+  `v_sales_library_usage` (security_invoker). Seed
+  (`description_libraries_seed.sql`): EPC 520 entries, 2,483/2,483 lines
+  linked; Sales 9.
+- **Screen** `components/library/LibraryManager.tsx`, used by
+  `/proposals/library` and `/sales/library` (owner): Entries / To review /
+  Similar / Archived / History(+Undo); merge dialog picks the winning wording;
+  usage count drills into the documents. Server refusals are translated via
+  `LIBRARY_SERVER_MESSAGES` (`lib/libraryMatch.test.ts` fails when the SQL
+  gains a message that is not listed).
+- **Matching** `lib/libraryMatch.ts` (pure, tested): `rankLibrary` (every
+  word, any order, aliases count; most used first), `nearEntries`
+  (did-you-mean), `similarGroups` + `differentItems` (a rating/variant apart
+  is a different item: 25A/32A, NYA/NYY, Phase 1/2), `mainComponentKind`
+  (panel needs Wp; inverter kW/kVA + inverter/pcs/hybrid/on-grid/KTL;
+  battery kWh, or LiFePO4/battery + Ah).
+- **Editors**: EPC (`app/proposals/[id]`) and Sales (`app/sales/[id]`
+  ProductAutocomplete) use the same search; library entries show by their
+  CURRENT wording with uses + last price; "Did you mean…?" rows; a
+  main-component nudge to the Item Editor. The EPC dropdown's old "Rename
+  everywhere" (rewrote every proposal incl. sent, unlogged) is now owner-only
+  `library_edit`. Sales catalogue search moved to `catalogMatches`.
+  `MigrationBanner` no longer recreates the old write policy / lower(description)
+  index if re-run.
+- **Clean-up** (`migrations/description_libraries_cleanup.sql`, applied
+  2026-11-05): 7 new catalogue items (JINKO JKM650-66HL4M-BDV, LONGI
+  LR7-72HVH 655Wp, SUNGROW SG125CX-P2 / ST255C2-2h / EMS300CP, HUAWEI
+  SUN2000-100KTL-M2 / -150KTL-M2 — **no supplier price yet**, they show
+  last-used prices until procurement quotes them); their lines and the 45
+  lines whose wording IS a catalogue item linked via `component_id`
+  (wording untouched); 18 entries archived (log row, undoable). Left for the
+  owner: DEYE "SUN-12K-SG05L-P3" ≈ catalogue "SUN-12K-SG05LP3-EU-SM2";
+  ICAL LIP48100LF 3-yr ≈ 5-yr warranty item; generic "Canadian Solar 320Wp",
+  "Goodwe Hybrid Inverter 10kw", "Battery Pack Lithium 51,2V 100Ah".
+- Verified: rehearsal on production in BEGIN…ROLLBACK (19/19 trigger/RPC
+  checks as owner/engineer/sales), `npm test` 1,106 pass, eslint no new
+  problems, `next build` OK, real-browser run of the EPC autocomplete
+  (rank, alias, did-you-mean, nudge) and the library screen.
+
+### 2026-11-02 — sell_admin never sees cost
 
 Owner: *"Ade shouldn't see costs, she will only make quotes and select the
 unit price using which tier."* (Found while fixing the engineer's "no price

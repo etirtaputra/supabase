@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-05T01:30:00Z",
+    title: "Pustaka deskripsi EPC dan Sales: layar pustaka, pelengkapan otomatis, dan komponen utama masuk Editor Barang (tahap 2)",
+    details: [
+      "Layar Pustaka Deskripsi (EPC dan Sales, terpisah): cari, ubah, gabungkan ejaan ganda, setujui usulan tim, arsipkan — dengan tab \"Perlu ditinjau\", \"Mirip\" (kemungkinan duplikat), dan Riwayat yang bisa dibatalkan. Klik jumlah pemakaian untuk melihat proposal/penawaran yang memakainya.",
+      "Pelengkapan otomatis yang sama di editor proposal EPC dan penawaran Sales: kata boleh diketik dalam urutan apa pun, ejaan lama yang sudah digabung tetap ketemu, dan yang paling sering dipakai tampil lebih dulu dengan harga terakhirnya.",
+      "Saat mengetik kata baru yang hampir sama dengan entri yang ada (mis. \"accommodation\" vs \"accomodation\"), muncul \"Maksud Anda…?\". Saat yang diketik terlihat seperti panel, inverter, atau baterai yang belum ada di Editor Barang, muncul pengingat agar harganya terpantau.",
+      "Tujuh komponen utama yang selama ini hanya teks bebas kini menjadi barang di Editor Barang (JINKO 650Wp, LONGI 655Wp, SUNGROW SG125CX-P2, HUAWEI SUN2000-100KTL dan -150KTL, SUNGROW ST255C2 Powerstack, SUNGROW EMS300CP). Baris proposalnya, dan baris yang kata-katanya memang barang katalog (mis. \"ICA Solar SNV-GF1021\" ×29), kini tersambung ke barangnya — kata-kata di proposal yang sudah dikirim tidak berubah.",
+      "Ganti nama dari editor proposal kini hanya untuk pemilik, tercatat, dan hanya mengubah draf — dulu mengubah teks di semua proposal, termasuk yang sudah dikirim.",
+    ],
+  },
+  {
     at: "2026-11-04T23:42:00Z",
     title: "Pustaka deskripsi EPC dan Sales: fondasi baru (tahap 1)",
     details: [

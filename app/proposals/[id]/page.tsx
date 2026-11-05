@@ -33,7 +33,9 @@ import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type
 import type { Component } from '@/types/database';
 import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { isOfferable } from '@/lib/itemVisibility';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { catalogMatches, lastQuotedDates } from '@/lib/catalogSearch';
+import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libraryErrorKey, libNorm, type MainKind } from '@/lib/libraryMatch';
 import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -394,6 +396,8 @@ export default function QuoteEditorPage() {
   // (field report, 2026-07-30). RLS agrees: can_edit_quote() only blocks
   // engineers once the ROW is already sent, so draft→sent is theirs to make.
   const isOwner = gate.profile?.role === 'owner';
+  // The main-component nudge links to the Item Editor only for roles that can add items there
+  const canEditCatalog = !!(gate.profile && ROLE_PERMISSIONS[gate.profile.role]?.tabs.catalog && ROLE_PERMISSIONS[gate.profile.role]?.canEdit);
   /**
    * May pull a SENT proposal back to draft (owner, 2026-09-20). Deliberately
    * SEPARATE from `isOwner`, which still gates the raw pre-buffer cost figures
@@ -703,11 +707,16 @@ export default function QuoteEditorPage() {
   // Items from other quotes (catalog-linked or free-text) — deduped by
   // description, newest usage wins. Feeds the autocomplete and, via
   // freeTextHistory, the cost-cell hover for non-catalog items.
+  // Library entries (10.4) are PrevItems too: entry_id is the entry's id when
+  // `lib` is set, otherwise a key for an unlinked past line. aliases/uses/
+  // last_used feed lib/libraryMatch's ranking (word-any-order, most used).
   interface PrevItem {
+    entry_id: string; lib: boolean;
     description: string; brand: string; unit: string;
     component_id: string | null;
     cost_price: number | null; sell_price: number | null;
     label: string; date: string; count: number;
+    aliases: string[]; status: string | null; uses: number; last_used: string | null;
   }
   const [prevItems, setPrevItems] = useState<PrevItem[]>([]);
   const [freeTextHistory, setFreeTextHistory] = useState<Map<string, CostEntry[]>>(new Map());
@@ -717,20 +726,47 @@ export default function QuoteEditorPage() {
   const loadReferenceData = useCallback(async () => {
     fetchUsedEntries(supabase, id).then(setPrevUsed);
 
-    const [itemsRes, quotesRes, libRes] = await Promise.all([
+    const [itemsRes, quotesRes, libRes, usageRes] = await Promise.all([
       supabase.from('10.2_quote_items')
-        .select('description, brand, unit, component_id, cost_price, sell_price, quote_id, parent_item_id')
+        .select('description, brand, unit, component_id, cost_price, sell_price, quote_id, parent_item_id, library_entry_id')
         .neq('quote_id', id),
       // …with the deal context, so a FREE-TEXT line's price history names the
       // customer and system exactly as a catalog-linked line's does.
       supabase.from('10.0_project_quotes').select(`quote_id, quote_number, quote_date, ${QUOTE_CONTEXT_COLS}`),
-      // Curated entries from the owner-managed Description Library; the table
-      // may not exist yet on older databases — errors are simply ignored
-      supabase.from('10.4_description_library').select('description, brand, unit, default_cost'),
+      // The EPC Description Library (components/library/LibraryManager): one
+      // entry per wording, merged spellings kept as aliases. Every free-text
+      // line is linked to its entry by the database (trigger lib_link).
+      supabase.from('10.4_description_library')
+        .select('entry_id, description, brand, unit, default_cost, aliases, status')
+        .is('archived_at', null).is('merged_into', null),
+      supabase.from('v_epc_library_usage').select('entry_id, uses, last_used, last_cost, last_sell'),
     ]);
     const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
+    const usage = new Map((usageRes.data ?? []).map((u) => [u.entry_id as string, u]));
     const byDesc = new Map<string, PrevItem>();
+    const byEntry = new Map<string, PrevItem>();
     const hist = new Map<string, CostEntry[]>();
+    // Library entries first: a line linked to one shows up as the entry's
+    // CURRENT wording (after a merge or rename), not the old spelling it was
+    // sent with.
+    for (const r of libRes.data ?? []) {
+      const desc = String(r.description ?? '').trim();
+      if (desc.length < 3) continue;
+      const u = usage.get(r.entry_id as string);
+      const lastCost = u?.last_cost != null ? Number(u.last_cost) : null;
+      const p: PrevItem = {
+        entry_id: r.entry_id as string, lib: true,
+        description: desc, brand: String(r.brand ?? ''), unit: String(r.unit ?? ''),
+        component_id: null,
+        cost_price: lastCost ?? (r.default_cost != null ? Number(r.default_cost) : null),
+        sell_price: u?.last_sell != null ? Number(u.last_sell) : null,
+        label: 'Library', date: '', count: Number(u?.uses ?? 0),
+        aliases: (r.aliases as string[] | null) ?? [], status: (r.status as string | null) ?? null,
+        uses: Number(u?.uses ?? 0), last_used: (u?.last_used as string | null) ?? null,
+      };
+      byEntry.set(p.entry_id, p);
+      byDesc.set(desc.toLowerCase(), p);
+    }
     for (const it of itemsRes.data ?? []) {
       const desc = String(it.description ?? '').trim();
       if (it.parent_item_id || desc.length < 3) continue;
@@ -738,15 +774,33 @@ export default function QuoteEditorPage() {
       const date = (q?.quote_date as string) ?? '';
       const label = (q?.quote_number as string) || 'Project quote';
       const key = desc.toLowerCase();
+      const entry = it.library_entry_id ? byEntry.get(it.library_entry_id as string) : undefined;
 
       const cost = Number(it.cost_price);
       if (cost > 0) {
-        const arr = hist.get(key) ?? [];
-        arr.push({ kind: 'used', label, date, unitCost: cost, ...quoteContext(q as QuoteContextRow | undefined) });
-        hist.set(key, arr);
+        const entry_cost: CostEntry = { kind: 'used', label, date, unitCost: cost, ...quoteContext(q as QuoteContextRow | undefined) };
+        // Under the line's own text AND the entry's current wording, so the
+        // cost hover works on either spelling
+        for (const k of new Set([key, entry?.description.toLowerCase()].filter(Boolean) as string[])) {
+          const arr = hist.get(k) ?? [];
+          arr.push(entry_cost);
+          hist.set(k, arr);
+        }
       }
 
+      if (entry) {
+        // Uses and last prices come from v_epc_library_usage; the line only
+        // names the newest proposal it appeared in
+        if (date >= entry.date) Object.assign(entry, { label, date });
+        continue;
+      }
       const existing = byDesc.get(key);
+      if (existing?.lib) {
+        // Same text as an entry but not linked (a catalogue line, or saved
+        // before the link): one suggestion, the entry's
+        if (date >= existing.date) Object.assign(existing, { label, date });
+        continue;
+      }
       if (existing) {
         existing.count += 1;
         if (date > existing.date) {
@@ -760,28 +814,17 @@ export default function QuoteEditorPage() {
         }
       } else {
         byDesc.set(key, {
+          entry_id: `line:${key}`, lib: false,
           description: desc, brand: String(it.brand ?? ''), unit: String(it.unit ?? ''),
           component_id: (it.component_id as string | null) ?? null,
           cost_price: it.cost_price != null ? Number(it.cost_price) : null,
           sell_price: it.sell_price != null ? Number(it.sell_price) : null,
           label, date, count: 1,
+          aliases: [], status: null, uses: 1, last_used: date || null,
         });
       }
     }
-    // Curated library entries join the suggestions when no quote item already
-    // carries the same text (real usage, with its cost, always wins)
-    for (const r of libRes.data ?? []) {
-      const desc = String(r.description ?? '').trim();
-      const key = desc.toLowerCase();
-      if (desc.length < 3 || byDesc.has(key)) continue;
-      byDesc.set(key, {
-        description: desc, brand: String(r.brand ?? ''), unit: String(r.unit ?? ''),
-        component_id: null,
-        cost_price: r.default_cost != null ? Number(r.default_cost) : null,
-        sell_price: null,
-        label: 'Library', date: '', count: 1,
-      });
-    }
+    for (const p of byDesc.values()) if (!p.lib) { p.uses = p.count; p.last_used = p.date || null; }
     for (const arr of hist.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
     setPrevItems([...byDesc.values()]);
     setFreeTextHistory(hist);
@@ -789,9 +832,11 @@ export default function QuoteEditorPage() {
 
   useEffect(() => { loadReferenceData(); }, [loadReferenceData]);
 
-  // ── Inline rename of previous entries (fix inconsistent naming) ────────────
-  // Renames every past quote item carrying the old description so the
-  // suggestion library converges to one spelling.
+  // ── Inline rename of a library entry (owner) ────────────────────────────────
+  // Goes through library_edit: logged and undoable in the Description
+  // Library's History, and only DRAFT proposals are reworded — a sent or
+  // accepted proposal keeps the wording the customer saw (owner, 2026-11-04).
+  // Until 2026-11-04 this rewrote the text of every proposal ever saved.
   const [prevEdit, setPrevEdit] = useState<{ key: string; description: string; brand: string; original: PrevItem } | null>(null);
   const [prevEditBusy, setPrevEditBusy] = useState(false);
   const [prevEditError, setPrevEditError] = useState('');
@@ -808,22 +853,23 @@ export default function QuoteEditorPage() {
     const newDesc = prevEdit.description.trim();
     const newBrand = prevEdit.brand.trim();
     if (newDesc.length < 3) { setPrevEditError('Description too short'); return; }
+    if (!prevEdit.original.lib) return;
     setPrevEditBusy(true);
     setPrevEditError('');
-    // ilike with wildcards escaped = case-insensitive equality, catching
-    // "U ditch" vs "U Ditch" variants in one pass
-    const escaped = prevEdit.original.description.replace(/([%_\\])/g, '\\$1');
-    const { error } = await supabase.from('10.2_quote_items')
-      .update({ description: newDesc, brand: newBrand })
-      .ilike('description', escaped);
+    const { error } = await supabase.rpc('library_edit', {
+      p_library: 'epc', p_entry: prevEdit.original.entry_id,
+      p_fields: { description: newDesc, brand: newBrand },
+    });
     if (error) {
-      setPrevEditError(error.message);
+      const k = libraryErrorKey(error.message);
+      setPrevEditError(tf(k.key, k.vars));
       setPrevEditBusy(false);
       return;
     }
-    // Keep the open draft consistent too (its saved rows were just updated)
+    // A draft's saved rows were just reworded by the server — mirror it here.
+    // A sent proposal keeps its wording, on screen as in the database.
     const oldKey = prevEdit.original.description.trim().toLowerCase();
-    setSections((prev) => prev.map((s) => ({
+    if (quote?.status === 'draft') setSections((prev) => prev.map((s) => ({
       ...s,
       items: s.items.map((it) =>
         it.description.trim().toLowerCase() === oldKey
@@ -1234,8 +1280,8 @@ export default function QuoteEditorPage() {
 
   // ── Filtered autocomplete results: catalog + this quote's rows + past quotes
   const acResults = useMemo(() => {
-    if (!acState || acState.query.length < 2) return { comps: [] as Component[], prev: [] as PrevItem[], compTotal: 0 };
-    const q = acState.query.toLowerCase();
+    const none = { comps: [] as Component[], prev: [] as PrevItem[], compTotal: 0, near: [] as PrevItem[], mainKind: null as MainKind | null };
+    if (!acState || acState.query.length < 2) return none;
     // Items whose cost is "Hidden" for Project Quotes are treated as not
     // part of the PV catalog — keep unrelated/sensitive lines (UPS,
     // Stabilizer, …) out of the Project Quote autocomplete entirely.
@@ -1243,7 +1289,7 @@ export default function QuoteEditorPage() {
     // Every word must match, in any order; closest and freshest-quoted first.
     const { shown: comps, total: compTotal } = catalogMatches(
       catalog.components.filter((c) => isOfferable(c)), acState.query, { limit: 12, lastQuoted });
-    const compNames = new Set(comps.map((c) => compName(c).trim().toLowerCase()));
+    const compNames = new Set(comps.map((c) => libNorm(compName(c))));
 
     // Rows already in this quote (draft state — works before saving), except
     // the row currently being typed in
@@ -1254,30 +1300,42 @@ export default function QuoteEditorPage() {
       for (const it of s.items) {
         if (it._deleted || it.parent_item_id || it.item_id === acState.itemId) continue;
         const d = it.description.trim();
-        const k = d.toLowerCase();
-        if (d.length < 3 || seen.has(k) || compNames.has(k)) continue;
-        if (!k.includes(q) && !it.brand.toLowerCase().includes(q)) continue;
+        const k = libNorm(d);
+        if (k.length < 3 || seen.has(k) || compNames.has(k)) continue;
         seen.add(k);
         local.push({
+          entry_id: `here:${k}`, lib: false,
           description: d, brand: it.brand, unit: it.unit,
           component_id: it.component_id,
           cost_price: num(it.cost_price), sell_price: num(it.sell_price),
           label: 'this quote', date: '', count: 1,
+          aliases: [], status: null, uses: 1, last_used: null,
         });
       }
     }
+    // Same search everywhere (lib/libraryMatch): every word in any order, in
+    // the wording, its brand or a merged spelling; most used first.
+    const here = rankLibrary(local, acState.query, 5).shown;
+    const hereKeys = new Set(here.map((p) => libNorm(p.description)));
+    const others = prevItems.filter((p) => {
+      const k = libNorm(p.description);
+      return !compNames.has(k) && !hereKeys.has(k) && !seen.has(k);
+    });
+    const prev = [...here, ...rankLibrary(others, acState.query, 8).shown].slice(0, 8);
 
-    const crossQuote = prevItems
-      .filter((p) =>
-        (p.description.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q)) &&
-        !compNames.has(p.description.toLowerCase()) &&
-        !seen.has(p.description.toLowerCase())
-      )
-      .sort((a, b) => b.date.localeCompare(a.date));
-
-    return { comps, prev: [...local, ...crossQuote].slice(0, 5), compTotal };
+    // A new wording: "did you mean…?" for a near spelling of an entry
+    // (Food and accomodation / accommodation), and a nudge when it reads like
+    // a main component whose price should be tracked in Items.
+    const typed = acState.query;
+    const libOnly = prevItems.filter((p) => p.lib);
+    const isKnown = exactEntry(libOnly, typed) != null || exactEntry(local, typed) != null;
+    const shownIds = new Set(prev.map((p) => p.entry_id));
+    const near = isKnown ? [] : nearEntries(libOnly, typed, 0.85, 2).map((x) => x.entry).filter((p) => !shownIds.has(p.entry_id));
+    const mainKind = comps.length === 0 ? mainComponentKind(typed) : null;
+    return { comps, prev: [...prev, ...near], compTotal, near, mainKind };
   }, [acState, catalog.components, prevItems, sections, lastQuoted]);
   const acCount = acResults.comps.length + acResults.prev.length;
+  const acHint = acResults.mainKind != null;
 
   // ── Computed totals ────────────────────────────────────────────────────────
   const { subtotal, ppn, grandTotal, totalWp, blendedGm, missingSell } = useMemo(() => {
@@ -2848,7 +2906,7 @@ export default function QuoteEditorPage() {
                                   </span>
                                 )}
                                 {/* Autocomplete dropdown — fixed so table overflow can't clip it */}
-                                {isAcOpen && acState && acCount > 0 && (
+                                {isAcOpen && acState && (acCount > 0 || acHint) && (
                                   <div
                                     data-ac-dropdown
                                     className="fixed z-50 w-[420px] max-w-[calc(100vw-32px)] max-h-80 overflow-y-auto bg-slate-900 border border-slate-700 rounded-xl shadow-2xl"
@@ -2891,18 +2949,37 @@ export default function QuoteEditorPage() {
                                         {tf('+{n} more catalogue items match — keep typing to narrow', { n: acResults.compTotal - acResults.comps.length })}
                                       </p>
                                     )}
-                                    {acResults.prev.length > 0 && (
+                                    {acResults.mainKind && (
+                                      // A rated panel / inverter / battery typed as free text: its price
+                                      // then goes unmonitored (owner, 2026-11-04). Free text still works.
+                                      <div className="px-4 py-2.5 border-b border-slate-800 bg-sky-500/[0.06]">
+                                        <p className="text-[11px] text-sky-300 font-semibold">
+                                          {t(acResults.mainKind === 'panel' ? 'Looks like a solar panel — not in the Item Editor yet'
+                                            : acResults.mainKind === 'inverter' ? 'Looks like an inverter — not in the Item Editor yet'
+                                            : 'Looks like a battery — not in the Item Editor yet')}
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                          {t('Main components belong in the Item Editor, so their supplier prices are tracked. Typing it here as free text is fine for this proposal.')}
+                                          {canEditCatalog && (
+                                            <> <a href="/purchasing?tab=catalog" target="_blank" rel="noreferrer" onMouseDown={(e) => e.preventDefault()}
+                                              className="text-sky-400 hover:text-sky-300 underline">{t('Open the Item Editor')}</a></>
+                                          )}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {acResults.prev.length > acResults.near.length && (
                                       <p className="px-4 pt-2 pb-1 text-[9px] uppercase tracking-wider text-slate-600 border-t border-slate-800">
-                                        Previously entered items
+                                        {t('Description Library & previous proposals')}
                                       </p>
                                     )}
                                     {acResults.prev.map((p, pi) => {
-                                      const rowKey = `prev-${p.description.toLowerCase()}`;
+                                      const rowKey = `prev-${p.entry_id}`;
+                                      const nearHeader = acResults.near.length > 0 && pi === acResults.prev.length - acResults.near.length;
                                       if (prevEdit?.key === rowKey) {
                                         return (
                                           <div key={rowKey} className="px-4 py-2.5 bg-slate-800/70 space-y-1.5 border-y border-slate-700">
                                             <p className="text-[10px] text-slate-400">
-                                              Rename everywhere — updates {p.count} previous entr{p.count > 1 ? 'ies' : 'y'} and this quote
+                                              {tf('Rename the library entry — used {n}×; draft proposals follow, sent ones keep their wording', { n: p.uses })}
                                             </p>
                                             <input
                                               value={prevEdit.description}
@@ -2933,7 +3010,13 @@ export default function QuoteEditorPage() {
                                         );
                                       }
                                       return (
-                                        <div key={rowKey} className="relative group/prev">
+                                        <React.Fragment key={rowKey}>
+                                        {nearHeader && (
+                                          <p className="px-4 pt-2 pb-1 text-[9px] uppercase tracking-wider text-amber-500/80 border-t border-slate-800">
+                                            {t('Did you mean…?')}
+                                          </p>
+                                        )}
+                                        <div className="relative group/prev">
                                           <button
                                             data-ac-idx={acResults.comps.length + pi}
                                             onMouseDown={(e) => { e.preventDefault(); selectPrevItem(sec.section_id, item.item_id, p); }}
@@ -2942,7 +3025,10 @@ export default function QuoteEditorPage() {
                                           >
                                             <div className="min-w-0">
                                               <p className="text-slate-200 font-medium truncate">
-                                                <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 align-middle">PREV</span>
+                                                {p.lib
+                                                  ? <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-violet-500/20 text-violet-300 align-middle">LIB</span>
+                                                  : <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-300 align-middle">PREV</span>}
+                                                {p.status === 'proposed' && <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-slate-700 text-slate-300 align-middle" title={t('Added by the team, not yet reviewed by the owner')}>{t('PROPOSED')}</span>}
                                                 {p.description}
                                               </p>
                                               <p className="text-[10px] text-slate-500 truncate">
@@ -2964,14 +3050,15 @@ export default function QuoteEditorPage() {
                                             <div className="text-right flex-shrink-0">
                                               {p.cost_price != null
                                                 ? <p className="font-semibold text-xs text-amber-400">{fmtIdr(p.cost_price)}</p>
-                                                : <p className="text-slate-600 text-[10px]">no cost</p>}
+                                                : <p className="text-slate-600 text-[10px]">{t('no cost')}</p>}
                                               {p.date && priceAgeDays(p.date) > AGED_PRICE_DAYS
                                                 ? <p className="text-[10px] text-amber-400 font-semibold" title={`Last used ${p.date} — consider re-checking`}>⚠ aged</p>
-                                                : <p className="text-[10px] text-slate-600">{p.date ? 'last used' : 'library'}</p>}
+                                                : <p className="text-[10px] text-slate-600">{p.date ? t('last used') : t('library')}</p>}
                                             </div>
                                           </button>
-                                          {/* Sibling overlay so the select button's mousedown can't swallow it */}
-                                          <button
+                                          {/* Sibling overlay so the select button's mousedown can't swallow it.
+                                              Owner only, library entries only: catalogue items are renamed in the Item Editor. */}
+                                          {isOwner && p.lib && <button
                                             type="button"
                                             onMouseDown={(e) => e.preventDefault()}
                                             onClick={(e) => {
@@ -2980,11 +3067,12 @@ export default function QuoteEditorPage() {
                                               setPrevEdit({ key: rowKey, description: p.description, brand: p.brand, original: p });
                                             }}
                                             className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg opacity-0 group-hover/prev:opacity-100 hover:bg-white/10 text-slate-500 hover:text-white transition-all"
-                                            title="Rename this entry everywhere — fix inconsistent naming"
+                                            title={t('Rename this library entry — draft proposals follow, sent ones keep their wording')}
                                           >
                                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                          </button>
+                                          </button>}
                                         </div>
+                                        </React.Fragment>
                                       );
                                     })}
                                   </div>

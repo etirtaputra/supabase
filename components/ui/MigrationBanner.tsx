@@ -132,7 +132,7 @@ CREATE TRIGGER log_quote_activity
   FOR EACH ROW EXECUTE FUNCTION public.log_quote_activity();
 
 -- Description Library: curated item texts for the editor autocomplete,
--- managed on /quotes/library (read: everyone signed in; write: Owners)
+-- managed on /proposals/library
 CREATE TABLE IF NOT EXISTS "10.4_description_library" (
   entry_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   description TEXT NOT NULL,
@@ -143,17 +143,16 @@ CREATE TABLE IF NOT EXISTS "10.4_description_library" (
   default_cost NUMERIC,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS description_library_unique
-  ON "10.4_description_library" (lower(description));
 ALTER TABLE "10.4_description_library" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "library read" ON "10.4_description_library";
-CREATE POLICY "library read" ON "10.4_description_library"
-  FOR SELECT TO authenticated USING (true);
-DROP POLICY IF EXISTS "library write" ON "10.4_description_library";
-CREATE POLICY "library write" ON "10.4_description_library"
-  FOR ALL TO authenticated
-  USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'))
-  WITH CHECK (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role = 'owner'));
+-- Since 2026-11-04 (migrations/description_libraries_v2.sql) uniqueness is
+-- per normalised wording, the read policy is narrower, and there is NO write
+-- policy: every change goes through the logged library_* functions. Re-running
+-- this script must not undo that, so it only fills in what is missing.
+DO $lib$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = '10.4_description_library' AND policyname = 'library read') THEN
+    CREATE POLICY "library read" ON "10.4_description_library" FOR SELECT TO authenticated USING (true);
+  END IF;
+END $lib$;
 
 -- Cost Basis for Project Quotes (per-item mode + global safety buffer).
 -- The global buffer now lives in the Settings store (migrations/create_settings.sql).

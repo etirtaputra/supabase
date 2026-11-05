@@ -36,6 +36,8 @@ import SystemDesigner from '@/components/ui/SystemDesigner';
 import type { SystemDesign } from '@/lib/systemDesign/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { selectAll } from '@/lib/fetchAllRows';
+import { catalogMatches } from '@/lib/catalogSearch';
+import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libNorm } from '@/lib/libraryMatch';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -65,10 +67,16 @@ interface Override { component_id: string; tier_id: string; override_price_idr: 
 interface Comp { component_id: string; supplier_model: string; internal_description: string | null; unit: string | null; selling_price_idr: number | null; }
 // Customer-facing product name: our internal description, never the supplier MODEL/SKU.
 const compName = (c?: Comp | null) => (c?.internal_description?.trim() || c?.supplier_model || '');
-interface LibEntry { entry_id: string; description: string; unit: string; default_price: number | null; section?: string | null; }
-// Non-catalog suggestions: custom lines from past sales quotes (PREV) and
-// owner-curated library entries (LIB)
-interface Extra { kind: 'prev' | 'lib'; description: string; unit: string; price: number | null; count: number; section?: string }
+interface LibEntry { entry_id: string; description: string; unit: string; default_price: number | null; section?: string | null; aliases?: string[] | null; status?: string | null; }
+interface LibUsage { entry_id: string; uses: number; last_used: string | null; last_price: number | null; }
+// Non-catalog suggestions: Sales Description Library entries (LIB/SVC — the
+// database links every custom line to one) and any older custom line not yet
+// linked (PREV). entry_id/aliases/uses/last_used feed lib/libraryMatch's
+// ranking; `first` = this document's shelf (after-sales on a service quote).
+interface Extra {
+  kind: 'prev' | 'lib'; description: string; unit: string; price: number | null; count: number; section?: string;
+  entry_id: string; aliases: string[]; status: string | null; uses: number; last_used: string | null; first?: boolean;
+}
 interface DeliveryDetails { date: string; time: string; method: string; via: string; address: string; mapUrl: string; contact: string; }
 interface Receipt {
   receipt_id: string; quote_id: string; receipt_number: string; category: string;
@@ -193,7 +201,7 @@ export default function SalesQuotePage() {
   const sortedExtras = useMemo(() => {
     const svc = !!editing?.case_id;
     const hit = (x: Extra) => ((x.section === 'aftersales') === svc ? 1 : 0);
-    return [...extras].sort((a, b) => hit(b) - hit(a));
+    return [...extras].sort((a, b) => hit(b) - hit(a)).map((x) => ({ ...x, first: hit(x) === 1 }));
   }, [extras, editing?.case_id]);
   // Split fulfillment: this order's child invoices + delivery orders
   const [savedLines, setSavedLines] = useState<SoLine[]>([]);
@@ -218,7 +226,7 @@ export default function SalesQuotePage() {
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    const [custRes, coRes, tierRes, ovRes, compRes, balRes, allQRes, allIRes, libRes, contactRes] = await Promise.all([
+    const [custRes, coRes, tierRes, ovRes, compRes, balRes, allQRes, allIRes, libRes, contactRes, usageRes] = await Promise.all([
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name, tier, shipping_address, billing_address').order('display_name'),
       supabase.from('1.0_companies').select('company_id, legal_name').order('legal_name'),
       supabase.from('21.0_price_tiers').select('tier_id, tier_code, default_discount_pct, sort_order, is_active'),
@@ -226,9 +234,11 @@ export default function SalesQuotePage() {
       selectAll((f, t) => supabase.from('3.0_components').select('component_id, supplier_model, internal_description, unit, selling_price_idr').order('supplier_model').order('component_id').range(f, t)),
       supabase.from('30.1_stock_balances').select(canGP ? 'component_id, qty_on_hand, avg_cost_idr' : 'component_id, qty_on_hand'),
       supabase.from('22.0_sales_quotes').select('quote_id, status, customer_id, quote_date, quote_number, order_number'),
-      supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at'),
-      supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price, section'),
+      supabase.from('22.1_sales_quote_items').select('quote_id, component_id, quantity, is_section, description, unit, unit_price, created_at, library_entry_id'),
+      supabase.from('22.2_sales_description_library').select('entry_id, description, unit, default_price, section, aliases, status')
+        .is('archived_at', null).is('merged_into', null),
       supabase.from('20.1_customer_contacts').select('customer_id, name, title, phone'),
+      supabase.from('v_sales_library_usage').select('entry_id, uses, last_used, last_price'),
     ]);
     // Successor links are informational — tolerate RLS hiding 8.0 from a role.
     supabase.from('8.0_component_links').select('component_id_a, component_id_b, link_type').eq('link_type', 'successor')
@@ -328,30 +338,47 @@ export default function SalesQuotePage() {
     }
     setReserved(rsv);
 
-    // Custom (non-catalog) lines from other sales quotes → PREV suggestions
-    type PastLine = { quote_id: string; component_id: string | null; is_section: boolean; description: string; unit: string; unit_price: number; created_at: string };
+    // Library entries first, with their use counts and last price
+    // (v_sales_library_usage); then any custom line from another quote that
+    // is not linked to an entry → PREV.
+    const usage = new Map(((usageRes.data as LibUsage[] | null) ?? []).map((u) => [u.entry_id, u]));
     const past = new Map<string, Extra & { at: string }>();
+    const byEntry = new Map<string, Extra & { at: string }>();
+    for (const e of ((libRes.error ? [] : libRes.data) as LibEntry[] ?? [])) {
+      const desc = (e.description ?? '').trim();
+      if (desc.length < 3) continue;
+      const u = usage.get(e.entry_id);
+      const x: Extra & { at: string } = {
+        kind: 'lib', section: e.section ?? 'sales', description: desc, unit: e.unit ?? '',
+        price: u?.last_price != null ? Number(u.last_price) : e.default_price != null ? Number(e.default_price) : null,
+        count: Number(u?.uses ?? 0), at: u?.last_used ?? '',
+        entry_id: e.entry_id, aliases: e.aliases ?? [], status: e.status ?? null, uses: Number(u?.uses ?? 0), last_used: u?.last_used ?? null,
+      };
+      byEntry.set(e.entry_id, x);
+      past.set(desc.toLowerCase(), x);
+    }
+    type PastLine = { quote_id: string; component_id: string | null; is_section: boolean; description: string; unit: string; unit_price: number; created_at: string; library_entry_id: string | null };
     for (const it of ((allIRes.data as unknown as PastLine[]) ?? [])) {
       if (it.is_section || it.component_id || it.quote_id === id) continue;
+      if (it.library_entry_id && byEntry.has(it.library_entry_id)) continue;
       const desc = (it.description ?? '').trim();
       if (desc.length < 3) continue;
       const k = desc.toLowerCase();
       const existing = past.get(k);
+      if (existing?.kind === 'lib') continue;
       if (existing) {
         existing.count += 1;
         if ((it.created_at ?? '') > existing.at) {
           Object.assign(existing, { description: desc, unit: it.unit ?? '', price: Number(it.unit_price) || null, at: it.created_at ?? '' });
         }
       } else {
-        past.set(k, { kind: 'prev', description: desc, unit: it.unit ?? '', price: Number(it.unit_price) || null, count: 1, at: it.created_at ?? '' });
+        past.set(k, {
+          kind: 'prev', description: desc, unit: it.unit ?? '', price: Number(it.unit_price) || null, count: 1, at: it.created_at ?? '',
+          entry_id: `line:${k}`, aliases: [], status: null, uses: 1, last_used: null,
+        });
       }
     }
-    // Owner-curated library entries join in where no past usage carries the text
-    for (const e of ((libRes.error ? [] : libRes.data) as LibEntry[] ?? [])) {
-      const desc = (e.description ?? '').trim();
-      if (desc.length < 3 || past.has(desc.toLowerCase())) continue;
-      past.set(desc.toLowerCase(), { kind: 'lib', section: e.section ?? 'sales', description: desc, unit: e.unit ?? '', price: e.default_price != null ? Number(e.default_price) : null, count: 0, at: '' });
-    }
+    for (const x of past.values()) if (x.kind === 'prev') { x.uses = x.count; x.last_used = x.at || null; }
     setExtras([...past.values()].sort((a, b) => (b.at || '').localeCompare(a.at || '')).map(({ at: _at, ...x }) => x));
 
     if (isNew) {
@@ -2273,17 +2300,25 @@ function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra
   const { t, tf } = useT();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const results = useMemo(() => {
-    const s = value.trim().toLowerCase();
-    const list = s ? comps.filter((c) => `${c.internal_description ?? ''} ${c.supplier_model}`.toLowerCase().includes(s)) : comps;
-    return list.slice(0, 20);
-  }, [comps, value]);
-  // PREV / LIB suggestions, excluding texts that duplicate a shown catalog item
-  const extraResults = useMemo(() => {
-    const s = value.trim().toLowerCase();
-    const shown = new Set(results.map((c) => compName(c).trim().toLowerCase()));
-    const list = extras.filter((x) => !shown.has(x.description.toLowerCase()) && (!s || x.description.toLowerCase().includes(s)));
-    return list.slice(0, 6);
+  // The same search as the EPC proposal editor (lib/catalogSearch,
+  // lib/libraryMatch): every typed word, any order; closest first.
+  const results = useMemo(() => (value.trim() ? catalogMatches(comps, value, { limit: 20 }).shown : comps.slice(0, 20)), [comps, value]);
+  // LIB / SVC / PREV suggestions, excluding texts that duplicate a shown
+  // catalogue item; this document's shelf first, then most used.
+  const { extraResults, nearFrom, mainKind } = useMemo(() => {
+    const shown = new Set(results.map((c) => libNorm(compName(c))));
+    const pool = extras.filter((x) => !shown.has(libNorm(x.description)));
+    const ranked = value.trim() ? rankLibrary(pool, value, 50).shown : pool;
+    const list = [...ranked].sort((a, b) => Number(!!b.first) - Number(!!a.first)).slice(0, 6);
+    // A new wording: "did you mean…?" an entry spelled nearly the same
+    const libs = pool.filter((x) => x.kind === 'lib');
+    const ids = new Set(list.map((x) => x.entry_id));
+    const near = value.trim() && !exactEntry(libs, value)
+      ? nearEntries(libs, value, 0.85, 2).map((n) => n.entry).filter((x) => !ids.has(x.entry_id)) : [];
+    return {
+      extraResults: [...list, ...near], nearFrom: near.length ? list.length : -1,
+      mainKind: results.length === 0 && value.trim() ? mainComponentKind(value) : null,
+    };
   }, [extras, results, value]);
   const total = results.length + extraResults.length;
   useEffect(() => { setActive(-1); }, [value]);
@@ -2305,8 +2340,20 @@ function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra
       <input value={value} onChange={(e) => { onText(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)} onKeyDown={onKey}
         placeholder={t('Type a product or custom item…')} autoComplete="off" className={inpSm} />
-      {open && total > 0 && (
+      {open && (total > 0 || mainKind) && (
         <div className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-slate-900 border border-emerald-500/40 rounded-lg shadow-2xl">
+          {mainKind && (
+            // A rated panel / inverter / battery typed as free text: its price
+            // goes unmonitored (owner, 2026-11-04). Free text still works.
+            <div className="px-3 py-2 border-b border-slate-800 bg-sky-500/[0.06]">
+              <p className="text-[11px] text-sky-300 font-semibold">
+                {t(mainKind === 'panel' ? 'Looks like a solar panel — not in the Item Editor yet'
+                  : mainKind === 'inverter' ? 'Looks like an inverter — not in the Item Editor yet'
+                  : 'Looks like a battery — not in the Item Editor yet')}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-0.5">{t('Main components belong in the Item Editor, so their supplier prices are tracked. Typing it here as free text is fine for this quote.')}</p>
+            </div>
+          )}
           {results.map((c, i) => (
             <button key={c.component_id} onMouseDown={(e) => { e.preventDefault(); choose(i); }}
               className={`w-full text-left px-3 py-1.5 text-xs border-b border-slate-800/50 last:border-0 ${i === active ? 'bg-emerald-600/30 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
@@ -2314,22 +2361,28 @@ function ProductAutocomplete({ comps, extras, value, onText, onPick, onPickExtra
               <span className="block text-[10px] text-slate-500 truncate">{[c.unit, c.selling_price_idr ? `Rp${fmtInt(c.selling_price_idr)}` : ''].filter(Boolean).join(' · ')}</span>
             </button>
           ))}
-          {extraResults.length > 0 && (
-            <p className="px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-slate-600 border-t border-slate-800">Previous &amp; library entries</p>
+          {extraResults.length > 0 && nearFrom !== 0 && (
+            <p className="px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-slate-600 border-t border-slate-800">{t('Sales Description Library & previous quotes')}</p>
           )}
           {extraResults.map((x, xi) => {
             const i = results.length + xi;
             return (
-              <button key={`${x.kind}-${x.description}`} onMouseDown={(e) => { e.preventDefault(); choose(i); }}
+              <div key={`${x.kind}-${x.entry_id}`}>
+              {xi === nearFrom && (
+                <p className="px-3 pt-1.5 pb-0.5 text-[9px] uppercase tracking-wider text-amber-500/80 border-t border-slate-800">{t('Did you mean…?')}</p>
+              )}
+              <button onMouseDown={(e) => { e.preventDefault(); choose(i); }}
                 className={`w-full text-left px-3 py-1.5 text-xs border-b border-slate-800/50 last:border-0 ${i === active ? 'bg-emerald-600/30 text-white' : 'hover:bg-slate-800 text-slate-300'}`}>
                 <span className="block truncate">
                   <span className={`mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold align-middle ${x.kind === 'prev' ? 'bg-amber-500/20 text-amber-300' : x.section === 'aftersales' ? 'bg-orange-500/20 text-orange-300' : 'bg-violet-500/20 text-violet-300'}`}>{x.kind === 'prev' ? 'PREV' : x.section === 'aftersales' ? 'SVC' : 'LIB'}</span>
+                  {x.status === 'proposed' && <span className="mr-1.5 px-1 py-0.5 rounded text-[9px] font-bold bg-slate-700 text-slate-300 align-middle" title={t('Added by the team, not yet reviewed by the owner')}>{t('PROPOSED')}</span>}
                   {x.description}
                 </span>
                 <span className="block text-[10px] text-slate-500 truncate">
-                  {[x.unit, x.price != null ? `Rp${fmtInt(x.price)}` : '', x.kind === 'prev' && x.count > 1 ? tf('used {n}×', { n: x.count }) : ''].filter(Boolean).join(' · ')}
+                  {[x.unit, x.price != null ? `Rp${fmtInt(x.price)}` : '', x.count > 1 ? tf('used {n}×', { n: x.count }) : ''].filter(Boolean).join(' · ')}
                 </span>
               </button>
+              </div>
             );
           })}
         </div>
