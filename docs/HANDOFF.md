@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-05** · last change: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-05** · last change: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval timeout + smart_policy + self-review off cards (§8.6)*; before that (2026-10-30): *purchasing sync runbook v10* — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -5948,7 +5948,28 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    `upload_file` call exists; 9 places say "upload to a supplier folder"
    without a method → card "part 2, continue" adds a one-line pointer to the
    script at each, plus the §11.5 line, a read-back, and a sync of
-   MIRA-SKILL.md to her own 90-OUTPUT folder (skill-12). The
+   MIRA-SKILL.md to her own 90-OUTPUT folder (skill-12). **5 Nov — MANDA
+   on Wendy's 10 kW off-grid job (group chat):** he stopped twice because
+   Hermes' smart approval escalated his ICAPROC calls (sign-in, then POST
+   `/api/agent/design/system`) to a person and nobody answered within the
+   default `approvals.timeout` 300 s; someone pressed approve at 08:40,
+   after the expiry. He also reported earlier faults himself (IMORE job:
+   sign-in blocked, he went on with guessed specs; a saved refresh token
+   shown in full in a tool log; `openpyxl` installed; a brochure with
+   invented chart parts). **Claude ended all 21 `auth.sessions` of
+   project@ptmbs.co** (all `Python-urllib`/`curl`, Sep 6 → Nov 4; no
+   browser) → 0 sessions, 0 active refresh tokens. Owner cards (briefing
+   "MANDA approvals + leaked token · 5 Nov"): read `approvals` and
+   `auxiliary.background_review`, then `approvals.timeout 1800`,
+   `approvals.smart_policy` (APPROVE https calls to icaproc.com/api/agent/
+   and the Supabase token URL that use the `ICAPROC_` variables by name;
+   ESCALATE anything that prints a credential), and
+   `auxiliary.background_review.enabled false` (the "💾 Self-improvement
+   review" fork rewrote his skills after each turn — keys from the current
+   Hermes source, `hermes_cli/config_defaults.py`; MANDA's Hermes is older,
+   step 1 checks they exist). Answers to MANDA: keep openpyxl, nothing
+   else; GoodWe/BAT not in ICAPROC → "not in catalog, price to confirm".
+   The same two settings likely belong on MIRA and MAX. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
