@@ -112,7 +112,8 @@ and `/api/agent/onboarding` serves it to the agents as `lifecycles`.
   (`HAND_LISTS_ALLOWED`) fails the build.
 - Adding a value to a text status column means changing its CHECK in a
   migration in the same commit (`migrations/lifecycle_checks.sql` holds the
-  three added on 2026-11-10).
+  three added on 2026-11-10; `migrations/true_up_queue_check.sql` the
+  true-up queue's, 2026-11-11).
 
 ## Mission (why ICAPROC exists)
 

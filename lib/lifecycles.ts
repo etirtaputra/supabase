@@ -446,14 +446,42 @@ const LANDED_COST: Lifecycle = {
   enforced: ['Computed, never stored (lib/landedCost, lib/landedAutoPost).'],
 };
 
+const TRUE_UP_QUEUE: Lifecycle = {
+  id: 'true_up_queue',
+  title: 'Landed-cost true-up queue',
+  table: '30.5_landed_true_up_queue',
+  column: 'outcome',
+  storage: 'text+check',
+  initial: 'pending',
+  states: [
+    S('pending', 'Waiting to post', 'bg-slate-700 text-slate-300 tone-wait', 'Queued by a cost write; the next drain tries to post the revaluation.'),
+    S('held', 'Held', 'bg-amber-500/15 text-amber-300 tone-wait', 'The drain found a reason not to post (the hold is in note); waits for the next cost write.'),
+    S('error', 'Error', 'bg-red-500/15 text-red-300 tone-bad', 'The ledger insert failed; the message is in note.'),
+  ],
+  moves: [
+    { from: ['pending'], to: 'held', action: 'Drain: hold', by: 'system', where: 'app/api/landed/autopost (drain)' },
+    { from: ['pending'], to: 'error', action: 'Drain: ledger insert failed', by: 'system', where: 'app/api/landed/autopost (drain)' },
+    { from: ['held', 'error'], to: 'pending', action: 'A cost is written again', by: 'system', where: 'trigger in migrations/landed_true_up_queue.sql' },
+  ],
+  enforced: [
+    'CHECK landed_true_up_queue_outcome_valid (migrations/true_up_queue_check.sql).',
+    'Done is not a state: a posted (or already current) row is DELETED by the drain.',
+  ],
+  notes: [
+    'The autopost API reports a failed post as "failed"; the stored row says "error".',
+    'There is no claim/running state: two drains at the same time can both read the same pending row.',
+  ],
+};
+
 export const LIFECYCLES: Lifecycle[] = [
   EPC_PROPOSAL, SALES_DOCUMENT, DELIVERY_ORDER, AFTERSALES_CASE, SUPPORT_LETTER, SERIAL_NUMBER,
-  PURCHASE_ORDER, PRICE_QUOTE, PROFORMA, LIBRARY_ENTRY, QUOTE_ITEM_FLAG, LANDED_COST,
+  PURCHASE_ORDER, PRICE_QUOTE, PROFORMA, LIBRARY_ENTRY, QUOTE_ITEM_FLAG, LANDED_COST, TRUE_UP_QUEUE,
 ];
 
 export type LifecycleId =
   | 'epc_proposal' | 'sales_document' | 'delivery_order' | 'aftersales_case' | 'support_letter' | 'serial_number'
-  | 'purchase_order' | 'price_quote' | 'proforma_invoice' | 'library_entry' | 'quote_item_flag' | 'landed_cost';
+  | 'purchase_order' | 'price_quote' | 'proforma_invoice' | 'library_entry' | 'quote_item_flag' | 'landed_cost'
+  | 'true_up_queue';
 
 export function lifecycle(id: LifecycleId): Lifecycle {
   const l = LIFECYCLES.find((x) => x.id === id);

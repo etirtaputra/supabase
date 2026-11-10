@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-10** · last change: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-11** · last change: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,32 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-10 (latest) — Serial register: returned, back on the shelf, scrapped
+### 2026-11-11 (latest) — True-up queue declared; Deal Lookup rename mix-up fixed
+
+Phase 1 of the owner's state-machine request ("find all implicit state
+machines … elevate UX, DX and AX"), finishing what a154023 / dfd8074 left open.
+A full audit (22 machines, with live-data counts) found two phase-1 items
+those commits did not cover:
+
+- **`30.5_landed_true_up_queue.outcome`** was a free-text status (pending /
+  held / error; a posted row is deleted). Now declared in `lib/lifecycles.ts`
+  as `true_up_queue`, with CHECK `landed_true_up_queue_outcome_valid`
+  (`migrations/true_up_queue_check.sql`, applied 2026-11-11; the one live row
+  was `held`; rehearsed in a rolled-back DO block first). Tests: the CHECK list
+  equals the declared states, and the drain (`app/api/landed/autopost`) may
+  only store or filter declared outcomes. Its JSON reply still says `failed`
+  where the row says `error` — an API verdict, noted in the lifecycle.
+- **Deal Lookup:** the PI-number and PO-number editors shared one draft
+  (`renameDraft`); with both open, saving one could write the other's number.
+  Opening either now closes the other.
+
+**Still open (phase 2–4, need owner decisions):** one rule for undo/cancel on
+sales orders (five writers disagree), PO/letter/after-sales selects limited to
+declared moves, one definition of "PO paid" (the weakest gates auto-posting),
+a claim state so two drains cannot double-post, shared async/busy handling on
+screens (FulfillmentPanel, sales editor autosave, ComponentEditor import).
+
+### 2026-11-10 — Serial register: returned, back on the shelf, scrapped
 
 Owner: *"add returned and scrapped buttons to the serial register"*.
 

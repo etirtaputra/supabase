@@ -100,6 +100,7 @@ test('the database CHECKs list exactly the declared states', () => {
     ['epc_proposal', 'lifecycle_checks.sql', 'proposal_status_valid'],
     ['sales_document', 'lifecycle_checks.sql', 'sales_document_status_valid'],
     ['delivery_order', 'lifecycle_checks.sql', 'delivery_order_status_valid'],
+    ['true_up_queue', 'true_up_queue_check.sql', 'landed_true_up_queue_outcome_valid'],
   ];
   for (const [id, file, name] of cases) assert.deepEqual(checkList(file, name).sort(), stateIds(id).sort(), `${id} vs ${name}`);
   // The older tables carried their CHECK from the start.
@@ -107,6 +108,21 @@ test('the database CHECKs list exactly the declared states', () => {
     const sql = readFileSync(join(process.cwd(), 'migrations', file), 'utf8');
     for (const s of stateIds(id)) assert.ok(sql.includes(`'${s}'`), `${id}: ${s} is not in ${file}'s CHECK`);
   }
+});
+
+// The true-up queue keeps its state in `outcome`, which the status scan below
+// does not read. The drain is its only app-side writer: every outcome it
+// stores or filters on must be a declared queue state. (Its JSON reply says
+// 'failed' and 'posted' — those are API verdicts, never written to the row.)
+test('the true-up drain stores and filters only declared queue states', () => {
+  const src = readFileSync(join(process.cwd(), 'app/api/landed/autopost/route.ts'), 'utf8');
+  const known = new Set(stateIds('true_up_queue'));
+  const used = [
+    ...[...src.matchAll(/\.update\(\{\s*outcome:\s*'([^']+)'/g)].map((m) => m[1]),
+    ...[...src.matchAll(/\.eq\(\s*'outcome'\s*,\s*'([^']+)'/g)].map((m) => m[1]),
+  ];
+  assert.ok(used.length >= 3, `the drain's queue writes were not found (${used.length}) — update this test`);
+  assert.deepEqual(used.filter((v) => !known.has(v)), [], 'an undeclared outcome is written to 30.5');
 });
 
 // Status words the app compares that are NOT lifecycle states.

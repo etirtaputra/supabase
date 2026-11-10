@@ -653,6 +653,8 @@ export default function DealLookupTab({
   const [editingQuoteReplacedBy, setEditingQuoteReplacedBy] = useState<string | null>(null);
   const [editingDate, setEditingDate]             = useState<string | null>(null);
   const [dateDraft, setDateDraft]                 = useState('');
+  // One draft for the PI-number and PO-number editors: opening either closes
+  // the other, so a save can never write one document's number into the other.
   const [renameDraft, setRenameDraft]             = useState('');
   const [renameBusy, setRenameBusy]               = useState(false);
   const [acknowledgedMismatches, setAcknowledgedMismatches] = useState<Set<string>>(new Set());
@@ -981,7 +983,7 @@ export default function DealLookupTab({
                           ) : (
                             <p className="text-slate-300 mt-0.5 inline-flex items-center gap-1">
                               {onUpdateQuote ? (
-                                <button onClick={(e) => { e.stopPropagation(); setRenameDraft(qt.pi_number ?? ''); setEditingPi(qKey); }}
+                                <button onClick={(e) => { e.stopPropagation(); setEditingPoNumber(null); setRenameDraft(qt.pi_number ?? ''); setEditingPi(qKey); }}
                                   className="font-mono hover:text-sky-300 transition-colors text-left" title="Click to rename this PI / quote reference (updates its POs too)">
                                   {qt.pi_number || <span className="text-slate-600 italic font-sans">Set PI #…</span>}
                                 </button>
@@ -1431,7 +1433,7 @@ export default function DealLookupTab({
                           ) : (
                             <div className="flex items-center gap-1 mt-0.5">
                               {onUpdatePo ? (
-                                <button onClick={(e) => { e.stopPropagation(); setRenameDraft(po.po_number ?? ''); setEditingPoNumber(pKey); }}
+                                <button onClick={(e) => { e.stopPropagation(); setEditingPi(null); setRenameDraft(po.po_number ?? ''); setEditingPoNumber(pKey); }}
                                   className="text-slate-300 hover:text-sky-300 transition-colors text-left" title="Click to rename the PO number">
                                   {po.po_number || <span className="text-slate-600 italic">Set PO #…</span>}
                                 </button>

@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-10T23:32:00Z",
+    title: "Antrean penyesuaian biaya landed kini tercatat sebagai siklus status; Deal Lookup tidak lagi mencampur nomor PI dan PO",
+    details: [
+      "Antrean penyesuaian biaya landed (Menunggu diposting, Ditahan, Gagal) kini dideklarasikan seperti status dokumen lain, dan database menolak nilai di luar ketiganya.",
+      "Di Deal Lookup, membuka edit nomor PI kini menutup edit nomor PO, dan sebaliknya. Dulu keduanya bisa terbuka bersamaan dan memakai kotak isian yang sama, sehingga menyimpan satu bisa menulis nomor dokumen yang lain.",
+    ],
+  },
+  {
     at: "2026-11-10T12:00:00Z",
     title: "Register serial: tombol Diretur, Kembali ke rak, dan Afkir",
     details: [
