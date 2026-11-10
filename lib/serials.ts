@@ -237,3 +237,71 @@ export async function lookupSerialRemote(supabase: SupabaseClient, typed: string
   const { data } = await supabase.from('30.4_serial_numbers').select(SERIAL_COLS).eq('serial_norm', norm);
   return (data ?? []) as unknown as SerialRow[];
 }
+
+// ── Moves a person makes on one unit (owner, 2026-11-10: "add returned and
+// scrapped buttons to the serial register") ──────────────────────────────────
+// Declared in lib/lifecycles.ts (serial_number); lib/serials.test.ts holds every
+// move here to a declared one. Each writes a dated line into the unit's notes —
+// the register has no separate history table, and "why is this unit scrapped?"
+// must be answerable from the unit itself.
+
+export type SerialMoveId = 'return' | 'undo_return' | 'restock' | 'scrap' | 'undo_scrap';
+
+export interface SerialMove {
+  id: SerialMoveId;
+  label: string;
+  /** The state the unit lands in. */
+  to: string;
+  /** What is asked before the move (window.prompt); a reason is required when `needsReason`. */
+  ask: string;
+  needsReason: boolean;
+  danger?: boolean;
+}
+
+/** The moves offered on a unit in its current state, in the order they are shown. */
+export function serialMoves(r: Pick<SerialRow, 'status' | 'do_id' | 'quote_id' | 'is_external'>): SerialMove[] {
+  switch (r.status) {
+    case 'delivered':
+      return [{ id: 'return', label: 'Returned by customer', to: 'returned', ask: 'Why did the customer return it?', needsReason: true }];
+    case 'returned':
+      return [
+        { id: 'restock', label: 'Back on the shelf', to: 'in_stock', ask: 'Back on the shelf for resale — its order, invoice and delivery links are cleared (the note keeps where it came from). Note (optional):', needsReason: false },
+        { id: 'undo_return', label: 'Undo return', to: 'delivered', ask: 'Undo the return — the unit is with the customer after all. Note (optional):', needsReason: false },
+        { id: 'scrap', label: 'Scrap', to: 'scrapped', ask: 'Why is it being scrapped?', needsReason: true, danger: true },
+      ];
+    case 'in_stock':
+      return [{ id: 'scrap', label: 'Scrap', to: 'scrapped', ask: 'Why is it being scrapped?', needsReason: true, danger: true }];
+    case 'scrapped':
+      return [{ id: 'undo_scrap', label: 'Undo scrap', to: r.do_id ? 'returned' : 'in_stock', ask: 'Undo the scrap. Note (optional):', needsReason: false }];
+    default:
+      return [];
+  }
+}
+
+/** One dated line for the unit's notes: "2026-11-10 · Scrapped — water damage (budi)". */
+export function moveNote(move: SerialMove, reason: string, today: string, actorEmail: string | null | undefined, fromOrder?: string): string {
+  const what: Record<SerialMoveId, string> = {
+    return: 'Returned by customer',
+    undo_return: 'Return undone',
+    restock: fromOrder ? `Back on the shelf (returned from ${fromOrder})` : 'Back on the shelf',
+    scrap: 'Scrapped',
+    undo_scrap: 'Scrap undone',
+  };
+  const who = actorEmail ? ` (${actorEmail.split('@')[0]})` : '';
+  const why = reason.trim() ? ` — ${reason.trim()}` : '';
+  return `${today} · ${what[move.id]}${why}${who}`;
+}
+
+/**
+ * The row update for a move. Status is what the trigger keeps: returned and
+ * scrapped stick; anything else is re-derived from the links (stamp_serial_number),
+ * which is why "Undo return" can simply ask for delivered and "Back on the shelf"
+ * clears the links.
+ */
+export function movePatch(move: SerialMove, notes: string, line: string): Record<string, unknown> {
+  const withNote = { notes: notes.trim() ? `${notes.trim()}\n${line}` : line };
+  if (move.id === 'restock') {
+    return { ...withNote, status: 'in_stock', quote_id: null, do_id: null, invoice_id: null, customer_id: null, delivered_at: null };
+  }
+  return { ...withNote, status: move.to };
+}

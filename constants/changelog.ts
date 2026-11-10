@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-10T12:00:00Z",
+    title: "Register serial: tombol Diretur, Kembali ke rak, dan Afkir",
+    details: [
+      "Buka satu unit di Register serial: unit yang sudah keluar kini bisa ditandai \"Diretur pelanggan\" (alasan wajib diisi). Unit retur bisa dikembalikan ke rak untuk dijual lagi, diafkir, atau returnya dibatalkan.",
+      "Unit di rak juga bisa diafkir (alasan wajib). Afkir yang salah bisa dibatalkan.",
+      "Setiap perubahan tercatat bertanggal di catatan unit, beserta siapa yang mengubah — termasuk dari pesanan mana unit retur itu berasal.",
+      "Catatan: jumlah stok barang tidak ikut berubah otomatis; register serial hanya mencatat di mana unit itu berada.",
+    ],
+  },
+  {
     at: "2026-11-10T07:43:00Z",
     title: "Menu status PO dan penawaran pemasok kini menampilkan langkah berikutnya lebih dulu",
     details: [

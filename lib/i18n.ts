@@ -1366,6 +1366,22 @@ export const ID: Record<string, string> = {
   'unit': 'satuan',
   'price': 'harga',
   'no price': 'tanpa harga',
+  // Serial register: returned / back on the shelf / scrapped (app/serials, lib/serials serialMoves), 2026-11-10
+  'Returned': 'Diretur',
+  'Scrapped': 'Diafkir',
+  'Returned by customer': 'Diretur pelanggan',
+  'Undo return': 'Batalkan retur',
+  'Back on the shelf': 'Kembali ke rak',
+  'Scrap': 'Afkir',
+  'Undo scrap': 'Batalkan afkir',
+  'Why did the customer return it?': 'Kenapa pelanggan mengembalikannya?',
+  'Back on the shelf for resale — its order, invoice and delivery links are cleared (the note keeps where it came from). Note (optional):': 'Kembali ke rak untuk dijual lagi — tautan pesanan, invoice, dan surat jalannya dihapus (catatan tetap menyimpan asalnya). Catatan (opsional):',
+  'Undo the return — the unit is with the customer after all. Note (optional):': 'Batalkan retur — unit ternyata tetap di pelanggan. Catatan (opsional):',
+  'Why is it being scrapped?': 'Kenapa unit ini diafkir?',
+  'Undo the scrap. Note (optional):': 'Batalkan afkir. Catatan (opsional):',
+  'A reason is needed — nothing changed.': 'Alasan wajib diisi — tidak ada yang diubah.',
+  'your role may not change units in the register': 'peran Anda tidak boleh mengubah unit di register',
+  'Could not change the unit — {why}': 'Unit tidak bisa diubah — {why}',
   // Description libraries (components/library/LibraryManager), 2026-11-04
   // …the proposal editor's autocomplete (app/proposals/[id])
   'Looks like a solar panel — not in the Item Editor yet': 'Sepertinya panel surya — belum ada di Editor Barang',

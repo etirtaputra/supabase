@@ -32,9 +32,11 @@ import { displayDocNumber } from '@/lib/salesStatus';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   fetchSerials, parseSerialBatch, findExisting, traceSerial, normSerial, SERIAL_STATUS,
+  serialMoves, moveNote, movePatch, type SerialMove,
   type SerialRow, type SerialSalesDoc, type SerialDo, type SerialInvoice,
 } from '@/lib/serials';
 import { selectAll } from '@/lib/fetchAllRows';
+import { todayISO } from '@/lib/dateRange';
 
 interface Comp { component_id: string; internal_description: string | null; supplier_model: string | null; unit: string | null }
 interface Cust { customer_id: string; display_name: string; legal_name: string }
@@ -260,6 +262,32 @@ function SerialsPage() {
       await load();
     } catch (e) {
       flash(`Could not release — ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(false); }
+  }
+
+  /**
+   * Returned / back on the shelf / scrapped, one unit at a time (owner,
+   * 2026-11-10). The moves are lib/serials serialMoves — declared in
+   * lib/lifecycles.ts — and each leaves a dated line in the unit's notes.
+   */
+  async function moveSerial(r: SerialRow, move: SerialMove) {
+    if (!canEdit || busy) return;
+    const answer = window.prompt(`${r.serial} · ${t(move.label)}\n\n${t(move.ask)}`, '');
+    if (answer === null) return;
+    if (move.needsReason && !answer.trim()) { flash(t('A reason is needed — nothing changed.')); return; }
+    const order = traceOf(r).order;
+    const line = moveNote(move, answer, todayISO(), profile?.email ?? user?.email, order ? displayDocNumber(order) : undefined);
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.from('30.4_serial_numbers')
+        .update(movePatch(move, r.notes ?? '', line)).eq('serial_id', r.serial_id).select('serial_id');
+      if (error) throw new Error(error.message);
+      // An UPDATE the policy filters out is 0 rows and no error — say so.
+      if (!data?.length) throw new Error(t('your role may not change units in the register'));
+      flash(`${r.serial}: ${t(SERIAL_STATUS[move.to]?.label ?? move.to)}`);
+      await load();
+    } catch (e) {
+      flash(tf('Could not change the unit — {why}', { why: e instanceof Error ? e.message : String(e) }));
     } finally { setBusy(false); }
   }
 
@@ -605,7 +633,7 @@ function SerialsPage() {
                         {r.is_external && <span className="ml-2 text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300">{t('not ours')}</span>}
                       </button>
                       <span className="hidden lg:block">
-                        <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${st.cls}`}>{st.label}</span>
+                        <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${st.cls}`}>{t(st.label)}</span>
                       </span>
                       <span className="hidden lg:block text-[11px] text-sky-300 font-mono truncate">{trace.order ? displayDocNumber(trace.order) : '—'}</span>
                       <span className="hidden lg:block text-[11px] text-slate-400 truncate">{custById.get(r.customer_id ?? '') ?? '—'}</span>
@@ -626,7 +654,7 @@ function SerialsPage() {
                         {trace.external && (
                           <p className="text-[11px] text-amber-300/90">{t('No sale of ours carries this unit — service on it is out of warranty unless someone says otherwise.')}</p>
                         )}
-                        {r.notes && <p className="text-[11px] text-slate-400">{r.notes}</p>}
+                        {r.notes && <p className="text-[11px] text-slate-400 whitespace-pre-line">{r.notes}</p>}
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-[10px] text-slate-600">
                             recorded {fmtDay(r.created_at)}{r.created_by_email ? ` by ${r.created_by_email.split('@')[0]}` : ''}
@@ -635,6 +663,14 @@ function SerialsPage() {
                             className="ml-auto text-[11px] px-2.5 py-1.5 rounded-lg bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25 font-semibold transition-colors">
                             Open a service ticket →
                           </Link>
+                          {canEdit && serialMoves(r).map((m) => (
+                            <button key={m.id} onClick={() => moveSerial(r, m)} disabled={busy}
+                              className={`text-[11px] px-2.5 py-1.5 rounded-lg border font-semibold transition-colors disabled:opacity-40 ${m.danger
+                                ? 'border-slate-700 text-slate-400 hover:text-red-300 hover:border-red-500/40'
+                                : 'border-amber-500/30 text-amber-300 hover:bg-amber-500/10'}`}>
+                              {t(m.label)}
+                            </button>
+                          ))}
                           {canEdit && (
                             <button onClick={() => removeSerial(r)}
                               className="text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700 text-slate-500 hover:text-red-300 hover:border-red-500/40 font-semibold transition-colors">

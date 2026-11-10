@@ -145,3 +145,49 @@ test('"out" means gone, not merely spoken for', () => {
     assert.ok(SERIAL_STATUS[s]?.label, `${s} has no label`);
   }
 });
+
+// ── Returned / back on the shelf / scrapped (owner, 2026-11-10) ─────────────
+import { serialMoves, movePatch, moveNote, statusFor as statusForUnit } from './serials.ts';
+import { canMove } from './lifecycles.ts';
+
+const unit = (status: string, extra: Record<string, unknown> = {}) => ({
+  status, quote_id: null as string | null, do_id: null as string | null, is_external: false, ...extra,
+});
+
+test('every button on a unit is a declared move of serial_number', () => {
+  const cases = [
+    unit('in_stock'), unit('allocated', { quote_id: 'q' }), unit('delivered', { quote_id: 'q', do_id: 'd' }),
+    unit('returned', { quote_id: 'q', do_id: 'd' }), unit('scrapped'), unit('scrapped', { quote_id: 'q', do_id: 'd' }),
+  ];
+  for (const r of cases) {
+    for (const m of serialMoves(r)) assert.ok(canMove('serial_number', r.status, m.to), `${r.status} → ${m.to} (${m.id}) is not declared`);
+  }
+  assert.deepEqual(serialMoves(unit('allocated', { quote_id: 'q' })), [], 'an allocated unit is released or delivered, not returned or scrapped');
+  assert.deepEqual(serialMoves(unit('delivered', { do_id: 'd' })).map((m) => m.id), ['return']);
+  assert.deepEqual(serialMoves(unit('returned', { do_id: 'd' })).map((m) => m.id), ['restock', 'undo_return', 'scrap']);
+});
+
+test('after the trigger, each move lands where it says', () => {
+  // statusFor mirrors stamp_serial_number: returned/scrapped stick, the rest follow the links.
+  const delivered = { ...unit('delivered', { quote_id: 'q', do_id: 'd' }), notes: '' };
+  for (const r of [delivered, { ...unit('returned', { quote_id: 'q', do_id: 'd' }), notes: 'x' }, { ...unit('in_stock'), notes: '' },
+    { ...unit('scrapped', { quote_id: 'q', do_id: 'd' }), notes: '' }, { ...unit('scrapped'), notes: '' }]) {
+    for (const m of serialMoves(r)) {
+      const after = { ...r, ...movePatch(m, r.notes, 'line') } as { status: string; quote_id: string | null; do_id: string | null };
+      assert.equal(statusForUnit(after), m.to, `${r.status} · ${m.id}`);
+    }
+  }
+});
+
+test('back on the shelf clears the links, and every move leaves a dated note', () => {
+  const r = { ...unit('returned', { quote_id: 'q', do_id: 'd' }), notes: 'Scanned in March' };
+  const restock = serialMoves(r).find((m) => m.id === 'restock')!;
+  const line = moveNote(restock, '', '2026-11-10', 'budi@ica.id', 'SO-20261101-0003');
+  assert.equal(line, '2026-11-10 · Back on the shelf (returned from SO-20261101-0003) (budi)');
+  const p = movePatch(restock, r.notes, line);
+  assert.equal(p.notes, `Scanned in March\n${line}`);
+  for (const k of ['quote_id', 'do_id', 'invoice_id', 'customer_id', 'delivered_at']) assert.equal(p[k], null, k);
+  const scrap = serialMoves(r).find((m) => m.id === 'scrap')!;
+  assert.ok(scrap.needsReason && scrap.danger);
+  assert.equal(moveNote(scrap, ' water damage ', '2026-11-10', null), '2026-11-10 · Scrapped — water damage');
+});
