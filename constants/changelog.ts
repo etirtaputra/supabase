@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-10T10:00:00Z",
+    title: "Proposal EPC yang menang atau kalah kini terkunci seperti yang sudah dikirim",
+    details: [
+      "Proposal berstatus Diterima (menang) atau Ditolak (kalah) kini hanya bisa diubah oleh Owner — sama seperti proposal Dikirim. Isinya tidak bisa lagi berubah diam-diam setelah hasilnya tercatat.",
+      "Project Engineer tetap bisa mengembalikannya ke Konsep, lalu mengeditnya seperti biasa. Hanya Owner yang bisa menghapusnya.",
+      "Engineer tetap bisa menandai proposal Konsep sebagai Diterima atau Ditolak.",
+    ],
+  },
+  {
     at: "2026-11-10T08:00:00Z",
     title: "Status dokumen kini dijaga satu aturan yang sama di seluruh aplikasi",
     details: [

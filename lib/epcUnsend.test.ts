@@ -82,17 +82,18 @@ test('canUnsend is SEPARATE from isOwner — the cost figures stay owner-only', 
     'the raw cost disclosure must still key on isOwner alone');
 });
 
-test('a sent proposal stays content-locked for the engineer', () => {
+test('a sent, won or lost proposal stays content-locked for the engineer', () => {
   // `locked` is what disables every content input. It must NOT learn about
-  // canUnsend, or "revert" quietly becomes "edit".
-  assert.match(UI, /const locked = savedStatus === 'sent' && !isOwner;/);
+  // canUnsend, or "revert" quietly becomes "edit". Since 2026-11-10 won and
+  // lost lock like sent (owner: "lock won and lost proposals like sent ones").
+  assert.match(UI, /const locked = isProposalLocked\(savedStatus\) && !isOwner;/);
   assert.match(UI, /const unsendOnly = locked && canUnsend;/);
 });
 
 test('the status control offers only the move the engineer actually has', () => {
   // A control that promises sent → accepted and is then refused by the database
   // teaches people the app is unreliable.
-  assert.match(UI, /\(unsendOnly \? \(\['sent', 'draft'\] as const\) : STATUS_OPTS\)/);
+  assert.match(UI, /\(unsendOnly && savedStatus \? \[savedStatus, 'draft' as const\] : STATUS_OPTS\)/);
   assert.match(UI, /disabled=\{locked && !unsendOnly\}/);
 });
 
@@ -117,4 +118,25 @@ test('a header write the policy filters out is reported, not swallowed', () => {
   // An UPDATE blocked by a USING clause is 0 rows and HTTP 200 — no error. Left
   // unchecked, the editor would say "Saved" for a change that never landed.
   assert.match(UI, /if \(!wrote\?\.length\) \{\s*\n\s*throw new Error\('Not saved/);
+});
+
+// ── Won and lost lock like sent (owner, 2026-11-10) ─────────────────────────
+const LOCK = read('migrations/epc_lock_won_lost.sql').split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+
+test('won and lost lock like sent: one list, in all three database pieces', async () => {
+  const { PROPOSAL_LOCKED_STATES } = await import('./lifecycles.ts');
+  const list = PROPOSAL_LOCKED_STATES.map((s) => `'${s}'`).join(', ');
+  assert.equal(list, "'sent', 'accepted', 'rejected'");
+  // Content: owner-only once locked (RLS on header, sections and lines).
+  assert.ok(LOCK.includes(`q.status IN (${list})`), 'can_edit_quote() must lock every locked state');
+  // The one extra path, still UPDATE-only and still landing on draft.
+  assert.match(LOCK, /CREATE POLICY "quotes unsend"[\s\S]*?FOR UPDATE TO authenticated/);
+  assert.ok(LOCK.includes(`USING (status IN (${list}) AND public.can_unsend_quote())`));
+  assert.match(LOCK, /WITH CHECK \(status = 'draft' AND public\.can_unsend_quote\(\)\)/);
+  // The guard: same states, same column-agnostic rule, owner exempt.
+  assert.ok(LOCK.includes(`IF OLD.status NOT IN (${list}) THEN`));
+  assert.match(LOCK, /skip\s+text\[\] := ARRAY\['status', 'sent_at', 'updated_at', 'updated_by_email'\]/);
+  assert.match(LOCK, /IF is_owner THEN\s*RETURN NEW;/);
+  // Delete is still governed by the untouched "quotes write" policy.
+  assert.ok(!/DROP POLICY IF EXISTS "quotes write"/.test(LOCK));
 });

@@ -34,7 +34,7 @@ import type { Component } from '@/types/database';
 import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { isOfferable } from '@/lib/itemVisibility';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
-import { badgeMap, stateIds } from '@/lib/lifecycles';
+import { badgeMap, stateIds, isProposalLocked } from '@/lib/lifecycles';
 import { catalogMatches, lastQuotedDates } from '@/lib/catalogSearch';
 import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libraryErrorKey, libNorm, type MainKind } from '@/lib/libraryMatch';
 import { useSettings } from '@/hooks/useSettings';
@@ -410,7 +410,11 @@ export default function QuoteEditorPage() {
    */
   const canUnsend = isOwner || gate.profile?.role === 'engineer';
   const [savedStatus, setSavedStatus] = useState<ProjectQuote['status'] | null>(null);
-  const locked = savedStatus === 'sent' && !isOwner;
+  // Sent, won and lost are all locked (lib/lifecycles PROPOSAL_LOCKED_STATES;
+  // owner, 2026-11-10: "lock won and lost proposals like sent ones").
+  const locked = isProposalLocked(savedStatus) && !isOwner;
+  /** The locked status this tab holds, for the messages (SENT / ACCEPTED / REJECTED). */
+  const lockedWord = (PROPOSAL_STATUS[savedStatus ?? '']?.label ?? 'Sent').toUpperCase();
   /** The engineer's one move on a locked proposal: send it back to draft. */
   const unsendOnly = locked && canUnsend;
   /**
@@ -1767,8 +1771,8 @@ export default function QuoteEditorPage() {
     // else can have moved. Everything else on a SENT proposal still stops.
     if (locked && !(unsendOnly && statusTouchedRef.current && quoteRef.current?.status === 'draft')) {
       setSaveMsg(canUnsend
-        ? 'Locked: a SENT proposal can only be moved back to draft — edit it once it is a draft again'
-        : 'Locked: SENT quotes can only be edited by an Owner');
+        ? `Locked: a ${lockedWord} proposal can only be moved back to draft — edit it once it is a draft again`
+        : `Locked: ${lockedWord} proposals can only be edited by an Owner`);
       return false;
     }
     setSaving(true);
@@ -1781,32 +1785,34 @@ export default function QuoteEditorPage() {
         .from('10.0_project_quotes').select('status').eq('quote_id', quoteRef.current.quote_id).single();
       // Only a STALE header may be corrected back to 'sent'. A status the
       // person picked here is intent, and must reach the database.
-      const unSending = liveStatus?.status === 'sent' && quoteRef.current.status !== 'sent';
+      // Locked = sent, accepted or rejected (lib/lifecycles).
+      const liveLocked = isProposalLocked(liveStatus?.status) ? (liveStatus!.status as ProjectQuote['status']) : null;
+      const unSending = !!liveLocked && quoteRef.current.status !== liveLocked;
       // Deliberate intent, from someone allowed to act on it, must reach the
       // database — this is the guard that used to eat the owner's own un-send
       // (field report 2026-07-31), and it would have eaten the engineer's too.
       if (unSending && statusTouchedRef.current && !canUnsend) {
-        setQuote((q) => q ? { ...q, status: 'sent' } : q);
-        setSavedStatus('sent');
+        setQuote((q) => q ? { ...q, status: liveLocked! } : q);
+        setSavedStatus(liveLocked);
         setSaving(false);
-        setSaveMsg('Not saved — only an Owner or a Project Engineer can move a SENT quote back to draft.');
+        setSaveMsg('Not saved — only an Owner or a Project Engineer can move a sent, won or lost proposal back to draft.');
         return false;
       }
       if (unSending && !statusTouchedRef.current) {
         if (!isOwner) {
-          setQuote((q) => q ? { ...q, status: 'sent' } : q); // lock this tab
-          setSavedStatus('sent');
+          setQuote((q) => q ? { ...q, status: liveLocked! } : q); // lock this tab
+          setSavedStatus(liveLocked);
           setSaving(false);
-          setSaveMsg('Not saved — this quote was SENT while you had it open. It is now locked.');
+          setSaveMsg(`Not saved — this quote was marked ${liveLocked!.toUpperCase()} while you had it open. It is now locked.`);
           return false;
         }
         const proceed = window.confirm(
-          'This quote was marked SENT while you had it open — it is locked in.\n\n' +
-          'As Owner you may still change it. Save your changes to the SENT quote?'
+          `This quote was marked ${liveLocked!.toUpperCase()} while you had it open — it is locked in.\n\n` +
+          `As Owner you may still change it. Save your changes to the ${liveLocked!.toUpperCase()} quote?`
         );
-        if (!proceed) { setSaving(false); setSaveMsg('Not saved — quote is SENT'); return false; }
-        setQuote((q) => q ? { ...q, status: 'sent' } : q); // keep it sent; don't un-send via stale header
-        setSavedStatus('sent');
+        if (!proceed) { setSaving(false); setSaveMsg(`Not saved — quote is ${liveLocked!.toUpperCase()}`); return false; }
+        setQuote((q) => q ? { ...q, status: liveLocked! } : q); // keep its status; don't change it via a stale header
+        setSavedStatus(liveLocked);
       }
       // 0b. Sync: fold in whatever colleagues saved since our last sync
       const pre = await mergeRemote();
@@ -1822,8 +1828,8 @@ export default function QuoteEditorPage() {
       // A stale tab must never un-send a sent quote via its header write —
       // unless the status was deliberately changed here, which is the whole
       // point of an owner picking DRAFT on a sent quote.
-      if (liveStatus?.status === 'sent' && quoteNow.status !== 'sent' && !statusTouchedRef.current) {
-        quoteNow = { ...quoteNow, status: 'sent' };
+      if (liveLocked && quoteNow.status !== liveLocked && !statusTouchedRef.current) {
+        quoteNow = { ...quoteNow, status: liveLocked };
       }
       // A capacity left blank is filled from the items being saved with it —
       // the modules and inverters ON the quote are the system, so a forgotten
@@ -1887,7 +1893,7 @@ export default function QuoteEditorPage() {
       // zero rows and a 200. Saying "Saved" to that is how a person walks away
       // believing a change landed that never did.
       if (!wrote?.length) {
-        throw new Error('Not saved — the database refused this change. A SENT proposal is read-only; revert it to draft first, or ask an Owner.');
+        throw new Error('Not saved — the database refused this change. A sent, won or lost proposal is read-only; move it back to draft first, or ask an Owner.');
       }
       // sent_at is stamped by the DB trigger on the draft→sent transition
       if (quoteNow.status === 'sent' && !quoteNow.sent_at) {
@@ -2281,8 +2287,8 @@ export default function QuoteEditorPage() {
                then be refused by the database. */
             disabled={locked && !unsendOnly}
             title={
-              unsendOnly ? 'SENT — you can move this back to draft; editing it needs it to be a draft first'
-              : locked ? 'SENT — only an Owner can change the status'
+              unsendOnly ? `${lockedWord} — you can move this back to draft; editing it needs it to be a draft first`
+              : locked ? `${lockedWord} — only an Owner can change the status`
               : undefined}
             onChange={(e) => { statusTouchedRef.current = true; setQuoteField('status', e.target.value as ProjectQuote['status']); }}
             /* appearance-none: the native stepper made this pill wide enough
@@ -2290,7 +2296,7 @@ export default function QuoteEditorPage() {
                small screens, intrinsic width from sm up. */
             className={`order-2 flex-shrink-0 appearance-none text-center px-2.5 py-1 max-w-[92px] sm:max-w-none rounded-full text-[11px] font-semibold uppercase tracking-wider border-0 outline-none cursor-pointer disabled:cursor-not-allowed ${PROPOSAL_STATUS[quote.status]?.cls ?? ''}`}
           >
-            {(unsendOnly ? (['sent', 'draft'] as const) : STATUS_OPTS)
+            {(unsendOnly && savedStatus ? [savedStatus, 'draft' as const] : STATUS_OPTS)
               .map((s) => <option key={s} value={s}>{t(PROPOSAL_STATUS[s]?.label ?? s)}</option>)}
           </select>
 
@@ -2298,7 +2304,7 @@ export default function QuoteEditorPage() {
           <button onClick={save} disabled={saving || !dirty || (locked && !unsendOnly)}
             title={
               unsendOnly ? 'Save the revert to draft'
-              : locked ? 'SENT quotes can only be edited by an Owner'
+              : locked ? `${lockedWord} proposals can only be edited by an Owner`
               : 'Ctrl+S / Cmd+S'}
             className="order-3 lg:order-5 flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-all disabled:opacity-40">
             {saving ? t('Saving…') : t('Save')}
@@ -2395,7 +2401,7 @@ export default function QuoteEditorPage() {
 
         {locked && (
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-300">
-            🔒 This quote is <span className="font-bold">SENT</span> and read-only for your role.
+            🔒 This quote is <span className="font-bold">{lockedWord}</span> and read-only for your role.
             Ask an Owner to make changes, or duplicate it from the quotes list to start a new revision.
           </div>
         )}

@@ -77,6 +77,17 @@ const S = (id: string, label: string, cls: string, meaning: string, extra: Parti
   ({ id, label, cls, meaning, ...extra });
 
 // ── EPC proposals ────────────────────────────────────────────────────────────
+/**
+ * Sent, won and lost proposals are LOCKED (owner, 2026-11-10: "lock won and
+ * lost proposals like sent ones"): content is owner-only, and the one move a
+ * Project Engineer has is back to draft. The database is the real gate —
+ * can_edit_quote(), policy "quotes unsend" and guard_quote_unsend()
+ * (migrations/epc_lock_won_lost.sql) use this same list.
+ */
+export const PROPOSAL_LOCKED_STATES = ['sent', 'accepted', 'rejected'] as const;
+export const isProposalLocked = (status: string | null | undefined): boolean =>
+  (PROPOSAL_LOCKED_STATES as readonly string[]).includes(status ?? '');
+
 const EPC_PROPOSAL: Lifecycle = {
   id: 'epc_proposal',
   title: 'EPC proposal',
@@ -86,24 +97,24 @@ const EPC_PROPOSAL: Lifecycle = {
   initial: 'draft',
   states: [
     S('draft', 'Draft', 'bg-slate-700/60 text-slate-300 tone-off', 'Being written; anyone with EPC access may edit it.'),
-    S('sent', 'Sent', 'bg-blue-500/20 text-blue-300 tone-step', 'Out with the customer. Read-only for everyone but the owner; sent_at is stamped by the database.'),
-    S('accepted', 'Accepted', 'bg-emerald-500/20 text-emerald-300 tone-done', 'Won. Counted as a win (lib/proposalWins) while it stays accepted.', { terminal: true }),
-    S('rejected', 'Rejected', 'bg-red-500/20 text-red-400 tone-bad', 'Lost.', { terminal: true }),
+    S('sent', 'Sent', 'bg-blue-500/20 text-blue-300 tone-step', 'Out with the customer. LOCKED: read-only for everyone but the owner; sent_at is stamped by the database.'),
+    S('accepted', 'Accepted', 'bg-emerald-500/20 text-emerald-300 tone-done', 'Won. LOCKED like sent. Counted as a win (lib/proposalWins) while it stays accepted.', { terminal: true }),
+    S('rejected', 'Rejected', 'bg-red-500/20 text-red-400 tone-bad', 'Lost. LOCKED like sent.', { terminal: true }),
   ],
   moves: [
     { from: ['draft'], to: 'sent', action: 'Status → Sent', by: 'user', where: 'app/proposals/[id] status select' },
-    { from: ['draft', 'sent'], to: 'accepted', action: 'Status → Accepted', by: 'user', where: 'app/proposals/[id] status select', when: 'from sent: owner only' },
-    { from: ['draft', 'sent'], to: 'rejected', action: 'Status → Rejected', by: 'user', where: 'app/proposals/[id] status select', when: 'from sent: owner only' },
-    { from: ['sent'], to: 'draft', action: 'Move back to draft (un-send)', by: 'user', where: 'app/proposals/[id] status select', when: 'owner, or an engineer with the un-send permission' },
-    { from: ['accepted', 'rejected'], to: 'draft', action: 'Status → Draft', by: 'user', where: 'app/proposals/[id] status select' },
-    { from: ['accepted', 'rejected'], to: 'sent', action: 'Status → Sent', by: 'user', where: 'app/proposals/[id] status select' },
-    { from: ['accepted'], to: 'rejected', action: 'Status → Rejected', by: 'user', where: 'app/proposals/[id] status select' },
-    { from: ['rejected'], to: 'accepted', action: 'Status → Accepted', by: 'user', where: 'app/proposals/[id] status select' },
+    { from: ['draft'], to: 'accepted', action: 'Status → Accepted', by: 'user', where: 'app/proposals/[id] status select' },
+    { from: ['draft'], to: 'rejected', action: 'Status → Rejected', by: 'user', where: 'app/proposals/[id] status select' },
+    { from: ['sent', 'accepted', 'rejected'], to: 'draft', action: 'Move back to draft', by: 'user', where: 'app/proposals/[id] status select', when: 'owner, or a Project Engineer (can_unsend_quote)' },
+    { from: ['sent', 'rejected'], to: 'accepted', action: 'Status → Accepted', by: 'owner', where: 'app/proposals/[id] status select' },
+    { from: ['sent', 'accepted'], to: 'rejected', action: 'Status → Rejected', by: 'owner', where: 'app/proposals/[id] status select' },
+    { from: ['accepted', 'rejected'], to: 'sent', action: 'Status → Sent', by: 'owner', where: 'app/proposals/[id] status select' },
   ],
-  freeSelect: 'The editor offers all four states from any state it can edit; a non-owner on a SENT proposal is offered only Sent/Draft.',
+  freeSelect: 'On a draft the editor offers all four states. On a sent, won or lost proposal the owner is offered all four; anyone else only that state and Draft.',
   enforced: [
     'CHECK proposal_status_valid (migrations/lifecycle_checks.sql): only these four values.',
-    'Trigger guard_quote_unsend: a non-owner may move a SENT proposal only back to draft, and may not change anything else on it.',
+    'can_edit_quote() (RLS on 10.0, 10.1 sections, 10.2 lines): a sent, accepted or rejected proposal is owner-only — for everyone else its content is read-only and it cannot be deleted.',
+    'Policy "quotes unsend" + trigger guard_quote_unsend (migrations/epc_lock_won_lost.sql): an owner or Project Engineer may move a sent, accepted or rejected proposal back to draft, changing nothing else.',
     'Trigger log_quote_activity: every status change is logged to 10.3_quote_activity ("old -> new").',
   ],
   notes: ['"accepted" is the editor\'s word for a won proposal (lib/proposalGroups counts it as won).'],

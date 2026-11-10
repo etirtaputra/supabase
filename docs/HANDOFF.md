@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-10** · last change: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-10** · last change: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,29 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-10 (latest) — Lifecycles declared: lib/lifecycles.ts
+### 2026-11-10 (latest) — Won and lost EPC proposals lock like sent
+
+Owner: *"yes, lock won and lost proposals like sent ones"* (decision #1 left
+open by the lifecycles thread below).
+
+- `lib/lifecycles.ts`: `PROPOSAL_LOCKED_STATES = ['sent','accepted','rejected']`
+  + `isProposalLocked()`; the epc_proposal moves/enforced updated (from a
+  locked state a non-owner's only move is back to draft).
+- DB (`migrations/epc_lock_won_lost.sql`, applied): `can_edit_quote()` (RLS on
+  10.0 / 10.1 / 10.2), policy "quotes unsend" and `guard_quote_unsend()` use
+  that list instead of `'sent'` alone. Rehearsed on production as engineer and
+  owner (rolled back), 12/12: engineer blocked on won/lost content, lines,
+  status changes and delete; engineer won/lost → draft allowed and editable
+  after; draft → accepted still allowed; owner unaffected.
+- Editor (`app/proposals/[id]`): `locked = isProposalLocked(savedStatus) &&
+  !isOwner`; the status control offers [that state, draft]; the stale-tab
+  guard in save() protects any locked state, not only sent; messages name the
+  state. List (`app/proposals`): Delete hidden on locked rows for non-owners.
+- Tests: `lib/epcUnsend.test.ts` — two assertions pinned the old sent-only
+  lines and were updated deliberately (owner's change); a new test holds all
+  three DB pieces to `PROPOSAL_LOCKED_STATES`.
+
+### 2026-11-10 — Lifecycles declared: lib/lifecycles.ts
 
 Owner: *"Find all of the implicit state machines in my app. Make the best
 decision that will elevate … UX, DX and AX, without breaking anything."*

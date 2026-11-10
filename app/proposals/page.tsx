@@ -31,7 +31,7 @@ import WinBanner from '@/components/ui/WinBanner';
 import { groupProposals, customerKey, ACTIVE_DAYS } from '@/lib/proposalGroups';
 import { epcDue, EPC_OUTCOME_DAYS, EPC_IDLE_DRAFT_DAYS, type EpcDue } from '@/lib/proposalNudges';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
-import { badgeMap } from '@/lib/lifecycles';
+import { badgeMap, isProposalLocked } from '@/lib/lifecycles';
 
 // Declared once in lib/lifecycles.ts (epc_proposal) — the editor reads the same map.
 const PROPOSAL_STATUS = badgeMap('epc_proposal');
@@ -706,9 +706,10 @@ export default function QuotesListPage() {
   >
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
   </Link>
-  {/* The slot is kept when Delete is not offered, so draft and sent rows
-      in one customer group put their amounts on the same edge. */}
-  {(q.status !== 'sent' || gate.profile?.role === 'owner') ? (
+  {/* The slot is kept when Delete is not offered, so draft and locked rows
+      in one customer group put their amounts on the same edge. Sent, won and
+      lost proposals are owner-only to delete (can_edit_quote). */}
+  {(!isProposalLocked(q.status) || gate.profile?.role === 'owner') ? (
   <button
     onClick={() => setDeleteId(q.quote_id)}
     className="p-2 rounded-lg hover:bg-red-500/10 text-slate-600 hover:text-red-400 transition-colors"
