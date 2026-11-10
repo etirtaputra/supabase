@@ -23,6 +23,7 @@ import { listSpec } from '@/constants/listDefaults';
 import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
 import { useT } from '@/hooks/useT';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { inGroup, groupList } from '@/lib/lifecycles';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string; case_id?: string | null;
@@ -150,8 +151,9 @@ export default function SalesListPage() {
   };
   // An offer past its own valid_until while still on the table (validated/sent).
   const today = todayISO();
-  const isExpired = (q: Quote) => !!q.valid_until && ['validated', 'sent'].includes(q.status) && q.valid_until < today;
-  const BILLED = ['ordered', 'invoiced', 'preparing', 'delivered'];
+  const isExpired = (q: Quote) => !!q.valid_until && inGroup('sales_document', 'awaitingAnswer', q.status) && q.valid_until < today;
+  // A real order (confirmed or beyond): has a payment state and counts as committed.
+  const BILLED: readonly string[] = groupList('sales_document', 'order');
   /**
    * What the document is worth BEFORE PPN (owner, 2026-09-01).
    *
@@ -205,7 +207,7 @@ export default function SalesListPage() {
   const filtered = quotes.filter((q) => {
     if (q.status === 'draft') return false;
     if (!inRange(q.quote_date ?? q.updated_at ?? null, range)) return false;
-    if (stageFilter === 'quote' && !['validated', 'sent', 'accepted'].includes(q.status)) return false;
+    if (stageFilter === 'quote' && !inGroup('sales_document', 'offered', q.status)) return false;
     if (stageFilter === 'order' && !BILLED.includes(q.status)) return false;
     if (payFilter !== 'all' && payStateOf(q) !== payFilter) return false;
     if (delFilter !== 'all' && delStateOf(q) !== delFilter) return false;
@@ -242,8 +244,8 @@ export default function SalesListPage() {
   // Pre-VAT too: a column the eye adds up must reconcile with the totals
   // printed above it.
   const sumOf = (list: Quote[]) => list.reduce((sum, q) => sum + exPpn(q), 0);
-  const quotedDocs    = filtered.filter((q) => ['validated', 'sent', 'accepted'].includes(q.status));
-  const committed     = filtered.filter((q) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status));
+  const quotedDocs    = filtered.filter((q) => inGroup('sales_document', 'offered', q.status));
+  const committed     = filtered.filter((q) => inGroup('sales_document', 'order', q.status));
   const deliveredDocs = filtered.filter((q) => q.status === 'delivered');
   const draftsSelected = [...selectedDrafts].filter((id) => quotes.find((q) => q.quote_id === id)?.status === 'draft');
 
@@ -419,7 +421,7 @@ export default function SalesListPage() {
                 const total = Number(q.grand_total) || 0;
                 const netTotal = exPpn(q);   // what the Total column shows
                 const rcv = receivedByQuote[q.quote_id] ?? 0;
-                const billed = ['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status);
+                const billed = inGroup('sales_document', 'order', q.status);
                 const pct = total > 0 ? Math.min(100, (rcv / total) * 100) : 0;
                 // Tolerance, not equality — a rounding hair under 100% must
                 // still read as paid (the 0.5-rupiah rule used everywhere).
@@ -614,7 +616,7 @@ function CenterSpinner() {
 /** Tiny funnel-progress dots: Quote → Validated → Sent → SO → INV → Paid → DO. */
 function MilestoneDots({ status, paid, delivered }: { status: string; paid: boolean; delivered: boolean }) {
   const { t } = useT();
-  if (['cancelled', 'rejected'].includes(status)) return null;
+  if (inGroup('sales_document', 'closedLost', status)) return null;
   const idx = milestoneIndex(status);
   const steps = [
     { l: t('Quote'), on: true },

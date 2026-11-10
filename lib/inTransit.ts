@@ -25,9 +25,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { V_PO_SCHEDULE } from '../constants/openViews.ts';
 import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
+import { groupSet } from './lifecycles.ts';
 
 /** Ordered, on the way, not yet fully arrived — the "Incoming" set, one owner. */
-export const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
+export const INCOMING_PO_STATUSES = groupSet('purchase_order', 'open');
 
 /** No ETA and no supplier/global history to lean on: assume a month at sea. */
 export const FALLBACK_LEAD_DAYS = 30;

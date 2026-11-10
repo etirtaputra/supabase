@@ -46,6 +46,7 @@ import type { Tab, MenuItem } from '@/types/forms';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { SOURCE_CHANNELS, sourceFieldsFromForm, sourceLabel, isoToLocalInput, lineContextFields, type LineContext } from '@/lib/dealContext';
 import type { ReasonTarget } from '@/components/forms/NewDealForm';
+import { inGroup } from '@/lib/lifecycles';
 
 const MENU_ITEMS: MenuItem[] = [
   { id: 'catalog', label: 'Item Editor', icon: '🗂️',
@@ -289,7 +290,7 @@ function MasterInsertPage() {
   // first or deleting an original would drag its successor down with it.
   const poDeletableLive = async (poId: string): Promise<string | null> => {
     const po = data.pos.find((p) => String(p.po_id) === String(poId));
-    if (po && ['Fully Received', 'Partially Received'].includes(po.status ?? ''))
+    if (po && inGroup('purchase_order', 'received', po.status))
       return `${po.po_number || 'This PO'} has received goods — cancel it instead of deleting.`;
     const { count } = await supabase.from('6.0_po_costs').select('cost_id', { count: 'exact', head: true }).eq('po_id', poId);
     if ((count ?? 0) > 0) return `${po?.po_number || 'This PO'} has payments recorded — cancel it instead of deleting.`;

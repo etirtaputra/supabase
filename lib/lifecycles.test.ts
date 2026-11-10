@@ -9,7 +9,9 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   LIFECYCLES, lifecycle, stateIds, canMove, salesDocumentActions, describeLifecycles, type LifecycleId,
+  groupList, groupSet, inGroup, menuFor,
 } from './lifecycles.ts';
+import { ENUMS } from '../constants/enums.ts';
 import { SALES_STATUS, MILESTONE_ORDER, COMMITTED_STATUSES } from './salesStatus.ts';
 import { SERIAL_STATUS } from './serials.ts';
 
@@ -157,4 +159,136 @@ test('agents get every lifecycle as plain JSON', () => {
   assert.deepEqual(sales.states.map((s: { value: string }) => s.value), stateIds('sales_document'));
   assert.ok(sales.moves.some((m: { from: string[]; to: string }) => m.to === 'ordered' && m.from.includes('draft')));
   assert.equal(lifecycle('purchase_order').storage, 'enum');
+});
+
+// ── Groups: what code counts with (2026-11-10, second pass) ─────────────────
+// Eleven buy-side files each kept their own "which PO statuses count" set and
+// the sales screens spelled ['ordered','invoiced','preparing','delivered'] out
+// nine times. They now read named groups. Each group's membership was copied
+// from the code that used it, so adopting it changed nothing on screen; these
+// pins make any change to a group a deliberate, visible decision.
+
+test('every group names only states of its own lifecycle', () => {
+  for (const l of LIFECYCLES) {
+    const ids = new Set(l.states.map((s) => s.id));
+    for (const [g, members] of Object.entries(l.groups ?? {})) {
+      assert.ok(members.length > 0, `${l.id}.${g} is empty`);
+      for (const m of members) assert.ok(ids.has(m), `${l.id}.${g}: ${m} is not a state`);
+    }
+  }
+  assert.throws(() => groupList('purchase_order', 'recieved'), /no group/, 'a misspelt group must fail loudly, not match nothing');
+});
+
+test('the PO groups keep the membership each reader had before it adopted them', () => {
+  const g = (name: string) => [...groupList('purchase_order', name)].sort();
+  assert.deepEqual(g('received'), ['Fully Received', 'Partially Received']);             // receiptGap, purchasingInbox GOODS_IN, position, dashboard, Deal Lookup
+  assert.deepEqual(g('open'), ['Confirmed', 'Partially Received', 'Sent']);              // stock receive, reorder, inTransit, incomingCost
+  assert.deepEqual(g('placed'), ['Confirmed', 'Fully Received', 'Partially Received']);  // computeTUC FX_PO, askContext LIVE
+  assert.deepEqual(g('notAnOrder'), ['Cancelled', 'Draft', 'Replaced']);                // dealBalance, supplierLeadTimes, position, stock receive
+  assert.deepEqual(g('void'), ['Cancelled', 'Replaced']);                                // Deal Lookup action buttons
+  assert.deepEqual([...groupList('price_quote', 'live')].sort(), ['Accepted', 'Open']);  // incomingCost
+  assert.deepEqual([...groupList('price_quote', 'dead')].sort(), ['Expired', 'Rejected', 'Replaced']);
+});
+
+test('the sales-document groups keep their membership', () => {
+  const g = (name: string) => [...groupList('sales_document', name)].sort();
+  assert.deepEqual(g('committed'), ['invoiced', 'ordered', 'preparing']);
+  assert.deepEqual(g('order'), ['delivered', 'invoiced', 'ordered', 'preparing']);
+  assert.deepEqual(g('billed'), ['delivered', 'invoiced', 'preparing']);
+  assert.deepEqual(g('offered'), ['accepted', 'sent', 'validated']);
+  assert.deepEqual(g('awaitingAnswer'), ['sent', 'validated']);
+  assert.deepEqual(g('mirrorable'), ['cancelled', 'delivered', 'invoiced', 'ordered']);
+  assert.deepEqual(g('closedLost'), ['cancelled', 'rejected']);
+});
+
+test('the old exported sets are views of the groups', async () => {
+  const { DELIVERABLE_STATUS } = await import('./saleStock.ts');
+  const { NOT_PAYABLE_PO_STATUS } = await import('./dealBalance.ts');
+  const { RECEIVED_STATUSES } = await import('./receiptGap.ts');
+  const { INCOMING_PO_STATUSES } = await import('./inTransit.ts');
+  assert.deepEqual([...COMMITTED_STATUSES], [...groupSet('sales_document', 'committed')]);
+  assert.deepEqual([...DELIVERABLE_STATUS], [...groupSet('sales_document', 'order')]);
+  assert.deepEqual([...NOT_PAYABLE_PO_STATUS], [...groupSet('purchase_order', 'notAnOrder')]);
+  assert.deepEqual([...RECEIVED_STATUSES], [...groupSet('purchase_order', 'received')]);
+  assert.deepEqual([...INCOMING_PO_STATUSES], [...groupSet('purchase_order', 'open')]);
+});
+
+test('the old enum lists name the same states as the lifecycles', () => {
+  assert.deepEqual([...ENUMS.purchases_status].sort(), [...stateIds('purchase_order')].sort());
+  assert.deepEqual([...ENUMS.price_quotes_status].sort(), [...stateIds('price_quote')].sort());
+});
+
+test('group checks never match null or a wrong spelling', () => {
+  assert.equal(inGroup('purchase_order', 'void', null), false);
+  assert.equal(inGroup('purchase_order', 'void', 'cancelled'), false, 'the stored value is capitalised');
+  assert.equal(inGroup('purchase_order', 'void', 'Cancelled'), true);
+});
+
+test('a status menu puts the declared moves first and still offers every correction', () => {
+  // From Draft the declared path is Confirmed / received / cancelled — Sent is unused, so a correction
+  const draft = menuFor('purchase_order', 'Draft');
+  assert.ok(draft.next.includes('Confirmed'));
+  assert.ok(draft.corrections.includes('Sent'));
+  // A fully received PO has no next step: everything is a correction
+  assert.deepEqual(menuFor('purchase_order', 'Fully Received').next, []);
+  // Nothing is ever taken away: current + next + corrections = every state, once
+  for (const id of ['purchase_order', 'price_quote'] as LifecycleId[]) {
+    for (const cur of stateIds(id)) {
+      const { next, corrections } = menuFor(id, cur);
+      assert.deepEqual([cur, ...next, ...corrections].sort(), [...stateIds(id)].sort(), `${id} from ${cur}`);
+      for (const n of next) assert.ok(canMove(id, cur, n), `${id}: ${cur} → ${n} is shown as a step but not declared`);
+    }
+  }
+  const deal = readFileSync(join(process.cwd(), 'components/ui/DealLookupTab.tsx'), 'utf8');
+  assert.match(deal, /<StatusOptions lifecycle="purchase_order"/);
+  assert.match(deal, /<StatusOptions lifecycle="price_quote"/);
+});
+
+test('agents are served the groups the screens count with', () => {
+  const po = describeLifecycles().find((l) => l.id === 'purchase_order') as { groups?: Record<string, string[]> };
+  assert.deepEqual(po.groups?.notAnOrder, groupList('purchase_order', 'notAnOrder'));
+});
+
+/**
+ * Hand-written lists of statuses that may stay, and why — a COUNT per file.
+ * One more fails the build; removing one means lowering the number here.
+ */
+const HAND_LISTS_ALLOWED: Record<string, number> = {
+  // The sales editor's button ladder, in one place, held to the declared
+  // moves by "sales editor buttons" above.
+  'lib/lifecycles.ts': Infinity,
+  // Fulfillment and the delivery list ask "can a delivery order start here"
+  // — the `from` of the declared move to `preparing`.
+  'components/ui/FulfillmentPanel.tsx': 1,
+  'app/delivery/page.tsx': 1,
+  // The agent's stock reverse picks the state to fall back to.
+  'app/api/agent/sales/stock/route.ts': 1,
+  // The ladder ORDER (index comparisons), not a group.
+  'lib/salesStatus.ts': 1,
+  // The legacy enum lists (price quote, proforma, PO), held equal above.
+  'constants/enums.ts': 3,
+  // Revise is offered from validated / sent / accepted.
+  'app/sales/[id]/page.tsx': 2,
+};
+
+test('no file spells a group of statuses out by hand again', () => {
+  const families = (['purchase_order', 'price_quote', 'sales_document', 'epc_proposal'] as LifecycleId[])
+    .map((id) => new Set(stateIds(id)));
+  const counts: Record<string, number> = {};
+  for (const dir of ['app', 'components', 'lib', 'hooks', 'constants']) {
+    for (const abs of sourceFiles(join(process.cwd(), dir))) {
+      const f = abs.replace(process.cwd() + '/', '');
+      const src = readFileSync(abs, 'utf8');
+      for (const m of src.matchAll(/\[\s*(?:'[^'\n]+'\s*,\s*)+'[^'\n]+'\s*,?\s*\]/g)) {
+        const vals = [...m[0].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+        if (families.some((fam) => vals.every((v) => fam.has(v)))) counts[f] = (counts[f] ?? 0) + 1;
+      }
+    }
+  }
+  const over = Object.entries(counts).filter(([f, n]) => n > (HAND_LISTS_ALLOWED[f] ?? 0));
+  assert.deepEqual(over, [],
+    'A list of statuses written by hand is how eleven files came to disagree about what a PO is. ' +
+    'Ask lib/lifecycles.ts for a group (add one there if none fits) instead.');
+  const stale = Object.entries(HAND_LISTS_ALLOWED).filter(([f, n]) => Number.isFinite(n) && (counts[f] ?? 0) < n);
+  assert.deepEqual(stale, [], 'a hand-written list was removed — lower its count in HAND_LISTS_ALLOWED');
 });

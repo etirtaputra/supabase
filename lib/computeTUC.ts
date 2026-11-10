@@ -1,5 +1,6 @@
 import type { PurchaseOrder, PurchaseLineItem, POCost, PriceQuote, PriceQuoteLineItem } from '../types/database';
 import { TAX_CATS, BALANCE_CATS } from '../constants/costCategories.ts';
+import { groupSet } from './lifecycles.ts';
 
 /**
  * THE canonical True Unit Cost engine. Catalog's Last Price column,
@@ -27,7 +28,7 @@ import { TAX_CATS, BALANCE_CATS } from '../constants/costCategories.ts';
 const FX_LAST_RESORT: Record<string, number> = { USD: 16000, CNY: 2200, IDR: 1 };
 
 /** POs whose rate is real evidence. A Draft is a scratchpad; a Replaced PO is history. */
-const FX_PO_STATUSES = new Set(['Confirmed', 'Partially Received', 'Fully Received']);
+const FX_PO_STATUSES = groupSet('purchase_order', 'placed');
 
 /** How old the newest observation may get before the UI should say so. */
 export const FX_STALE_DAYS = 90;

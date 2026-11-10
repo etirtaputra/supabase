@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-10** · last change: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-10** · last change: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -159,6 +159,61 @@ open by the lifecycles thread below).
 - Tests: `lib/epcUnsend.test.ts` — two assertions pinned the old sent-only
   lines and were updated deliberately (owner's change); a new test holds all
   three DB pieces to `PROPOSAL_LOCKED_STATES`.
+
+### 2026-11-10 (second pass) — Lifecycle GROUPS: one list to count with
+
+Same owner request, run in a second session at the same time; it found the
+same machines plus where the code COUNTS with them, and was merged onto the
+first pass rather than replacing it.
+
+**What was still implicit after the first pass:** eleven buy-side files each
+kept their own "which PO statuses count" set — `RECEIVABLE`, `NOT_PAYABLE`,
+`NOT_AN_ORDER`, `INCOMING` ×3, `LIVE`, `FX_PO`, `GOODS_IN`, `RECEIVED`, plus
+inline `!== 'Cancelled' && !== 'Replaced'` ×7 in Deal Lookup — and they
+disagree (is a Sent PO an order? `open` says yes, `placed` says no). The sales
+screens spelled `['ordered','invoiced','preparing','delivered']` out nine
+times. Two dead literals: SpendOverview tested PO status `'Completed'`, the item
+editor skipped supplier-quote status `'Cancelled'` — neither exists.
+
+- **`groups` on a lifecycle** (`lib/lifecycles.ts`): purchase_order `received`,
+  `open`, `placed`, `notAnOrder`, `void`; price_quote `live`, `dead`;
+  sales_document `committed`, `order`, `billed`, `offered`, `awaitingAnswer`,
+  `mirrorable`, `closedLost`. Helpers `groupList` (throws on a misspelt group),
+  `groupSet`, `inGroup`, `menuFor`. **Every group's membership was copied from
+  the code that used it — adopting it changed no number on any screen.** Where
+  readers disagreed they got two honestly named groups instead of being
+  silently unified; unifying them is a business decision for the owner.
+- **Readers moved onto groups** (exported names kept, so no caller changed):
+  reorder, inTransit, incomingCost, computeTUC, askContext, dealBalance,
+  supplierLeadTimes, receiptGap, purchasingInbox, position, dashboard,
+  saleStock, salesStatus, salesInbox, dataPorting; stock receive, purchasing,
+  Deal Lookup, sales list/editor/print, customers, delivery, SalesMilestones,
+  SpendOverview, item editor; the sales mirror route (`mirrorable`).
+- **UX:** Deal Lookup's PO and supplier-quote status selects show the current
+  state, then "Langkah berikutnya" (the declared moves), then "Koreksi" (all
+  the rest) — nothing removed, labels now translated (`StatusOptions`).
+- **AX:** `describeLifecycles()` includes `groups`; the AGENT_RULES status line
+  now says to count with the groups, never a list of one's own.
+- **Tests** (`lib/lifecycles.test.ts`): groups name real states; each group's
+  membership pinned; the old exported sets equal their groups; ENUMS equal the
+  lifecycles; menus offer every state and only declared moves as next steps;
+  and a ratchet — a hand-written list of ≥2 states of one lifecycle outside the
+  allowed places (count per file, `HAND_LISTS_ALLOWED`) fails the build.
+  Older tests that pinned the copies by source text (dealBalance, salesTotals)
+  now pin the group instead. 1,121 tests; tsc, build green; eslint unchanged.
+- **For the owner (not changed, by design):** (1) is a *Sent* PO an order?
+  `open` (receive, reorder, in-transit) says yes, `placed` (landed-cost FX,
+  Ask) says no — pick one. (2) "void" differs by screen: the FX benchmark,
+  SpendOverview and the overdue SQL view exclude only Cancelled, so Draft and
+  Replaced POs are benchmarked / flagged overdue; the SQL views also test
+  lower-case `'cancelled'`, which matches nothing (migrations/agent_attention.sql).
+  (3) "Paid" has four definitions (poProgress, dealBalance, landedCost
+  `isSettled`, the purchasing page's IDR-only filter). (4) a Fully Received
+  PO can be downgraded to Partially Received by the receive screen. (5) sales:
+  DO-first orders and mirrored `delivered` orders get INV-/DO- numbers with no
+  invoice/DO row (trigger stamp_sales_quote); header reverts leave child
+  invoices/DOs/stock as they were. (6) landed true-up queue says `error`, the
+  API and client say `failed`.
 
 ### 2026-11-10 — Lifecycles declared: lib/lifecycles.ts
 

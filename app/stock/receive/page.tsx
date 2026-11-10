@@ -27,12 +27,13 @@ import { RECEIVED_STATUSES } from '@/lib/receiptGap';
 import { fmtDay, fmtInt, fmtRupiah } from '@/lib/formatters';
 import DealLink from '@/components/ui/DealLink';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { groupSet, inGroup } from '@/lib/lifecycles';
 
 const numOf = (v: unknown): number => { if (v === '' || v == null) return 0; const n = Number(String(v).replace(/[, ]/g, '')); return isNaN(n) ? 0 : n; };
 const today = () => new Date().toISOString().slice(0, 10);
 
 // PO statuses that can still receive goods
-const RECEIVABLE = new Set(['Sent', 'Confirmed', 'Partially Received']);
+const RECEIVABLE = groupSet('purchase_order', 'open');
 
 interface RecLine {
   componentId: string;
@@ -153,7 +154,7 @@ function ReceivePage() {
   // POs that can receive: receivable status, or any outstanding qty left
   const candidates = useMemo(() => {
     return data.pos
-      .filter((po) => RECEIVABLE.has(po.status ?? '') || (po.status !== 'Cancelled' && po.status !== 'Replaced' && po.status !== 'Draft' && outstandingOf(po) > 0))
+      .filter((po) => RECEIVABLE.has(po.status ?? '') || (!inGroup('purchase_order', 'notAnOrder', po.status) && outstandingOf(po) > 0))
       .sort((a, b) => (b.po_date ?? '').localeCompare(a.po_date ?? ''));
   }, [data.pos, outstandingOf]);
 

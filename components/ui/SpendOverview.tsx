@@ -257,7 +257,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     // ── KPIs ───────────────────────────────────────────────────────────────
     const totalCommitted = vendors.reduce((s, v) => s + v.committed, 0);
     const totalPaid = vendors.reduce((s, v) => s + v.paid, 0);
-    const openPOs = filteredPos.filter((p) => !['Fully Received', 'Completed'].includes(p.status ?? '')).length;
+    const openPOs = filteredPos.filter((p) => p.status !== 'Fully Received').length;
     const activeVendorCount = vendors.filter((v) => v.committed > 0).length;
 
     // ── Category price trends ──────────────────────────────────────────────

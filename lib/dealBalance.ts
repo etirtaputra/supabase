@@ -38,6 +38,7 @@
 // node --test resolves no tsconfig path alias. `lib/computeTUC.ts` and
 // `lib/exchangeRates.ts` import it the same way, for the same reason.
 import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
+import { groupSet } from './lifecycles.ts';
 
 export interface BalancePo {
   po_id: string | number;
@@ -112,7 +113,7 @@ export interface DealBalance {
  * `dealGroups.ts` was the one place the rule had not reached, so the totals
  * disagreed with the sections printed directly above them.
  */
-export const NOT_PAYABLE_PO_STATUS = new Set(['Replaced', 'Cancelled', 'Draft']);
+export const NOT_PAYABLE_PO_STATUS = groupSet('purchase_order', 'notAnOrder');
 
 /** @deprecated the old name, kept so nothing silently changes meaning. */
 export const VOID_PO_STATUS = NOT_PAYABLE_PO_STATUS;

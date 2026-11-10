@@ -119,7 +119,7 @@ export const AGENT_ENDPOINTS = [
  * it read last week is a rule it will break.
  */
 export const AGENT_RULES = [
-  'Before you write any status column, read `lifecycles` in /api/agent/onboarding: the values, what each means and the legal moves. Use the exact value (case matters: "Fully Received", "ordered"). The database refuses any other value — CHECK constraints on proposals, sales documents and delivery orders, enums on POs, PIs and price quotes.',
+  'Before you write any status column, read `lifecycles` in /api/agent/onboarding: the values, what each means and the legal moves. Use the exact value (case matters: "Fully Received", "ordered"). The database refuses any other value — CHECK constraints on proposals, sales documents and delivery orders, enums on POs, PIs and price quotes. To COUNT (which POs are real orders, which goods are in), use the lifecycle\'s named `groups` — the same sets the screens use (a PO in `notAnOrder` is not a purchase; a Sent PO is `open` but not `placed`) — never a list of your own.',
   'There is one product table: 3.0_components. batteries, pv_modules, hybrid_inverters, on_grid_inverters and solar_charge_controllers are abandoned and will answer with a fraction of the rows.',
   'Never ask for or accept a service-role key. It makes auth.uid() NULL, so every row you write is stamped "system" and you lose the attribution your account exists to give.',
   'Exclude archived_at IS NOT NULL from anything describing what is available now.',

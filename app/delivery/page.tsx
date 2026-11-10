@@ -23,6 +23,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { inRange, type DateRange } from '@/lib/dateRange';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { groupList } from '@/lib/lifecycles';
 
 // One row per Delivery Order (24.0) once DOs exist, plus "awaiting DO" rows
 // for confirmed/invoiced orders with nothing shipped yet.
@@ -70,7 +71,7 @@ export default function DeliveryPage() {
     const [qRes, custRes, iRes, dRes, diRes] = await Promise.all([
       supabase.from('22.0_sales_quotes')
         .select('quote_id, quote_number, order_number, invoice_number, do_number, customer_id, status, ordered_at, delivered_at, delivery_date, delivery_time, delivery_method, delivery_via, delivery_contact')
-        .in('status', ['ordered', 'invoiced', 'preparing', 'delivered'])
+        .in('status', groupList('sales_document', 'order'))
         .order('updated_at', { ascending: false }),
       supabase.from('20.0_customers').select('customer_id, display_name, legal_name'),
       supabase.from('22.1_sales_quote_items').select('quote_id, quantity, is_section'),

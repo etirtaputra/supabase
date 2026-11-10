@@ -32,10 +32,11 @@ import { V_PO_SCHEDULE, V_PO_LINE_QTY } from '../constants/openViews.ts';
 import { COMMITTED_STATUSES } from './salesStatus';
 import { fetchDeliveredByQuoteComp } from './reservedStock';
 import { selectAll } from './fetchAllRows';
+import { groupSet } from './lifecycles.ts';
 
 /** PO statuses that mean "ordered, on the way, not yet fully arrived" —
  *  the same set Products and the item hub use for their Incoming figures. */
-export const INCOMING_PO_STATUSES = new Set(['Sent', 'Confirmed', 'Partially Received']);
+export const INCOMING_PO_STATUSES = groupSet('purchase_order', 'open');
 
 export const DEMAND_WINDOW_DAYS = 90;
 const FALLBACK_LEAD_DAYS = 30;

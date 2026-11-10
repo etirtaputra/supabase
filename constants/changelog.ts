@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-10T07:43:00Z",
+    title: "Menu status PO dan penawaran pemasok kini menampilkan langkah berikutnya lebih dulu",
+    details: [
+      "Di Deal Lookup, menu status PO dan penawaran pemasok kini dibagi dua: \"Langkah berikutnya\" (perpindahan yang memang dijalankan aplikasi dari status sekarang) lalu \"Koreksi\" (status lain — tetap bisa dipilih untuk membetulkan kesalahan). Nama status di menu kini berbahasa Indonesia.",
+      "Layar pembelian dan penjualan kini menghitung dengan kelompok status yang sama (mis. \"barang sudah masuk\", \"bukan pesanan\", \"pesanan nyata\"). Dulu belasan layar menulis daftarnya sendiri; angka di layar tidak berubah.",
+      "Agen (MIRA, MANDA, MAX) kini juga menerima kelompok status itu saat onboarding, agar menghitung PO dan pesanan dengan aturan yang sama dengan layar.",
+    ],
+  },
+  {
     at: "2026-11-10T10:00:00Z",
     title: "Proposal EPC yang menang atau kalah kini terkunci seperti yang sudah dikirim",
     details: [

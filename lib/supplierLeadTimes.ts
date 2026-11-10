@@ -39,12 +39,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
 import { fetchAllRows } from './fetchAllRows.ts';
 import { parseLeadDays, addWorkingDays, INCOMING_PO_STATUSES } from './inTransit.ts';
+import { groupSet } from './lifecycles.ts';
 
 export type Stage = 'quoteToPo' | 'poToPay' | 'payToPaid' | 'payToReceived' | 'poToReceived' | 'quoteToReceived';
 export const STAGES: Stage[] = ['quoteToPo', 'poToPay', 'payToPaid', 'payToReceived', 'poToReceived', 'quoteToReceived'];
 
 /** Statuses that are not a real order (yet, or any more). */
-export const NOT_AN_ORDER = new Set(['Draft', 'Replaced', 'Cancelled']);
+export const NOT_AN_ORDER = groupSet('purchase_order', 'notAnOrder');
 
 export interface LtPo {
   po_id: string | number;

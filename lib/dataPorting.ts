@@ -25,6 +25,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { csvNum, csvDate, csvBool, normalizeHeader } from './csv';
+import { stateIds } from './lifecycles.ts';
 
 export type PortEntity = 'customers' | 'contacts' | 'orders' | 'order_lines' | 'invoices' | 'receipts';
 
@@ -244,9 +245,7 @@ export function applyMap(rows: Record<string, string>[], headers: string[], map:
 
 // ── Status mapping ──────────────────────────────────────────────────────────
 
-const ICAPROC_STATUSES = new Set([
-  'draft', 'validated', 'sent', 'accepted', 'ordered', 'invoiced', 'preparing', 'delivered', 'cancelled', 'rejected',
-]);
+const ICAPROC_STATUSES = new Set<string>(stateIds('sales_document'));
 
 /**
  * Accept an ICAPROC status word, an obvious synonym, or a Dolibarr numeric

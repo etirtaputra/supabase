@@ -250,8 +250,11 @@ test('the rule has ONE home, and the books totals read it too', () => {
   assert.match(groups, /if \(NOT_PAYABLE_PO_STATUS\.has\(po\.status \?\? ''\)\) continue;/);
   assert.ok(!/po\.status === 'Replaced' \|\| po\.status === 'Cancelled'/.test(groups),
     'a second copy of the rule is how the two answers happened');
-  // The other two sites must keep agreeing with it.
-  assert.match(read('lib/position.ts'), /=== 'Cancelled' \|\| \(po\.status \?\? ''\) === 'Draft'/);
+  // The other two sites must keep agreeing with it. Since 2026-11-10 the rule
+  // itself lives in lib/lifecycles.ts (group `notAnOrder`); this set and
+  // position.ts both read that group, so they cannot drift apart again.
+  assert.match(read('lib/dealBalance.ts'), /NOT_PAYABLE_PO_STATUS = groupSet\('purchase_order', 'notAnOrder'\)/);
+  assert.match(read('lib/position.ts'), /inGroup\('purchase_order', 'notAnOrder', po\.status\)/);
   assert.match(read('components/ui/DealLookupTab.tsx'), /if \(g\.poStatus === 'Draft'\) return 'draft';/);
 });
 

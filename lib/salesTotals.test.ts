@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { salesTotals, lineTotal } from './salesTotals.ts';
+import { groupList } from './lifecycles.ts';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const EDITOR = read('app/sales/[id]/page.tsx');
@@ -98,9 +99,12 @@ test('the mirror posts NO stock, and says so in its own answer', () => {
 });
 
 test('a mirrored order lands at an END state, never a fabricated lifecycle', () => {
-  assert.match(MIRROR, /ALLOWED_STATUS = \['ordered', 'invoiced', 'delivered', 'cancelled'\]/);
-  for (const invented of ["'draft'", "'validated'", "'sent'", "'accepted'"]) {
-    assert.ok(!MIRROR.includes(`${invented},`) || !MIRROR.includes('ALLOWED_STATUS'),
+  // Since 2026-11-10 the list lives in lib/lifecycles.ts (group `mirrorable`),
+  // the same declaration the screens and the onboarding payload read.
+  assert.match(MIRROR, /ALLOWED_STATUS: readonly string\[\] = groupList\('sales_document', 'mirrorable'\)/);
+  assert.deepEqual([...groupList('sales_document', 'mirrorable')], ['ordered', 'invoiced', 'delivered', 'cancelled']);
+  for (const invented of ['draft', 'validated', 'sent', 'accepted']) {
+    assert.ok(!(groupList('sales_document', 'mirrorable') as readonly string[]).includes(invented),
       `${invented} must not be a mirrorable status — it did not happen here`);
   }
   // validated_at / sent_at / accepted_at are never written: the NULL is the

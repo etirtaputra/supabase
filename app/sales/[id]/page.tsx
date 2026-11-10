@@ -36,7 +36,7 @@ import SystemDesigner from '@/components/ui/SystemDesigner';
 import type { SystemDesign } from '@/lib/systemDesign/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { selectAll } from '@/lib/fetchAllRows';
-import { salesDocumentActions } from '@/lib/lifecycles';
+import { salesDocumentActions, inGroup } from '@/lib/lifecycles';
 import { catalogMatches } from '@/lib/catalogSearch';
 import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libNorm } from '@/lib/libraryMatch';
 
@@ -1162,7 +1162,7 @@ export default function SalesQuotePage() {
   const received = receipts.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const billTotal = Number(editing.grand_total) || totals.grand;
   const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
-  const showPayments = !newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st);
+  const showPayments = !newDoc && inGroup('sales_document', 'order', st);
   // Receipts per invoice — the link that makes an invoice's PAID/PARTIAL state
   // real. Shared by the Fulfillment rows and the Payments panel.
   const paidByInvoice = receipts.reduce((m, r) => {
@@ -1172,7 +1172,7 @@ export default function SalesQuotePage() {
   const todayIso = todayISO();
   // An offer past its own date, while still on the table (draft is not an
   // offer yet; accepted/ordered+ has already landed). NULL = no expiry.
-  const expired = !!editing.valid_until && ['validated', 'sent'].includes(st)
+  const expired = !!editing.valid_until && inGroup('sales_document', 'awaitingAnswer', st)
     && editing.valid_until < todayIso;
   // Entered via "+ New Order": the quotation actions do not exist AT ALL on
   // the draft — offering Validate invited the wrong click and quietly turned
@@ -1334,7 +1334,7 @@ export default function SalesQuotePage() {
         {!newDoc && <SalesMilestones q={editing} received={received} billTotal={billTotal} invoices={invoices} dos={dos} />}
 
         {/* Fulfillment: this order's invoices + delivery orders (split-capable) */}
-        {!newDoc && ['ordered', 'invoiced', 'preparing', 'delivered'].includes(st) && (
+        {!newDoc && inGroup('sales_document', 'order', st) && (
           <FulfillmentPanel
             quote={editing}
             soLines={savedLines}

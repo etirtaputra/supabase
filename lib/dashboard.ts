@@ -21,6 +21,7 @@ import { fetchReorderAlerts } from './reorder';
 import { computeInTransit, type OpenPo, type ReceivedPo, type PoCost } from './inTransit';
 import { fetchAllRows } from './fetchAllRows';
 import { epcNudges, subtotalsByQuote, EPC_OUTCOME_DAYS, type NudgeQuote } from './proposalNudges';
+import { inGroup } from './lifecycles';
 
 export type ActionDomain = 'sell' | 'buy' | 'cash' | 'epc';
 
@@ -213,7 +214,7 @@ export async function fetchActionQueue(
       }
       let owed = 0, n = 0;
       for (const po of (poRes.data ?? []) as { po_id: string; status: string; total_value: number; currency: string; exchange_rate: number | null }[]) {
-        if (!['Fully Received', 'Partially Received'].includes(po.status ?? '')) continue;
+        if (!inGroup('purchase_order', 'received', po.status)) continue;
         const rate = po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 0);
         const totalIdr = (Number(po.total_value) || 0) * rate;
         const out = totalIdr - (paid.get(String(po.po_id)) ?? 0);

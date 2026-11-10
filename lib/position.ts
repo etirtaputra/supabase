@@ -20,6 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RolePermissions } from '../constants/roles';
 import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
 import { computeInTransit, type InTransitSummary, type OpenPo, type ReceivedPo, type PoCost } from './inTransit.ts';
+import { inGroup } from './lifecycles.ts';
 
 // ── Row shapes (only the columns the math reads) ─────────────────────────────
 export interface AccountRow { bank_account_id: string; currency: string; opening_balance: number; is_active: boolean }
@@ -119,14 +120,14 @@ export function computeAp(pos: PoRow[], costs: CostRow[]): ApPosition {
   }
   const r: ApPosition = { outstanding: 0, openCount: 0, receivedOwed: 0, receivedCount: 0, excludedNoRate: 0 };
   for (const po of pos) {
-    if ((po.status ?? '') === 'Cancelled' || (po.status ?? '') === 'Draft' || (po.status ?? '') === 'Replaced') continue;
+    if (inGroup('purchase_order', 'notAnOrder', po.status)) continue;
     const rate = po.currency === 'IDR' ? 1 : Number(po.exchange_rate) || 0;
     const totalIdr = (Number(po.total_value) || 0) * rate;
     if ((Number(po.total_value) || 0) > 0 && rate === 0) { r.excludedNoRate += 1; continue; }
     const out = totalIdr - (paid.get(String(po.po_id)) ?? 0);
     if (totalIdr <= 0 || out <= 1000) continue;   // rounding dust, same as the queue
     r.outstanding += out; r.openCount += 1;
-    if (['Fully Received', 'Partially Received'].includes(po.status ?? '')) { r.receivedOwed += out; r.receivedCount += 1; }
+    if (inGroup('purchase_order', 'received', po.status)) { r.receivedOwed += out; r.receivedCount += 1; }
   }
   return r;
 }

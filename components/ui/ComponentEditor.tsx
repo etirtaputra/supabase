@@ -35,6 +35,7 @@ import { formatCategory } from '@/lib/formatCategory';
 import { DealContextLine } from './DealContext';
 import { dealRef, type SourceFields, type LineContext } from '@/lib/dealContext';
 import { selectAll } from '@/lib/fetchAllRows';
+import { groupSet } from '@/lib/lifecycles';
 
 
 interface ComponentHistoryEntry {
@@ -1263,7 +1264,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
 
   // ── Tooltip quote lines + last quoted price (single pass over quoteItems) ───
   const { quoteLinesByComponent, lastQuoteByComponent, sparklineLinesByComponent } = useMemo(() => {
-    const SKIP_STATUSES = new Set(['Replaced', 'Rejected', 'Cancelled']);
+    const SKIP_STATUSES = groupSet('price_quote', 'dead');
     const quoteMap = new Map(quotes.map((q) => [q.quote_id, q]));
     const linesMap = new Map<string, TooltipQuoteLine[]>();
 

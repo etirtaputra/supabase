@@ -22,6 +22,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { inGroup } from '@/lib/lifecycles';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -286,7 +287,7 @@ function CustomersInner() {
       for (const i of ((invRes.error ? [] : invRes.data as InvLite[]) ?? [])) (invoicesByQuote[i.quote_id] ??= []).push(i);
       for (const d of ((doRes.error ? [] : doRes.data as DoLite[]) ?? [])) (dosByQuote[d.quote_id] ??= []).push(d);
       // "Most ordered" counts confirmed business only (SO onward), not quotes
-      const committed = new Set(list.filter((d) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(d.status)).map((d) => d.quote_id));
+      const committed = new Set(list.filter((d) => inGroup('sales_document', 'order', d.status)).map((d) => d.quote_id));
       for (const it of (iRes.data as { quote_id: string; description: string; quantity: number; unit: string; line_total: number; is_section: boolean }[]) ?? []) {
         if (it.is_section || !committed.has(it.quote_id)) continue;
         const desc = (it.description || '').trim();
@@ -344,7 +345,7 @@ function CustomersInner() {
     // KPIs; value breaks ties on the "Most transactions" sort.
     const txn: Record<string, { n: number; value: number }> = {};
     for (const q of ((txnRes.error ? [] : txnRes.data as { customer_id: string | null; status: string; grand_total: number }[]) ?? [])) {
-      if (!q.customer_id || !['ordered', 'invoiced', 'preparing', 'delivered'].includes(q.status)) continue;
+      if (!q.customer_id || !inGroup('sales_document', 'order', q.status)) continue;
       const t = (txn[q.customer_id] ??= { n: 0, value: 0 });
       t.n += 1;
       t.value += Number(q.grand_total) || 0;
@@ -1227,12 +1228,12 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
 
   const docs = data?.docs ?? [];
   const received = data?.received ?? {};
-  const committed = docs.filter((d) => ['ordered', 'invoiced', 'preparing', 'delivered'].includes(d.status));
-  const invoiced = docs.filter((d) => ['invoiced', 'preparing', 'delivered'].includes(d.status));
+  const committed = docs.filter((d) => inGroup('sales_document', 'order', d.status));
+  const invoiced = docs.filter((d) => inGroup('sales_document', 'billed', d.status));
   const totalSales = committed.reduce((s, d) => s + (Number(d.grand_total) || 0), 0);
   const totalReceived = docs.reduce((s, d) => s + (received[d.quote_id] ?? 0), 0);
   const outstandingAR = invoiced.reduce((s, d) => s + Math.max(0, (Number(d.grand_total) || 0) - (received[d.quote_id] ?? 0)), 0);
-  const quoteCount = docs.filter((d) => !['cancelled', 'rejected'].includes(d.status)).length;
+  const quoteCount = docs.filter((d) => !inGroup('sales_document', 'closedLost', d.status)).length;
   const winRate = quoteCount > 0 ? (committed.length / quoteCount) * 100 : null;
   const paidState = (d: SalesDoc) => {
     const total = Number(d.grand_total) || 0;
@@ -1326,7 +1327,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                             className={`font-mono text-[11px] ${docNumberCls(d.status)} hover:text-emerald-300 transition-colors`}>{displayDocNumber(d)}</a>
                           {(d.revision ?? 0) > 0 && <span className="text-[9px] font-bold text-sky-400">R{d.revision}</span>}
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${SALES_STATUS[d.status]?.cls ?? ''}`}>{t(SALES_STATUS[d.status]?.label ?? d.status)}</span>
-                          {['invoiced', 'preparing', 'delivered'].includes(d.status) && (
+                          {inGroup('sales_document', 'billed', d.status) && (
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${payChip(quotePay)}`}>{quotePay}</span>
                           )}
                           <span className="ml-auto tabular-nums text-xs text-slate-200 font-semibold">{fmtRupiah(Number(d.grand_total) || 0)}</span>

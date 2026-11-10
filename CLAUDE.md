@@ -104,6 +104,12 @@ and `/api/agent/onboarding` serves it to the agents as `lifecycles`.
 - Never copy a status colour map or a list like `['draft','sent',…]` into a
   screen: use `badgeMap()`, `stateIds()`, `canMove()` or
   `salesDocumentActions()`.
+- To COUNT with statuses ("goods are in", "a real order"), ask for a named
+  group — `inGroup()` / `groupSet()` (e.g. `purchase_order.notAnOrder`,
+  `sales_document.order`). No group fits? Add one to the lifecycle, with the
+  readers it serves; its members are pinned by a test, so changing one is a
+  decision made out loud. A hand-written list outside the allowed places
+  (`HAND_LISTS_ALLOWED`) fails the build.
 - Adding a value to a text status column means changing its CHECK in a
   migration in the same commit (`migrations/lifecycle_checks.sql` holds the
   three added on 2026-11-10).

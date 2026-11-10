@@ -40,6 +40,7 @@ import { BAR_INPUT, BAR_SELECT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON_SKY } from '@/c
 import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { compareToBenchmark } from '@/lib/fxBenchmark';
 import { groupByVendor, NO_VENDOR } from '@/lib/dealVendors';
+import { inGroup, menuFor, stateIds, type LifecycleId } from '@/lib/lifecycles';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -47,8 +48,31 @@ import { groupByVendor, NO_VENDOR } from '@/lib/dealVendors';
  *  truncation: the count beside the heading is always the true one. */
 const SECTION_PAGE = 10;
 
-const QUOTE_STATUSES = ['Open', 'Accepted', 'Replaced', 'Rejected', 'Expired'] as const;
-const PO_STATUSES    = ['Draft', 'Sent', 'Confirmed', 'Replaced', 'Partially Received', 'Fully Received', 'Cancelled'] as const;
+/** True when a PO is superseded or called off (lib/lifecycles.ts, group `void`). */
+const isVoidPo = (status: string | null | undefined) => inGroup('purchase_order', 'void', status);
+
+/**
+ * A status menu that reads its lifecycle: the current state, then the NEXT
+ * STEPS the app itself takes from it, then everything else under "Correction".
+ * Nothing is removed — a mistaken status can still be put right — but the
+ * ordinary next step is no longer buried among states that make no sense
+ * from here (Draft for a received PO). Labels are translated.
+ */
+function StatusOptions({ lifecycle, current, t }: {
+  lifecycle: LifecycleId;
+  current: string | null | undefined;
+  t: (s: string) => string;
+}) {
+  const { next, corrections } = menuFor(lifecycle, current);
+  const opt = (s: string) => <option key={s} value={s} className="bg-canvas text-slate-200">{t(s)}</option>;
+  return (
+    <>
+      {current && stateIds(lifecycle).includes(current) && opt(current)}
+      {next.length > 0 && <optgroup label={t('Next step')}>{next.map(opt)}</optgroup>}
+      {corrections.length > 0 && <optgroup label={t('Correction')}>{corrections.map(opt)}</optgroup>}
+    </>
+  );
+}
 
 /** Rupiah in the app's own notation, anything else as "CNY 81,060". */
 const fmtMoney = (amount: number, ccy: string): string =>
@@ -340,8 +364,8 @@ function detectGroupMismatches(
   poItems: PurchaseLineItem[],
   components: Component[],
 ): MismatchItem[] {
-  const activePos = g.pos.filter((p) => p.status !== 'Cancelled' && p.status !== 'Replaced');
-  const liveQuotes = g.quotes.filter((q) => !['Replaced', 'Rejected', 'Expired'].includes(q.status ?? ''));
+  const activePos = g.pos.filter((p) => !isVoidPo(p.status));
+  const liveQuotes = g.quotes.filter((q) => !inGroup('price_quote', 'dead', q.status));
   if (liveQuotes.length === 0 || activePos.length === 0) return [];   // need both sides to compare
 
   const compName = (cid: string) => {
@@ -382,7 +406,7 @@ function detectGroupMismatches(
 
 function dealStage(g: DealGroup): 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'superseded' {
   if (g.pos.length === 0) return 'quote';
-  if (g.poStatus === 'Cancelled' || g.poStatus === 'Replaced') return 'superseded';
+  if (isVoidPo(g.poStatus)) return 'superseded';
   if (g.poStatus === 'Fully Received') {
     return (g.totalIdr > 0 && g.outstandingIdr === 0) ? 'completed' : 'received';
   }
@@ -878,7 +902,7 @@ export default function DealLookupTab({
     // received; received POs carry that state in their status. The whole deal
     // is deletable when every PO is (a quote-only deal has none to block it).
     const poDeletable = (p: PurchaseOrder) =>
-      !['Fully Received', 'Partially Received'].includes(p.status ?? '') &&
+      !inGroup('purchase_order', 'received', p.status) &&
       !gPoCosts.some((c) => String(c.po_id) === String(p.po_id));
     const dealDeletable = g.pos.every(poDeletable);
     const dealKey = `deal:${g.key}`;
@@ -1142,9 +1166,7 @@ export default function DealLookupTab({
                           }}
                           className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-sky-500/40 cursor-pointer disabled:opacity-60 ${quoteBadge(qt.status)}`}
                         >
-                          {QUOTE_STATUSES.map((s) => (
-                            <option key={s} value={s} className="bg-canvas text-slate-200">{s}</option>
-                          ))}
+                          <StatusOptions lifecycle="price_quote" current={qt.status} t={t} />
                         </select>
                         {updatingQuote === qKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
                       </div>
@@ -1840,12 +1862,10 @@ export default function DealLookupTab({
                             }}
                             className={`flex-1 text-[11px] font-semibold rounded-lg px-2 py-1 border bg-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 cursor-pointer disabled:opacity-60 ${poBadge(po.status)}`}
                           >
-                            {PO_STATUSES.map((s) => (
-                              <option key={s} value={s} className="bg-canvas text-slate-200">{s}</option>
-                            ))}
+                            <StatusOptions lifecycle="purchase_order" current={po.status} t={t} />
                           </select>
                           {updatingPo === pKey && <span className="text-[10px] text-slate-500 animate-pulse">saving…</span>}
-                          {onRevisePo && po.po_number && po.status !== 'Cancelled' && po.status !== 'Replaced' && (
+                          {onRevisePo && po.po_number && !isVoidPo(po.status) && (
                             <button type="button" onClick={(e) => { e.stopPropagation(); onRevisePo(String(po.po_id)); }}
                               className="text-[11px] font-semibold text-violet-300 hover:text-violet-200 px-2 py-1 rounded-lg border border-violet-500/30 hover:border-violet-500/50 hover:bg-violet-500/10 transition-colors whitespace-nowrap"
                               title="Load this PO into New Deal — amend it, split lines into a new PO, or supersede it">
@@ -1877,7 +1897,7 @@ export default function DealLookupTab({
                             because a PO raised before the board existed has no
                             other way onto it. Writes the same one flag; the
                             seven columns are worked out from the payments. */}
-                        {onUpdatePo && po.status !== 'Replaced' && po.status !== 'Cancelled' && (
+                        {onUpdatePo && !isVoidPo(po.status) && (
                           <label className="flex items-center gap-2 cursor-pointer select-none group w-fit"
                             onClick={(e) => e.stopPropagation()}
                             title="Show this PO on the Purchasing → Progress board">
@@ -1979,7 +1999,7 @@ export default function DealLookupTab({
                     )}
 
                     {/* Mark as Fully Paid — only show when ≥80% paid (final gap close, not mid-payment) */}
-                    {onMarkFullyPaid && po.status !== 'Cancelled' && po.status !== 'Replaced' && !isObligationMet && pct >= 80 && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (
+                    {onMarkFullyPaid && !isVoidPo(po.status) && !isObligationMet && pct >= 80 && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (
                       <div className="flex items-center gap-2 pt-1">
                         <button
                           disabled={markingPaid === pKey}
@@ -2265,7 +2285,7 @@ export default function DealLookupTab({
             // Which OTHER active PO of this deal carries a given component —
             // so a line that is on a sibling PO reads "on EB.42278" instead of
             // the misleading "quote only" (it IS ordered, just on another PO).
-            const siblingPos = g.pos.filter((p) => String(p.po_id) !== String(po.po_id) && p.status !== 'Cancelled' && p.status !== 'Replaced');
+            const siblingPos = g.pos.filter((p) => String(p.po_id) !== String(po.po_id) && !isVoidPo(p.status));
             const compOnSibling = (cid: string | null): string | null => {
               if (!cid) return null;
               for (const sp of siblingPos) {
@@ -2609,7 +2629,7 @@ export default function DealLookupTab({
                 dimmer. Quote-only deals lead with the quote name (there is no
                 PO yet — the "Create PO" button sits at the end of the row). */}
             {(() => {
-              const activePos = g.pos.filter((p) => p.status !== 'Replaced' && p.status !== 'Cancelled');
+              const activePos = g.pos.filter((p) => !isVoidPo(p.status));
               const shownPos = (activePos.length ? activePos : g.pos).map((p) => p.po_number).filter(Boolean) as string[];
               const quoteName = g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : null);
               if (shownPos.length > 0) {

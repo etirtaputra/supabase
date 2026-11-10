@@ -12,6 +12,7 @@
  */
 import { poBalance, NOT_PAYABLE_PO_STATUS, type BalanceCost, type BalancePo } from './dealBalance.ts';
 import type { SupplierLead } from './supplierLeadTimes.ts';
+import { groupSet } from './lifecycles.ts';
 
 const DAY = 86_400_000;
 const at = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
@@ -56,7 +57,7 @@ export function latePos(leads: SupplierLead[], today: string): LatePo[] {
 }
 
 /** Goods are in (fully or partly received) and the PO still has money to pay. */
-export const GOODS_IN = new Set(['Fully Received', 'Partially Received']);
+export const GOODS_IN = groupSet('purchase_order', 'received');
 
 export interface UnpaidPo { poId: string; poNumber: string; currency: string; remaining: number; idr: number | null }
 

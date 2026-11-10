@@ -13,6 +13,7 @@
  * receipts are written.
  */
 import { COMMITTED_STATUSES } from './salesStatus.ts';
+import { groupSet } from './lifecycles.ts';
 
 const DAY = 86_400_000;
 const at = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
@@ -48,7 +49,7 @@ export interface InboxInvoice {
 export interface InboxReceipt { quote_id: string; invoice_id?: string | null; amount: number | string | null }
 
 const num = (v: number | string | null | undefined) => Number(v) || 0;
-const OFFERED = new Set(['validated', 'sent', 'accepted']);
+const OFFERED = groupSet('sales_document', 'offered');
 
 export interface WaitingQuote {
   quoteId: string;

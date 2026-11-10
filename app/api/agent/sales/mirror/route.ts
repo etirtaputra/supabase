@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callerFromRequest, AgentAuthError } from '@/lib/agentApi';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { salesTotals, lineTotal } from '@/lib/salesTotals';
+import { groupList } from '@/lib/lifecycles';
 
 /**
  * POST /api/agent/sales/mirror — record a sales order that happened elsewhere.
@@ -53,9 +54,9 @@ export const dynamic = 'force-dynamic';
 const SALES = '22.0_sales_quotes';
 const ITEMS = '22.1_sales_quote_items';
 
-/** End states a mirrored order may land in. See the lifecycle note below. */
-const ALLOWED_STATUS = ['ordered', 'invoiced', 'delivered', 'cancelled'] as const;
-type MirrorStatus = typeof ALLOWED_STATUS[number];
+/** End states a mirrored order may land in (lib/lifecycles.ts, group `mirrorable`). See the lifecycle note below. */
+const ALLOWED_STATUS: readonly string[] = groupList('sales_document', 'mirrorable');
+type MirrorStatus = string;
 
 interface InLine {
   component_id?: string | null;

@@ -17,6 +17,7 @@
 import { ROLE_PERMISSIONS, type UserRole } from '../constants/roles.ts';
 import { canOpenPath } from '../constants/navigation.ts';
 import type { TUCResult } from './computeTUC.ts';
+import { groupSet } from './lifecycles.ts';
 
 /**
  * The route uses the service-role key, so it must apply the screen's gate
@@ -40,7 +41,7 @@ export function askKeywords(query: string): string[] {
 }
 
 /** Statuses that are a real purchase. A Draft is a scratchpad, a Replaced PO is history. */
-export const LIVE_PO_STATUSES = new Set(['Confirmed', 'Partially Received', 'Fully Received']);
+export const LIVE_PO_STATUSES = groupSet('purchase_order', 'placed');
 
 export interface AskPo {
   po_id: string; po_number: string | null; po_date: string | null; status: string;

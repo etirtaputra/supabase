@@ -48,6 +48,7 @@
  * Pure: everything it needs is an argument, so the arithmetic is tested and the
  * endpoint cannot grow a second opinion.
  */
+import { groupSet } from './lifecycles.ts';
 
 export interface SaleLine {
   item_id?: string | null;
@@ -216,4 +217,4 @@ export function planSaleStockReversal(posted: PostedMove[]): PlannedIn[] {
  * never will — posting stock for any of them would remove goods that are
  * still on the shelf.
  */
-export const DELIVERABLE_STATUS = new Set(['ordered', 'invoiced', 'preparing', 'delivered']);
+export const DELIVERABLE_STATUS = groupSet('sales_document', 'order');

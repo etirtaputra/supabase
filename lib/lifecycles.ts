@@ -71,6 +71,16 @@ export interface Lifecycle {
   freeSelect?: string;
   enforced: string[];
   notes?: string[];
+  /**
+   * Named sets of states that code COUNTS with ("goods are in", "a real
+   * order"). Readers ask for a group instead of spelling states out, so two
+   * screens can no longer disagree about what a PO is. Each group's
+   * membership was copied from the code that used it (2026-11-10), so
+   * adopting it changed nothing on screen; where readers disagreed (is a
+   * Sent PO an order?) they got two groups with honest names. Changing a
+   * group is a business decision — lib/lifecycles.test.ts pins them.
+   */
+  groups?: Record<string, string[]>;
 }
 
 const S = (id: string, label: string, cls: string, meaning: string, extra: Partial<LifeState> = {}): LifeState =>
@@ -173,6 +183,22 @@ const SALES_DOCUMENT: Lifecycle = {
     'Reserves stock while ordered, invoiced or preparing (COMMITTED_STATUSES).',
     'Paid / fully paid is DERIVED from 26.x receipts, never stored here.',
   ],
+  groups: {
+    /** Reserves stock: Live = Physical − Reserved. */
+    committed: ['ordered', 'invoiced', 'preparing'],
+    /** A real order, confirmed or beyond: payments, fulfillment, customer totals; stock may leave. */
+    order: ['ordered', 'invoiced', 'preparing', 'delivered'],
+    /** Carries an invoice number on print. */
+    billed: ['invoiced', 'preparing', 'delivered'],
+    /** Quoted and not yet an order (the sales list's Quote stage, the sales inbox). */
+    offered: ['validated', 'sent', 'accepted'],
+    /** An offer out with the customer, which valid_until can expire. */
+    awaitingAnswer: ['validated', 'sent'],
+    /** Where a mirrored Dolibarr order may be recorded: end states only (POST /api/agent/sales/mirror). */
+    mirrorable: ['ordered', 'invoiced', 'delivered', 'cancelled'],
+    /** Dead documents. */
+    closedLost: ['cancelled', 'rejected'],
+  },
 };
 
 // ── Delivery orders ──────────────────────────────────────────────────────────
@@ -296,8 +322,20 @@ const PURCHASE_ORDER: Lifecycle = {
     { from: ['Draft', 'Confirmed', 'Partially Received'], to: 'Replaced', action: 'Replacement PO created', by: 'system', where: 'app/purchasing createPo (replaces_po_id)' },
     { from: ['Draft', 'Confirmed'], to: 'Cancelled', action: 'Status → Cancelled', by: 'user', where: 'components/ui/DealLookupTab status select' },
   ],
-  freeSelect: 'Deal Lookup offers all seven enum values from any state.',
+  freeSelect: 'Deal Lookup offers all seven enum values from any state, the declared moves first ("Next step"), the rest under "Correction".',
   enforced: ['Postgres enum purchases_status.'],
+  groups: {
+    /** Goods are physically in, in part or in full (receipt gap, purchasing inbox, position, dashboard). */
+    received: ['Partially Received', 'Fully Received'],
+    /** Goods still owed to us, counting a PO that is only Sent (stock receive, reorder, in transit, incoming cost). */
+    open: ['Sent', 'Confirmed', 'Partially Received'],
+    /** The supplier has committed: confirmed or receiving (landed-cost FX, Ask). A Sent PO is NOT here. */
+    placed: ['Confirmed', 'Partially Received', 'Fully Received'],
+    /** Not a purchase at all: never sent, superseded or called off (balances, lead times, position, receive). */
+    notAnOrder: ['Draft', 'Replaced', 'Cancelled'],
+    /** Superseded or called off: hidden from the action buttons in Deal Lookup. */
+    void: ['Replaced', 'Cancelled'],
+  },
   notes: ['A new PO made from an accepted PI starts at Confirmed, not Draft (app/purchasing).', 'Received/landed state per line is DERIVED (lib/poProgress, lib/inTransit, lib/landedCost).'],
 };
 
@@ -321,8 +359,14 @@ const PRICE_QUOTE: Lifecycle = {
     { from: ['Open'], to: 'Rejected', action: 'Status → Rejected', by: 'user', where: 'app/purchasing quote status select' },
     { from: ['Open'], to: 'Expired', action: 'Status → Expired', by: 'user', where: 'app/purchasing quote status select' },
   ],
-  freeSelect: 'The quote status select offers all five enum values.',
+  freeSelect: 'The quote status select offers all five enum values, the declared moves first ("Next step"), the rest under "Correction".',
   enforced: ['Postgres enum price_quotes_status.'],
+  groups: {
+    /** Still a price we can buy at: undecided, or the one a PO was placed on (incoming cost). */
+    live: ['Open', 'Accepted'],
+    /** No longer the live price: superseded, refused or lapsed (Deal Lookup, item editor). */
+    dead: ['Replaced', 'Rejected', 'Expired'],
+  },
 };
 
 const PROFORMA: Lifecycle = {
@@ -428,6 +472,32 @@ export const canMove = (id: LifecycleId, from: string, to: string): boolean =>
 export const movesFrom = (id: LifecycleId, from: string): Move[] =>
   lifecycle(id).moves.filter((m) => m.from.includes(from));
 
+// ── Groups: what code counts with ───────────────────────────────────────────
+/** The states of a named group, in declaration order. Throws on a typo — a group that silently matched nothing is how this module came to exist. */
+export function groupList(id: LifecycleId, group: string): string[] {
+  const g = lifecycle(id).groups?.[group];
+  if (!g) throw new Error(`Lifecycle ${id} has no group ${group}`);
+  return g;
+}
+/** A group as a Set — the shape the readers already used. */
+export const groupSet = (id: LifecycleId, group: string): ReadonlySet<string> => new Set(groupList(id, group));
+/** Is `status` in the group? Null and unknown spellings never are. */
+export const inGroup = (id: LifecycleId, group: string, status: string | null | undefined): boolean =>
+  status != null && groupList(id, group).includes(status);
+
+/**
+ * A status menu for a free select: the declared moves out of `current` first
+ * (its NEXT STEPS), then every other state as a CORRECTION — nothing is taken
+ * away, a mistake can still be put right, but the ordinary step is no longer
+ * buried among states that make no sense from here.
+ */
+export function menuFor(id: LifecycleId, current: string | null | undefined): { next: string[]; corrections: string[] } {
+  const all = stateIds(id);
+  const targets = new Set(current == null ? [] : movesFrom(id, current).map((m) => m.to));
+  const next = all.filter((s) => s !== current && targets.has(s));
+  return { next, corrections: all.filter((s) => s !== current && !targets.has(s)) };
+}
+
 // ── The sales editor's header buttons ────────────────────────────────────────
 export interface SalesAction { label: string; to: string; primary?: boolean; danger?: boolean }
 
@@ -470,5 +540,6 @@ export function describeLifecycles() {
     ...(l.freeSelect ? { free_select: l.freeSelect } : {}),
     enforced: l.enforced,
     ...(l.notes ? { notes: l.notes } : {}),
+    ...(l.groups ? { groups: l.groups } : {}),
   }));
 }

@@ -209,6 +209,9 @@ export const ID: Record<string, string> = {
   'Replaced': 'Diganti',
   'Partially Received': 'Diterima Sebagian',
   'Fully Received': 'Diterima Penuh',
+  // Status menus (lib/lifecycles.ts menuFor): the declared next steps first, the rest as corrections.
+  'Next step': 'Langkah berikutnya',
+  'Correction': 'Koreksi',
   'draft': 'konsep',
   'sent': 'dikirim',
   'accepted': 'diterima',

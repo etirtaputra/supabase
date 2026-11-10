@@ -1,4 +1,4 @@
-import { badgeMap } from './lifecycles.ts';
+import { badgeMap, groupSet, inGroup } from './lifecycles.ts';
 
 /**
  * Sales-quote lifecycle status metadata, shared by the list and editor.
@@ -15,7 +15,7 @@ export const SALES_STATUS: Record<string, { label: string; cls: string }> = badg
 
 // Statuses that reserve stock (Live = Physical − Reserved). Items being
 // prepared for delivery are still reserved until they physically leave.
-export const COMMITTED_STATUSES = new Set(['ordered', 'invoiced', 'preparing']);
+export const COMMITTED_STATUSES = groupSet('sales_document', 'committed');
 
 /**
  * The milestone ladder every sales document climbs:
@@ -55,7 +55,7 @@ export const printedDocNumber = (q: {
   quote_number?: string | null; order_number?: string | null;
   invoice_number?: string | null; status?: string | null;
 }): string => {
-  if (q.invoice_number && ['invoiced', 'preparing', 'delivered'].includes(q.status ?? '')) {
+  if (q.invoice_number && inGroup('sales_document', 'billed', q.status)) {
     return q.invoice_number;
   }
   return displayDocNumber(q);

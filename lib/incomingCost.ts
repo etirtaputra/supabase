@@ -42,6 +42,7 @@
  *                         too LOW, never too high, so a warning it raises is real.
  */
 import type { FxRate } from './computeTUC.ts';
+import { groupSet } from './lifecycles.ts';
 
 /** Type-only import above: computeTUC.ts cannot load under `node --test`. A
  *  currency with no known rate converts to 0 and is skipped — never guessed. */
@@ -77,8 +78,8 @@ export const ADDON_CATS = new Set([
 const UPLIFT_MIN = 1;
 const UPLIFT_MAX = 2;
 
-const OPEN_PO = new Set(['Sent', 'Confirmed', 'Partially Received']);
-const LIVE_QUOTE = new Set(['Open', 'Accepted']);
+const OPEN_PO = groupSet('purchase_order', 'open');
+const LIVE_QUOTE = groupSet('price_quote', 'live');
 
 export interface IncPo { po_id: string | number; po_number?: string | null; po_date?: string | null; status?: string | null; currency?: string | null; exchange_rate?: number | string | null; supplier_id?: string | null; quote_id?: string | number | null; total_value?: number | string | null; incoterms?: string | null }
 

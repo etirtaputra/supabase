@@ -23,10 +23,11 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchAllRows } from './fetchAllRows.ts';
+import { groupSet } from './lifecycles.ts';
 
 /** The day the stock ledger went live (first receipt movement written, 2026-07-19). */
 export const LEDGER_START = '2026-07-19';
-export const RECEIVED_STATUSES = new Set(['Fully Received', 'Partially Received']);
+export const RECEIVED_STATUSES = groupSet('purchase_order', 'received');
 
 export interface GapPo {
   po_id: string | number; po_number?: string | null; status?: string | null;
