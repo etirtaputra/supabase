@@ -37,6 +37,7 @@ import { SALES_STATUS, displayDocNumber } from '@/lib/salesStatus';
 import { fmtWarranty, warrantyRun, type WarrantyUnit } from '@/lib/warranty';
 import { getSettings } from '@/lib/settings';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { badgeMap } from '@/lib/lifecycles';
 import {
   fetchSerials, lookupSerial, traceSerial, normSerial,
   type SerialRow, type SerialSalesDoc, type SerialDo, type SerialInvoice,
@@ -86,11 +87,9 @@ const STATUS_SECTIONS: { key: string; label: string; accent: string; rule: strin
   { key: 'resolved',      label: 'Resolved',      accent: 'text-emerald-300', rule: 'bg-emerald-500/20' },
   { key: 'closed',        label: 'Closed',        accent: 'text-slate-500',   rule: 'bg-slate-700/40' },
 ];
-const STATUS_BADGE: Record<string, string> = {
-  open: 'bg-rose-500/15 text-rose-300', in_progress: 'bg-sky-500/15 text-sky-300 tone-step',
-  waiting_parts: 'bg-amber-500/15 text-amber-300', resolved: 'bg-emerald-500/15 text-emerald-300',
-  closed: 'bg-slate-700/40 text-slate-400',
-};
+// Badge per state, declared in lib/lifecycles.ts (aftersales_case).
+const STATUS_BADGE: Record<string, string> = Object.fromEntries(
+  Object.entries(badgeMap('aftersales_case')).map(([k, v]) => [k, v.cls]));
 const statusLabel = (s: string) => STATUS_SECTIONS.find((x) => x.key === s)?.label ?? s;
 
 // The warranty verdict chip — the direct answer "is this claim inside the

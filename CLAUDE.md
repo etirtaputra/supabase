@@ -89,6 +89,25 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public."31.0_example" TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public."31.0_example" TO service_role;
 ```
 
+## Lifecycles are declared, not implied (2026-11-10)
+
+Every status column — and every lifecycle kept in timestamps, such as
+`archived_at` / `resolved_at` — is declared in **`lib/lifecycles.ts`**: its
+states (label, tone, meaning), the moves between them (who, where) and what the
+database itself refuses. Screens read their status maps and buttons from it,
+and `/api/agent/onboarding` serves it to the agents as `lifecycles`.
+
+- A new status value, or a new move, goes in `lib/lifecycles.ts` first.
+  `lib/lifecycles.test.ts` fails the build when the app compares or writes a
+  status that is not declared, when a state cannot be reached, or when a
+  database CHECK list and the declaration disagree.
+- Never copy a status colour map or a list like `['draft','sent',…]` into a
+  screen: use `badgeMap()`, `stateIds()`, `canMove()` or
+  `salesDocumentActions()`.
+- Adding a value to a text status column means changing its CHECK in a
+  migration in the same commit (`migrations/lifecycle_checks.sql` holds the
+  three added on 2026-11-10).
+
 ## Mission (why ICAPROC exists)
 
 ICAPROC is the company's bid to **own its own operating system** — a full ERP

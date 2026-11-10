@@ -12,14 +12,12 @@
  * keep saying what it said, even after the catalog is edited.
  */
 import { fmtWarranty, type WarrantyFields } from './warranty';
+import { badgeMap } from './lifecycles';
 
 export type LetterStatus = 'draft' | 'issued' | 'cancelled';
 
-export const LETTER_STATUS: Record<LetterStatus, { label: string; cls: string }> = {
-  draft:     { label: 'Draft',     cls: 'bg-slate-700/40 text-slate-300 tone-off' },
-  issued:    { label: 'Issued',    cls: 'bg-emerald-500/15 text-emerald-300 tone-done' },
-  cancelled: { label: 'Cancelled', cls: 'bg-rose-500/15 text-rose-300 tone-bad' },
-};
+// Declared in lib/lifecycles.ts (support_letter).
+export const LETTER_STATUS = badgeMap('support_letter') as Record<LetterStatus, { label: string; cls: string }>;
 
 /** The administration fee charged per letter — prefilled on every new one. */
 export const DEFAULT_LETTER_FEE = 300_000;

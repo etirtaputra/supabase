@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-10T08:00:00Z",
+    title: "Status dokumen kini dijaga satu aturan yang sama di seluruh aplikasi",
+    details: [
+      "Status proposal EPC kini tampil dalam Bahasa Indonesia (Konsep, Dikirim, Diterima, Ditolak) di daftar dan di editor — sebelumnya masih kata Inggris mentah.",
+      "Penawaran/pesanan Sales: tombol \"Revert\" dari \"Disiapkan\" kini kembali ke \"Ditagih\" hanya jika memang ada invoice; tanpa invoice kembali ke \"Dipesan\". Dulu bisa berakhir \"Ditagih\" tanpa invoice.",
+      "Database kini menolak nilai status yang tidak dikenal untuk proposal EPC, penawaran/pesanan Sales, dan surat jalan (DO) — salah ketik dari layar, skrip, atau agen tidak bisa lagi tersimpan diam-diam.",
+      "Agen (MIRA, MANDA, MAX) kini menerima daftar status, artinya, dan perpindahan yang sah langsung dari ICAPROC saat onboarding.",
+    ],
+  },
+  {
     at: "2026-11-05T01:30:00Z",
     title: "Pustaka deskripsi EPC dan Sales: layar pustaka, pelengkapan otomatis, dan komponen utama masuk Editor Barang (tahap 2)",
     details: [

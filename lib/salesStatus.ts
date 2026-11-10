@@ -1,5 +1,9 @@
+import { badgeMap } from './lifecycles.ts';
+
 /**
  * Sales-quote lifecycle status metadata, shared by the list and editor.
+ * The states, colours and legal moves are DECLARED in lib/lifecycles.ts
+ * (sales_document); this file keeps the derived helpers the screens use.
  *
  * Each `cls` carries a TONE marker (tone-off / tone-step / tone-wait /
  * tone-done / tone-bad) naming what the status MEANS. The house and terminal
@@ -7,18 +11,7 @@
  * a mere step (validated, sent, ordered) goes neutral and colour is left to
  * done, waiting and problems. lib/wording.test.ts checks every status has one.
  */
-export const SALES_STATUS: Record<string, { label: string; cls: string }> = {
-  draft:     { label: 'Draft',           cls: 'bg-slate-700/40 text-slate-300 tone-off' },
-  validated: { label: 'Validated',       cls: 'bg-cyan-500/15 text-cyan-300 tone-step' },
-  sent:      { label: 'Sent',            cls: 'bg-blue-500/15 text-blue-300 tone-step' },
-  accepted:  { label: 'Accepted',        cls: 'bg-teal-500/15 text-teal-300 tone-step' },
-  ordered:   { label: 'Confirmed Order', cls: 'bg-violet-500/15 text-violet-300 tone-step' },
-  invoiced:  { label: 'Invoiced',        cls: 'bg-amber-500/15 text-amber-300 tone-wait' },
-  preparing: { label: 'Preparing Items', cls: 'bg-orange-500/15 text-orange-300 tone-wait' },
-  delivered: { label: 'Delivered',       cls: 'bg-emerald-500/15 text-emerald-300 tone-done' },
-  cancelled: { label: 'Cancelled',       cls: 'bg-red-500/15 text-red-300 tone-bad' },
-  rejected:  { label: 'Rejected',        cls: 'bg-red-500/10 text-red-400/80 tone-bad' },
-};
+export const SALES_STATUS: Record<string, { label: string; cls: string }> = badgeMap('sales_document');
 
 // Statuses that reserve stock (Live = Physical − Reserved). Items being
 // prepared for delivery are still reserved until they physically leave.

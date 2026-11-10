@@ -36,6 +36,7 @@ import SystemDesigner from '@/components/ui/SystemDesigner';
 import type { SystemDesign } from '@/lib/systemDesign/types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { selectAll } from '@/lib/fetchAllRows';
+import { salesDocumentActions } from '@/lib/lifecycles';
 import { catalogMatches } from '@/lib/catalogSearch';
 import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libNorm } from '@/lib/libraryMatch';
 
@@ -1173,28 +1174,15 @@ export default function SalesQuotePage() {
   // offer yet; accepted/ordered+ has already landed). NULL = no expiry.
   const expired = !!editing.valid_until && ['validated', 'sent'].includes(st)
     && editing.valid_until < todayIso;
-  const actions: { label: string; to: string; primary?: boolean; danger?: boolean }[] = [];
   // Entered via "+ New Order": the quotation actions do not exist AT ALL on
   // the draft — offering Validate invited the wrong click and quietly turned
   // the order into a price quote (field report 2026-08-19). The only forward
   // action is Confirm Order.
   const orderMode = asOrder && st === 'draft';
-  if (st === 'draft' && !orderMode) { actions.push({ label: 'Validate', to: 'validated', primary: true }); actions.push({ label: 'Sent', to: 'sent' }); }
-  if (st === 'validated') actions.push({ label: 'Sent', to: 'sent', primary: true });
-  if (st === 'sent') actions.push({ label: 'Accepted', to: 'accepted' });
-  // Draft included (owner, 2026-08-19): not every order arrives through a
-  // quotation — a customer who simply orders skips straight to the SO. The
-  // same transition runs, the trigger stamps the SO number, stock reserves.
-  if (['draft', 'validated', 'sent', 'accepted'].includes(st)) actions.push({ label: 'Confirm Order', to: 'ordered', primary: orderMode || !['draft', 'validated'].includes(st) });
-  // Invoices and DOs are created from the Fulfillment panel below; every stage
-  // stays revertible — including a delivered order.
-  if (st === 'ordered') actions.push({ label: 'Revert', to: 'accepted' });
-  if (st === 'invoiced') actions.push({ label: 'Revert', to: 'ordered' });
-  if (st === 'preparing') actions.push({ label: 'Revert', to: 'invoiced' });
-  if (st === 'delivered') actions.push({ label: 'Reopen', to: 'preparing' });
-  if (['cancelled', 'rejected'].includes(st)) actions.push({ label: 'Reopen', to: 'draft' });
-  if (['draft', 'validated', 'sent'].includes(st)) actions.push({ label: 'Reject', to: 'rejected', danger: true });
-  if (['accepted', 'ordered', 'invoiced', 'preparing'].includes(st)) actions.push({ label: 'Cancel', to: 'cancelled', danger: true });
+  // The buttons are the declared moves of the sales lifecycle
+  // (lib/lifecycles.ts → salesDocumentActions). Revert from Preparing lands on
+  // Invoiced only when there is an invoice — it used to land there regardless.
+  const actions = salesDocumentActions(st, { orderMode, hasInvoice: invoices.length > 0 || !!editing.invoice_number });
   // Revising re-opens the quote for edits with a bumped revision counter
   const canRevise = !!editing.quote_id && ['validated', 'sent', 'accepted'].includes(st);
 

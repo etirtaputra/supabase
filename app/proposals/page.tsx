@@ -31,13 +31,12 @@ import WinBanner from '@/components/ui/WinBanner';
 import { groupProposals, customerKey, ACTIVE_DAYS } from '@/lib/proposalGroups';
 import { epcDue, EPC_OUTCOME_DAYS, EPC_IDLE_DRAFT_DAYS, type EpcDue } from '@/lib/proposalNudges';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
+import { badgeMap } from '@/lib/lifecycles';
 
-const STATUS_STYLES: Record<string, string> = {
-  draft:    'bg-slate-700/60 text-slate-300',
-  sent:     'bg-blue-500/20 text-blue-300 tone-step',
-  accepted: 'bg-emerald-500/20 text-emerald-300',
-  rejected: 'bg-red-500/20 text-red-400',
-};
+// Declared once in lib/lifecycles.ts (epc_proposal) — the editor reads the same map.
+const PROPOSAL_STATUS = badgeMap('epc_proposal');
+const statusCls = (s: string) => (PROPOSAL_STATUS[s] ?? PROPOSAL_STATUS.draft).cls;
+const statusLabel = (s: string) => PROPOSAL_STATUS[s]?.label ?? s;
 
 // The list is grouped by CUSTOMER (lib/proposalGroups.ts). A customer shows
 // this many proposals before "Show N more" — Imigrasi alone has 31.
@@ -562,7 +561,7 @@ export default function QuotesListPage() {
     /* One line: who, what state, what it's worth, which number */
     <div className="flex items-center gap-2 min-w-0">
       <span className={`text-[13px] truncate flex-shrink min-w-0 max-w-[45%] ${nested ? 'font-medium text-slate-500' : 'font-semibold text-slate-100'}`} title={title}>{title}</span>
-      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>{tr(q.status)}</span>
+      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${statusCls(q.status)}`}>{tr(statusLabel(q.status))}</span>
       {versions && versionsChip(versions)}
       {driftByQuote.has(q.quote_id) && (
         <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
@@ -604,8 +603,8 @@ export default function QuotesListPage() {
   {/* Primary focus: the customer + status/type */}
   <div className="flex flex-wrap items-center gap-2 mb-0.5">
     <span className={`truncate max-w-full ${nested ? 'font-medium text-slate-500 text-[14px]' : 'font-semibold text-white text-base'}`} title={title}>{title}</span>
-    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[q.status] ?? STATUS_STYLES.draft}`}>
-      {q.status}
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${statusCls(q.status)}`}>
+      {tr(statusLabel(q.status))}
     </span>
     {versions && versionsChip(versions)}
     {q.project_type && q.project_type !== 'custom' && (

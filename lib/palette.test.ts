@@ -233,21 +233,22 @@ test('the component preview is refused outside development', () => {
 // ── Corporate: type and status colour (owner, 2026-09-28: "ok go ahead") ────
 
 test('every status says what it MEANS, so the corporate skin can colour by meaning', async () => {
+  // Since 2026-11-10 every lifecycle's states live in lib/lifecycles.ts, and the
+  // screens' maps (SALES_STATUS, SERIAL_STATUS, LETTER_STATUS, the proposal and
+  // after-sales badges) are read from it — so checking the declaration checks them all.
+  const { LIFECYCLES } = await import('./lifecycles.ts');
   const { SALES_STATUS } = await import('./salesStatus.ts');
   const { SERIAL_STATUS } = await import('./serials.ts');
-  // supportLetters.ts imports without an extension, which node --test cannot
-  // resolve — so its map is read from source rather than imported.
-  const letterSrc = readFileSync('lib/supportLetters.ts', 'utf8');
-  const letterBlock = letterSrc.slice(letterSrc.indexOf('LETTER_STATUS'), letterSrc.indexOf('};', letterSrc.indexOf('LETTER_STATUS')));
-  const LETTER_STATUS = Object.fromEntries([...letterBlock.matchAll(/(\w+):\s*\{[^}]*cls:\s*'([^']*)'/g)].map((m) => [m[1], { cls: m[2] }]));
-  assert.ok(Object.keys(LETTER_STATUS).length >= 3, 'could not read LETTER_STATUS');
+  const maps: Record<string, Record<string, { cls: string }>> = { SALES_STATUS, SERIAL_STATUS };
+  for (const l of LIFECYCLES) maps[l.id] = Object.fromEntries(l.states.map((st) => [st.id, st]));
   const untoned: string[] = [];
-  for (const [name, map] of Object.entries({ SALES_STATUS, SERIAL_STATUS, LETTER_STATUS })) {
-    for (const [k, v] of Object.entries(map as Record<string, { cls: string }>)) {
+  for (const [name, map] of Object.entries(maps)) {
+    for (const [k, v] of Object.entries(map)) {
       const tones = v.cls.split(/\s+/).filter((c) => c.startsWith('tone-'));
       if (tones.length !== 1 || !/^tone-(off|step|wait|done|bad)$/.test(tones[0])) untoned.push(`${name}.${k}`);
     }
   }
+  assert.ok(Object.keys(maps).length >= 12, 'the lifecycles have gone');
   assert.deepEqual(untoned, [], 'each status needs exactly one tone-off|step|wait|done|bad');
 });
 

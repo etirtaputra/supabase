@@ -34,6 +34,7 @@ import type { Component } from '@/types/database';
 import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import { isOfferable } from '@/lib/itemVisibility';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
+import { badgeMap, stateIds } from '@/lib/lifecycles';
 import { catalogMatches, lastQuotedDates } from '@/lib/catalogSearch';
 import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libraryErrorKey, libNorm, type MainKind } from '@/lib/libraryMatch';
 import { useSettings } from '@/hooks/useSettings';
@@ -198,13 +199,10 @@ const SOURCE_BADGE: Record<string, string> = {
   used: 'bg-amber-500/20 text-amber-300',
 };
 const UNITS = QUOTE_UNITS;
-const STATUS_OPTS = ['draft', 'sent', 'accepted', 'rejected'] as const;
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-slate-700/60 text-slate-300',
-  sent: 'bg-blue-500/20 text-blue-300 tone-step',
-  accepted: 'bg-emerald-500/20 text-emerald-300',
-  rejected: 'bg-red-500/20 text-red-400',
-};
+// The proposal lifecycle — states, colours and legal moves — is declared in
+// lib/lifecycles.ts (epc_proposal); the list page reads the same map.
+const PROPOSAL_STATUS = badgeMap('epc_proposal');
+const STATUS_OPTS = stateIds('epc_proposal') as ProjectQuote['status'][];
 
 // ── Spreadsheet-style arrow navigation between cells ───────────────────────────
 // ↑/↓ jump to the same column in the previous/next row (across sub-sections and
@@ -2290,10 +2288,10 @@ export default function QuoteEditorPage() {
             /* appearance-none: the native stepper made this pill wide enough
                to squeeze the quote number off a phone header. Clamped on
                small screens, intrinsic width from sm up. */
-            className={`order-2 flex-shrink-0 appearance-none text-center px-2.5 py-1 max-w-[92px] sm:max-w-none rounded-full text-[11px] font-semibold uppercase tracking-wider border-0 outline-none cursor-pointer disabled:cursor-not-allowed ${STATUS_COLORS[quote.status]}`}
+            className={`order-2 flex-shrink-0 appearance-none text-center px-2.5 py-1 max-w-[92px] sm:max-w-none rounded-full text-[11px] font-semibold uppercase tracking-wider border-0 outline-none cursor-pointer disabled:cursor-not-allowed ${PROPOSAL_STATUS[quote.status]?.cls ?? ''}`}
           >
             {(unsendOnly ? (['sent', 'draft'] as const) : STATUS_OPTS)
-              .map((s) => <option key={s} value={s}>{s}</option>)}
+              .map((s) => <option key={s} value={s}>{t(PROPOSAL_STATUS[s]?.label ?? s)}</option>)}
           </select>
 
           {/* Save — the one thing that must never sit behind a scroll. */}

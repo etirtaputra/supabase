@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-05** · last change: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-10** · last change: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,53 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-04/05 (latest) — Description libraries v2: EPC + Sales, logged, one autocomplete
+### 2026-11-10 (latest) — Lifecycles declared: lib/lifecycles.ts
+
+Owner: *"Find all of the implicit state machines in my app. Make the best
+decision that will elevate … UX, DX and AX, without breaking anything."*
+
+**Found (12):** EPC proposal (10.0.status), sales document (22.0.status — one
+row from quote to delivery), delivery order (24.0), after-sales case (27.0),
+support letter (28.0), serial unit (30.4), PO (5.0.status enum), PI
+(5.0.pi_status enum), supplier price quote (4.0 enum), description-library
+entry (status + archived_at + merged_into), proposal line flag (resolved_at),
+PO landed-cost posting (derived). Before: moves lived in screens (the sales
+editor's if-chain, FulfillmentPanel's automatic moves, free selects), three
+copies of the proposal colour map, raw English proposal statuses on screen,
+and 10.0 / 22.0 / 24.0 status accepted any text.
+
+- **`lib/lifecycles.ts`** declares each: states (label, tone class, meaning,
+  `terminal`, `unused` with the reason), moves (from → to, action, by, where,
+  when), `freeSelect` where a screen offers every state, and `enforced` (what
+  the DB really refuses). Helpers: `badgeMap`, `stateIds`, `canMove`,
+  `movesFrom`, `salesDocumentActions`, `describeLifecycles`.
+- **Screens now read it:** SALES_STATUS, SERIAL_STATUS, LETTER_STATUS, the
+  after-sales badges, the proposal list + editor (labels now via t(): Konsep /
+  Dikirim / Diterima / Ditolak). The sales editor's buttons come from
+  `salesDocumentActions` — identical to before (the test keeps the old chain as
+  its oracle) except one fix: Revert from Preparing goes to `ordered` when the
+  order has no invoice (it used to land on `invoiced` with none).
+- **DB** (`migrations/lifecycle_checks.sql`, applied 2026-11-10): CHECK
+  `proposal_status_valid`, `sales_document_status_valid`,
+  `delivery_order_status_valid`. All live rows already conformed; a bad value
+  is refused with 23514 (rehearsed).
+- **Agents:** `/api/agent/onboarding` returns `lifecycles`; new AGENT_RULES
+  line: read it before writing any status. Packs unchanged (no Drive upload).
+- **Tests:** `lib/lifecycles.test.ts` (graph sanity + reachability, the sales
+  button oracle, maps = declaration, migration CHECK lists = states, every
+  status literal in app/components/lib/hooks is declared);
+  `lib/palette.test.ts` tone check now covers every lifecycle.
+- **Left alone on purpose (owner's call):** an engineer can set a DRAFT
+  proposal straight to accepted/rejected and can still edit an
+  accepted/rejected one (only `sent` is locked, by guard_quote_unsend); the
+  after-sales, support-letter and PO status selects still offer every state
+  (declared as `freeSelect`); PO status "Sent", PI "Open/Rejected/Expired",
+  DO "cancelled", serial "returned/scrapped" are never written (marked
+  `unused`); the five buy-side PO colour maps (Deal Lookup, Purchasing,
+  Product Cost Lookup, Item Cost Forensics, Pricing Intelligence) use
+  different shades per screen and were not merged.
+
+### 2026-11-04/05 — Description libraries v2: EPC + Sales, logged, one autocomplete
 
 Owner: *"EPC Proposal and Sales Quote [need] free-text libraries with
 autocomplete and items from Items Editors … separated … Not all quote comes
