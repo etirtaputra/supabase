@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-11T09:00:00Z",
+    title: "Status \"lunas\" dan \"terkirim\" kini dihitung dengan satu aturan di semua layar",
+    details: [
+      "Lunas / sebagian / belum dibayar pada pesanan dan invoice sekarang diputuskan di satu tempat. Sebelumnya aturan yang sama ditulis ulang di sebelas tempat (daftar Sales, editor, cetak, Invoice, Pelanggan, panel Fulfillment) — hasilnya sama, tetapi satu salinan yang berubah bisa membuat dua layar berbeda pendapat soal apakah pelanggan masih berutang.",
+      "Tidak ada angka atau tampilan yang berubah.",
+      "Agen (MIRA, MANDA, MAX) kini menerima aturan lunas dan terkirim langsung dari ICAPROC, beserta enam siklus status lain yang sebelumnya tidak tertulis: barang katalog (aktif/arsip), pelanggan (aktif/nonaktif), biaya surat dukungan, dan catatan proposal.",
+    ],
+  },
+  {
     at: "2026-11-10T23:32:00Z",
     title: "Antrean penyesuaian biaya landed kini tercatat sebagai siklus status; Deal Lookup tidak lagi mencampur nomor PI dan PO",
     details: [

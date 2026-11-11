@@ -39,6 +39,7 @@ import { selectAll } from '@/lib/fetchAllRows';
 import { salesDocumentActions, inGroup } from '@/lib/lifecycles';
 import { catalogMatches } from '@/lib/catalogSearch';
 import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libNorm } from '@/lib/libraryMatch';
+import { isSettled, isOwed } from '@/lib/salesSettlement';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -1161,7 +1162,7 @@ export default function SalesQuotePage() {
   const canRecord = ROLE_PERMISSIONS[profile.role].canRecordReceipts;
   const received = receipts.reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const billTotal = Number(editing.grand_total) || totals.grand;
-  const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
+  const fullyPaid = isSettled(billTotal, received);
   const showPayments = !newDoc && inGroup('sales_document', 'order', st);
   // Receipts per invoice — the link that makes an invoice's PAID/PARTIAL state
   // real. Shared by the Fulfillment rows and the Payments panel.
@@ -2067,7 +2068,7 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoice
     const inv = invoices.find((i) => i.invoice_id === id);
     return inv ? Math.max(0, (Number(inv.grand_total) || 0) - (paidByInvoice[id] ?? 0)) : outstanding;
   };
-  const firstOwed = invoices.find((i) => invOutstanding(i.invoice_id) > 0.5);
+  const firstOwed = invoices.find((i) => isOwed(invOutstanding(i.invoice_id)));
   const [invId, setInvId] = useState(firstOwed?.invoice_id ?? '');
   const fillFor = (id: string) => {
     const o = id ? invOutstanding(id) : outstanding;
@@ -2127,7 +2128,7 @@ function RecordPaymentModal({ quoteId, companyId, outstanding, received, invoice
                   const o = invOutstanding(i.invoice_id);
                   return (
                     <option key={i.invoice_id} value={i.invoice_id}>
-                      {i.invoice_number} — {o > 0.5 ? tf('Rp {amount} outstanding', { amount: fmtInt(o) }) : t('PAID')}
+                      {i.invoice_number} — {isOwed(o) ? tf('Rp {amount} outstanding', { amount: fmtInt(o) }) : t('PAID')}
                     </option>
                   );
                 })}

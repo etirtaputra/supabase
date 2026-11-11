@@ -24,6 +24,7 @@ import { inRange, todayISO, type DateRange } from '@/lib/dateRange';
 import { useT } from '@/hooks/useT';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { inGroup, groupList } from '@/lib/lifecycles';
+import { orderPayState, orderDeliveryState, isSettled, settlement, SETTLEMENT_WORD } from '@/lib/salesSettlement';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string; case_id?: string | null;
@@ -175,20 +176,11 @@ export default function SalesListPage() {
 
   // One vocabulary for the Payment column, the expanded digest AND the filter —
   // computed once so they can never disagree.
-  const payStateOf = (q: Quote): 'none' | 'unpaid' | 'partial' | 'outstanding' | 'paid' => {
-    const t = Number(q.grand_total) || 0;
-    if (!BILLED.includes(q.status) || t <= 0) return 'none';
-    const r = receivedByQuote[q.quote_id] ?? 0;
-    if (r >= t - 0.5) return 'paid';
-    if (q.status === 'delivered') return 'outstanding';
-    return r > 0 ? 'partial' : 'unpaid';
-  };
-  const delStateOf = (q: Quote): 'none' | 'preparing' | 'partial' | 'delivered' => {
-    if (q.status === 'delivered') return 'delivered';
-    const ds = dosByQuote[q.quote_id] ?? [];
-    if (ds.some((d) => d.status === 'delivered')) return 'partial';
-    return ds.length > 0 ? 'preparing' : 'none';
-  };
+  // Decided in lib/salesSettlement (declared as sales_payment / sales_delivery).
+  const payStateOf = (q: Quote) => orderPayState({
+    status: q.status, total: Number(q.grand_total) || 0, received: receivedByQuote[q.quote_id] ?? 0,
+  });
+  const delStateOf = (q: Quote) => orderDeliveryState(q.status, (dosByQuote[q.quote_id] ?? []).map((d) => d.status));
   const hasArOpen = (q: Quote) => payStateOf(q) === 'outstanding';
   const matchesSearch = (q: Quote): boolean => {
     const s = search.trim().toLowerCase();
@@ -425,7 +417,7 @@ export default function SalesListPage() {
                 const pct = total > 0 ? Math.min(100, (rcv / total) * 100) : 0;
                 // Tolerance, not equality — a rounding hair under 100% must
                 // still read as paid (the 0.5-rupiah rule used everywhere).
-                const paidFull = billed && total > 0 && rcv >= total - 0.5;
+                const paidFull = billed && isSettled(total, rcv);
                 // Goods gone, money not collected — the state worth shouting.
                 const arOpen = q.status === 'delivered' && billed && !paidFull;
                 const lines = linesByQuote[q.quote_id] ?? [];
@@ -548,7 +540,7 @@ export default function SalesListPage() {
                                       {invs.map((i) => {
                                         const it = Number(i.grand_total) || 0;
                                         const ip = paidByInvoice[i.invoice_id] ?? 0;
-                                        const st2 = it > 0 && ip >= it - 0.5 ? 'Paid' : ip > 0 ? 'Partial' : 'Unpaid';
+                                        const st2 = SETTLEMENT_WORD[settlement(it, ip)];
                                         return (
                                           <a key={i.invoice_id} href={`/sales/${q.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
                                             title={`${st2} — Rp ${fmtInt(ip)} received of Rp ${fmtInt(it)}`} className={docLink}>
@@ -556,7 +548,7 @@ export default function SalesListPage() {
                                         );
                                       })}
                                       <span className="text-slate-600 tabular-nums">
-                                        {total > 0 && invoicedTotal >= total - 0.5 ? 'fully invoiced' : `${total > 0 ? ((invoicedTotal / total) * 100).toFixed(0) : 0}% billed`}
+                                        {isSettled(total, invoicedTotal) ? 'fully invoiced' : `${total > 0 ? ((invoicedTotal / total) * 100).toFixed(0) : 0}% billed`}
                                       </span>
                                     </>
                                   )}

@@ -23,6 +23,7 @@ import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { inGroup } from '@/lib/lifecycles';
+import { settlement, SETTLEMENT_WORD } from '@/lib/salesSettlement';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface Customer {
@@ -1235,13 +1236,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
   const outstandingAR = invoiced.reduce((s, d) => s + Math.max(0, (Number(d.grand_total) || 0) - (received[d.quote_id] ?? 0)), 0);
   const quoteCount = docs.filter((d) => !inGroup('sales_document', 'closedLost', d.status)).length;
   const winRate = quoteCount > 0 ? (committed.length / quoteCount) * 100 : null;
-  const paidState = (d: SalesDoc) => {
-    const total = Number(d.grand_total) || 0;
-    const rcv = received[d.quote_id] ?? 0;
-    if (total > 0 && rcv >= total - 0.5) return 'paid';
-    if (rcv > 0) return 'partial';
-    return 'unpaid';
-  };
+  const paidState = (d: SalesDoc) => settlement(Number(d.grand_total) || 0, received[d.quote_id] ?? 0);
   const primary = contacts.find((x) => x.is_primary) ?? contacts[0];
 
   return (
@@ -1347,7 +1342,7 @@ function ProfilePanel({ customer, data, contacts, amName, tierName, linked, onOp
                             {invs.length > 0 ? invs.map((i) => {
                               const it = Number(i.grand_total) || 0;
                               const ip = data.paidByInvoice[i.invoice_id] ?? 0;
-                              const st = it > 0 && ip >= it - 0.5 ? 'Paid' : ip > 0 ? 'Partial' : 'Unpaid';
+                              const st = SETTLEMENT_WORD[settlement(it, ip)];
                               return (
                                 <a key={i.invoice_id} href={`/sales/${d.quote_id}/print?inv=${i.invoice_id}`} target="_blank" rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()} title={`${st} — Rp ${fmtInt(ip)} received of Rp ${fmtInt(it)}`}

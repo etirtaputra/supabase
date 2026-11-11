@@ -31,6 +31,7 @@ import { fetchWarehouses, defaultWarehouse, type Warehouse } from '@/lib/warehou
 import { fmtDay, fmtInt } from '@/lib/formatters';
 import { useT } from '@/hooks/useT';
 import { evalCell } from '@/lib/formula';
+import { settlement, isOwed } from '@/lib/salesSettlement';
 
 const TIME_OF_DAY = ['Pagi (08–11)', 'Siang (11–14)', 'Sore (14–17)'];
 const VIA_SUGGESTIONS = ['Armada sendiri', 'Kurir instan (GoSend/Grab)', 'Ekspedisi / cargo', 'JNE/J&T', 'Truk sewa'];
@@ -297,7 +298,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
       {invoices.map((i) => {
         const paid = paidByInvoice[i.invoice_id] ?? 0;
         const total = Number(i.grand_total) || 0;
-        const state = total > 0 && paid >= total - 0.5 ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
+        const state = settlement(total, paid);
         return (
           <div key={i.invoice_id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-2 text-xs">
             <span className="font-mono text-slate-200">{i.invoice_number}</span>
@@ -382,7 +383,7 @@ export default function FulfillmentPanel({ quote, soLines, invoices, invItems, d
             <span className="tabular-nums text-slate-300">Rp {fmtInt(invoicedTotal)} · {invoicedPct.toFixed(0)}%</span>
           </div>
           {meter(invoicedPct, invoicedPct >= 99.5 ? 'bg-emerald-500' : 'bg-amber-400')}
-          {orderTotal - invoicedTotal > 0.5 && <p className="text-[10px] text-slate-600">{tf('Rp {amount} left to invoice', { amount: fmtInt(orderTotal - invoicedTotal) })}</p>}
+          {isOwed(orderTotal - invoicedTotal) && <p className="text-[10px] text-slate-600">{tf('Rp {amount} left to invoice', { amount: fmtInt(orderTotal - invoicedTotal) })}</p>}
           {canEdit && (
             <button onClick={() => setShowInv(true)} disabled={busy || invoicedPct >= 100}
               title={invoicedPct >= 100 ? t('The order is fully invoiced') : t('Bill all or part of this order — pick the items and quantities in the next step')}

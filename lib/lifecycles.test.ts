@@ -308,3 +308,30 @@ test('no file spells a group of statuses out by hand again', () => {
   const stale = Object.entries(HAND_LISTS_ALLOWED).filter(([f, n]) => Number.isFinite(n) && (counts[f] ?? 0) < n);
   assert.deepEqual(stale, [], 'a hand-written list was removed — lower its count in HAND_LISTS_ALLOWED');
 });
+
+// ── Second pass (2026-11-11) ────────────────────────────────────────────────
+test('the database trigger climbs the same sales ladder as the app', () => {
+  // stamp_sales_quote stamps SO / INV / DO numbers by position in its own
+  // `ladder` array — a second copy of MILESTONE_ORDER, in SQL. If they drift,
+  // a status the app calls "past ordered" would stamp no order number.
+  const sql = readFileSync(join(process.cwd(), 'migrations/fix_stamp_sales_quote_on_insert.sql'), 'utf8');
+  const m = /ladder\s+TEXT\[\]\s*:=\s*ARRAY\[([^\]]*)\]/.exec(sql);
+  assert.ok(m, 'stamp_sales_quote no longer declares its ladder — update this test with it');
+  const ladder = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  assert.deepEqual(ladder, [...MILESTONE_ORDER]);
+});
+
+test('the derived and date-kept lifecycles are declared, with where they are decided', () => {
+  for (const id of ['sales_payment', 'sales_delivery'] as LifecycleId[]) {
+    const l = lifecycle(id);
+    assert.equal(l.storage, 'derived');
+    assert.ok(l.enforced.some((e) => e.includes('lib/salesSettlement')), `${id} must name the one place that decides it`);
+  }
+  for (const id of ['catalogue_item', 'customer', 'support_letter_fee', 'quote_note'] as LifecycleId[]) {
+    const l = lifecycle(id);
+    assert.equal(l.storage, 'columns');
+    assert.equal(l.states.length, 2);
+    // Every two-state toggle goes both ways (archive/restore, tick/untick…).
+    assert.ok(canMove(id, l.states[0].id, l.states[1].id) && canMove(id, l.states[1].id, l.states[0].id), id);
+  }
+});

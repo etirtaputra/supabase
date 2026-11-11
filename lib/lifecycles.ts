@@ -473,15 +473,145 @@ const TRUE_UP_QUEUE: Lifecycle = {
   ],
 };
 
+// ── Second pass (2026-11-11): the states that were still only implied ────────
+// Two DERIVED from other rows (paid? delivered?) and four kept in a date or a
+// flag. None is a status column, so no CHECK applies; the declaration is what
+// makes them one vocabulary for screens and agents.
+
+const SALES_PAYMENT: Lifecycle = {
+  id: 'sales_payment',
+  title: 'Sales order — payment (derived)',
+  table: '22.0_sales_quotes × 26.0_customer_receipts (computed)',
+  column: '—',
+  storage: 'derived',
+  initial: 'none',
+  states: [
+    S('none', 'Not billed', 'bg-slate-700/40 text-slate-400 tone-off', 'Not an order yet, or nothing to bill.'),
+    S('unpaid', 'Unpaid', 'bg-amber-500/15 text-amber-300 tone-wait', 'An order with no receipt against it.'),
+    S('partial', 'Partial', 'bg-sky-500/15 text-sky-300 tone-step', 'Some receipts, less than the total.'),
+    S('outstanding', 'Outstanding', 'bg-red-500/15 text-red-300 tone-bad', 'DELIVERED and still not fully paid — the receivable to chase.'),
+    S('paid', 'Paid', 'bg-emerald-500/15 text-emerald-300 tone-done', 'Receipts cover the total (within Rp 0.5 of rounding). Delivered + paid = complete.', { terminal: true }),
+  ],
+  moves: [
+    { from: ['none'], to: 'unpaid', action: 'Order confirmed', by: 'system', where: 'lib/salesSettlement orderPayState (computed on read)' },
+    { from: ['unpaid'], to: 'partial', action: 'A receipt recorded', by: 'system', where: 'computed from 26.0_customer_receipts' },
+    { from: ['unpaid', 'partial', 'outstanding'], to: 'paid', action: 'Receipts reach the total', by: 'system', where: 'computed from 26.0_customer_receipts' },
+    { from: ['unpaid', 'partial'], to: 'outstanding', action: 'Order delivered before it is paid', by: 'system', where: 'computed from the order status' },
+    { from: ['paid'], to: 'partial', action: 'A receipt deleted', by: 'system', where: 'computed from 26.0_customer_receipts' },
+  ],
+  enforced: [
+    'Computed, never stored: lib/salesSettlement.ts is the only place that decides it (sales list, sales editor, print, invoices, customers all call it).',
+    'paid = total > 0 AND received >= total − 0.5 (PAID_TOLERANCE_IDR). The same rule per invoice (settlement()).',
+  ],
+  notes: ['A single invoice uses the three-state form: unpaid / partial / paid.'],
+};
+
+const SALES_DELIVERY: Lifecycle = {
+  id: 'sales_delivery',
+  title: 'Sales order — delivery (derived)',
+  table: '22.0_sales_quotes × 24.0_delivery_orders (computed)',
+  column: '—',
+  storage: 'derived',
+  initial: 'none',
+  states: [
+    S('none', 'No delivery yet', 'bg-slate-700/40 text-slate-400 tone-off', 'No delivery order exists.'),
+    S('preparing', 'Preparing', 'bg-orange-500/15 text-orange-300 tone-wait', 'Delivery orders exist, none delivered.'),
+    S('partial', 'Partly delivered', 'bg-sky-500/15 text-sky-300 tone-step', 'At least one delivery order delivered, the order not yet complete.'),
+    S('delivered', 'Delivered', 'bg-emerald-500/15 text-emerald-300 tone-done', 'The order itself is delivered (every line shipped).', { terminal: true }),
+  ],
+  moves: [
+    { from: ['none'], to: 'preparing', action: 'Delivery order created', by: 'system', where: 'lib/salesSettlement orderDeliveryState (computed on read)' },
+    { from: ['preparing'], to: 'partial', action: 'One delivery order delivered', by: 'system', where: 'computed from 24.0_delivery_orders' },
+    { from: ['preparing', 'partial'], to: 'delivered', action: 'Every line delivered', by: 'system', where: 'components/ui/FulfillmentPanel markDelivered sets the order to delivered' },
+    { from: ['delivered', 'partial'], to: 'preparing', action: 'A delivery order reopened', by: 'system', where: 'components/ui/FulfillmentPanel reopenDo' },
+  ],
+  enforced: ['Computed, never stored: lib/salesSettlement.ts orderDeliveryState.'],
+};
+
+const CATALOGUE_ITEM: Lifecycle = {
+  id: 'catalogue_item',
+  title: 'Catalogue item',
+  table: '3.0_components',
+  column: 'archived_at',
+  storage: 'columns',
+  initial: 'active',
+  states: [
+    S('active', 'Active', 'bg-emerald-500/15 text-emerald-300 tone-done', 'archived_at is null — offered in pickers, price lists and to agents.'),
+    S('archived', 'Archived', 'bg-slate-700/40 text-slate-400 tone-off', 'archived_at set (with who): hidden from everything describing what is available now; history keeps it.'),
+  ],
+  moves: [
+    { from: ['active'], to: 'archived', action: 'Archive', by: 'user', where: 'components/ui/ComponentEditor setArchived (one item or a selection)' },
+    { from: ['archived'], to: 'active', action: 'Restore', by: 'user', where: 'components/ui/ComponentEditor setArchived' },
+  ],
+  enforced: ['A timestamp, not a status: readers test archived_at IS NULL (lib/itemVisibility). Agents: exclude archived_at IS NOT NULL from anything describing what is available now.'],
+  notes: ['quote_cost_mode = hidden is a SEPARATE switch (kept out of EPC proposals and support letters), not a lifecycle state.'],
+};
+
+const CUSTOMER: Lifecycle = {
+  id: 'customer',
+  title: 'Customer',
+  table: '20.0_customers',
+  column: 'is_active',
+  storage: 'columns',
+  initial: 'active',
+  states: [
+    S('active', 'Active', 'bg-emerald-500/15 text-emerald-300 tone-done', 'is_active = true.'),
+    S('inactive', 'Inactive', 'bg-slate-700/40 text-slate-400 tone-off', 'is_active = false: kept for history, no longer worked.'),
+  ],
+  moves: [
+    { from: ['active'], to: 'inactive', action: 'Set Inactive', by: 'user', where: 'app/customers form and bulk bar' },
+    { from: ['inactive'], to: 'active', action: 'Set Active', by: 'user', where: 'app/customers form and bulk bar' },
+  ],
+  enforced: ['A boolean column; nothing else guards it.'],
+};
+
+const SUPPORT_LETTER_FEE: Lifecycle = {
+  id: 'support_letter_fee',
+  title: 'Support letter — fee',
+  table: '28.0_support_letters',
+  column: 'fee_paid_at',
+  storage: 'columns',
+  initial: 'unpaid',
+  states: [
+    S('unpaid', 'Unpaid', 'bg-amber-500/15 text-amber-300 tone-wait', 'fee_paid_at is null (and the fee is above zero).'),
+    S('paid', 'Paid', 'bg-emerald-500/15 text-emerald-300 tone-done', 'fee_paid_at carries the date the fee landed.'),
+  ],
+  moves: [
+    { from: ['unpaid'], to: 'paid', action: 'Mark paid', by: 'user', where: 'app/support-letters markPaid', when: 'also issues a draft letter (support_letter draft → issued)' },
+    { from: ['paid'], to: 'unpaid', action: 'Unmark paid', by: 'user', where: 'app/support-letters markPaid' },
+  ],
+  enforced: ['A date column; independent of the letter status except that paying issues a draft.'],
+};
+
+const QUOTE_NOTE: Lifecycle = {
+  id: 'quote_note',
+  title: 'Proposal note',
+  table: '10.5_quote_notes',
+  column: 'cleared_at',
+  storage: 'columns',
+  initial: 'open',
+  states: [
+    S('open', 'Open', 'bg-amber-500/15 text-amber-300 tone-wait', 'cleared_at is null — still to be dealt with.'),
+    S('cleared', 'Settled', 'bg-emerald-500/15 text-emerald-300 tone-done', 'cleared_at and cleared_by_email stamped.'),
+  ],
+  moves: [
+    { from: ['open'], to: 'cleared', action: 'Tick off', by: 'user', where: 'lib/quoteNotes setNoteCleared' },
+    { from: ['cleared'], to: 'open', action: 'Put back', by: 'user', where: 'lib/quoteNotes setNoteCleared', when: 'ticking the wrong line is a slip' },
+  ],
+  enforced: ['Writable by anyone who can view EPC (can_view_epc), on purpose: a note must work on a locked proposal.'],
+};
+
 export const LIFECYCLES: Lifecycle[] = [
   EPC_PROPOSAL, SALES_DOCUMENT, DELIVERY_ORDER, AFTERSALES_CASE, SUPPORT_LETTER, SERIAL_NUMBER,
   PURCHASE_ORDER, PRICE_QUOTE, PROFORMA, LIBRARY_ENTRY, QUOTE_ITEM_FLAG, LANDED_COST, TRUE_UP_QUEUE,
+  SALES_PAYMENT, SALES_DELIVERY, CATALOGUE_ITEM, CUSTOMER, SUPPORT_LETTER_FEE, QUOTE_NOTE,
 ];
 
 export type LifecycleId =
   | 'epc_proposal' | 'sales_document' | 'delivery_order' | 'aftersales_case' | 'support_letter' | 'serial_number'
   | 'purchase_order' | 'price_quote' | 'proforma_invoice' | 'library_entry' | 'quote_item_flag' | 'landed_cost'
-  | 'true_up_queue';
+  | 'true_up_queue'
+  | 'sales_payment' | 'sales_delivery' | 'catalogue_item' | 'customer' | 'support_letter_fee' | 'quote_note';
 
 export function lifecycle(id: LifecycleId): Lifecycle {
   const l = LIFECYCLES.find((x) => x.id === id);

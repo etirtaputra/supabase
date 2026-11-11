@@ -3,6 +3,7 @@ import { milestoneIndex } from '@/lib/salesStatus';
 import { useT } from '@/hooks/useT';
 import { fmtDay, fmtDayTime } from '@/lib/formatters';
 import { inGroup } from '@/lib/lifecycles';
+import { isSettled } from '@/lib/salesSettlement';
 
 /**
  * Milestone stepper for a sales document — the defined progression the whole
@@ -43,7 +44,7 @@ export default function SalesMilestones({ q, received, billTotal, invoices = [],
   }
 
   const idx = milestoneIndex(q.status);
-  const fullyPaid = billTotal > 0 && received >= billTotal - 0.5;
+  const fullyPaid = isSettled(billTotal, received);
   const delivered = q.status === 'delivered';
   const paymentPct = billTotal > 0 ? Math.min(100, (received / billTotal) * 100) : 0;
 

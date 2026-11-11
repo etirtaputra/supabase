@@ -110,6 +110,11 @@ and `/api/agent/onboarding` serves it to the agents as `lifecycles`.
   readers it serves; its members are pinned by a test, so changing one is a
   decision made out loud. A hand-written list outside the allowed places
   (`HAND_LISTS_ALLOWED`) fails the build.
+- "Is it paid?" and "is it delivered?" are DERIVED states (`sales_payment`,
+  `sales_delivery`) decided only in `lib/salesSettlement.ts` — `isSettled()`,
+  `settlement()`, `orderPayState()`, `orderDeliveryState()`. Never type the
+  half-rupiah rule (`received >= total - 0.5`) into a screen;
+  `lib/salesSettlement.test.ts` fails the build if one does.
 - Adding a value to a text status column means changing its CHECK in a
   migration in the same commit (`migrations/lifecycle_checks.sql` holds the
   three added on 2026-11-10; `migrations/true_up_queue_check.sql` the

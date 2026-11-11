@@ -23,6 +23,7 @@ import { useT } from '@/hooks/useT';
 import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
 import { resolveIssuer, COMPANY_COLUMNS, RECEIVING_ACCOUNT_COLUMNS, type CompanyRecord, type ReceivingAccount } from '@/lib/issuer';
 import { inGroup } from '@/lib/lifecycles';
+import { isSettled } from '@/lib/salesSettlement';
 
 interface Quote {
   quote_id: string; quote_number: string; order_number?: string; invoice_number?: string; do_number?: string;
@@ -126,7 +127,7 @@ export default function SalesPrintPage() {
   const isOrder = !isInvoice && quote.status === 'ordered' && !!quote.order_number;
   const hasSections = lines.some((l) => l.is_section);
   const outstanding = Math.max(0, grandTotal - received);
-  const fullyPaid = grandTotal > 0 && received >= grandTotal - 0.5;
+  const fullyPaid = isSettled(grandTotal, received);
 
   // No. + Items + optional columns
   const colCount = 2 + (cols.qty ? 1 : 0) + (cols.unit ? 1 : 0) + (cols.price ? 1 : 0) + (cols.amount ? 1 : 0);

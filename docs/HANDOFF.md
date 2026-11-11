@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-11** · last change: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-11** · last change: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,41 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-11 (latest) — True-up queue declared; Deal Lookup rename mix-up fixed
+### 2026-11-11 (latest) — Lifecycles, second pass: paid/delivered decided once; six more declared
+
+Owner (same ask again): *"Find all of the implicit state machines in my app…
+elevate UX, DX and AX, without breaking anything."* 13 were declared; this
+pass looked for what was STILL implied — states kept in dates/flags and
+derived from other rows.
+
+- **`lib/salesSettlement.ts`** (new, pure): `isSettled`, `isOwed`,
+  `settlement` (unpaid/partial/paid), `orderPayState`
+  (none/unpaid/partial/outstanding/paid), `orderDeliveryState`,
+  `PAID_TOLERANCE_IDR = 0.5`. The half-rupiah rule was typed out **11 times in
+  7 files** (sales list ×4, sales editor ×3, print, invoices, customers ×2,
+  FulfillmentPanel ×2, SalesMilestones); all now call it. Same arithmetic —
+  `lib/salesSettlement.test.ts` keeps each old formula as its oracle and fails
+  the build if a file types `>= x - 0.5` again (that guard found the last
+  two copies).
+- **Six lifecycles declared** in `lib/lifecycles.ts` (19 now): derived
+  `sales_payment`, `sales_delivery`; kept in a date/flag `catalogue_item`
+  (archived_at), `customer` (is_active), `support_letter_fee` (fee_paid_at),
+  `quote_note` (cleared_at). Served to agents via onboarding; new AGENT_RULES
+  line: paid/delivered are derived, never read from the status alone.
+- **New guard:** the `ladder` array inside DB trigger `stamp_sales_quote` must
+  equal `MILESTONE_ORDER` (it is a second copy, in SQL).
+- No DB change, no visible change. CLAUDE.md rule added.
+- **Looked at and left** (say so, don't re-find): PO progress board
+  (`lib/poProgress` — its own comment says it is deliberately NOT a state
+  machine); stock movement `source_type` is a free-text vocabulary read by
+  several places (receipt / delivery / sale / adjustment / revaluation /
+  transfer) with no declared list; quote validity "expired" is computed in the
+  sales editor only; supplier payables use their own `> 0.5`; user access
+  (allowed_emails → user_profiles) has no declared invited/active state.
+- **Still open from the serial thread:** `migrations/serial_stock_follow.sql`
+  is committed but NOT applied (see its header).
+
+### 2026-11-11 — True-up queue declared; Deal Lookup rename mix-up fixed
 
 Phase 1 of the owner's state-machine request ("find all implicit state
 machines … elevate UX, DX and AX"), finishing what a154023 / dfd8074 left open.

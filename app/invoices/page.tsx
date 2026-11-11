@@ -24,6 +24,7 @@ import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
 import { inRange, type DateRange } from '@/lib/dateRange';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { isSettled } from '@/lib/salesSettlement';
 
 // One row per REAL invoice (25.0) — an order split across several invoices
 // shows several rows, each with its own payment state.
@@ -114,7 +115,7 @@ export default function InvoicesPage() {
       .map((q) => {
         const total = Number(q.grand_total) || 0;
         const rcv = receivedByQuote[q.invoice_key] ?? 0;
-        return { q, total, rcv, out: Math.max(0, total - rcv), paid: total > 0 && rcv >= total - 0.5 };
+        return { q, total, rcv, out: Math.max(0, total - rcv), paid: isSettled(total, rcv) };
       })
       .filter(({ q, paid }) => {
         if (unpaidOnly && paid) return false;
