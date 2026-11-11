@@ -340,7 +340,9 @@ const PURCHASE_ORDER: Lifecycle = {
     /** Superseded or called off: hidden from the action buttons in Deal Lookup. */
     void: ['Replaced', 'Cancelled'],
   },
-  notes: ['A new PO made from an accepted PI starts at Confirmed, not Draft (app/purchasing).', 'Received/landed state per line is DERIVED (lib/poProgress, lib/inTransit, lib/landedCost).'],
+  notes: ['A new PO made from an accepted PI starts at Confirmed, not Draft (app/purchasing).', 'Received/landed state per line is DERIVED (lib/poProgress, lib/inTransit, lib/landedCost).',
+    'An ACTIVE PO is one in group `open` (goods still owed): the dashboard KPI, the spend overview and Deal Lookup all mean that. A PO in group `void` is counted nowhere — not in spend, not as late (attention signals po_late and landed_cost_open skip it since 2026-11-11).',
+  ],
 };
 
 const PRICE_QUOTE: Lifecycle = {

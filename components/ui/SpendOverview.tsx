@@ -7,6 +7,7 @@ import { fmtRupiah } from '../../lib/formatters';
 import FitText from './FitText';
 import { useT } from '@/hooks/useT';
 import { priceMovement, PRICE_ARROW, PRICE_INK, PRICE_WORD } from '../../lib/priceMovement';
+import { inGroup } from '@/lib/lifecycles';
 
 /**
  * The categorical chart colours, as THEME TOKENS rather than hex.
@@ -150,7 +151,10 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     })();
 
     const filteredPos = (cutoff ? pos.filter((p) => (p.po_date ?? '') >= cutoff) : pos)
-      .filter((p) => p.status !== 'Cancelled');
+      // A void PO is superseded or called off (lifecycle group `void`). Skipping
+      // only Cancelled counted a Replaced PO's lines a second time, beside the
+      // PO that replaced it (2026-11-11: 2 POs, IDR 240.6M in the category split).
+      .filter((p) => !inGroup('purchase_order', 'void', p.status));
     const poIds = new Set(filteredPos.map((p) => p.po_id));
     const filteredPoItems = poItems.filter((i) => poIds.has(i.po_id));
     const filteredPoCosts = poCosts.filter((c) => poIds.has(c.po_id));
@@ -257,7 +261,9 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
     // ── KPIs ───────────────────────────────────────────────────────────────
     const totalCommitted = vendors.reduce((s, v) => s + v.committed, 0);
     const totalPaid = vendors.reduce((s, v) => s + v.paid, 0);
-    const openPOs = filteredPos.filter((p) => p.status !== 'Fully Received').length;
+    // "Pending receipt" = goods still owed (group `open`). Everything-but-Fully-
+    // Received also counted 148 unissued drafts (2026-11-11: 174 shown, 24 open).
+    const openPOs = filteredPos.filter((p) => inGroup('purchase_order', 'open', p.status)).length;
     const activeVendorCount = vendors.filter((v) => v.committed > 0).length;
 
     // ── Category price trends ──────────────────────────────────────────────
@@ -420,7 +426,7 @@ export default function SpendOverview({ components, suppliers, quotes, pos, poIt
         {[
           { label: 'Total Committed', value: fmtIDR(totalCommitted), sub: 'PO value in the period', accent: 'text-indigo-400' },
           { label: 'Total Paid', value: fmtIDR(totalPaid), sub: `${share(totalPaid, totalCommitted)} of committed`, accent: 'text-emerald-400' },
-          { label: 'Active Vendors', value: String(activeVendorCount), sub: 'with non-cancelled POs', accent: 'text-blue-400' },
+          { label: 'Active Vendors', value: String(activeVendorCount), sub: 'with POs in the period', accent: 'text-blue-400' },
           { label: 'Open POs', value: String(openPOs), sub: 'pending receipt', accent: 'text-amber-400' },
         ].map((k) => (
           <div key={k.label} className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">

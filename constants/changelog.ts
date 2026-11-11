@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-11T10:21:00Z",
+    title: "PO yang sudah Diganti tidak lagi dihitung; \"PO Aktif\" kini berarti barang masih ditunggu; catatan simpan proposal berwarna benar",
+    details: [
+      "Dasbor: \"PO Aktif\" kini menghitung PO yang sudah dipesan dan belum diterima penuh — sama dengan bagian \"PO Aktif\" di Deal Lookup. Sebelumnya angka itu menghitung semua PO yang tidak dibatalkan, termasuk 148 konsep lama dan PO yang sudah selesai (256 → 24).",
+      "Ringkasan Belanja: PO berstatus Diganti tidak lagi ikut dihitung (dulu barisnya terhitung dua kali, bersama PO penggantinya), dan \"Open POs\" hanya menghitung PO yang barangnya masih ditunggu.",
+      "Peringatan \"PO terlambat\" tidak lagi muncul untuk PO yang sudah Diganti — peringatan itu tidak akan pernah bisa hilang (9 → 7 peringatan). MIRA menerima daftar yang sama.",
+      "Editor proposal EPC: catatan di samping tombol Simpan kini hijau untuk kabar baik (\"Saved · merged …\", biaya diperbarui, proposal menang) dan merah hanya untuk kegagalan. Dulu semuanya merah kecuali tulisan \"Saved\".",
+      "Impor data: mengubah pemetaan kolom setelah berkas diperiksa kini mewajibkan pemeriksaan ulang. Dulu tombol Impor tetap memakai pemetaan lama.",
+    ],
+  },
+  {
     at: "2026-11-11T09:00:00Z",
     title: "Status \"lunas\" dan \"terkirim\" kini dihitung dengan satu aturan di semua layar",
     details: [

@@ -241,7 +241,7 @@ export const ID: Record<string, string> = {
 
   // ── KPI tiles ─────────────────────────────────────────────────────────────
   'on-hand × avg landed cost': 'stok × biaya sampai gudang rata-rata',
-  'not cancelled': 'belum dibatalkan',
+  'ordered, not yet fully received': 'dipesan, belum diterima penuh',
   'in catalog': 'di katalog',
 
   // ── Needs you today (the queue) ───────────────────────────────────────────
@@ -711,8 +711,8 @@ export const ID: Record<string, string> = {
     'Pokok yang dibayarkan ke pemasok bulan ini',
   'On-hand quantity at moving-average landed cost':
     'Jumlah stok di gudang pada biaya sampai gudang rata-rata bergerak',
-  'Purchase orders that are not cancelled':
-    'PO yang tidak dibatalkan',
+  'Purchase orders placed and not yet fully received':
+    'PO yang sudah dipesan dan belum diterima penuh',
   'How many items the catalog carries':
     'Berapa banyak item yang ada di katalog',
   'Orders that cannot ship, and items at their reorder point':

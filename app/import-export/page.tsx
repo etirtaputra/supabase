@@ -135,6 +135,19 @@ export default function DataPage() {
     setPlan(null); setStage('pick');
   }, [entity]);
 
+  // Changing a column's mapping makes the checked plan STALE: Commit writes the
+  // rows resolved at the last check, not what the mapping now says. So a remap
+  // after the check sends the file back to step 1 — it must be checked again
+  // before anything can be written (an import that has already run stays as it
+  // is; "Start over" is the way out of that).
+  function remap(header: string, field: string) {
+    setMap((m) => ({ ...m, [header]: field }));
+    if (stage === 'check') {
+      setPlan(null); setResolved([]); setStage('pick');
+      flash('Mapping changed — check the file again before importing.');
+    }
+  }
+
   async function doDryRun() {
     setRunning(true);
     try {
@@ -302,7 +315,7 @@ export default function DataPage() {
                       <div key={h} className="flex items-center gap-2 text-[11px]">
                         <span className="truncate flex-1 text-slate-400" title={h}>{h || '(blank)'}</span>
                         <span className="text-slate-700">→</span>
-                        <select value={map[h] ?? ''} onChange={(e) => setMap((m) => ({ ...m, [h]: e.target.value }))}
+                        <select value={map[h] ?? ''} onChange={(e) => remap(h, e.target.value)}
                           className="w-36 h-8 px-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-200 text-[11px] outline-none focus:border-emerald-500/60">
                           <option value="">— ignore —</option>
                           {spec.fields.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}

@@ -335,3 +335,30 @@ test('the derived and date-kept lifecycles are declared, with where they are dec
     assert.ok(canMove(id, l.states[0].id, l.states[1].id) && canMove(id, l.states[1].id, l.states[0].id), id);
   }
 });
+
+// ── "Void" and "active" mean one thing on the buy side (2026-11-11) ──────────
+// Three readers skipped only Cancelled, so a Replaced PO was counted beside the
+// PO that replaced it: twice in the spend split, as an "active" PO on the
+// dashboard, and as a late-PO alert that could never clear.
+
+test('the attention view skips every void PO, not only cancelled ones', () => {
+  const sql = readFileSync(join(process.cwd(), 'migrations', 'attention_void_pos.sql'), 'utf8');
+  const filters = [...sql.matchAll(/po\.status::text, ''::text\) <> ALL \(ARRAY\[([^\]]*)\]/g)].map((m) => m[1]);
+  assert.equal(filters.length, 2, 'po_late and landed_cost_open each filter on PO status');
+  for (const f of filters) for (const s of groupList('purchase_order', 'void')) assert.ok(f.includes(`'${s}'`), `${s} missing from a PO status filter`);
+  assert.match(sql, /WITH \(security_invoker = true\)/, 'replacing the view without the option would drop row-level security');
+});
+
+test('the dashboard and the spend overview count POs with the lifecycle groups', () => {
+  const home = readFileSync(join(process.cwd(), 'app/page.tsx'), 'utf8');
+  assert.match(home, /activePOs = data\.pos\.filter\(\(p\) => inGroup\('purchase_order', 'open', p\.status\)\)/);
+  const spend = readFileSync(join(process.cwd(), 'components/ui/SpendOverview.tsx'), 'utf8');
+  assert.match(spend, /!inGroup\('purchase_order', 'void', p\.status\)/);
+  assert.match(spend, /openPOs = filteredPos\.filter\(\(p\) => inGroup\('purchase_order', 'open', p\.status\)\)/);
+  // "Active" on the dashboard is Deal Lookup's Active stage: not void, not a draft, not fully received.
+  const open = new Set(groupList('purchase_order', 'open'));
+  for (const s of stateIds('purchase_order')) {
+    const dealLookupActive = !inGroup('purchase_order', 'void', s) && s !== 'Draft' && s !== 'Fully Received';
+    assert.equal(open.has(s), dealLookupActive, s);
+  }
+});

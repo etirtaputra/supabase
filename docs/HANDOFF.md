@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-11** · last change: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-11** · last change: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,53 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-11 (latest) — Lifecycles, second pass: paid/delivered decided once; six more declared
+### 2026-11-11 (latest) — Third pass: one meaning for "void" and "active" POs; two screens that misreported their own state
+
+Owner sent the state-machine request again (*"make the best decision … without
+breaking anything"*). The other thread holds serials, sales undo/cancel, "PO
+paid" and the drain claim state; this pass took what needed no owner decision
+because live data or the app's own earlier decision already answers it.
+
+- **Void POs (lifecycle group `void` = Replaced + Cancelled).** Three readers
+  skipped only Cancelled. Live data 2026-11-11: 2 Replaced POs (IDR 240.6M),
+  both replaced by Fully Received POs.
+  - `agent_attention` view (`migrations/attention_void_pos.sql`, **applied**):
+    `po_late` and `landed_cost_open` skip Replaced too. po_late for buy-side
+    roles 9 → 7 (the two could never clear: a replaced PO never gets a received
+    date). Built from the live definition (md5 equal to
+    below_cost_cost_roles_only.sql) with only that array changed; rehearsed in
+    a rolled-back DO block; result md5 = the file; `security_invoker` and
+    grants unchanged.
+  - Spend Overview: void POs excluded (their lines were counted beside the
+    replacement's in the category split).
+- **Active / open POs (group `open` = Sent, Confirmed, Partially Received).**
+  The dashboard KPI "Active POs" was "not cancelled" (256: 148 unissued drafts
+  + 82 fully received + 2 replaced + 24 real) and Spend Overview's "Open POs ·
+  pending receipt" was "not Fully Received" (174). Both now use `open` (24) —
+  the same set Deal Lookup's Active stage has used since the owner's
+  2026-08-27 decision that a draft PO is not active. A test holds `open` equal
+  to that stage. Hint and sub-label reworded (i18n updated).
+- **Proposal editor save note.** Colour was decided by `saveMsg === 'Saved'`,
+  so every other success showed red. Now `saveNote {text, ok}`; each caller
+  says which. 5 good-news callers, the rest failures.
+- **Import wizard.** A mapping changed after "Check" left `plan` / `resolved`
+  stale and Commit wrote the old mapping. `remap()` now sends the file back to
+  step 1.
+- Tests: `lib/lifecycles.test.ts` (+2: the migration lists every void state in
+  both PO branches and keeps security_invoker; dashboard/spend read the
+  groups; `open` = Deal Lookup Active) and new `lib/screenStates.test.ts` (+2).
+  1,130 tests; tsc, build green; eslint unchanged.
+- **Correction to the second-pass note below:** the attention view tests
+  `'Cancelled'` AND `'cancelled'`, so the lower-case spelling was harmless, not
+  a filter that matched nothing.
+- **Left alone:** the 148 Draft POs still count in Spend Overview's committed
+  total when they carry a supplier (1 does; IDR 7.7M) and in its category
+  split — whether historical drafts are spend is the owner's call. The payment
+  picker still offers every non-cancelled PO; the FX benchmark still compares a
+  Replaced PO that has real payments (a true paid rate). `anon` holds default
+  grants on `agent_attention` (pre-existing; every branch is role-gated).
+
+### 2026-11-11 — Lifecycles, second pass (sales side): paid/delivered decided once; six more declared
 
 Owner (same ask again): *"Find all of the implicit state machines in my app…
 elevate UX, DX and AX, without breaking anything."* 13 were declared; this

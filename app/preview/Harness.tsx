@@ -128,7 +128,7 @@ export default function Harness() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiTile label="Paid This Month" value="Rp 1.138.500.000" sub="August" color="text-rose-300" ring="ring-rose-500/20" />
             <KpiTile label="Stock Value" value="Rp 3.100.000.000" sub="on-hand × avg landed cost" color="text-violet-300" ring="ring-violet-500/20" />
-            <KpiTile label="Active POs" value="174" sub="not cancelled" color="text-sky-300" ring="ring-sky-500/20" />
+            <KpiTile label="Active POs" value="24" sub="ordered, not yet fully received" color="text-sky-300" ring="ring-sky-500/20" />
             <KpiTile label="Components" value="990" sub="in catalog" color="text-emerald-300" ring="ring-emerald-500/20" />
           </div>
           <StockAlerts shortages={[] as never} reorders={[] as never} />

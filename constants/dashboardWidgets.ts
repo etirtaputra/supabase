@@ -89,7 +89,7 @@ export const DASHBOARD_WIDGETS: DashboardWidget[] = [
   { key: 'kpiStockValue', label: 'Stock Value', width: 'quarter', defaultOn: true,
     section: 'buySide', hint: 'On-hand quantity at moving-average landed cost' },
   { key: 'kpiActivePos', label: 'Active POs', width: 'quarter', defaultOn: true,
-    section: 'buySide', hint: 'Purchase orders that are not cancelled' },
+    section: 'buySide', hint: 'Purchase orders placed and not yet fully received' },
   { key: 'kpiComponents', label: 'Components', width: 'quarter', defaultOn: true,
     section: 'buySide', hint: 'How many items the catalog carries' },
   // The item is the pivot, so the two sides of its journey get a panel each:

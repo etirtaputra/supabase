@@ -436,7 +436,14 @@ export default function QuoteEditorPage() {
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
+  // The note beside Save, and whether it is good news. It used to be a bare
+  // string painted green only when it read exactly 'Saved' — so "Saved · merged
+  // Budi's changes", "3 costs updated" and the win message all showed in red,
+  // the colour of a failed save. Each caller now says which it is; a note is
+  // bad news unless it says otherwise.
+  const [saveNote, setSaveNote] = useState<{ text: string; ok: boolean }>({ text: '', ok: false });
+  const saveMsg = saveNote.text;
+  const setSaveMsg = useCallback((text: string, ok = false) => setSaveNote({ text, ok }), []);
 
   // Announce presence to the EPC lobby so the proposals list shows who is live
   // on this proposal and whether they're mid-edit (unsaved changes).
@@ -460,7 +467,7 @@ export default function QuoteEditorPage() {
     prevSavedStatus.current = savedStatus;
     if (prev && prev !== 'accepted' && savedStatus === 'accepted') {
       setWinBurst((n) => n + 1);
-      setSaveMsg(`🎉 ${t('Won! Well done, team.')}`);
+      setSaveMsg(`🎉 ${t('Won! Well done, team.')}`, true);
     }
   }, [savedStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1019,7 +1026,7 @@ export default function QuoteEditorPage() {
       }
     }
     if (!rows.length) {
-      setSaveMsg('All costs are up to date');
+      setSaveMsg('All costs are up to date', true);
       setTimeout(() => setSaveMsg(''), 2500);
       return;
     }
@@ -1040,7 +1047,7 @@ export default function QuoteEditorPage() {
         }),
       })));
       markDirty();
-      setSaveMsg(`${byId.size} cost${byId.size > 1 ? 's' : ''} updated`);
+      setSaveMsg(`${byId.size} cost${byId.size > 1 ? 's' : ''} updated`, true);
       setTimeout(() => setSaveMsg(''), 2500);
     }
     setCostPreview(null);
@@ -1752,7 +1759,7 @@ export default function QuoteEditorPage() {
     if (!data?.updated_at || !loadedStampRef.current || data.updated_at <= loadedStampRef.current) return;
     const res = await collabRef.current.mergeRemote();
     if (res.remoteChanged) {
-      setSaveMsg(`↻ Merged ${res.actor}'s changes${res.conflicts ? ` — ${res.conflicts} line${res.conflicts > 1 ? 's' : ''} you both edited (yours shown)` : ''}`);
+      setSaveMsg(`↻ Merged ${res.actor}'s changes${res.conflicts ? ` — ${res.conflicts} line${res.conflicts > 1 ? 's' : ''} you both edited (yours shown)` : ''}`, true);
       setTimeout(() => setSaveMsg(''), 4000);
     }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1972,7 +1979,7 @@ export default function QuoteEditorPage() {
       if (fresh?.updated_at) loadedStampRef.current = fresh.updated_at;
 
       setDirty(false);
-      setSaveMsg(pre.remoteChanged ? `Saved · merged ${pre.actor}'s changes` : 'Saved');
+      setSaveMsg(pre.remoteChanged ? `Saved · merged ${pre.actor}'s changes` : 'Saved', true);
       setTimeout(() => setSaveMsg(''), 2500);
       loadReferenceData(); // refresh autocomplete/history sources after save
       ok = true;
@@ -2323,7 +2330,7 @@ export default function QuoteEditorPage() {
             {saveMsg && (
               <span
                 title={saveMsg}
-                className={`text-[11px] max-w-[220px] truncate ${saveMsg === 'Saved' || saveMsg === 'Costs refreshed' ? 'text-emerald-400' : 'text-red-400'}`}
+                className={`text-[11px] max-w-[220px] truncate ${saveNote.ok ? 'text-emerald-400' : 'text-red-400'}`}
               >
                 {saveMsg}
               </span>

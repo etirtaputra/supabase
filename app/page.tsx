@@ -39,6 +39,7 @@ import { useDashboardLayout } from '@/hooks/useDashboardLayout';
 import { WIDTH_SPAN, quickActionsFor, type DashboardLayout } from '@/constants/dashboardWidgets';
 import WidgetArranger from '@/components/ui/WidgetArranger';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { inGroup } from '@/lib/lifecycles';
 
 function thisMonth() { return new Date().toISOString().slice(0, 7); }
 
@@ -280,7 +281,11 @@ export default function Home() {
   // "Outstanding" moved into the position strip's "We owe" tile above.
   const stats = useMemo(() => {
     const monthStr = thisMonth();
-    const activePOs = data.pos.filter((p) => p.status !== 'Cancelled');
+    // One meaning for "active PO": goods still owed to us (lifecycle group
+    // `open`), the same POs Deal Lookup files under Active. "Not cancelled"
+    // counted 148 unissued drafts and every finished PO (2026-11-11: 256 shown,
+    // 24 active).
+    const activePOs = data.pos.filter((p) => inGroup('purchase_order', 'open', p.status));
     const paidThisMonthIdr = data.poCosts
       .filter((c) => c.payment_date?.startsWith(monthStr) && PRINCIPAL_CATS.has(c.cost_category))
       .reduce((s, c) => {
@@ -334,7 +339,7 @@ export default function Home() {
       case 'kpiStockValue': return <KpiTile label={t('Stock Value')} value={stockValue == null ? '—' : fmtIdr(stockValue)}
                                   sub={t('on-hand × avg landed cost')} color="text-violet-300" ring="ring-violet-500/20" />;
       case 'kpiActivePos':  return <KpiTile label={t('Active POs')} value={loading ? '—' : stats.activePOs.toString()}
-                                  sub={t('not cancelled')} color="text-sky-300" ring="ring-sky-500/20" />;
+                                  sub={t('ordered, not yet fully received')} color="text-sky-300" ring="ring-sky-500/20" />;
       case 'kpiComponents': return <KpiTile label={t('Components')} value={loading ? '—' : stats.componentCount.toLocaleString('en-US')}
                                   sub={t('in catalog')} color="text-emerald-300" ring="ring-emerald-500/20" />;
       case 'newArrivals':   return <NewArrivals rows={arrivedItems} days={newArrivalDays} />;
