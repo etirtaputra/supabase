@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-11** · last change: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-13** · last change: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,38 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-11 (latest) — Third pass: one meaning for "void" and "active" POs; two screens that misreported their own state
+### 2026-11-13 (latest) — Proposal checks: AC cables need an earthing conductor
+
+Abel Setiawan (WhatsApp, 07:57): *"ini untuk penawaran yang baru yang Al belum
+ada groundingnya"* — "Al" = aluminium. Owner: *"how to prevent from this
+happening again?"*
+
+**What happened.** Bungasari BESS: R8A (copper) carries KMI NYA 50 mm² + NYA
+240 mm² as earthing; the aluminium R8B and R8C (and R6, 2026-07-24, which they
+were built from) have none — the NYA 50 became NA2XY 70 mm² (an aluminium power
+cable) and the NYA 240 vanished. Hand-typed, not generated. All sent. Over all
+105 proposals the rule flags exactly 4, all genuine: R6, R8B, R8C, Z8IB (NYY
+4×10 = 3P+N, no earth core).
+
+- **`lib/proposalChecks.ts`** (pure, tested on those real proposals):
+  `proposalChecks(lines)` → failed rules; first rule `ac_earthing` — an AC
+  power cable (NYY/NAYY/NA2XY/N2XY/NYM/NYFGBY/N2XSY…; NOT NYA, NYAF or the
+  3-core NYYHY) needs an earthing line (NYA, BC/BCC, kuning-hijau, PE,
+  grounding system/rod/cable, earthing). PV-mounting "grounding kits", clips
+  and lugs do NOT count. New rules go in `RULES` with a test from the real
+  proposal they would have caught.
+- **Editor** (`app/proposals/[id]`): red-amber panel while a check fails;
+  moving to **Sent** asks first ("send anyway?") — warns, never blocks.
+- **List** (`app/proposals`): ⚠ chip on any proposal failing a check, sent
+  ones included.
+- **Agents:** onboarding serves `proposal_checks`; AGENT_RULES line (copper →
+  aluminium changes phase/neutral only; earthing stays).
+- **Not done (owner's call):** R6/R8B/R8C/Z8IB are sent and locked — revise
+  them (move back to draft, add the earthing, resend) if the customer is
+  still deciding. No variant-diff view yet (R8A vs R8C side by side would have
+  shown it too) — a candidate next step.
+
+### 2026-11-11 — Third pass: one meaning for "void" and "active" POs; two screens that misreported their own state
 
 Owner sent the state-machine request again (*"make the best decision … without
 breaking anything"*). The other thread holds serials, sales undo/cancel, "PO

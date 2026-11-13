@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { callerFromRequest, AgentAuthError, visibleKinds, hiddenKinds } from '@/lib/agentApi';
 import { AGENT_DOCS, AGENT_ENDPOINTS, AGENT_RULES } from '@/lib/agentDocs';
 import { describeLifecycles } from '@/lib/lifecycles';
+import { describeProposalChecks } from '@/lib/proposalChecks';
 
 /**
  * GET /api/agent/onboarding — the first call an agent makes after signing in.
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest) {
       // who makes them and what the database itself refuses (lib/lifecycles.ts).
       // Read from the app, so it is never older than the code.
       lifecycles: describeLifecycles(),
+
+      // What the proposal editor checks before a proposal is sent (lib/proposalChecks).
+      proposal_checks: describeProposalChecks(),
     });
   } catch (e) {
     if (e instanceof AgentAuthError) return NextResponse.json({ error: e.message }, { status: e.status });

@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-13T02:30:00Z",
+    title: "Proposal EPC: peringatan bila kabel AC tidak punya kabel grounding",
+    details: [
+      "Editor proposal kini memeriksa isinya: bila ada kabel daya AC (NYY, NA2XY, NYM…) tetapi tidak ada kabel grounding (NYA kuning-hijau, BC) atau sistem grounding, muncul peringatan merah di atas, dan saat status diubah ke Dikirim ICAPROC bertanya dulu.",
+      "Berawal dari laporan Abel: versi aluminium penawaran Bungasari BESS (R8B, R8C — dan R6 bulan Juli) terkirim tanpa kabel grounding, padahal versi tembaganya (R8A) punya NYA 50 mm² dan NYA 240 mm².",
+      "Daftar proposal menandai proposal yang sudah terlanjur terkirim dengan kekurangan ini: R6, R8B, R8C, dan Z8IB.",
+      "Agen (MANDA) menerima aturan yang sama saat onboarding.",
+    ],
+  },
+  {
     at: "2026-11-11T10:21:00Z",
     title: "PO yang sudah Diganti tidak lagi dihitung; \"PO Aktif\" kini berarti barang masih ditunggu; catatan simpan proposal berwarna benar",
     details: [

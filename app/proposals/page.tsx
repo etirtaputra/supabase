@@ -32,6 +32,7 @@ import { groupProposals, customerKey, ACTIVE_DAYS } from '@/lib/proposalGroups';
 import { epcDue, EPC_OUTCOME_DAYS, EPC_IDLE_DRAFT_DAYS, type EpcDue } from '@/lib/proposalNudges';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
 import { badgeMap, isProposalLocked } from '@/lib/lifecycles';
+import { proposalChecks } from '@/lib/proposalChecks';
 
 // Declared once in lib/lifecycles.ts (epc_proposal) — the editor reads the same map.
 const PROPOSAL_STATUS = badgeMap('epc_proposal');
@@ -275,6 +276,34 @@ export default function QuotesListPage() {
     role: gate.profile?.role, components: catalog.components, tucMap: listTucMap,
     quotes: catalog.quotes, quoteItems: catalog.quoteItems, fx, globalBufferPct,
   });
+
+  // Proposal checks (lib/proposalChecks) per proposal — e.g. AC cables with no
+  // earthing conductor. Shown on every row, sent ones included, so a gap that
+  // already went out is visible too.
+  const checksByQuote = useMemo(() => {
+    const lines = new Map<string, { description: string }[]>();
+    for (const it of allItems ?? []) {
+      const arr = lines.get(it.quote_id) ?? [];
+      arr.push({ description: it.description ?? '' });
+      lines.set(it.quote_id, arr);
+    }
+    const out = new Map<string, ReturnType<typeof proposalChecks>>();
+    for (const [qid, ls] of lines) {
+      const r = proposalChecks(ls);
+      if (r.length) out.set(qid, r);
+    }
+    return out;
+  }, [allItems]);
+  const checkChip = (qid: string, full: boolean) => {
+    const c = checksByQuote.get(qid);
+    if (!c) return null;
+    return (
+      <span className={`${full ? 'px-2 py-0.5 rounded-full text-[10px]' : 'px-1.5 py-0.5 rounded text-[9px]'} font-semibold whitespace-nowrap flex-shrink-0 bg-red-500/15 text-red-300 tone-bad`}
+        title={c.map((x) => `${tr(x.title)} — ${tr(x.detail)}`).join('\n\n')}>
+        ⚠ {tr(c[0].title)}{c.length > 1 ? ` +${c.length - 1}` : ''}
+      </span>
+    );
+  };
 
   const driftByQuote = useMemo(() => {
     const map = new Map<string, number>();
@@ -563,6 +592,7 @@ export default function QuotesListPage() {
       <span className={`text-[13px] truncate flex-shrink min-w-0 max-w-[45%] ${nested ? 'font-medium text-slate-500' : 'font-semibold text-slate-100'}`} title={title}>{title}</span>
       <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${statusCls(q.status)}`}>{tr(statusLabel(q.status))}</span>
       {versions && versionsChip(versions)}
+      {checkChip(q.quote_id, false)}
       {driftByQuote.has(q.quote_id) && (
         <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
           title={`${driftByQuote.get(q.quote_id)} item${driftByQuote.get(q.quote_id)! > 1 ? 's' : ''} priced >${costDriftPct}% away from today's cost`}>
@@ -612,6 +642,7 @@ export default function QuotesListPage() {
         {PROJECT_TYPES.find((t) => t.key === q.project_type)?.label ?? q.project_type}
       </span>
     )}
+    {checkChip(q.quote_id, true)}
     {driftByQuote.has(q.quote_id) && (
       <span
         className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"

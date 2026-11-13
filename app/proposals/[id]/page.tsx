@@ -35,6 +35,7 @@ import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc, fmtMoneyCell, moneyUnit
 import { isOfferable } from '@/lib/itemVisibility';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { badgeMap, stateIds, isProposalLocked } from '@/lib/lifecycles';
+import { proposalChecks } from '@/lib/proposalChecks';
 import { catalogMatches, lastQuotedDates } from '@/lib/catalogSearch';
 import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libraryErrorKey, libNorm, type MainKind } from '@/lib/libraryMatch';
 import { useSettings } from '@/hooks/useSettings';
@@ -432,6 +433,13 @@ export default function QuoteEditorPage() {
   /** Set when a save-on-back failed: the next Back tap leaves regardless. */
   const leaveAnywayRef = useRef(false);
   const [sections, setSections] = useState<DraftSection[]>([]);
+  /**
+   * What the proposal must not be sent without (lib/proposalChecks — first rule:
+   * AC cables need an earthing conductor; owner, 2026-11-13, after the aluminium
+   * R8B/R8C went out without one). Recomputed from the lines on screen.
+   */
+  const checks = useMemo(() => proposalChecks(sections.filter((s) => !s._deleted).flatMap((s) =>
+    s.items.filter((i) => !i._deleted).map((i) => ({ description: i.description, section_title: s.title })))), [sections]);
   const [loadingQuote, setLoadingQuote] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -1782,6 +1790,15 @@ export default function QuoteEditorPage() {
         : `Locked: ${lockedWord} proposals can only be edited by an Owner`);
       return false;
     }
+    // Sending with a failed check asks first — the person decides, the app
+    // makes sure they saw it (an earthing system priced by others is real).
+    if (quoteRef.current.status === 'sent' && savedStatus !== 'sent' && checks.length > 0) {
+      const list = checks.map((c) => `• ${t(c.title)} — ${t(c.detail)}`).join('\n\n');
+      if (!window.confirm(`${t('Before sending, this proposal is missing:')}\n\n${list}\n\n${t('Send it anyway?')}`)) {
+        setSaveMsg(t('Not sent — fix the check above, or confirm to send anyway'));
+        return false;
+      }
+    }
     setSaving(true);
     let ok = false;
     try {
@@ -2410,6 +2427,18 @@ export default function QuoteEditorPage() {
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-300">
             🔒 This quote is <span className="font-bold">{lockedWord}</span> and read-only for your role.
             Ask an Owner to make changes, or duplicate it from the quotes list to start a new revision.
+          </div>
+        )}
+
+        {checks.length > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-200 space-y-2">
+            {checks.map((c) => (
+              <div key={c.id}>
+                <p className="font-semibold text-amber-300">⚠ {t(c.title)}</p>
+                <p className="text-[12px] text-amber-200/90 mt-0.5">{t(c.detail)}</p>
+                <p className="text-[11px] text-amber-200/60 mt-1">{tf('AC cables on this proposal: {list}', { list: c.evidence.join(' · ') })}</p>
+              </div>
+            ))}
           </div>
         )}
 
