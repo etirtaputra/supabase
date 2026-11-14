@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-14T06:30:00Z",
+    title: "Deal Lookup: isi transaksi yang dibuka kini lebih rapi",
+    details: [
+      "Supplier, perusahaan pembeli, dan mata uang kini tampil sekali saja — di kotak Purchase Order (tetap bisa diubah di sana). Kotak Quote cukup menampilkan No. PI, tanggal, dan total.",
+      "Tabel item kini selebar panel dan punya kolom Total baris (jumlah × harga), jadi nilai tiap barang terbaca tanpa menghitung.",
+      "Tombol Hapus transaksi pindah ke bagian paling bawah, tidak lagi di atas semua informasi.",
+      "Di ponsel dan tablet: tombol ubah / hapus / tambah per baris item kini selalu terlihat (dulu hanya muncul saat kursor mouse di atasnya, jadi tidak pernah muncul di layar sentuh). Baris \"Akan ditransfer\" tidak lagi membuat halaman melebar ke samping.",
+    ],
+  },
+  {
     at: "2026-11-14T03:30:00Z",
     title: "Deal Lookup: tampilan baru yang lebih ringkas dan jelas",
     details: [

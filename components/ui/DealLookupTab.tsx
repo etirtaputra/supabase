@@ -959,29 +959,6 @@ export default function DealLookupTab({
 
     return (
       <div className="mt-3 pt-3 border-t border-slate-700/40">
-        {onDeleteDeal && (g.quotes.length > 0 || g.pos.length > 0) && (
-          <div className="flex justify-end mb-2" onClick={(e) => e.stopPropagation()}>
-            {!dealDeletable ? (
-              <span className="text-[10px] text-slate-600" title="A PO here has payments or received goods — cancel it instead of deleting the deal">
-                🔒 Paid / received — cancel instead of deleting
-              </span>
-            ) : dealArmed ? (
-              <span className="inline-flex items-center gap-1.5 text-[11px]">
-                <span className="text-red-300">Delete this whole deal — {g.quotes.length} quote{g.quotes.length !== 1 ? 's' : ''} + {g.pos.length} PO{g.pos.length !== 1 ? 's' : ''}? Cannot be undone.</span>
-                <button type="button" disabled={busyDelete}
-                  onClick={async () => { setBusyDelete(true); try { await onDeleteDeal(g.quotes.map((q) => String(q.quote_id)), g.pos.map((p) => String(p.po_id))); } finally { setBusyDelete(false); setConfirmDelete(null); } }}
-                  className="font-bold text-white bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg disabled:opacity-50">{busyDelete ? t('Deleting…') : t('Yes, delete')}</button>
-                <button type="button" onClick={() => setConfirmDelete(null)} className="text-slate-400 hover:text-slate-200 px-1.5 py-1">{t('Cancel')}</button>
-              </span>
-            ) : (
-              <button type="button" onClick={() => setConfirmDelete(dealKey)}
-                className="text-[11px] font-semibold text-red-300/80 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/25 hover:border-red-500/40 hover:bg-red-500/10 transition-colors"
-                title="Permanently delete this deal — every quote and PO in it">
-                {t('Delete deal')}
-              </button>
-            )}
-          </div>
-        )}
         {/* Quote + PO sit side-by-side only on wide screens; on phones/tablets
             they stack so the dense fields aren't crushed into half-width columns */}
         <div className={hasBoth ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-3 items-start' : 'space-y-5'}>
@@ -1078,11 +1055,15 @@ export default function DealLookupTab({
                           <p className="text-slate-300 mt-0.5">{qt.quote_date}</p>
                         )}
                       </div>
+                      {/* Supplier, buyer and currency are said ONCE: on the PO
+                          card beside this one when the deal has a PO (where they
+                          can be edited), here when it is still only a quote. The
+                          total carries its currency code either way. */}
                       {[
-                        { label: 'Supplier',  value: sup?.supplier_name },
-                        { label: 'Currency',  value: qt.currency },
+                        { label: 'Supplier',  value: hasBoth ? null : sup?.supplier_name },
+                        { label: 'Currency',  value: hasBoth || (qt.total_value != null && Number(qt.total_value) > 0) || items.length > 0 ? null : qt.currency },
                         { label: 'Lead Time', value: qt.estimated_lead_time_days },
-                        { label: 'To',        value: co?.legal_name },
+                        { label: 'To',        value: hasBoth ? null : co?.legal_name },
                         // Document total first (it may include freight); items sum only
                         // when no total was stored — same basis as the PO card.
                         { label: 'Total',     value: qt.total_value != null && Number(qt.total_value) > 0 ? fmtCcy(Number(qt.total_value), qt.currency) : items.length > 0 ? fmtCcy(items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_price), 0), qt.currency) : null },
@@ -1307,7 +1288,7 @@ export default function DealLookupTab({
                                   {/* Actions column — all icons together, reveal on hover */}
                                   <td className="py-2 pl-2 text-right">
                                     {!isEditingLine && !isEditingComp && (
-                                      <div className="opacity-0 group-hover:opacity-100 flex items-center justify-end gap-0.5 transition-opacity">
+                                      <div className="[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 flex items-center justify-end gap-0.5 transition-opacity">
                                         {onUpdateQuoteItem && (
                                           <button onClick={() => setEditingItem({ type: 'quote', id: item.quote_line_id })} title="Re-assign product" className="p-1 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg></button>
                                         )}
@@ -1509,7 +1490,8 @@ export default function DealLookupTab({
                         { label: 'PI Date',      value: po.pi_date },
                         { label: 'Incoterms',    value: po.incoterms },
                         { label: 'Est. Delivery',value: po.estimated_delivery_date },
-                        { label: 'Currency',     value: po.currency },
+                        // The value line below carries the currency code
+                        { label: 'Currency',     value: (items.length > 0 || po.total_value) ? null : po.currency },
                         { label: 'Ship Via',     value: po.method_of_shipment },
                       ].map(({ label, value }) => value ? (
                         <div key={label}>
@@ -1798,8 +1780,10 @@ export default function DealLookupTab({
                                 </span>
                               );
                             }
+                            // Wraps on a phone — nowrap here pushed the whole page
+                            // 6px wider than a 390px screen (2026-11-14).
                             return (
-                              <span className="whitespace-nowrap ml-auto">
+                              <span className="ml-auto sm:whitespace-nowrap">
                                 <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
                                 <span className="font-bold tabular-nums text-amber-400">{fmtMoney(b.remaining, b.currency)}</span>
                                 {b.idr != null && b.currency !== 'IDR' && b.idrSource && (
@@ -2165,7 +2149,7 @@ export default function DealLookupTab({
                                   {/* Actions column */}
                                   <td className="py-2 pl-2 text-right">
                                     {!isEditingLine && !isEditingComp && (
-                                      <div className="opacity-0 group-hover:opacity-100 flex items-center justify-end gap-0.5 transition-opacity">
+                                      <div className="[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 flex items-center justify-end gap-0.5 transition-opacity">
                                         {onUpdatePoItem && (
                                           <button onClick={() => setEditingItem({ type: 'po', id: item.po_line_item_id })} title="Re-assign product" className="p-1 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg></button>
                                         )}
@@ -2360,7 +2344,11 @@ export default function DealLookupTab({
                       monitor the four number columns cluster tight on the right
                       instead of drifting apart; each number column is a fixed
                       width so Q and PO line up cleanly. */}
-                  <table className="w-full min-w-[620px] max-w-[1000px] text-xs border-collapse table-fixed">
+                  {/* Full width since 2026-11-14 (was capped at 1000px, leaving a
+                      third of the panel empty), with a line total. Component
+                      still absorbs the slack, so the numbers stay together on the
+                      right. */}
+                  <table className="w-full min-w-[720px] text-xs border-collapse table-fixed">
                     <thead>
                       <tr className="border-b border-slate-700/40">
                         <th className="w-full text-left py-1.5 pr-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Component</th>
@@ -2368,6 +2356,7 @@ export default function DealLookupTab({
                         <th className="w-28 text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-sky-400/70 border-r border-slate-700/50">Q Price</th>
                         <th className="w-24 text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">PO Qty</th>
                         <th className="w-28 text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-emerald-400/70">PO Price</th>
+                        <th className="w-32 text-right py-1.5 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{t('Line total')}</th>
                         {/* Actions live in their OWN fixed column so the number
                             columns stay flush-right and perfectly aligned. */}
                         <th className="w-16" aria-label="Actions" />
@@ -2563,12 +2552,22 @@ export default function DealLookupTab({
                               )}
                             </td>
 
+                            {/* ── Line total — the PO's when it has the line, else the
+                                   quote's (dimmer: not ordered on this PO) ── */}
+                            <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap">
+                              {row.p ? (
+                                <span className="text-slate-200 font-semibold">{fmtCcy(Number(row.p.quantity) * Number(row.p.unit_cost), row.p.currency)}</span>
+                              ) : row.q ? (
+                                <span className="text-slate-600">{fmtCcy(Number(row.q.quantity) * Number(row.q.unit_price), row.q.currency)}</span>
+                              ) : <span className="text-slate-700">—</span>}
+                            </td>
+
                             {/* ── Row actions — their OWN column, so nothing shifts
                                    the Q/PO number columns out of alignment. Icons
                                    reveal on row hover. ── */}
                             <td className="py-2 pl-2 align-middle">
                               {!activeEdit && (
-                                <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center justify-end gap-0.5 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                                   {row.q && onUpdateQuoteLineItem && (
                                     <button type="button" title="Edit quote line"
                                       className="flex-shrink-0 p-0.5 text-sky-500 hover:text-sky-300 hover:bg-sky-500/10 rounded transition-colors"
@@ -2624,6 +2623,33 @@ export default function DealLookupTab({
             );
           });
         })}
+
+        {/* Deleting the whole deal is rare and cannot be undone — it sits at
+            the END of the panel now, not above everything you came to read
+            (2026-11-14). */}
+        {onDeleteDeal && (g.quotes.length > 0 || g.pos.length > 0) && (
+          <div className="flex justify-end mt-4 pt-3 border-t border-slate-700/40" onClick={(e) => e.stopPropagation()}>
+            {!dealDeletable ? (
+              <span className="text-[10px] text-slate-600" title="A PO here has payments or received goods — cancel it instead of deleting the deal">
+                🔒 Paid / received — cancel instead of deleting
+              </span>
+            ) : dealArmed ? (
+              <span className="inline-flex items-center gap-1.5 text-[11px]">
+                <span className="text-red-300">Delete this whole deal — {g.quotes.length} quote{g.quotes.length !== 1 ? 's' : ''} + {g.pos.length} PO{g.pos.length !== 1 ? 's' : ''}? Cannot be undone.</span>
+                <button type="button" disabled={busyDelete}
+                  onClick={async () => { setBusyDelete(true); try { await onDeleteDeal(g.quotes.map((q) => String(q.quote_id)), g.pos.map((p) => String(p.po_id))); } finally { setBusyDelete(false); setConfirmDelete(null); } }}
+                  className="font-bold text-white bg-red-600 hover:bg-red-500 px-2 py-1 rounded-lg disabled:opacity-50">{busyDelete ? t('Deleting…') : t('Yes, delete')}</button>
+                <button type="button" onClick={() => setConfirmDelete(null)} className="text-slate-400 hover:text-slate-200 px-1.5 py-1">{t('Cancel')}</button>
+              </span>
+            ) : (
+              <button type="button" onClick={() => setConfirmDelete(dealKey)}
+                className="text-[11px] font-semibold text-red-300/80 hover:text-red-300 px-2 py-1 rounded-lg border border-red-500/25 hover:border-red-500/40 hover:bg-red-500/10 transition-colors"
+                title="Permanently delete this deal — every quote and PO in it">
+                {t('Delete deal')}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   };
