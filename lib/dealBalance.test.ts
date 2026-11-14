@@ -200,7 +200,8 @@ test('nothing owed means no label at all, rather than a zero to read past', () =
 
 test('the screen shows the transfer amount in the currency, not rupiah alone', () => {
   assert.match(TAB, /const owed\s+= remainingLabel\(bal, fmtMoney\);/);
-  assert.match(TAB, /\{owed\} to pay/);
+  // A whole translatable sentence since 2026-11-14 (was `{owed} to pay`): same amount, in its currency.
+  assert.match(TAB, /tf\('\{amount\} to pay', \{ amount: owed \}\)/);
   assert.match(TAB, /To transfer<\/span>/);
   assert.match(TAB, /\['outstanding', 'To transfer', 'text-right'\]/);
 });

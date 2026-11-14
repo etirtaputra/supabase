@@ -1382,6 +1382,16 @@ export const ID: Record<string, string> = {
   'A reason is needed — nothing changed.': 'Alasan wajib diisi — tidak ada yang diubah.',
   'your role may not change units in the register': 'peran Anda tidak boleh mengubah unit di register',
   'Could not change the unit — {why}': 'Unit tidak bisa diubah — {why}',
+  // Deal Lookup redesign (components/ui/DealLookupTab), 2026-11-14
+  'Search PI, PO, supplier or company…': 'Cari PI, PO, supplier atau perusahaan…',
+  'All vendors': 'Semua vendor',
+  'All companies': 'Semua perusahaan',
+  'Quotes': 'Penawaran',
+  '{amount} to pay': '{amount} belum dibayar',
+  '{pct}% paid': '{pct}% terbayar',
+  'Deal': 'Transaksi',
+  'Stage': 'Tahap',
+  'To transfer': 'Akan ditransfer',
   // Proposal checks (lib/proposalChecks, app/proposals), 2026-11-13
   'No earthing conductor': 'Tidak ada kabel grounding',
   'This proposal has AC power cables but no earthing conductor or grounding system. Add the earthing run beside the AC cables (e.g. NYA kuning-hijau or BC, sized for the circuit). When a copper proposal is turned into aluminium, change the phase and neutral cables only — the earthing conductor stays.': 'Penawaran ini punya kabel daya AC tetapi tidak ada kabel grounding atau sistem grounding. Tambahkan kabel grounding di samping kabel AC (mis. NYA kuning-hijau atau BC, sesuai ukuran sirkuit). Saat penawaran tembaga diubah ke aluminium, ganti kabel fasa dan netral saja — kabel grounding tetap ada.',

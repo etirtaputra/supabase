@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-14T03:30:00Z",
+    title: "Deal Lookup: tampilan baru yang lebih ringkas dan jelas",
+    details: [
+      "Setiap transaksi kini dua baris, bukan tiga, dan langsung menyebut isinya — barang terbesar dulu, mis. \"TRINA 725Wp ×594 +2 lainnya\" — tanpa perlu dibuka.",
+      "Satu label tahap berwarna (PO Aktif, Diterima, Selesai…) menggantikan teks \"Q · Accepted PO · Confirmed\"; warnanya sama dengan titik pada tombol tahap di atas. Baris legenda warna dihapus.",
+      "Pembayaran: bilah kecil + \"Lunas\" atau \"CNY 333.798 belum dibayar ≈ IDR …\". Perbaikan: PO mata uang asing yang sudah lunas dulu tampil oranye meski tertulis 100% — kini hijau.",
+      "Tampilan Ringkas: kolom tiap vendor kini sejajar (dulu bergeser di setiap grup), dan isi transaksi tampil di bawah nomornya.",
+      "Di ponsel: filter dua baris, tombol tahap bisa digeser ke samping — transaksi pertama terlihat jauh lebih cepat.",
+    ],
+  },
+  {
     at: "2026-11-13T02:30:00Z",
     title: "Proposal EPC: peringatan bila kabel AC tidak punya kabel grounding",
     details: [

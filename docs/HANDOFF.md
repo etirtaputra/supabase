@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-13** · last change: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-14** · last change: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,44 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-13 (latest) — Proposal checks: AC cables need an earthing conductor
+### 2026-11-14 (latest) — Deal Lookup redesign (cards, compact table, toolbar)
+
+Owner: *"let's improve the UI and Design — especially the Deal Lookup"*.
+Looked at it first with the real data in a browser (rig below), desktop and
+390px phone.
+
+- **Card row** (`renderDealRow`): two lines instead of three — line 1 PO
+  chip(s) + quote ref + ONE stage tag + date/amount at the right edge; line 2
+  **what is in the deal** (`contentsOf`: the biggest line by value, `+N more`,
+  full list on hover; live POs' lines, else the quote's) and a short payment
+  bar with "Paid" / "CNY x to pay ≈ IDR y". The raw "Q · Accepted / PO ·
+  Confirmed" moved to the tag's tooltip.
+- **Bug fixed:** the bar was coloured by the rupiah % while the label used
+  `bal.settled`, so a settled foreign PO read "100% paid" in amber (PO-208).
+  `payBarCls(settled, pct)` now drives both card and table.
+- **Compact table:** `table-fixed` + `<colgroup>` — each vendor group is its
+  own table and auto widths put "Date" ~190px apart between groups; now they
+  line up. The deal cell carries the contents line. Expanded row `colSpan`
+  is the real column count (7 with supplier, 6 without — one too many made
+  the fixed table invent an empty column).
+- **One stage description** `STAGE_META` (label, dot, tag with tone marker)
+  read by the stage chips (each now carries its dot), the tag, the table and
+  the vendor header; the separate colour-legend row and three hand-kept label
+  maps are gone. `quoteColor` removed (unused).
+- **Phone:** vendor + company pickers side by side, stage chips one sideways-
+  scrolling line, totals on their own line — first deal ~220px higher.
+- Strings via t() + 9 Indonesian entries. `lib/dealBalance.test.ts` pin
+  updated (`{owed} to pay` → `tf('{amount} to pay', { amount: owed })`).
+- **Rig for next time:** `scratchpad/deal/rig.mjs` pattern — snapshot the
+  tables with `select json_agg(t)` (big results land in tool-results; extract
+  per column), serve them from `page.route('https://fake.supabase.co/**')`
+  with eq/in/is filters + Range, owner profile, `next start -p 3100`. Kill
+  `next-server` before restarting or the browser gets a stale chunk.
+- **Not touched (candidates):** the opened-deal panel (`renderDetail`, ~1,700
+  lines — Quote and PO panels repeat PI/supplier/currency), PurchasingInbox
+  chips.
+
+### 2026-11-13 — Proposal checks: AC cables need an earthing conductor
 
 Abel Setiawan (WhatsApp, 07:57): *"ini untuk penawaran yang baru yang Al belum
 ada groundingnya"* — "Al" = aluminium. Owner: *"how to prevent from this

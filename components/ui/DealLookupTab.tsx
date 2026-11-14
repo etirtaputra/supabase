@@ -88,17 +88,6 @@ const rateNote = (b: { idrRate: number | null; idrSource: string | null }): stri
 
 // ── Status color helpers (text only — for inline display) ─────────────────────
 
-function quoteColor(status?: string | null): string {
-  const map: Record<string, string> = {
-    Open:     'text-sky-400 tone-step',
-    Accepted: 'text-emerald-400',
-    Replaced: 'text-slate-500',
-    Rejected: 'text-red-400',
-    Expired:  'text-amber-400',
-  };
-  return map[status ?? ''] ?? 'text-slate-500';
-}
-
 function poColor(status?: string | null): string {
   const map: Record<string, string> = {
     Draft:                'text-slate-500',
@@ -419,6 +408,29 @@ function dealStage(g: DealGroup): 'quote' | 'draft' | 'active' | 'received' | 'c
   return 'active';
 }
 
+type DealStage = ReturnType<typeof dealStage>;
+
+/**
+ * One description of the six deal stages — the stage chips, the row tag, the
+ * compact table and the vendor headers all read it (2026-11-14). It replaced a
+ * separate colour-legend row (the legend's swatches matched nothing you could
+ * click) and three hand-kept label maps.
+ */
+const STAGE_META: Record<DealStage, { label: string; dot: string; tag: string }> = {
+  quote:      { label: 'Quote',     dot: 'bg-slate-400',   tag: 'bg-slate-500/15 text-slate-300 tone-off' },
+  draft:      { label: 'Draft PO',  dot: 'bg-slate-600',   tag: 'bg-slate-500/10 text-slate-400 tone-off' },
+  active:     { label: 'Active PO', dot: 'bg-blue-500',    tag: 'bg-blue-500/15 text-blue-300 tone-step' },
+  received:   { label: 'Received',  dot: 'bg-emerald-400', tag: 'bg-emerald-500/15 text-emerald-300 tone-wait' },
+  completed:  { label: 'Completed', dot: 'bg-emerald-600', tag: 'bg-emerald-500/20 text-emerald-300 tone-done' },
+  superseded: { label: 'Void',      dot: 'bg-slate-700',   tag: 'bg-slate-700/40 text-slate-500 tone-off' },
+};
+const STAGE_KEYS = Object.keys(STAGE_META) as DealStage[];
+
+/** Bar colour for "how much is paid": settled reads green whatever the rupiah
+ *  percentage says (a foreign order paid in full is never "99.6%"). */
+const payBarCls = (settled: boolean, pct: number) =>
+  settled || pct >= 100 ? 'bg-emerald-500' : pct > 0 ? 'bg-amber-400' : 'bg-slate-600';
+
 /** Drag handle. Same six-dot grip the proposal editor uses, so "this row can
  *  be moved" reads the same everywhere in the app. */
 const GRIP = (
@@ -583,6 +595,41 @@ export default function DealLookupTab({
   // Table = the compact view; the house default comes from Settings › Layout
   // and flipping it here is remembered for this screen only.
   const [layout, setLayout]                   = useListLayout('deals');
+
+  // ── What is IN a deal, in one line (2026-11-14) ──────────────────────────
+  // The list used to say who and how much but never what — you opened a deal
+  // to learn it held 520 panels. The biggest line by value leads.
+  const compNameById = useMemo(() => new Map(components.map((c) =>
+    [String(c.component_id), (c.internal_description || c.supplier_model || '').trim()])), [components]);
+  const linesByPo = useMemo(() => {
+    const m = new Map<string, PurchaseLineItem[]>();
+    for (const l of poItems) { const k = String(l.po_id); const a = m.get(k) ?? []; a.push(l); m.set(k, a); }
+    return m;
+  }, [poItems]);
+  const linesByQuote = useMemo(() => {
+    const m = new Map<string, PriceQuoteLineItem[]>();
+    for (const l of quoteItems) { const k = String(l.quote_id); const a = m.get(k) ?? []; a.push(l); m.set(k, a); }
+    return m;
+  }, [quoteItems]);
+  const contentsOf = useCallback((g: DealGroup): { lead: string; more: number; all: string } | null => {
+    const livePos = g.pos.filter((p) => !isVoidPo(p.status));
+    const raw: { name: string; qty: number; value: number }[] = livePos.length
+      ? livePos.flatMap((p) => (linesByPo.get(String(p.po_id)) ?? []).map((l) => ({
+          name: compNameById.get(String(l.component_id)) || l.supplier_description || '', qty: Number(l.quantity) || 0,
+          value: (Number(l.quantity) || 0) * (Number(l.unit_cost) || 0) })))
+      : g.quotes.slice(0, 1).flatMap((q) => (linesByQuote.get(String(q.quote_id)) ?? []).map((l) => ({
+          name: compNameById.get(String(l.component_id)) || l.supplier_description || '', qty: Number(l.quantity) || 0,
+          value: (Number(l.quantity) || 0) * (Number(l.unit_price) || 0) })));
+    const lines = raw.filter((l) => l.name);
+    if (!lines.length) return null;
+    lines.sort((a, b) => b.value - a.value);
+    const fmtQ = (q: number) => (q ? ` ×${q.toLocaleString('id-ID')}` : '');
+    return {
+      lead: `${lines[0].name}${fmtQ(lines[0].qty)}`,
+      more: lines.length - 1,
+      all: lines.map((l) => `${l.name}${fmtQ(l.qty)}`).join('\n'),
+    };
+  }, [linesByPo, linesByQuote, compNameById]);
   const tableView = layout === 'compact';
   const [expandedKey, setExpandedKey]         = useState<string | null>(null);
   // Which sections the user has asked to see in full. A section renders its
@@ -2606,12 +2653,14 @@ export default function DealLookupTab({
         key={g.key}
         className={`rounded-xl border transition-colors ${expanded ? STAGE_CLS[dealStage(g)].open : STAGE_CLS[dealStage(g)].row}`}
       >
+        {/* Two lines (2026-11-14): WHO + WHICH + STAGE + WHEN + HOW MUCH, then
+            WHAT is in it and where the money stands. It was three lines with a
+            full-width bar, and still never said what the deal held. */}
         <button
-          className="w-full text-left px-3 py-2.5"
+          className="w-full text-left px-3 py-2"
           onClick={() => setExpandedKey(expanded ? null : g.key)}
         >
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* SVG chevron */}
+          <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
             <svg
               className={`w-3 h-3 text-slate-600 flex-shrink-0 transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
               fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5"
@@ -2619,25 +2668,20 @@ export default function DealLookupTab({
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
 
-            {/* Supplier code badge */}
             {showSupplier && g.supplier?.supplier_code && (
               <span className="inline-block px-1.5 py-0.5 bg-white/10 text-slate-300 text-[10px] font-semibold rounded leading-none flex-shrink-0">
                 {g.supplier.supplier_code}
               </span>
             )}
 
-            {/* Title: once a deal reaches PO, the PO NUMBER leads (that is what
-                the warehouse and finance quote back); the quote name follows,
-                dimmer. Quote-only deals lead with the quote name (there is no
-                PO yet — the "Create PO" button sits at the end of the row). */}
+            {/* Once a deal reaches PO, the PO NUMBER leads (what the warehouse
+                and finance quote back); the quote name follows, dimmer. Each PO
+                is its own chip, so two POs off one quote read as two orders. */}
             {(() => {
               const activePos = g.pos.filter((p) => !isVoidPo(p.status));
               const shownPos = (activePos.length ? activePos : g.pos).map((p) => p.po_number).filter(Boolean) as string[];
               const quoteName = g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : null);
               if (shownPos.length > 0) {
-                // Each PO is its OWN chip, so two POs off one quote read as two
-                // separate orders — not a single fused "A · B" label. When the
-                // deal carries several, a count leads and the first few show.
                 const visible = shownPos.slice(0, 3);
                 return (
                   <>
@@ -2651,36 +2695,37 @@ export default function DealLookupTab({
                       <span className="text-[11px] text-slate-500 flex-shrink-0">+{shownPos.length - visible.length}</span>
                     )}
                     <CopyBtn text={shownPos.join(', ')} />
-                    {quoteName && <span className="text-[11px] text-slate-500 truncate max-w-[140px] sm:max-w-[260px]" title={`Quote source: ${quoteName}`}>{quoteName}</span>}
+                    {quoteName && quoteName !== shownPos[0] && (
+                      <span className="text-[11px] text-slate-500 truncate min-w-0 max-w-[140px] sm:max-w-[260px]" title={`Quote source: ${quoteName}`}>{quoteName}</span>
+                    )}
                   </>
                 );
               }
               return (
                 <>
-                  <span className="text-xs font-semibold text-white truncate max-w-[240px] sm:max-w-[360px]" title={quoteName ?? undefined}>{quoteName ?? `PO#${g.key}`}</span>
+                  <span className="text-xs font-semibold text-white truncate min-w-0 max-w-[240px] sm:max-w-[360px]" title={quoteName ?? undefined}>{quoteName ?? `PO#${g.key}`}</span>
                   <CopyBtn text={quoteName ?? g.key} />
                 </>
               );
             })()}
 
-            {/* Quote status — inline text, no pill */}
-            {g.quoteStatus && (
-              <span className={`text-[11px] font-medium flex-shrink-0 ${quoteColor(g.quoteStatus)}`}>
-                Q · {g.quoteStatus}
-              </span>
-            )}
+            {/* One stage tag, coloured as on the stage buttons above. The raw
+                quote and PO statuses it is made from are on hover and in the
+                opened deal. */}
+            {(() => {
+              const st = dealStage(g);
+              return (
+                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none flex-shrink-0 ${STAGE_META[st].tag}`}
+                  title={[g.quoteStatus && `Quote: ${g.quoteStatus}`, g.poStatus && `PO: ${g.poStatus}`].filter(Boolean).join(' · ')}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${STAGE_META[st].dot}`} />
+                  {t(STAGE_META[st].label)}
+                </span>
+              );
+            })()}
 
-            {/* PO status — inline text, no pill */}
-            {g.poStatus && (
-              <span className={`text-[11px] font-medium flex-shrink-0 ${poColor(g.poStatus)}`}>
-                PO · {g.poStatus}
-              </span>
-            )}
-
-            {/* Mismatch indicator — dismissible */}
             {mismatchGroupIds.has(g.key) && !acknowledgedDealMismatches.has(g.key) && (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-semibold rounded leading-none flex-shrink-0">
-                ⚠ Mismatch
+                ⚠ {t('Mismatch')}
                 <button
                   title="Dismiss mismatch warning for this deal"
                   onClick={(e) => { e.stopPropagation(); setAcknowledgedDealMismatches((prev) => new Set([...prev, g.key])); }}
@@ -2707,53 +2752,65 @@ export default function DealLookupTab({
                 <span className="text-[11px] text-slate-600 flex-shrink-0">No PO</span>
               );
             })()}
-          </div>
 
-          {/* Sub-line */}
-          <div className="text-[11px] mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 pl-5 text-slate-500">
-            {showSupplier && g.supplier && <span className="text-slate-400">{g.supplier.supplier_name}</span>}
-            <span>{fmtDate(g.latestDate)}</span>
-            {g.totalIdr > 0 && (
-              g.totalForeignCurrency && g.totalForeignAmount > 0 ? (
-                <span className="font-medium text-slate-400 tabular-nums">
-                  {fmtCcy(g.totalForeignAmount, g.totalForeignCurrency)} = {fmtIdr(g.totalIdr)}
-                </span>
-              ) : (
-                <span className="font-medium text-slate-400 tabular-nums">{fmtIdr(g.totalIdr)}</span>
-              )
-            )}
-          </div>
-
-          {/* Payment bar */}
-          {g.totalIdr > 0 && (
-            <div className="mt-1.5 flex items-center gap-2 pl-5">
-              <div className="flex-1 h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${paidPct >= 100 ? 'bg-emerald-500' : paidPct > 0 ? 'bg-amber-400' : 'bg-slate-600'}`}
-                  style={{ width: `${paidPct}%` }}
-                />
-              </div>
-              <span className="text-[10px] text-slate-500 flex-shrink-0 tabular-nums">
-                {/* `bal.settled`, not the rupiah figure: a foreign order paid
-                    in full still shows a rupiah difference whenever the rate
-                    moved between booking and paying. */}
-                {bal.settled ? '100' : paidPct.toFixed(1)}% paid
-              </span>
-              {/* The amount to TRANSFER, in the currency the supplier is owed
-                  in — not rupiah at a rate booked months ago. The rupiah
-                  beside it is what that transfer costs today, and the tooltip
-                  names the rate it used. */}
-              {owed && (
-                <span className="text-[11px] font-semibold text-amber-400 tabular-nums flex-shrink-0"
-                  title={`Still to transfer${bal.idr ? ` — about ${fmtIdr(bal.idr)} ${rateNote(bal)}` : ''}${bal.anyAssumedRate ? '. Some payments carry no rate of their own, so this is approximate.' : ''}`}>
-                  {owed} to pay
-                  {bal.idr != null && bal.idr > 0 && bal.idrSource && (
-                    <span className="text-[10px] font-normal text-slate-500 ml-1">≈ {fmtIdr(bal.idr)}</span>
-                  )}
-                </span>
+            {/* When and how much, at the right edge where the eye scans a column */}
+            <span className="ml-auto flex items-baseline gap-3 text-[11px] text-slate-500 tabular-nums whitespace-nowrap">
+              <span>{fmtDate(g.latestDate)}</span>
+              {g.totalIdr > 0 && (
+                g.totalForeignCurrency && g.totalForeignAmount > 0 ? (
+                  <span className="text-slate-200 font-semibold" title={`= ${fmtIdr(g.totalIdr)}`}>
+                    {fmtCcy(g.totalForeignAmount, g.totalForeignCurrency)}
+                    <span className="text-slate-500 font-normal ml-1">≈ {fmtIdr(g.totalIdr)}</span>
+                  </span>
+                ) : (
+                  <span className="text-slate-200 font-semibold">{fmtIdr(g.totalIdr)}</span>
+                )
               )}
-            </div>
-          )}
+            </span>
+          </div>
+
+          {/* Line 2: what is in it · where the money stands */}
+          {(() => {
+            const c = contentsOf(g);
+            if (!c && !(g.totalIdr > 0)) return null;
+            return (
+              <div className="mt-1 pl-5 flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px]">
+                {showSupplier && g.supplier && <span className="text-slate-400">{g.supplier.supplier_name}</span>}
+                {c && (
+                  <span className="text-slate-400 truncate min-w-0 flex-1 basis-[12rem]" title={c.all}>
+                    {c.lead}
+                    {c.more > 0 && <span className="text-slate-500"> {tf('+{n} more', { n: c.more })}</span>}
+                  </span>
+                )}
+                {g.totalIdr > 0 && (
+                  <span className="ml-auto flex items-center gap-2 tabular-nums whitespace-nowrap">
+                    <span className="w-16 sm:w-24 h-1.5 bg-slate-700/80 rounded-full overflow-hidden flex-shrink-0">
+                      <span className={`block h-full rounded-full ${payBarCls(bal.settled, paidPct)}`}
+                        style={{ width: `${bal.settled ? 100 : paidPct}%` }} />
+                    </span>
+                    {/* The amount to TRANSFER, in the currency the supplier is
+                        owed in; the rupiah beside it is what it costs today
+                        (the tooltip names the rate). `bal.settled`, not the
+                        rupiah figure, decides "paid": a foreign order paid in
+                        full still shows a rupiah difference when the rate moved. */}
+                    {owed ? (
+                      <span className="font-semibold text-amber-400"
+                        title={`Still to transfer${bal.idr ? ` — about ${fmtIdr(bal.idr)} ${rateNote(bal)}` : ''}${bal.anyAssumedRate ? '. Some payments carry no rate of their own, so this is approximate.' : ''}`}>
+                        {tf('{amount} to pay', { amount: owed })}
+                        {bal.idr != null && bal.idr > 0 && bal.idrSource && (
+                          <span className="text-[10px] font-normal text-slate-500 ml-1">≈ {fmtIdr(bal.idr)}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className={bal.settled ? 'text-emerald-400' : 'text-slate-500'}>
+                        {bal.settled ? t('Paid') : tf('{pct}% paid', { pct: paidPct.toFixed(0) })}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </button>
 
         {/* Expanded detail */}
@@ -2791,11 +2848,24 @@ export default function DealLookupTab({
     });
     return (
     <div className="overflow-x-auto rounded-xl border border-slate-800/80">
-      <table className="w-full text-xs border-collapse">
+      {/* Fixed column widths (2026-11-14): every vendor group is its own
+          table, and with automatic widths each one put its columns somewhere
+          else — "Date" wandered 190px between groups on one screen. Now the
+          reference column takes what is left and the rest line up. */}
+      <table className="w-full min-w-[760px] table-fixed text-xs border-collapse">
+        <colgroup>
+          <col />
+          {showSupplier && <col className="w-[200px]" />}
+          <col className="w-[92px]" />
+          <col className="w-[104px]" />
+          <col className="w-[140px]" />
+          <col className="w-[170px]" />
+          <col className="w-[170px]" />
+        </colgroup>
         <thead>
           <tr className="border-b border-slate-700/60 bg-slate-900/80">
             {([
-              ['pi', 'PI #', 'text-left'], ['supplier', 'Supplier', 'text-left'], ['date', 'Date', 'text-left'], ['stage', 'Stage', 'text-left'],
+              ['pi', 'Deal', 'text-left'], ['supplier', 'Supplier', 'text-left'], ['date', 'Date', 'text-left'], ['stage', 'Stage', 'text-left'],
               ['total', 'Total', 'text-right'], ['paid', 'Paid', 'text-right'], ['outstanding', 'To transfer', 'text-right'],
             ] as const).filter(([k]) => showSupplier || k !== 'supplier').map(([k, label, align]) => (
               <th key={k} className={`py-2 px-3 whitespace-nowrap ${align}`}>
@@ -2807,7 +2877,7 @@ export default function DealLookupTab({
                       deal owes in its own currency). */}
                   {k === 'total' ? <>{t('Total')} ({moneyUnit()})</>
                     : k === 'paid' ? <>{t('Amount paid')} ({moneyUnit()})</>
-                    : label}
+                    : t(label)}
                   <span className={`text-[8px] ${colSort?.key === k ? 'text-emerald-400' : 'text-transparent'}`}>
                     {colSort?.key === k && colSort.dir === 'desc' ? '▼' : '▲'}
                   </span>
@@ -2822,12 +2892,8 @@ export default function DealLookupTab({
             const expanded = expandedKey === g.key;
             const dealRef = g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`);
             const paidPct = g.totalIdr > 0 ? Math.min(100, (g.paidIdr / g.totalIdr) * 100) : 0;
-            const stageLabel: Record<string, string> = {
-              quote: 'Quote', draft: 'Draft PO', active: 'Active PO', received: 'Received', completed: 'Completed', superseded: 'Void',
-            };
-            const stageTxtCls: Record<string, string> = {
-              quote: 'text-slate-400', draft: 'text-slate-500', active: 'text-indigo-300', received: 'text-emerald-300', completed: 'text-emerald-400', superseded: 'text-slate-600',
-            };
+            const settled = balanceOf(g).settled;
+            const contents = contentsOf(g);
             return (
               <Fragment key={g.key}>
               <tr
@@ -2841,8 +2907,8 @@ export default function DealLookupTab({
                   stage === 'superseded' ? 'opacity-40' : ''
                 }`}
               >
-                <td className="py-2 px-3 font-semibold text-white whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5">
+                <td className="py-2 px-3 font-semibold text-white min-w-0">
+                  <span className="flex items-center gap-1.5 min-w-0 whitespace-nowrap overflow-hidden">
                     {/* The chevron is what says "this row opens" */}
                     <svg className={`w-3 h-3 text-slate-600 flex-shrink-0 transition-transform duration-150 ${expanded ? 'rotate-90 text-slate-300' : ''}`}
                       fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
@@ -2859,6 +2925,12 @@ export default function DealLookupTab({
                       </span>
                     )}
                   </span>
+                  {/* What is in it — the biggest line, then how many more */}
+                  {contents && (
+                    <span className="block pl-[18px] text-[11px] font-normal text-slate-500 truncate" title={contents.all}>
+                      {contents.lead}{contents.more > 0 ? ` ${tf('+{n} more', { n: contents.more })}` : ''}
+                    </span>
+                  )}
                 </td>
                 {showSupplier && (
                 <td className="py-2 px-3 whitespace-nowrap">
@@ -2872,8 +2944,10 @@ export default function DealLookupTab({
                 )}
                 <td className="py-2 px-3 text-slate-400 whitespace-nowrap tabular-nums">{fmtDate(g.latestDate)}</td>
                 <td className="py-2 px-3 whitespace-nowrap">
-                  <span className={`text-[10px] font-bold uppercase tracking-wide ${stageTxtCls[stage]}`}>
-                    {stageLabel[stage]}
+                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none ${STAGE_META[stage].tag}`}
+                    title={[g.quoteStatus && `Quote: ${g.quoteStatus}`, g.poStatus && `PO: ${g.poStatus}`].filter(Boolean).join(' · ')}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${STAGE_META[stage].dot}`} />
+                    {t(STAGE_META[stage].label)}
                   </span>
                 </td>
                 <td className="py-2 px-3 text-right text-slate-300 tabular-nums whitespace-nowrap">
@@ -2884,8 +2958,8 @@ export default function DealLookupTab({
                     {g.totalIdr > 0 && (
                       <div className="w-10 h-1 bg-slate-700 rounded-full overflow-hidden flex-shrink-0">
                         <div
-                          className={`h-full rounded-full ${paidPct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`}
-                          style={{ width: `${paidPct}%` }}
+                          className={`h-full rounded-full ${payBarCls(settled, paidPct)}`}
+                          style={{ width: `${settled ? 100 : paidPct}%` }}
                         />
                       </div>
                     )}
@@ -2921,7 +2995,9 @@ export default function DealLookupTab({
               </tr>
               {expanded && (
                 <tr className="border-b border-slate-800/40 bg-slate-950/50">
-                  <td colSpan={7} className="px-3 py-3">{renderDetail(g)}</td>
+                  {/* Exactly the table's column count: one more and a fixed-layout
+                      table invents an empty column and shrinks the real ones. */}
+                  <td colSpan={showSupplier ? 7 : 6} className="px-3 py-3">{renderDetail(g)}</td>
                 </tr>
               )}
               </Fragment>
@@ -2969,8 +3045,8 @@ export default function DealLookupTab({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search PI, PO, supplier or company…"
-              className={`${BAR_INPUT} flex-1 min-w-[200px] max-w-sm`}
+              placeholder={t('Search PI, PO, supplier or company…')}
+              className={`${BAR_INPUT} flex-1 min-w-[160px] sm:min-w-[200px] max-w-sm`}
             />
             {/* New Deal left the menu (2026-10-23); starting one is a button where the deals are. */}
             <Link href="/purchasing?tab=quoting" className={`${BAR_BTN} ${BAR_BTN_ON_SKY} px-3 font-semibold`}>+ {t('New deal')}</Link>
@@ -2980,10 +3056,10 @@ export default function DealLookupTab({
             <select
               value={selectedSuppId ?? ''}
               onChange={(e) => { setSelectedSuppId(e.target.value || null); setExpandedKey(null); }}
-              className={`${BAR_SELECT} max-w-[190px]`}
+              className={`${BAR_SELECT} grow basis-[calc(50%-0.25rem)] min-w-0 sm:grow-0 sm:basis-auto sm:max-w-[190px]`}
               title="Narrow to one vendor — the stage counts and the totals follow"
             >
-              <option value="">All vendors</option>
+              <option value="">{t('All vendors')}</option>
               {vendorStats.map(({ supplier, dealCount }) => (
                 <option key={String(supplier.supplier_id)} value={String(supplier.supplier_id)}>
                   {supplier.supplier_code ? `${supplier.supplier_code} · ` : ''}{supplier.supplier_name} ({dealCount})
@@ -2993,10 +3069,10 @@ export default function DealLookupTab({
             <select
               value={selectedCompId ?? ''}
               onChange={(e) => { setSelectedCompId(e.target.value || null); setExpandedKey(null); }}
-              className={`${BAR_SELECT} max-w-[190px]`}
+              className={`${BAR_SELECT} grow basis-[calc(50%-0.25rem)] min-w-0 sm:grow-0 sm:basis-auto sm:max-w-[190px]`}
               title="Narrow to the company that bought — the stage counts and the totals follow"
             >
-              <option value="">All companies</option>
+              <option value="">{t('All companies')}</option>
               {companyStats.map(({ company, dealCount }) => (
                 <option key={String(company.company_id)} value={String(company.company_id)}>
                   {company.legal_name} ({dealCount})
@@ -3004,12 +3080,17 @@ export default function DealLookupTab({
               ))}
             </select>
             <DateRangeFilter value={range} onChange={(r) => { rangeTouched.current = true; setRange(r); }} label="Deal date" accent="sky" align="left" />
-            <span className="flex-1" />
-            <LayoutToggle value={layout} onChange={setLayout} accent="sky" />
+            <span className="flex-1 hidden sm:block" />
+            <span className="ml-auto sm:ml-0"><LayoutToggle value={layout} onChange={setLayout} accent="sky" /></span>
           </div>
 
-          {/* ── Row 2: stage chips, then the position ───────────────────────── */}
+          {/* ── Row 2: stage chips, then the position ─────────────────────────
+              Each chip carries its stage's colour — the same dot as the tag on
+              every deal — which is what the old legend row tried to say from
+              a line nobody could click. On a phone the chips are one line that
+              scrolls sideways instead of three wrapped rows. */}
           <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap max-w-full -mx-1 px-1 pb-0.5 sm:pb-0 scrollbar-none">
             {[
               { key: 'active' as const,     label: 'Active',   count: summary.activePOs },
               { key: 'quote' as const,      label: 'Quotes',   count: summary.openQuotes },
@@ -3027,10 +3108,11 @@ export default function DealLookupTab({
               return (
                 <button key={key} type="button" disabled={dead} aria-pressed={on}
                   onClick={() => setStageFilter(key)}
-                  className={`${BAR_BTN} gap-1.5 pl-2.5 pr-2 ${
+                  className={`${BAR_BTN} flex-shrink-0 gap-1.5 pl-2.5 pr-2 ${
                     dead ? 'bg-slate-800/40 border-slate-800 text-slate-600 cursor-default'
                     : on ? BAR_BTN_ON_SKY : BAR_BTN_OFF}`}>
-                  {label}
+                  {key !== 'all' && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dead ? 'opacity-40' : ''} ${STAGE_META[key].dot}`} aria-hidden="true" />}
+                  {t(label)}
                   <span className={`tabular-nums text-xs sm:text-[11px] font-semibold px-1 rounded ${
                     dead ? 'text-slate-700' : on ? 'bg-black/25' : 'text-slate-500'}`}>{count}</span>
                 </button>
@@ -3040,7 +3122,7 @@ export default function DealLookupTab({
               <button type="button" aria-pressed={filterMismatch}
                 onClick={() => setFilterMismatch((v) => !v)}
                 title="Deals whose quote and PO do not agree on what was ordered"
-                className={`${BAR_BTN} gap-1.5 pl-2.5 pr-2 ${
+                className={`${BAR_BTN} flex-shrink-0 gap-1.5 pl-2.5 pr-2 ${
                   filterMismatch ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
                   : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/40'}`}>
                 ⚠ {t('Mismatch')}
@@ -3048,36 +3130,20 @@ export default function DealLookupTab({
                   filterMismatch ? 'bg-black/25' : 'text-slate-500'}`}>{mismatchGroupIds.size}</span>
               </button>
             )}
+            </div>
 
             {/* The three figures from the old By Vendor header. They describe
                 the rows ON SCREEN, so they re-read themselves as you filter —
                 which is what made the separate page unnecessary. Not buttons:
                 nothing to click, so nothing that looks clickable. */}
             {money.ordered > 0 && (
-              <div className={`${BAR_BTN} ml-auto gap-3 px-3 max-w-full overflow-x-auto bg-slate-800/60 border-slate-700/60 cursor-default`}
+              <div className={`${BAR_BTN} w-full sm:w-auto sm:ml-auto gap-3 px-3 max-w-full overflow-x-auto bg-slate-800/60 border-slate-700/60 cursor-default whitespace-nowrap`}
                 title="Across the deals currently shown. Paid is ordered minus outstanding.">
-                <span className="text-slate-500">Ordered <span className="text-slate-200 font-semibold tabular-nums">{fmtIdr(money.ordered)}</span></span>
-                <span className="text-slate-500">Paid <span className="text-emerald-300 font-semibold tabular-nums">{fmtIdr(money.paid)}</span></span>
-                <span className="text-slate-500">Outstanding <span className={`font-semibold tabular-nums ${money.outstanding > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(money.outstanding)}</span></span>
+                <span className="text-slate-500">{t('Ordered')} <span className="text-slate-200 font-semibold tabular-nums">{fmtIdr(money.ordered)}</span></span>
+                <span className="text-slate-500">{t('Paid')} <span className="text-emerald-300 font-semibold tabular-nums">{fmtIdr(money.paid)}</span></span>
+                <span className="text-slate-500">{t('Outstanding')} <span className={`font-semibold tabular-nums ${money.outstanding > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{fmtIdr(money.outstanding)}</span></span>
               </div>
             )}
-          </div>
-
-          {/* ── Colour legend ── */}
-          <div className="flex flex-wrap items-center gap-3 mb-4 text-[11px] text-slate-600">
-            {[
-              { label: 'Quote',     cls: 'bg-white/15' },
-              { label: 'Draft PO',  cls: 'bg-white/8' },
-              { label: 'Active PO', cls: 'bg-blue-500/50' },
-              { label: 'Received',  cls: 'bg-emerald-500/40' },
-              { label: 'Completed', cls: 'bg-emerald-500/70' },
-              { label: 'Void',      cls: 'bg-white/10' },
-            ].map(({ label, cls }) => (
-              <span key={label} className="flex items-center gap-1.5">
-                <span className={`inline-block w-2 h-2 rounded-sm ${cls}`} />
-                {label}
-              </span>
-            ))}
           </div>
 
           {/* Opening on Active is right for the daily job and wrong for a
@@ -3119,7 +3185,6 @@ export default function DealLookupTab({
                 const out = v.deals.reduce((sum, g) => sum + (balanceOf(g).idr || 0), 0);
                 const stages = new Map<string, number>();
                 for (const g of v.deals) stages.set(dealStage(g), (stages.get(dealStage(g)) ?? 0) + 1);
-                const STAGE_WORD: [string, string][] = [['quote', 'Quote'], ['draft', 'Draft PO'], ['active', 'Active PO'], ['received', 'Received'], ['completed', 'Completed'], ['superseded', 'Void']];
                 return (
                   <section key={v.key} className="rounded-xl border border-slate-800/80 bg-slate-900/30">
                     <button type="button" aria-expanded={open}
@@ -3131,8 +3196,13 @@ export default function DealLookupTab({
                       )}
                       <span className="text-[13px] font-bold text-white">{v.key === NO_VENDOR ? t('No vendor') : v.name || '—'}</span>
                       <span className="text-[11px] text-slate-500 tabular-nums">{v.deals.length === 1 ? t('1 deal') : tf('{n} deals', { n: v.deals.length })}</span>
-                      <span className="text-[11px] text-slate-500">
-                        {STAGE_WORD.filter(([k]) => stages.get(k)).map(([k, w]) => `${t(w)} ${stages.get(k)}`).join(' · ')}
+                      <span className="hidden sm:inline-flex items-center gap-2.5 text-[11px] text-slate-500">
+                        {STAGE_KEYS.filter((k) => stages.get(k)).map((k) => (
+                          <span key={k} className="inline-flex items-center gap-1">
+                            <span className={`w-1.5 h-1.5 rounded-full ${STAGE_META[k].dot}`} aria-hidden="true" />
+                            {t(STAGE_META[k].label)} {stages.get(k)}
+                          </span>
+                        ))}
                       </span>
                       <span className="ml-auto flex items-baseline gap-3 text-[11px] text-slate-500 tabular-nums">
                         {ordered > 0 && <span>{t('Ordered')} <span className="text-slate-300 font-semibold">{fmtIdr(ordered)}</span></span>}
