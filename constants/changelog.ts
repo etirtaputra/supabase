@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-14T08:30:00Z",
+    title: "Deal Lookup: uang di kotak Purchase Order kini cukup dua baris",
+    details: [
+      "Baris pertama: nilai PO (dan kurs-nya untuk mata uang asing), lalu di kanan \"To transfer\" — sisa yang harus ditransfer dalam mata uang supplier, atau ✓ Lunas.",
+      "Baris kedua: bilah pembayaran, jumlah yang sudah dibayar dan persentasenya, biaya bank/landed, selisih kurs (FX gain/loss), dan kurs bayar dibanding kurs perusahaan.",
+      "Angka \"Committed\" yang mengulang nilai PO dihapus, dan kotak \"FX variance\" terpisah dilebur ke baris kedua — informasinya tetap sama, hanya tidak diulang.",
+    ],
+  },
+  {
     at: "2026-11-14T06:30:00Z",
     title: "Deal Lookup: isi transaksi yang dibuka kini lebih rapi",
     details: [

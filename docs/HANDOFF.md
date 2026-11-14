@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-14** · last change: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-14** · last change: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,29 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-14 (latest) — Deal Lookup: the opened-deal panel tidied
+### 2026-11-14 (latest) — Deal Lookup: the PO's money in two lines
+
+Owner: *"yes, simplify the money lines too"* (the candidate left below).
+
+The PO card said money in four blocks: the value line (`CNY … @ rate = IDR …`),
+a bar with its own % label, a box with Committed / Paid / Rate paid / To
+transfer — Committed repeating the `= IDR` just above — and, once paid, a
+separate FX variance box repeating the box's "FX gain" tag. Now
+(`components/ui/DealLookupTab.tsx`, renderDetail, "Money, in two lines"):
+
+- **Line 1 — what it costs, what is left:** the total, freight / over-short
+  warnings (unchanged), `@ rate = IDR …` for foreign POs, and on the right
+  **To transfer** from `poBalance` (✓ Settled / overpaid, or the remaining
+  amount in the supplier's currency `≈ IDR … {rateNote}`, ⚠ booked rate).
+- **Line 2 — what is paid:** a short bar (`payBarCls`, green once settled),
+  `Paid IDR … · N%` + fees/landed, **FX gain/loss** `+IDR … · PO rate → paid
+  rate` (was the FX variance box), and Rate paid vs company.
+- Dropped: the Committed figure (the value line says it) and the bar's
+  separate % label. Total Spend's breakdown stays, unchanged, below.
+- Pinned strings in `lib/dealBalance.test.ts` (`To transfer</span>`,
+  `≈ {fmtIdr(`, `rateNote(b)`) still hold.
+
+### 2026-11-14 — Deal Lookup: the opened-deal panel tidied
 
 Owner: *"yes, tidy up the opened-deal panel too"* (the candidate left by the
 redesign below).
@@ -159,9 +181,7 @@ redesign below).
 - **Phone overflow:** the PO card's "To transfer … at the PO rate" line was
   `whitespace-nowrap` and pushed the page to 396px on a 390px screen; it wraps
   under `sm` now (scrollWidth back to 390).
-- Not touched: the PO card's three money lines (value @ rate, % bar,
-  committed/paid/to-transfer) — they carry rate notes and settled/overpaid
-  logic; merging them is a candidate.
+- The PO card's money lines were merged right after — see the entry above.
 
 ### 2026-11-14 — Deal Lookup redesign (cards, compact table, toolbar)
 

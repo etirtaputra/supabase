@@ -1672,136 +1672,147 @@ export default function DealLookupTab({
                         "items …" beside it reading as a footnote rather than a
                         contradiction (owner, 2026-08-24). The arithmetic lives in
                         lib/poTotals.ts now, and a disagreement is amber. */}
-                    {(items.length > 0 || po.total_value) && (() => {
+                    {/* Money, in two lines (2026-11-14). It was three blocks — the
+                        value line, a bar with its percentage, then a box
+                        repeating the committed rupiah — plus a separate FX box
+                        that said what the "FX gain" tag in that box already said.
+                        Line 1: what it costs, and what is left to transfer.
+                        Line 2: what is paid, and what the paying cost on top. */}
+                    {(items.length > 0 || po.total_value || tIdr > 0) && (() => {
                       const itemsSum = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_cost), 0);
                       const docTotal = Number(po.total_value) || itemsSum;
                       const freight = Number((po as any).freight_charges_intl) || 0;
                       const verdict = checkPoTotal({ docTotal, itemsSum, freight });
                       const off = items.length > 0 && totalDisagrees(verdict);
+                      const b = poBalance(po, costs, { liveRates });
+                      const fx = compareToBenchmark(po, costs, fxBenchmarks);
+                      const effRate = (() => {
+                        const fxPaid = princPay.filter((c) => c.currency !== 'IDR' && c.exchange_rate != null);
+                        const tf_ = fxPaid.reduce((s2, c) => s2 + Number(c.amount), 0);
+                        const ti = fxPaid.reduce((s2, c) => s2 + Number(c.amount) * (Number(c.exchange_rate) || 0), 0);
+                        return tf_ > 0 ? ti / tf_ : null;
+                      })();
                       return (
-                      <div className="flex items-center gap-3 text-xs flex-wrap">
-                        <span className={`font-semibold tabular-nums ${off ? 'text-amber-300' : 'text-white'}`}>{fmtCcy(docTotal, po.currency)}</span>
-                        {items.length > 0 && verdict.state === 'freight' && (
-                          <span className="text-slate-600 tabular-nums" title="The document total = line items + freight">
-                            items {fmtCcy(itemsSum, po.currency)} + freight {fmtCcy(freight, po.currency)}
-                          </span>
-                        )}
-                        {off && (
-                          <span className="flex items-center gap-1.5 text-amber-300 tabular-nums font-medium"
-                            title={verdict.state === 'over'
-                              ? 'The PO total is higher than its own line items, and no freight on this PO accounts for the difference. Outstanding, the paid percentage and "We owe" are all computed from this total, so they are wrong until it is corrected.'
-                              : 'The PO total is lower than its line items plus freight, so this PO under-states what we owe the supplier.'}>
-                            <span aria-hidden>⚠</span>
-                            {verdict.state === 'over' ? 'over by' : 'short by'} {fmtCcy(verdict.gap, po.currency)}
-                            <span className="text-amber-300/70 font-normal">
-                              · lines {fmtCcy(itemsSum, po.currency)}{freight > 0 ? ` + freight ${fmtCcy(freight, po.currency)}` : ''}
+                      <div className="space-y-1.5 text-xs">
+                        {/* ── Line 1: cost · left to transfer ── */}
+                        <div className="flex items-baseline gap-x-3 gap-y-1 flex-wrap">
+                          {(items.length > 0 || po.total_value) && (
+                            <span className={`font-semibold tabular-nums ${off ? 'text-amber-300' : 'text-white'}`}>{fmtCcy(docTotal, po.currency)}</span>
+                          )}
+                          {items.length > 0 && verdict.state === 'freight' && (
+                            <span className="text-slate-600 tabular-nums" title="The document total = line items + freight">
+                              items {fmtCcy(itemsSum, po.currency)} + freight {fmtCcy(freight, po.currency)}
                             </span>
-                          </span>
-                        )}
-                        {po.currency !== 'IDR' && po.exchange_rate && (
-                          <span className="text-slate-500 tabular-nums">
-                            @ {Number(po.exchange_rate).toLocaleString()} = {fmtIdr(tIdr)}
-                          </span>
+                          )}
+                          {off && (
+                            <span className="flex items-center gap-1.5 text-amber-300 tabular-nums font-medium"
+                              title={verdict.state === 'over'
+                                ? 'The PO total is higher than its own line items, and no freight on this PO accounts for the difference. Outstanding, the paid percentage and "We owe" are all computed from this total, so they are wrong until it is corrected.'
+                                : 'The PO total is lower than its line items plus freight, so this PO under-states what we owe the supplier.'}>
+                              <span aria-hidden>⚠</span>
+                              {verdict.state === 'over' ? 'over by' : 'short by'} {fmtCcy(verdict.gap, po.currency)}
+                              <span className="text-amber-300/70 font-normal">
+                                · lines {fmtCcy(itemsSum, po.currency)}{freight > 0 ? ` + freight ${fmtCcy(freight, po.currency)}` : ''}
+                              </span>
+                            </span>
+                          )}
+                          {po.currency !== 'IDR' && po.exchange_rate && (
+                            <span className="text-slate-500 tabular-nums">
+                              @ {Number(po.exchange_rate).toLocaleString()} = {fmtIdr(tIdr)}
+                            </span>
+                          )}
+                          {/* THE number this panel exists for: what to type into
+                              the transfer, in the currency the supplier is owed
+                              in. The rupiah beside it is an estimate and names
+                              its rate. */}
+                          {tIdr > 0 && (b.remaining <= 0 ? (
+                            <span className="ml-auto sm:whitespace-nowrap">
+                              <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
+                              <span className="font-bold tabular-nums text-emerald-400">
+                                ✓ Settled
+                                {b.overpaid > 0 && (
+                                  <span className="text-[10px] font-normal text-amber-400 ml-1">
+                                    {fmtMoney(b.overpaid, b.currency)} over
+                                  </span>
+                                )}
+                              </span>
+                            </span>
+                          ) : (
+                            // Wraps on a phone — nowrap here pushed the whole page
+                            // 6px wider than a 390px screen (2026-11-14).
+                            <span className="ml-auto sm:whitespace-nowrap">
+                              <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
+                              <span className="font-bold tabular-nums text-amber-400">{fmtMoney(b.remaining, b.currency)}</span>
+                              {b.idr != null && b.currency !== 'IDR' && b.idrSource && (
+                                <span className="text-[10px] font-normal text-slate-500 tabular-nums ml-1"
+                                  title={`${fmtMoney(b.total, b.currency)} ordered − ${fmtMoney(b.paid, b.currency)} paid${b.derived ? ' (payments recorded in another currency, converted back' + (b.assumedRate ? " at the PO's rate — approximate)" : ' at their own rate)') : ''}`}>
+                                  ≈ {fmtIdr(b.idr)} {rateNote(b)}
+                                </span>
+                              )}
+                              {b.rateSuspect && (
+                                <span className="text-[10px] font-normal text-red-400 ml-1"
+                                  title={`This PO is booked at ${Math.round(Number(po.exchange_rate) || 0).toLocaleString()} per ${b.currency}, which is far from the market rate. The ${b.currency} figure above is unaffected — it does not depend on any rate — but every rupiah total for this PO is suspect until it is corrected.`}>
+                                  ⚠ booked rate looks wrong
+                                </span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* ── Line 2: paid · what paying cost on top ── */}
+                        {tIdr > 0 && (
+                          <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px]">
+                            <span className="w-24 sm:w-40 h-1.5 bg-slate-700 rounded-full overflow-hidden flex-shrink-0">
+                              <span className={`block h-full rounded-full transition-all ${payBarCls(b.remaining <= 0 || isObligationMet, pct)}`}
+                                style={{ width: `${b.remaining <= 0 || isObligationMet ? 100 : pct}%` }} />
+                            </span>
+                            <span className="whitespace-nowrap">
+                              <span className="text-[10px] text-slate-500 mr-1">{t('Paid')}</span>
+                              <span className="font-bold text-emerald-400 tabular-nums">{fmtIdr(paidIdr)}</span>
+                              <span className="text-slate-500 tabular-nums ml-1">
+                                · {b.remaining <= 0 || isObligationMet ? '100' : pct.toFixed(pct > 0 && pct < 1 ? 1 : 0)}%
+                                {hasForeignTracking && <span className="text-[10px] ml-1">({po.currency})</span>}
+                              </span>
+                              {totalCashOutExclTaxIdr > paidIdr && (
+                                <span className="text-[10px] text-slate-600 tabular-nums ml-1">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</span>
+                              )}
+                            </span>
+                            {/* FX gain / loss once the supplier is paid in full:
+                                what the rupiah cost differed from the PO rate. */}
+                            {hasFxVariance && (
+                              <span className={`whitespace-nowrap font-semibold tabular-nums ${fxVariance > 0 ? 'text-red-400' : 'text-emerald-400'}`}
+                                title={`PO rate ${Number(po.exchange_rate).toLocaleString()}; effective paid rate ${effRate != null ? effRate.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}`}>
+                                FX {fxVariance > 0 ? 'loss' : 'gain'} {fxVariance > 0 ? '+' : ''}{fmtIdr(fxVariance)}
+                                <span className="text-[10px] font-normal text-slate-500 ml-1">
+                                  {Number(po.exchange_rate).toLocaleString()} → {effRate != null ? effRate.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—'}
+                                </span>
+                              </span>
+                            )}
+                            {fx && (() => {
+                              const more = fx.diffIdr > 0.5, less = fx.diffIdr < -0.5;
+                              return (
+                                <span className="whitespace-nowrap"
+                                  title={tf('Paid at {paid} per {ccy}; the company rate on {date} was {company}.', {
+                                    paid: fmtInt(Math.round(fx.paid.rate)), ccy: fx.currency, date: fmtDate(fx.poDate), company: fmtInt(fx.benchmarkRate) })}>
+                                  <span className="text-[10px] text-slate-500 mr-1">{t('Rate paid')}</span>
+                                  <span className="font-semibold tabular-nums text-slate-200">{fmtInt(Math.round(fx.paid.rate))}</span>
+                                  <span className="text-[10px] text-slate-500 ml-1">{tf('vs company {rate}', { rate: fmtInt(fx.benchmarkRate) })}</span>
+                                  {(more || less) && (
+                                    <span className={`text-[10px] tabular-nums ml-1 ${more ? 'text-red-400' : 'text-emerald-400'}`}>
+                                      {more ? tf('{amount} more', { amount: fmtIdr(fx.diffIdr) }) : tf('{amount} less', { amount: fmtIdr(-fx.diffIdr) })}
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })()}
+                          </div>
                         )}
                       </div>
                       );
                     })()}
 
-                    {/* Payment progress */}
                     {tIdr > 0 && (
                       <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <div className="flex-1 h-2 bg-slate-700 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : 'bg-amber-400'}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <span className={`text-xs font-bold flex-shrink-0 tabular-nums ${pct >= 100 ? 'text-emerald-400' : 'text-amber-300'}`}>
-                            {pct >= 100 ? '100' : pct.toFixed(1)}%
-                            {hasForeignTracking && <span className="text-[10px] font-normal text-slate-500 ml-1">({po.currency})</span>}
-                          </span>
-                        </div>
-                        {/* Committed · Paid · Outstanding — one dense line
-                            (three bordered boxes were three lines tall). */}
-                        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs bg-white/[0.03] border border-white/10 rounded-lg px-2.5 py-1.5">
-                          <span className="whitespace-nowrap">
-                            <span className="text-[10px] text-slate-500 mr-1">Committed</span>
-                            <span className="font-bold text-white tabular-nums">{fmtIdr(tIdr)}</span>
-                            {isObligationMet && hasForeignTracking && paidIdr !== tIdr && (
-                              <span className={`text-[10px] tabular-nums ml-1 ${paidIdr < tIdr ? 'text-emerald-400' : 'text-red-400'}`}>{paidIdr < tIdr ? 'FX gain' : 'FX loss'}</span>
-                            )}
-                          </span>
-                          <span className="whitespace-nowrap">
-                            <span className="text-[10px] text-slate-500 mr-1">Paid</span>
-                            <span className="font-bold text-emerald-400 tabular-nums">{fmtIdr(paidIdr)}</span>
-                            {totalCashOutExclTaxIdr > paidIdr && (
-                              <span className="text-[10px] text-slate-600 tabular-nums ml-1">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</span>
-                            )}
-                          </span>
-                          {(() => {
-                            const fx = compareToBenchmark(po, costs, fxBenchmarks);
-                            if (!fx) return null;
-                            const more = fx.diffIdr > 0.5, less = fx.diffIdr < -0.5;
-                            return (
-                              <span className="whitespace-nowrap"
-                                title={tf('Paid at {paid} per {ccy}; the company rate on {date} was {company}.', {
-                                  paid: fmtInt(Math.round(fx.paid.rate)), ccy: fx.currency, date: fmtDate(fx.poDate), company: fmtInt(fx.benchmarkRate) })}>
-                                <span className="text-[10px] text-slate-500 mr-1">{t('Rate paid')}</span>
-                                <span className="font-semibold tabular-nums text-slate-200">{fmtInt(Math.round(fx.paid.rate))}</span>
-                                <span className="text-[10px] text-slate-500 ml-1">{tf('vs company {rate}', { rate: fmtInt(fx.benchmarkRate) })}</span>
-                                {(more || less) && (
-                                  <span className={`text-[10px] tabular-nums ml-1 ${more ? 'text-red-400' : 'text-emerald-400'}`}>
-                                    {more ? tf('{amount} more', { amount: fmtIdr(fx.diffIdr) }) : tf('{amount} less', { amount: fmtIdr(-fx.diffIdr) })}
-                                  </span>
-                                )}
-                              </span>
-                            );
-                          })()}
-                          {/* THE number this panel exists for: what to type
-                              into the transfer, in the currency the supplier
-                              is owed in. `outIdr` above is the books figure at
-                              the PO's booked rate — right for the ledger, and
-                              not what the bank will take today. */}
-                          {(() => {
-                            const b = poBalance(po, costs, { liveRates });
-                            if (b.remaining <= 0) {
-                              return (
-                                <span className="whitespace-nowrap ml-auto">
-                                  <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
-                                  <span className="font-bold tabular-nums text-emerald-400">
-                                    ✓ Settled
-                                    {b.overpaid > 0 && (
-                                      <span className="text-[10px] font-normal text-amber-400 ml-1">
-                                        {fmtMoney(b.overpaid, b.currency)} over
-                                      </span>
-                                    )}
-                                  </span>
-                                </span>
-                              );
-                            }
-                            // Wraps on a phone — nowrap here pushed the whole page
-                            // 6px wider than a 390px screen (2026-11-14).
-                            return (
-                              <span className="ml-auto sm:whitespace-nowrap">
-                                <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
-                                <span className="font-bold tabular-nums text-amber-400">{fmtMoney(b.remaining, b.currency)}</span>
-                                {b.idr != null && b.currency !== 'IDR' && b.idrSource && (
-                                  <span className="text-[10px] font-normal text-slate-500 tabular-nums ml-1"
-                                    title={`${fmtMoney(b.total, b.currency)} ordered − ${fmtMoney(b.paid, b.currency)} paid${b.derived ? ' (payments recorded in another currency, converted back' + (b.assumedRate ? " at the PO's rate — approximate)" : ' at their own rate)') : ''}`}>
-                                    ≈ {fmtIdr(b.idr)} {rateNote(b)}
-                                  </span>
-                                )}
-                                {b.rateSuspect && (
-                                  <span className="text-[10px] font-normal text-red-400 ml-1"
-                                    title={`This PO is booked at ${Math.round(Number(po.exchange_rate) || 0).toLocaleString()} per ${b.currency}, which is far from the market rate. The ${b.currency} figure above is unaffected — it does not depend on any rate — but every rupiah total for this PO is suspect until it is corrected.`}>
-                                    ⚠ booked rate looks wrong
-                                  </span>
-                                )}
-                              </span>
-                            );
-                          })()}
-                        </div>
                         {/* Total spend row with cost breakdown */}
                         {totalCashOutIdr > 0 && (() => {
                           const princIdr  = princ.reduce((s, c) => s + toIdrLocal(c), 0);
@@ -1838,36 +1849,6 @@ export default function DealLookupTab({
                             </div>
                           );
                         })()}
-                      </div>
-                    )}
-
-                    {/* FX variance */}
-                    {hasFxVariance && (
-                      <div className={`rounded-lg px-3 py-2 text-xs flex items-center gap-3 flex-wrap ${
-                        fxVariance > 0
-                          ? 'bg-red-500/10 border border-red-500/20'
-                          : 'bg-emerald-500/10 border border-emerald-500/20'
-                      }`}>
-                        <div>
-                          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-0.5">
-                            FX {fxVariance > 0 ? 'Loss' : 'Gain'}
-                          </p>
-                          <p className={`font-bold tabular-nums ${fxVariance > 0 ? 'text-red-300' : 'text-emerald-300'}`}>
-                            {fxVariance > 0 ? '+' : ''}{fmtIdr(fxVariance)}
-                          </p>
-                        </div>
-                        <div className="text-slate-500 text-[11px]">
-                          <p>PO rate: <span className="tabular-nums text-slate-400">{Number(po.exchange_rate).toLocaleString()}</span></p>
-                          <p>Effective paid rate: <span className="tabular-nums text-slate-400">
-                            {(() => {
-                              const fxPaid = princPay.filter((c) => c.currency !== 'IDR' && c.exchange_rate != null);
-                              if (fxPaid.length === 0) return '—';
-                              const totalForeign = fxPaid.reduce((s, c) => s + Number(c.amount), 0);
-                              const totalIdrPaid = fxPaid.reduce((s, c) => s + Number(c.amount) * (Number(c.exchange_rate) || 0), 0);
-                              return totalForeign > 0 ? (totalIdrPaid / totalForeign).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '—';
-                            })()}
-                          </span></p>
-                        </div>
                       </div>
                     )}
 
