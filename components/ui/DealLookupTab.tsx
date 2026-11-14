@@ -2012,8 +2012,12 @@ export default function DealLookupTab({
                       </div>
                     )}
 
-                    {/* Mark as Fully Paid — only show when ≥80% paid (final gap close, not mid-payment) */}
-                    {onMarkFullyPaid && !isVoidPo(po.status) && !isObligationMet && pct >= 80 && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0) && (
+                    {/* Mark as Fully Paid — only show when ≥80% paid (final gap close, not mid-payment).
+                        Hidden once poBalance calls it settled — the same verdict as "✓ Settled"
+                        above. outIdr > 0 alone let a fraction of a rupiah through, so a paid
+                        PO offered to "close IDR 0 gap" (2026-11-14). */}
+                    {onMarkFullyPaid && !isVoidPo(po.status) && !isObligationMet && pct >= 80 && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0)
+                      && !poBalance(po, costs, { liveRates }).settled && (
                       <div className="flex items-center gap-2 pt-1">
                         <button
                           disabled={markingPaid === pKey}

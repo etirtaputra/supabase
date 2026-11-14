@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-14T09:00:00Z",
+    title: "Deal Lookup: tombol \"Mark as fully paid\" tidak muncul lagi di PO yang sudah lunas",
+    details: [
+      "Dulu PO yang sudah ✓ Lunas masih menawarkan \"Mark as fully paid — closes IDR 0 gap\" karena selisih pecahan rupiah. Kini tombol hanya muncul selama masih ada sisa yang benar-benar harus ditutup.",
+    ],
+  },
+  {
     at: "2026-11-14T08:30:00Z",
     title: "Deal Lookup: uang di kotak Purchase Order kini cukup dua baris",
     details: [
