@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-16** · last change: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-16** · last change: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,36 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-16 (latest) — Names that did not say what they meant
+### 2026-11-16 (latest) — Overpayment credit: one rule on every screen
+
+Owner: *"yes, fix the overpayment credit one first"* (finding 1 below).
+
+- **Rule:** `overpayment_credit` is a NEGATIVE principal row (money coming
+  back on the order) and counts, signed, everywhere. Removed the four
+  exclusions — `isPrincipal` (lib/dealBalance), lib/dealGroups, lib/fxBenchmark
+  `paidRate`, DealLookupTab `princPay` — and incomingCost's private copy of
+  the set now imports `PRINCIPAL_CATS`. AP, dashboard, in-transit, poProgress
+  already counted it. The exclusion came in with Deal Lookup (f00cab3b,
+  2026-04-08) with no reason recorded and was copied since; its comment
+  claimed "to match every other payment total", which was false.
+- **Test changed deliberately:** lib/dealBalance.test.ts asserted
+  `isPrincipal(overpayment_credit) === false`; now `true`, plus a case from
+  PIO-013-ISL-10-2025_R1's real rows.
+- **Production has two credit rows.** PIO-013-ISL-10-2025_R1 (USD 10,982.55 @
+  16,582; balance IDR 226,096,782, credit −42,939,758.5 after the PI was
+  reduced): Deal Lookup said "USD 2,652.52 over" and paid rate 20,587 → now
+  USD 62.98 over (rate gap) and 16,677. PIO-016-ISL-09-2026's −672,848 was NOT
+  a supplier credit — it is the unspent part of the Rp 6,000,000 ops kasbon
+  (actual Rp 5,327,152) — and made AP say we owed Rp 672,848. **Re-filed with
+  the owner's yes** (cost_id fe235ddf…, category overpayment_credit →
+  local_delivery, amount/note unchanged). AP now owes 0 on both; PIO-016's
+  ops cost is the real 5,327,152. The update queued PIO-016 for a landed-cost
+  true-up (30.5, pending) by its trigger, as designed.
+- Rule for whoever books these: a supplier giving money back on the order →
+  overpayment_credit (negative). Anything else coming back (a cash advance, a
+  forwarder refund) → a negative row in the category it came from.
+
+### 2026-11-16 — Names that did not say what they meant
 
 Owner: *"Find names that don't say what they mean and rename them."* Three
 read-only sweeps (lib+constants+hooks, components, app) proposed ~45; each was
@@ -201,7 +230,7 @@ Nothing agent-facing was renamed (no /api/agent key, no pack).
   lib/access.test.ts, lib/epcUnsend.test.ts, lib/productDefaults.test.ts.
 
 **Found, NOT changed — each changes a number someone already sees (owner's call):**
-1. `PRINCIPAL_CATS` includes `overpayment_credit`. dealBalance / dealGroups /
+1. **FIXED same day — see the entry above.** `PRINCIPAL_CATS` includes `overpayment_credit`. dealBalance / dealGroups /
    fxBenchmark / Deal Lookup exclude it; position (AP), inTransit, dashboard,
    poProgress, exchangeRates, supplierLeadTimes, incomingCost count it as a
    payment — AP and the deal balance can disagree on the same PO.

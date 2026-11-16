@@ -193,7 +193,7 @@ export function buildDealGroups(
 
       const tIdr       = poTotalIdr(po);
       const costs      = poCosts.filter((c) => String(c.po_id) === String(po.po_id));
-      const princCosts = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category) && c.cost_category !== 'overpayment_credit');
+      const princCosts = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category));
       const paidActual = princCosts.reduce((s, c) => s + costToIdr(c, po), 0);
 
       // Foreign obligation check: if payments are in PO currency, track via foreign units

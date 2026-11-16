@@ -118,11 +118,10 @@ export const NOT_PAYABLE_PO_STATUS = groupSet('purchase_order', 'notAnOrder');
 /**
  * Principal only. Bank fees, duty, VAT and freight are real money, but they are
  * not what this supplier is owed on this order, and a transfer sized to include
- * them would be wrong. `overpayment_credit` is excluded to match every other
- * payment total in the app — one opinion about what "paid" means, not two.
+ * them would be wrong. `overpayment_credit` counts, as the negative row it is —
+ * see PRINCIPAL_CATS (one rule for every screen since 2026-11-16).
  */
-export const isPrincipal = (c: BalanceCost): boolean =>
-  PRINCIPAL_CATS.has(c.cost_category) && c.cost_category !== 'overpayment_credit';
+export const isPrincipal = (c: BalanceCost): boolean => PRINCIPAL_CATS.has(c.cost_category);
 
 const n = (v: unknown): number => {
   const x = Number(v);

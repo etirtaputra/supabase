@@ -1384,7 +1384,7 @@ export default function DealLookupTab({
                 const taxes   = costs.filter((c) => TAX_CATS.has(c.cost_category));
                 const landed  = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category));
                 const poTotalIdr     = Number(po.total_value || 0) * (po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 1));
-                const princPay = princ.filter((c) => c.cost_category !== 'overpayment_credit');
+                const princPay = princ;   // overpayment_credit counts, signed (PRINCIPAL_CATS, 2026-11-16)
                 // Actual IDR paid — uses cost-level rate when available, else PO rate
                 const paidIdr  = princPay.reduce((s, c) => {
                   if (c.currency === 'IDR') return s + Number(c.amount);

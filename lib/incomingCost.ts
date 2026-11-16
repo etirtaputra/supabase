@@ -43,6 +43,7 @@
  */
 import type { FxRate } from './computeTUC.ts';
 import { groupSet } from './lifecycles.ts';
+import { PRINCIPAL_CATS } from '../constants/costCategories.ts';
 
 /** Type-only import above: computeTUC.ts cannot load under `node --test`. A
  *  currency with no known rate converts to 0 and is skipped — never guessed. */
@@ -103,7 +104,6 @@ export function freightTerms(incoterms: string | null | undefined): FreightTerms
 export interface IncPoCost { po_id: string | number; cost_category: string; amount: number | string; currency?: string | null; exchange_rate?: number | string | null }
 
 /** Supplier principal — the money that converts currency. Freight, tax and fees never do. */
-const PRINCIPAL = new Set(['down_payment', 'balance_payment', 'additional_balance_payment', 'overpayment_credit']);
 
 /**
  * Where the rate on a PO came from (owner, 2026-10-27: *"if we do not know the
@@ -131,7 +131,7 @@ export function effectiveRateForPo(po: IncPo, costs: IncPoCost[], fx: Record<str
   const bench = rateOf(fx, cur);
   let paidF = 0, paidIdr = 0;
   for (const c of costs) {
-    if (!PRINCIPAL.has(c.cost_category)) continue;
+    if (!PRINCIPAL_CATS.has(c.cost_category)) continue;
     const amt = n(c.amount);
     const r = n(c.exchange_rate) || typed;
     if (!amt || !(r > 0)) continue;
@@ -238,7 +238,7 @@ export function incomingCosts(
     let principal = 0, addons = 0;
     for (const c of costs) {
       const amt = n(c.amount);
-      if (PRINCIPAL.has(c.cost_category)) {
+      if (PRINCIPAL_CATS.has(c.cost_category)) {
         principal += (c.currency || cur) === 'IDR' ? amt : amt * (n(c.exchange_rate) || typed || rateOf(fx, c.currency || cur));
       } else if (ADDON_CATS.has(c.cost_category)) addons += amt;
     }

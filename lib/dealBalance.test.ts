@@ -85,9 +85,25 @@ test('only the principal counts — a transfer sized to include duty would be wr
   for (const other of ['local_vat', 'local_import_duty', 'telex_bank_fee', 'freight_cost', 'local_delivery', 'penalty_fee']) {
     assert.equal(isPrincipal({ po_id: '1', cost_category: other }), false, `${other} is not money owed to this supplier on this order`);
   }
-  // Excluded to match every other payment total in the app — one opinion about
-  // what "paid" means, not two.
-  assert.equal(isPrincipal({ po_id: '1', cost_category: 'overpayment_credit' }), false);
+  // An overpayment credit is a NEGATIVE principal row and counts, signed — the
+  // same on every screen. Until 2026-11-16 this asserted false, citing "every
+  // other payment total in the app"; half of them counted it (AP, dashboard,
+  // in-transit, poProgress). Changed deliberately, owner's call.
+  assert.equal(isPrincipal({ po_id: '1', cost_category: 'overpayment_credit' }), true);
+});
+
+test('PIO-013-ISL-10-2025_R1 — the credit for a reduced PI comes off what was paid', () => {
+  // Real rows. USD 10,982.55 booked at 16,582. Balance IDR 226,096,782 went out
+  // for the original PI; the PI was then reduced and −42,939,758.5 booked as an
+  // overpayment credit. Skipping the credit showed "USD 2,652.52 over" and a
+  // paid rate of 20,587; counting it leaves the small gap the rate explains.
+  const b = poBalance(
+    po({ po_id: '13', currency: 'USD', total_value: 10_982.55, exchange_rate: 16_582 }),
+    [pay({ po_id: '13', cost_category: 'balance_payment', currency: 'IDR', amount: 226_096_782, exchange_rate: null }),
+     pay({ po_id: '13', cost_category: 'overpayment_credit', currency: 'IDR', amount: -42_939_758.5, exchange_rate: null })],
+  );
+  assert.equal(b.settled, true);
+  assert.ok(b.overpaid < 70, `overpaid ${b.overpaid} — was 2,652.52 with the credit skipped`);
 });
 
 test('a payment with no rate of its own falls back, and says that it did', () => {

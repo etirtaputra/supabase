@@ -125,7 +125,7 @@ export function paidRate(po: FxPo, costs: FxCost[]): PaidRate | null {
   const total = num(po.total_value);
   if (ccy === 'IDR' || total <= 0) return null;
   const mine = costs.filter((c) => String(c.po_id) === String(po.po_id)
-    && PRINCIPAL_CATS.has(c.cost_category) && c.cost_category !== 'overpayment_credit');
+    && PRINCIPAL_CATS.has(c.cost_category));
   if (!mine.length) return null;
 
   let foreign = 0, idr = 0, bare = 0;

@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-16T13:30:00Z",
+    title: "Kredit kelebihan bayar kini dihitung sama di semua layar",
+    details: [
+      "Baris \"Overpayment credit\" (uang yang kembali dari supplier untuk PO itu, nilainya negatif) kini mengurangi jumlah yang sudah dibayar di semua layar. Dulu Deal Lookup dan perbandingan kurs mengabaikannya, sedangkan Hutang (AP) dan Dashboard menghitungnya — jadi angka untuk PO yang sama bisa berbeda.",
+      "PIO-013-ISL-10-2025_R1: dulu tertulis kelebihan bayar USD 2.652,52 dan kurs bayar 20.587; kini USD 62,98 (selisih kurs) dan kurs 16.677.",
+      "PIO-016-ISL-09-2026: Rp 672.848 itu sisa kasbon ops yang dikembalikan, bukan kredit dari supplier — kini dicatat sebagai Local delivery (mengurangi biaya ops), jadi Hutang tidak lagi menulis kita berutang Rp 672.848 pada PO yang sudah lunas.",
+    ],
+  },
+  {
     at: "2026-11-16T05:00:00Z",
     title: "Perbaikan angka: Harga di halaman Item, dan \"sudah dibayar\" di Pembayaran",
     details: [
