@@ -73,7 +73,7 @@ export interface PoBalance {
   /** …and at least one of those conversions had no rate of its own to use. */
   assumedRate: boolean;
   /** The rupiah this would cost today, and the rate that says so. */
-  idr: number | null;
+  remainingIdr: number | null;
   idrRate: number | null;
   idrSource: 'live' | 'po' | null;
   /** The PO's booked rate disagrees with the market by more than 3×. */
@@ -84,7 +84,7 @@ export interface DealBalance {
   /** One line per currency owed — a deal can hold a CNY PO and a USD PO. */
   lines: { currency: string; total: number; paid: number; remaining: number }[];
   /** Every remaining line converted to rupiah, when a rate could be had. */
-  idr: number | null;
+  remainingIdr: number | null;
   idrSource: 'live' | 'po' | 'mixed' | null;
   /** The rate behind `idr` — only when ONE rate was used, so it can be named. */
   idrRate: number | null;
@@ -114,9 +114,6 @@ export interface DealBalance {
  * disagreed with the sections printed directly above them.
  */
 export const NOT_PAYABLE_PO_STATUS = groupSet('purchase_order', 'notAnOrder');
-
-/** @deprecated the old name, kept so nothing silently changes meaning. */
-export const VOID_PO_STATUS = NOT_PAYABLE_PO_STATUS;
 
 /**
  * Principal only. Bank fees, duty, VAT and freight are real money, but they are
@@ -184,11 +181,11 @@ export function poBalance(
 
   const rateSuspect = !!(live && poRate && (poRate / live > RATE_SUSPECT_FACTOR || live / poRate > RATE_SUSPECT_FACTOR));
 
-  let idr: number | null = null;
+  let remainingIdr: number | null = null;
   let idrRate: number | null = null;
   let idrSource: 'live' | 'po' | null = null;
   if (currency === 'IDR') {
-    idr = remaining; idrRate = 1; idrSource = null;
+    remainingIdr = remaining; idrRate = 1; idrSource = null;
   } else if (remaining > 0) {
     // Today's market rate first: the question is what the transfer will COST,
     // and the rate the PO was booked at months ago does not answer it. The
@@ -196,9 +193,9 @@ export function poBalance(
     // a number whose rate is not shown cannot be checked.
     if (live) { idrRate = live; idrSource = 'live'; }
     else if (poRate) { idrRate = poRate; idrSource = 'po'; }
-    idr = idrRate ? remaining * idrRate : null;
+    remainingIdr = idrRate ? remaining * idrRate : null;
   } else {
-    idr = 0;
+    remainingIdr = 0;
   }
 
   return {
@@ -207,7 +204,7 @@ export function poBalance(
     currency, total, paid, remaining, overpaid,
     settled: remaining === 0,
     derived, assumedRate,
-    idr, idrRate, idrSource, rateSuspect,
+    remainingIdr, idrRate, idrSource, rateSuspect,
   };
 }
 
@@ -232,7 +229,7 @@ export function dealBalance(
     if (!line) { line = { currency: b.currency, total: 0, paid: 0, remaining: 0 }; byCcy.set(b.currency, line); }
     line.total += b.total; line.paid += b.paid; line.remaining += b.remaining;
     if (b.overpaid > 0) over.set(b.currency, (over.get(b.currency) ?? 0) + b.overpaid);
-    if (b.idr == null) idrKnown = false; else idr += b.idr;
+    if (b.remainingIdr == null) idrKnown = false; else idr += b.remainingIdr;
     if (b.idrSource) { sources.add(b.idrSource); if (b.idrRate) usedRates.add(b.idrRate); }
   }
 
@@ -242,7 +239,7 @@ export function dealBalance(
 
   return {
     lines,
-    idr: idrKnown ? idr : null,
+    remainingIdr: idrKnown ? idr : null,
     idrSource: sources.size === 0 ? null : sources.size > 1 ? 'mixed' : [...sources][0],
     // Named only when one rate did all the work. Two currencies on one deal
     // have two rates, and printing either as "the" rate would be a lie.

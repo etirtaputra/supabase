@@ -265,7 +265,7 @@ function migrateLegacyChoice(): void {
 }
 
 /** Resolve the stored preference: personal → company default → corporate. */
-export function readStoredTheme(): ThemeName {
+export function migrateAndReadStoredTheme(): ThemeName {
   if (typeof window === 'undefined') return DEFAULT_THEME;
   try {
     migrateLegacyChoice();
@@ -319,7 +319,7 @@ export function toggleTheme(): ThemeName {
 
 /** Sync the module store with whatever the boot script already painted. */
 export function initTheme(): ThemeName {
-  current = readStoredTheme();
+  current = migrateAndReadStoredTheme();
   return current;
 }
 

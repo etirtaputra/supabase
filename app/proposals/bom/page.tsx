@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { selectAll } from '@/lib/fetchAllRows';
-import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { useProposalsGate } from '@/hooks/useProposalsGate';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useT } from '@/hooks/useT';
 import { fmtRp } from '@/lib/formatters';
@@ -23,7 +23,7 @@ import { DeleteCalc } from '@/components/bomCalc/DeleteCalc';
 interface CalcRow { calc_id: string; title: string; doc: BomCalcDoc; updated_at: string; updated_by_email: string | null }
 
 export default function BomCalcListPage() {
-  const { ready, user } = useQuotesGate(false, '/proposals/bom');
+  const { ready, user } = useProposalsGate('/proposals/bom');
   const { t, tf } = useT();
   usePageTitle();
   const router = useRouter();

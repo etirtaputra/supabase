@@ -117,7 +117,7 @@ function AfterSalesPage() {
   const [cases, setCases] = useState<Case[]>([]);
   const [partsByCase, setPartsByCase] = useState<Map<string, Part[]>>(new Map());
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [salesDocs, setSalesDocs] = useState<Order[]>([]);
   const [comps, setComps] = useState<Comp[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -183,7 +183,7 @@ function AfterSalesPage() {
     for (const p of (pRes.data as Part[]) ?? []) by.set(p.case_id, [...(by.get(p.case_id) ?? []), p]);
     setPartsByCase(by);
     setCustomers((custRes.data as Customer[]) ?? []);
-    setOrders((oRes.data as Order[]) ?? []);
+    setSalesDocs((oRes.data as Order[]) ?? []);
     setComps(((compRes.data as Comp[]) ?? []).filter((c) => c.internal_description?.trim()));
     setQuoteItems(((qiRes.error ? [] : qiRes.data as QuoteItem[]) ?? []).filter((l) => !l.is_section && (l.description ?? '').trim()));
     setInvoices((invRes.error ? [] : invRes.data as Inv[]) ?? []);
@@ -195,10 +195,10 @@ function AfterSalesPage() {
   useEffect(() => { if (user && perms?.sellSide) load(); }, [user, perms?.sellSide, load]);
 
   // The documents the register's walk-back needs, in the shapes lib/serials wants
-  const serialOrders = useMemo<SerialSalesDoc[]>(() => orders.map((o) => ({
+  const serialOrders = useMemo<SerialSalesDoc[]>(() => salesDocs.map((o) => ({
     quote_id: o.quote_id, quote_number: o.quote_number, order_number: o.order_number,
     invoice_number: null, do_number: null, customer_id: o.customer_id, status: o.status,
-  })), [orders]);
+  })), [salesDocs]);
   const serialDos = useMemo<SerialDo[]>(() => dos.map((d) => ({
     do_id: d.do_id, do_number: d.do_number, quote_id: d.quote_id,
     delivery_date: d.delivery_date, delivered_at: d.delivered_at, status: d.status,
@@ -252,7 +252,7 @@ function AfterSalesPage() {
   }, [params, canEdit, loading, serials, applySerial]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const custName = useMemo(() => new Map(customers.map((c) => [c.customer_id, c.display_name || c.legal_name])), [customers]);
-  const orderById = useMemo(() => new Map(orders.map((o) => [o.quote_id, o])), [orders]);
+  const orderById = useMemo(() => new Map(salesDocs.map((o) => [o.quote_id, o])), [salesDocs]);
   const compByDesc = useMemo(() => new Map(comps.map((c) => [(c.internal_description ?? '').trim().toLowerCase(), c])), [comps]);
   const compById = useMemo(() => new Map(comps.map((c) => [c.component_id, c])), [comps]);
 
@@ -449,8 +449,8 @@ function AfterSalesPage() {
   }
 
   const customerOrders = useMemo(
-    () => orders.filter((o) => !draft.customer_id || o.customer_id === draft.customer_id),
-    [orders, draft.customer_id]);
+    () => salesDocs.filter((o) => !draft.customer_id || o.customer_id === draft.customer_id),
+    [salesDocs, draft.customer_id]);
   const customerOptions = useMemo(() => customers.map((c) => ({
     customer_id: c.customer_id,
     name: c.display_name || c.legal_name,
@@ -468,8 +468,8 @@ function AfterSalesPage() {
     [quoteItems, draft.quote_id]);
   // Quotes raised FOR this case (repair / replacement offers)
   const caseQuotes = useMemo(
-    () => (editing && editing !== 'new' ? orders.filter((o) => o.case_id === editing.case_id) : []),
-    [orders, editing]);
+    () => (editing && editing !== 'new' ? salesDocs.filter((o) => o.case_id === editing.case_id) : []),
+    [salesDocs, editing]);
 
   if (authLoading || !user) {
     return <div className="min-h-screen bg-chrome flex items-center justify-center"><div className="w-6 h-6 border-2 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin" /></div>;
@@ -614,7 +614,7 @@ function AfterSalesPage() {
                       const so = c.quote_id ? orderById.get(c.quote_id) : null;
                       const invs = c.quote_id ? invoices.filter((i) => i.quote_id === c.quote_id) : [];
                       const qdos = c.quote_id ? dos.filter((d) => d.quote_id === c.quote_id) : [];
-                      const svcQuotes = orders.filter((o) => o.case_id === c.case_id);
+                      const svcQuotes = salesDocs.filter((o) => o.case_id === c.case_id);
                       const wty = warrantyVerdictFor(parts, invs, qdos);
                       const wtyTitle = wty ? `${WTY_BADGE[wty.status].label} — ${wty.headline.run.label}, running from the ${wty.startKind} date` : undefined;
                       const lbl = 'w-20 flex-shrink-0 text-[9px] font-semibold uppercase tracking-widest text-slate-600';

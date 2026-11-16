@@ -300,7 +300,7 @@ export interface ProductLead {
   promise: { measured: number; onTime: number; medianLateDays: number } | null;
   byVia: ViaStats[];
   /** Who it was bought from, most POs first, each with its own PO → received. */
-  suppliers: { supplierId: string; pos: number; poToReceived: StageStats | null }[];
+  suppliers: { supplierId: string; poCount: number; poToReceived: StageStats | null }[];
   lastPoDate: string | null;
   pos: PoTimeline[];
 }
@@ -332,8 +332,8 @@ export function productLeadTimes(timelines: PoTimeline[], lines: LtLine[], today
       poToReceived,
       quoteToReceived: stageStats(done.map((p) => p.stages.quoteToReceived).filter((v): v is number => v != null)),
       promise: promiseOf(done), byVia,
-      suppliers: [...sups].map(([supplierId, ps]) => ({ supplierId, pos: ps.length, poToReceived: poToReceivedOf(ps) }))
-        .sort((a, b) => b.pos - a.pos),
+      suppliers: [...sups].map(([supplierId, ps]) => ({ supplierId, poCount: ps.length, poToReceived: poToReceivedOf(ps) }))
+        .sort((a, b) => b.poCount - a.poCount),
       lastPoDate: pos[0]?.poDate ?? null, pos,
     });
   }

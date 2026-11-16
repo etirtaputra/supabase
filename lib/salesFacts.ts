@@ -160,9 +160,9 @@ export interface LeaderRow {
 export interface Leaderboard {
   rows: LeaderRow[];
   /** How many names had any delivered sale at all — the honest denominator. */
-  ranked: number;
+  nameCount: number;
   /** Total across every name, not only the ones shown. */
-  total: number;
+  positiveTotal: number;
   /** True when any row's profit leans on an estimated cost. */
   anyEstimated: boolean;
   /**
@@ -225,7 +225,7 @@ export function rank(
     .map((r) => ({ ...r, share: total > 0 ? Math.max(0, measure(r)) / total : 0 }));
 
   return {
-    rows, ranked: all.length, total,
+    rows, nameCount: all.length, positiveTotal: total,
     anyEstimated: rows.some((r) => r.estimated),
     profitKnown: facts.every((f) => f.costKnown),
   };

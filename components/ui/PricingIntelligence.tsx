@@ -24,7 +24,8 @@ import type {
   CompetitorPrice,
 } from '@/types/database';
 
-import { PRINCIPAL_CATS, BANK_FEE_CATS, TAX_CATS, BALANCE_CATS } from '@/constants/costCategories';
+import { PRINCIPAL_CATS } from '@/constants/costCategories';
+import { computeTUC } from '@/lib/computeTUC';
 import { fmtDay, fmtIdr, fmtMoneyCell, fmtNum, moneyUnit } from '@/lib/formatters';
 import { computePricing, PRICING_VERDICT_LABEL, type DemandLevel, type PricingVerdict } from '@/lib/pricing';
 import DealLink from './DealLink';
@@ -337,52 +338,34 @@ export default function PricingIntelligence({
   }, [components, competitorPrices]);
 
   // ── TUC calculation ────────────────────────────────────────────────────
-  const { tucIdr, avgTucIdr: piAvgTucIdr, lastPoTucIdr: piLastPoTucIdr, paidPoCount: piPaidPoCount, xrUsd, latestPoDate } = useMemo(() => {
-    if (!selected) return { tucIdr: null, avgTucIdr: null, lastPoTucIdr: null, paidPoCount: 0, xrUsd: null, latestPoDate: null };
-
-    const myItems = poItems.filter((i) => i.component_id === selected.component_id);
-
-    interface AllocRow { tuc: number; qty: number; hasBalance: boolean; po: PurchaseOrder; }
-
-    const allocs = myItems.map((item): AllocRow | null => {
-      const po = pos.find((p) => p.po_id === item.po_id);
-      if (!po) return null;
-      const allPoItems = poItems.filter((i) => i.po_id === item.po_id && i.quantity > 0);
-      const totalForeign = allPoItems.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
-      const lineForeign  = item.unit_cost * item.quantity;
-      const share = totalForeign > 0 ? lineForeign / totalForeign : 0;
-      const costs = poCosts.filter((c) => c.po_id === item.po_id);
-      const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
-      const principal  = costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const bankFees   = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const landed     = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + c.amount, 0);
-      const tuc        = item.quantity > 0 ? (share * (principal + bankFees + landed)) / item.quantity : 0;
-      return { tuc, qty: item.quantity, hasBalance, po };
-    }).filter((a): a is AllocRow => a !== null);
-
-    const paidAllocs = allocs.filter((a) => a.hasBalance && a.tuc > 0);
-    const paidPoCount = new Set(paidAllocs.map((a) => a.po.po_id)).size;
-    if (paidAllocs.length === 0) return { tucIdr: null, avgTucIdr: null, lastPoTucIdr: null, paidPoCount: 0, xrUsd: null, latestPoDate: null };
-
-    // Weighted average across all paid POs
-    const weighted = paidAllocs.reduce((s, a) => s + a.tuc * a.qty, 0);
-    const qty      = paidAllocs.reduce((s, a) => s + a.qty, 0);
-    const avgTuc   = qty > 0 ? weighted / qty : null;
-
-    // Most recent paid PO
-    const sortedByDate = [...paidAllocs].sort((a, b) => b.po.po_date.localeCompare(a.po.po_date));
-    const latestAlloc  = sortedByDate[0];
-    const lastPoTuc    = latestAlloc?.tuc ?? null;
-    const xr           = latestAlloc?.po.exchange_rate ?? null;
-    const latestDate   = latestAlloc?.po.po_date ?? null;
-
-    // Actual TUC = max(last PO TUC, avg TUC)
-    const actualTuc =
-      lastPoTuc != null && avgTuc != null ? Math.max(lastPoTuc, avgTuc) :
-      lastPoTuc ?? avgTuc;
-
-    return { tucIdr: actualTuc, avgTucIdr: avgTuc, lastPoTucIdr: lastPoTuc, paidPoCount, xrUsd: xr, latestPoDate: latestDate };
+  // The shared engine (lib/computeTUC), the same numbers as the Item Editor and
+  // Quotes. Until 2026-11-16 this panel had its own copy that added payment
+  // amounts without converting them, so a USD-paid PO's dollars were summed as
+  // rupiah under the name `tucIdr`. Only POs with a balance payment count.
+  const { tucIdr, avgTucIdr, lastPoTucIdr, paidPoCount } = useMemo(() => {
+    const t = selected ? computeTUC(selected.component_id, pos, poItems, poCosts) : null;
+    return t
+      ? { tucIdr: t.tuc, avgTucIdr: t.avgTuc, lastPoTucIdr: t.latestTuc, paidPoCount: t.poCount }
+      : { tucIdr: null, avgTucIdr: null, lastPoTucIdr: null, paidPoCount: 0 };
   }, [selected, poItems, pos, poCosts]);
+
+  // ── The USD rate the USD tiers and the market's USD prices use ──────────
+  // What the company last actually paid for a dollar: the newest USD payment's
+  // own rate, else the newest USD PO's booked rate. Until 2026-11-16 this was
+  // `xrUsd` = the exchange rate of this item's latest paid PO, whatever its
+  // currency — a CNY PO's ~2,300 made every "USD" figure about 7× too high.
+  const usdRate = useMemo((): { rate: number; date: string; from: string } | null => {
+    const poById = new Map(pos.map((p) => [String(p.po_id), p]));
+    const paid = poCosts
+      .filter((c) => c.currency === 'USD' && Number(c.exchange_rate) > 0 && PRINCIPAL_CATS.has(c.cost_category))
+      .sort((x, y) => String(y.payment_date ?? '').localeCompare(String(x.payment_date ?? '')))[0];
+    if (paid) return { rate: Number(paid.exchange_rate), date: String(paid.payment_date ?? ''), from: `paid on ${poById.get(String(paid.po_id))?.po_number ?? 'a USD PO'}` };
+    const booked = pos
+      .filter((p) => p.currency === 'USD' && Number(p.exchange_rate) > 0)
+      .sort((x, y) => String(y.po_date ?? '').localeCompare(String(x.po_date ?? '')))[0];
+    return booked ? { rate: Number(booked.exchange_rate), date: String(booked.po_date ?? ''), from: `booked on ${booked.po_number}` } : null;
+  }, [pos, poCosts]);
+  const xrUsd = usdRate?.rate ?? null;
 
   // ── Supplier quote history for this component ───────────────────────
   const quoteHistory = useMemo(() => {
@@ -665,15 +648,15 @@ export default function PricingIntelligence({
                 value={tucIdr ? fmtIdr(tucIdr) : 'Incomplete'}
                 sub={
                   tucIdr && xrUsd
-                    ? `≈ USD ${fmtNum(tucIdr / xrUsd)} · Last PO: ${piLastPoTucIdr ? fmtIdr(piLastPoTucIdr) : '—'} · Avg (${piPaidPoCount}): ${piAvgTucIdr ? fmtIdr(piAvgTucIdr) : '—'}`
+                    ? `≈ USD ${fmtNum(tucIdr / xrUsd)} · Last PO: ${lastPoTucIdr ? fmtIdr(lastPoTucIdr) : '—'} · Avg (${paidPoCount}): ${avgTucIdr ? fmtIdr(avgTucIdr) : '—'}`
                     : 'Need balance payment + landed costs'
                 }
                 accent={tucIdr ? 'text-sky-300' : 'text-slate-600'}
               />
               <StatCard
-                label="Exchange Rate Used"
-                value={xrUsd ? `IDR ${xrUsd.toLocaleString()}` : '—'}
-                sub={latestPoDate ? `From PO: ${fmtDate(latestPoDate)}` : 'No paid PO found'}
+                label="USD Rate Used"
+                value={usdRate ? `IDR ${usdRate.rate.toLocaleString()}` : '—'}
+                sub={usdRate ? `${usdRate.from}${usdRate.date ? ` · ${fmtDate(usdRate.date)}` : ''}` : 'No USD purchase found'}
               />
               <StatCard
                 label="Market Average (IDR, weighted)"

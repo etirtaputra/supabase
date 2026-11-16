@@ -129,13 +129,13 @@ test("the rupiah estimate prefers TODAY's rate, and always names the one it used
   const base = po({ po_id: '8', currency: 'CNY', total_value: 115_800, exchange_rate: 2651 });
   const live = poBalance(base, [pay({ po_id: '8', currency: 'CNY', amount: 34_740 })], { liveRates: { CNY: 2300 } });
   assert.equal(live.idrSource, 'live');
-  assert.equal(live.idr, 81_060 * 2300);
+  assert.equal(live.remainingIdr, 81_060 * 2300);
 
   // No live rate today — the booked rate is the fallback, and the label changes
   // with it so nobody reads a months-old rate as this morning's.
   const booked = poBalance(base, [pay({ po_id: '8', currency: 'CNY', amount: 34_740 })], { liveRates: null });
   assert.equal(booked.idrSource, 'po');
-  assert.equal(booked.idr, 81_060 * 2651);
+  assert.equal(booked.remainingIdr, 81_060 * 2651);
 });
 
 test('a booked rate far from the market is flagged, and the foreign figure is not touched by it', () => {
@@ -172,7 +172,7 @@ test('a deal owing two currencies reports both, and never adds them together', (
   // One rupiah figure is fine — it is the cash the week needs — but there is no
   // single rate behind it, so none is named.
   assert.equal(d.idrRate, null);
-  assert.equal(d.idr, 81_060 * 2300 + 30_903 * 16_500);
+  assert.equal(d.remainingIdr, 81_060 * 2300 + 30_903 * 16_500);
 });
 
 test('a superseded or cancelled order is not a bill', () => {

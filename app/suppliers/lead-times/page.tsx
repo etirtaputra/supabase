@@ -375,7 +375,7 @@ function ProductTable({ products, openItem, setOpenItem, compById, supplierById,
                     {p.suppliers.slice(0, 3).map((s) => (
                       <div key={s.supplierId} className="flex max-w-[280px] whitespace-nowrap" title={supplierById.get(s.supplierId)?.supplier_name ?? ''}>
                         <span className="text-slate-200 truncate">{supplierById.get(s.supplierId)?.supplier_name ?? t('Unknown supplier')}</span>
-                        <span className="text-slate-500 tabular-nums">&nbsp;· {s.poToReceived ? dayLabel(t, tf, s.poToReceived.median) : tf('{n} POs', { n: s.pos })}</span>
+                        <span className="text-slate-500 tabular-nums">&nbsp;· {s.poToReceived ? dayLabel(t, tf, s.poToReceived.median) : tf('{n} POs', { n: s.poCount })}</span>
                       </div>
                     ))}
                     {p.suppliers.length > 3 && <div className="text-[10px] text-slate-500">{tf('+{n} more', { n: p.suppliers.length - 3 })}</div>}

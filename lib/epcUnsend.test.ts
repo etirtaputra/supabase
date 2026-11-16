@@ -83,18 +83,20 @@ test('canUnsend is SEPARATE from isOwner — the cost figures stay owner-only', 
 });
 
 test('a sent, won or lost proposal stays content-locked for the engineer', () => {
-  // `locked` is what disables every content input. It must NOT learn about
+  // `readOnlyForMe` (was `locked`, renamed 2026-11-16: an Owner is never
+  // read-only, so the proposal can be locked while this is false) is what
+  // disables every content input. It must NOT learn about
   // canUnsend, or "revert" quietly becomes "edit". Since 2026-11-10 won and
   // lost lock like sent (owner: "lock won and lost proposals like sent ones").
-  assert.match(UI, /const locked = isProposalLocked\(savedStatus\) && !isOwner;/);
-  assert.match(UI, /const unsendOnly = locked && canUnsend;/);
+  assert.match(UI, /const readOnlyForMe = isProposalLocked\(savedStatus\) && !isOwner;/);
+  assert.match(UI, /const unsendOnly = readOnlyForMe && canUnsend;/);
 });
 
 test('the status control offers only the move the engineer actually has', () => {
   // A control that promises sent → accepted and is then refused by the database
   // teaches people the app is unreliable.
   assert.match(UI, /\(unsendOnly && savedStatus \? \[savedStatus, 'draft' as const\] : STATUS_OPTS\)/);
-  assert.match(UI, /disabled=\{locked && !unsendOnly\}/);
+  assert.match(UI, /disabled=\{readOnlyForMe && !unsendOnly\}/);
 });
 
 test('the deliberate un-send is not eaten by the stale-tab guard', () => {

@@ -36,9 +36,6 @@ export interface ChainPrice {
 export const roundUpToStep = (v: number, step = getSettings().priceRoundingStep) =>
   step > 0 ? Math.ceil(v / step) * step : Math.ceil(v);
 
-/** @deprecated use roundUpToStep — kept so older imports keep compiling. */
-export const roundUp1000 = (v: number) => roundUpToStep(v);
-
 /**
  * Compute every tier's price for one item.
  * @param net       the item's net (Tier-1) price — selling_price_idr

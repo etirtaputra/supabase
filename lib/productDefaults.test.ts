@@ -63,7 +63,7 @@ test('Clear is offered whenever the view deviates — including an UNTICKED defa
   // The subtle half: unticking a default WIDENS the list, and without this the
   // link that narrows it again would be hidden at exactly the moment it is
   // wanted.
-  const line = SRC.match(/const hasFilters = .*/)?.[0] ?? '';
+  const line = SRC.match(/const differsFromDefault = .*/)?.[0] ?? '';
   assert.match(line, /!pricedOnly/, 'an unticked Priced counts as a deviation');
   assert.match(line, /!stockOnly/, 'an unticked In stock counts as a deviation');
 });

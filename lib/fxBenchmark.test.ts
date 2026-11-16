@@ -63,6 +63,6 @@ test('the summary adds up per key and per currency, most paid above first', () =
   const b = compareToBenchmark({ ...PIO13, po_id: 'b' }, costs('b', 750000 * 2640), LOG)!;   // −10/unit
   const rows = summarise([a, b], (c) => c.paid.paidOn!.slice(0, 7));
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].pos, 2);
+  assert.equal(rows[0].poCount, 2);
   assert.equal(Math.round(rows[0].diffIdr), 750000 * 40);
 });

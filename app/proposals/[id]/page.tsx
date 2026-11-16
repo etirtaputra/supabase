@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllRows } from '@/lib/fetchAllRows';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { useProposalsGate } from '@/hooks/useProposalsGate';
 import { computeTUCMap, pickCost, fxFromHistory, priceAgeDays, AGED_PRICE_DAYS, type CostEntry } from '@/lib/computeTUC';
 import { useEpcCostBase } from '@/hooks/useEpcCostBase';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
@@ -381,7 +381,7 @@ export default function QuoteEditorPage() {
   const router = useRouter();
   const { t, tf } = useT();
   const supabase = createSupabaseClient();
-  const gate = useQuotesGate();
+  const gate = useProposalsGate();
   const { data: catalog, loading: catalogLoading } = useSupabaseData();
 
   // ── Quote header state ─────────────────────────────────────────────────────
@@ -413,11 +413,11 @@ export default function QuoteEditorPage() {
   const [savedStatus, setSavedStatus] = useState<ProjectQuote['status'] | null>(null);
   // Sent, won and lost are all locked (lib/lifecycles PROPOSAL_LOCKED_STATES;
   // owner, 2026-11-10: "lock won and lost proposals like sent ones").
-  const locked = isProposalLocked(savedStatus) && !isOwner;
+  const readOnlyForMe = isProposalLocked(savedStatus) && !isOwner;
   /** The locked status this tab holds, for the messages (SENT / ACCEPTED / REJECTED). */
   const lockedWord = (PROPOSAL_STATUS[savedStatus ?? '']?.label ?? 'Sent').toUpperCase();
   /** The engineer's one move on a locked proposal: send it back to draft. */
-  const unsendOnly = locked && canUnsend;
+  const unsendOnly = readOnlyForMe && canUnsend;
   /**
    * Did the person actually PICK a status in this tab?
    *
@@ -727,7 +727,7 @@ export default function QuoteEditorPage() {
   // Library entries (10.4) are PrevItems too: entry_id is the entry's id when
   // `lib` is set, otherwise a key for an unlinked past line. aliases/uses/
   // last_used feed lib/libraryMatch's ranking (word-any-order, most used).
-  interface PrevItem {
+  interface DescSuggestion {
     entry_id: string; lib: boolean;
     description: string; brand: string; unit: string;
     component_id: string | null;
@@ -735,7 +735,7 @@ export default function QuoteEditorPage() {
     label: string; date: string; count: number;
     aliases: string[]; status: string | null; uses: number; last_used: string | null;
   }
-  const [prevItems, setPrevItems] = useState<PrevItem[]>([]);
+  const [descSuggestions, setDescSuggestions] = useState<DescSuggestion[]>([]);
   const [freeTextHistory, setFreeTextHistory] = useState<Map<string, CostEntry[]>>(new Map());
 
   // Loads both suggestion sources; re-run after every Save so long-lived
@@ -760,8 +760,8 @@ export default function QuoteEditorPage() {
     ]);
     const qMap = new Map((quotesRes.data ?? []).map((q) => [q.quote_id as string, q]));
     const usage = new Map((usageRes.data ?? []).map((u) => [u.entry_id as string, u]));
-    const byDesc = new Map<string, PrevItem>();
-    const byEntry = new Map<string, PrevItem>();
+    const byDesc = new Map<string, DescSuggestion>();
+    const byEntry = new Map<string, DescSuggestion>();
     const hist = new Map<string, CostEntry[]>();
     // Library entries first: a line linked to one shows up as the entry's
     // CURRENT wording (after a merge or rename), not the old spelling it was
@@ -771,7 +771,7 @@ export default function QuoteEditorPage() {
       if (desc.length < 3) continue;
       const u = usage.get(r.entry_id as string);
       const lastCost = u?.last_cost != null ? Number(u.last_cost) : null;
-      const p: PrevItem = {
+      const p: DescSuggestion = {
         entry_id: r.entry_id as string, lib: true,
         description: desc, brand: String(r.brand ?? ''), unit: String(r.unit ?? ''),
         component_id: null,
@@ -843,7 +843,7 @@ export default function QuoteEditorPage() {
     }
     for (const p of byDesc.values()) if (!p.lib) { p.uses = p.count; p.last_used = p.date || null; }
     for (const arr of hist.values()) arr.sort((a, b) => b.date.localeCompare(a.date));
-    setPrevItems([...byDesc.values()]);
+    setDescSuggestions([...byDesc.values()]);
     setFreeTextHistory(hist);
   }, [id]);
 
@@ -854,7 +854,7 @@ export default function QuoteEditorPage() {
   // Library's History, and only DRAFT proposals are reworded — a sent or
   // accepted proposal keeps the wording the customer saw (owner, 2026-11-04).
   // Until 2026-11-04 this rewrote the text of every proposal ever saved.
-  const [prevEdit, setPrevEdit] = useState<{ key: string; description: string; brand: string; original: PrevItem } | null>(null);
+  const [prevEdit, setPrevEdit] = useState<{ key: string; description: string; brand: string; original: DescSuggestion } | null>(null);
   const [prevEditBusy, setPrevEditBusy] = useState(false);
   const [prevEditError, setPrevEditError] = useState('');
   const prevEditInputRef = useRef<HTMLInputElement | null>(null);
@@ -865,7 +865,7 @@ export default function QuoteEditorPage() {
     if (prevEdit) prevEditInputRef.current?.focus({ preventScroll: true });
   }, [prevEdit?.key]);
 
-  async function renamePrevItem() {
+  async function renameLibraryEntry() {
     if (!prevEdit) return;
     const newDesc = prevEdit.description.trim();
     const newBrand = prevEdit.brand.trim();
@@ -1163,16 +1163,16 @@ export default function QuoteEditorPage() {
 
   // ── Per-item cost drift: stored cost vs today's recommendation ─────────────
   const DRIFT_THRESHOLD = 0.10;
-  const itemDrift = useCallback((item: DraftItem): { rec: number; pct: number } | null => {
+  const itemDrift = useCallback((item: DraftItem): { rec: number; riseFraction: number } | null => {
     if (!item.component_id || item._deleted || item.parent_item_id) return null;
     const stored = num(item.cost_price);
     if (!stored || stored <= 0) return null;
     const cc = costFor(item.component_id);
     if (!cc || !(cc.cost > 0)) return null;
-    const pct = (cc.cost - stored) / stored;
+    const riseFraction = (cc.cost - stored) / stored;
     // Only cost INCREASES are a margin risk worth flagging; a price drop
     // just means the quote is conservative.
-    return pct > DRIFT_THRESHOLD ? { rec: cc.cost, pct } : null;
+    return riseFraction > DRIFT_THRESHOLD ? { rec: cc.cost, riseFraction } : null;
   }, [costFor]);
 
   const driftCount = useMemo(() => {
@@ -1297,7 +1297,7 @@ export default function QuoteEditorPage() {
 
   // ── Filtered autocomplete results: catalog + this quote's rows + past quotes
   const acResults = useMemo(() => {
-    const none = { comps: [] as Component[], prev: [] as PrevItem[], compTotal: 0, near: [] as PrevItem[], mainKind: null as MainKind | null };
+    const none = { comps: [] as Component[], prev: [] as DescSuggestion[], compTotal: 0, near: [] as DescSuggestion[], mainKind: null as MainKind | null };
     if (!acState || acState.query.length < 2) return none;
     // Items whose cost is "Hidden" for Project Quotes are treated as not
     // part of the PV catalog — keep unrelated/sensitive lines (UPS,
@@ -1311,7 +1311,7 @@ export default function QuoteEditorPage() {
     // Rows already in this quote (draft state — works before saving), except
     // the row currently being typed in
     const seen = new Set<string>();
-    const local: PrevItem[] = [];
+    const local: DescSuggestion[] = [];
     for (const s of sections) {
       if (s._deleted) continue;
       for (const it of s.items) {
@@ -1334,7 +1334,7 @@ export default function QuoteEditorPage() {
     // the wording, its brand or a merged spelling; most used first.
     const here = rankLibrary(local, acState.query, 5).shown;
     const hereKeys = new Set(here.map((p) => libNorm(p.description)));
-    const others = prevItems.filter((p) => {
+    const others = descSuggestions.filter((p) => {
       const k = libNorm(p.description);
       return !compNames.has(k) && !hereKeys.has(k) && !seen.has(k);
     });
@@ -1344,13 +1344,13 @@ export default function QuoteEditorPage() {
     // (Food and accomodation / accommodation), and a nudge when it reads like
     // a main component whose price should be tracked in Items.
     const typed = acState.query;
-    const libOnly = prevItems.filter((p) => p.lib);
+    const libOnly = descSuggestions.filter((p) => p.lib);
     const isKnown = exactEntry(libOnly, typed) != null || exactEntry(local, typed) != null;
     const shownIds = new Set(prev.map((p) => p.entry_id));
     const near = isKnown ? [] : nearEntries(libOnly, typed, 0.85, 2).map((x) => x.entry).filter((p) => !shownIds.has(p.entry_id));
     const mainKind = comps.length === 0 ? mainComponentKind(typed) : null;
     return { comps, prev: [...prev, ...near], compTotal, near, mainKind };
-  }, [acState, catalog.components, prevItems, sections, lastQuoted]);
+  }, [acState, catalog.components, descSuggestions, sections, lastQuoted]);
   const acCount = acResults.comps.length + acResults.prev.length;
   const acHint = acResults.mainKind != null;
 
@@ -1631,7 +1631,7 @@ export default function QuoteEditorPage() {
   }
 
   // ── Autocomplete selection ─────────────────────────────────────────────────
-  function selectPrevItem(sid: string, iid: string, p: PrevItem) {
+  function selectDescSuggestion(sid: string, iid: string, p: DescSuggestion) {
     updateItem(sid, iid, {
       component_id: p.component_id ?? null,
       description: p.description,
@@ -1784,7 +1784,7 @@ export default function QuoteEditorPage() {
     // A locked tab still lets the un-send through — it is the one change an
     // engineer may make here, and the content inputs are disabled so nothing
     // else can have moved. Everything else on a SENT proposal still stops.
-    if (locked && !(unsendOnly && statusTouchedRef.current && quoteRef.current?.status === 'draft')) {
+    if (readOnlyForMe && !(unsendOnly && statusTouchedRef.current && quoteRef.current?.status === 'draft')) {
       setSaveMsg(canUnsend
         ? `Locked: a ${lockedWord} proposal can only be moved back to draft — edit it once it is a draft again`
         : `Locked: ${lockedWord} proposals can only be edited by an Owner`);
@@ -2047,7 +2047,7 @@ export default function QuoteEditorPage() {
 
   function undo() {
     const h = history.current;
-    if (!h.past.length || locked) return;
+    if (!h.past.length || readOnlyForMe) return;
     h.future.push(h.present);
     const prev = h.past.pop()!;
     h.applying = true;
@@ -2057,7 +2057,7 @@ export default function QuoteEditorPage() {
   }
   function redo() {
     const h = history.current;
-    if (!h.future.length || locked) return;
+    if (!h.future.length || readOnlyForMe) return;
     h.past.push(h.present);
     const next = h.future.pop()!;
     h.applying = true;
@@ -2271,7 +2271,7 @@ export default function QuoteEditorPage() {
                * leaves regardless — no dialog can trap anyone here again.
                */
               onClick={(e) => {
-                if (!dirty || saving || locked || leaveAnywayRef.current) return;
+                if (!dirty || saving || readOnlyForMe || leaveAnywayRef.current) return;
                 e.preventDefault();
                 void save().then((okSave) => {
                   if (okSave) { router.push('/proposals'); return; }
@@ -2309,10 +2309,10 @@ export default function QuoteEditorPage() {
                the permission — and the list it offers narrows to the one move
                they have, so the control cannot promise sent → accepted and
                then be refused by the database. */
-            disabled={locked && !unsendOnly}
+            disabled={readOnlyForMe && !unsendOnly}
             title={
               unsendOnly ? `${lockedWord} — you can move this back to draft; editing it needs it to be a draft first`
-              : locked ? `${lockedWord} — only an Owner can change the status`
+              : readOnlyForMe ? `${lockedWord} — only an Owner can change the status`
               : undefined}
             onChange={(e) => { statusTouchedRef.current = true; setQuoteField('status', e.target.value as ProjectQuote['status']); }}
             /* appearance-none: the native stepper made this pill wide enough
@@ -2325,10 +2325,10 @@ export default function QuoteEditorPage() {
           </select>
 
           {/* Save — the one thing that must never sit behind a scroll. */}
-          <button onClick={save} disabled={saving || !dirty || (locked && !unsendOnly)}
+          <button onClick={save} disabled={saving || !dirty || (readOnlyForMe && !unsendOnly)}
             title={
               unsendOnly ? 'Save the revert to draft'
-              : locked ? `${lockedWord} proposals can only be edited by an Owner`
+              : readOnlyForMe ? `${lockedWord} proposals can only be edited by an Owner`
               : 'Ctrl+S / Cmd+S'}
             className="order-3 lg:order-5 flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[11px] font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-all disabled:opacity-40">
             {saving ? t('Saving…') : t('Save')}
@@ -2353,7 +2353,7 @@ export default function QuoteEditorPage() {
               </span>
             )}
             {dirty && !saving && <span className="text-[11px] text-amber-400">Unsaved</span>}
-            {!locked && (
+            {!readOnlyForMe && (
               <div className="flex items-center gap-0.5">
                 <button onClick={undo} disabled={history.current.past.length === 0}
                   title="Undo (Ctrl/Cmd+Z)"
@@ -2397,7 +2397,7 @@ export default function QuoteEditorPage() {
                 </>
               )}
             </div>
-            <button onClick={openCostPreview} disabled={catalogLoading || locked}
+            <button onClick={openCostPreview} disabled={catalogLoading || readOnlyForMe}
               title="Preview which catalog-linked items' costs changed (old → new with delta), pick which to update — sell prices stay as quoted"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-white hover:bg-white/10 border border-white/[0.06] transition-all disabled:opacity-40">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
@@ -2423,7 +2423,7 @@ export default function QuoteEditorPage() {
         <MobileNotice variant="edit" />
         <MigrationBanner />
 
-        {locked && (
+        {readOnlyForMe && (
           <div className="bg-amber-500/10 border border-amber-500/40 rounded-2xl px-4 py-3 text-sm text-amber-300">
             🔒 This quote is <span className="font-bold">{lockedWord}</span> and read-only for your role.
             Ask an Owner to make changes, or duplicate it from the quotes list to start a new revision.
@@ -2472,7 +2472,7 @@ export default function QuoteEditorPage() {
         <QuoteNoteThread quoteId={id} authorEmail={gate.profile?.email ?? null} />
 
         {/* ── Header form ── */}
-        <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4 ${locked ? 'pointer-events-none opacity-70' : ''}`}>
+        <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4 ${readOnlyForMe ? 'pointer-events-none opacity-70' : ''}`}>
           <div>
             <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">From (Company)</label>
             <select
@@ -2668,11 +2668,11 @@ export default function QuoteEditorPage() {
         <WaitingStrip lines={waiting} onGo={(itemId) => {
           goToLine(itemId);
           // On a SENT proposal the lines cannot be clicked; open the flag here instead.
-          if (locked) { const w = waiting.find((x) => x.itemId === itemId); setFlagFor({ itemId, description: w?.description ?? '' }); }
+          if (readOnlyForMe) { const w = waiting.find((x) => x.itemId === itemId); setFlagFor({ itemId, description: w?.description ?? '' }); }
         }} />
 
         {/* ── Groups & sub-sections ── */}
-        <div className={`space-y-8 ${locked ? 'pointer-events-none opacity-70' : ''}`} ref={acRef}>
+        <div className={`space-y-8 ${readOnlyForMe ? 'pointer-events-none opacity-70' : ''}`} ref={acRef}>
           {SECTION_GROUPS.map((group) => {
             const groupSections = liveSections.filter((s) => s.group_key === group.key);
             const groupTotal = groupSections.reduce((gs, s) =>
@@ -2925,7 +2925,7 @@ export default function QuoteEditorPage() {
                                           selectComponent(sec.section_id, item.item_id, acResults.comps[acIndex]);
                                         } else {
                                           const p = acResults.prev[acIndex - acResults.comps.length];
-                                          if (p) selectPrevItem(sec.section_id, item.item_id, p);
+                                          if (p) selectDescSuggestion(sec.section_id, item.item_id, p);
                                         }
                                       }
                                       return;
@@ -3024,7 +3024,7 @@ export default function QuoteEditorPage() {
                                             <input
                                               value={prevEdit.description}
                                               onChange={(e) => setPrevEdit({ ...prevEdit, description: e.target.value })}
-                                              onKeyDown={(e) => { if (e.key === 'Enter') renamePrevItem(); if (e.key === 'Escape') setPrevEdit(null); }}
+                                              onKeyDown={(e) => { if (e.key === 'Enter') renameLibraryEntry(); if (e.key === 'Escape') setPrevEdit(null); }}
                                               ref={prevEditInputRef}
                                               className="w-full bg-slate-900 border border-slate-600 focus:border-violet-500 rounded-lg px-2 py-1 text-xs text-white outline-none transition-colors"
                                             />
@@ -3032,11 +3032,11 @@ export default function QuoteEditorPage() {
                                               <input
                                                 value={prevEdit.brand}
                                                 onChange={(e) => setPrevEdit({ ...prevEdit, brand: e.target.value })}
-                                                onKeyDown={(e) => { if (e.key === 'Enter') renamePrevItem(); if (e.key === 'Escape') setPrevEdit(null); }}
+                                                onKeyDown={(e) => { if (e.key === 'Enter') renameLibraryEntry(); if (e.key === 'Escape') setPrevEdit(null); }}
                                                 placeholder="Brand" list="epc-brands"
                                                 className="flex-1 min-w-0 bg-slate-900 border border-slate-600 focus:border-violet-500 rounded-lg px-2 py-1 text-xs text-slate-200 outline-none transition-colors"
                                               />
-                                              <button onClick={renamePrevItem} disabled={prevEditBusy}
+                                              <button onClick={renameLibraryEntry} disabled={prevEditBusy}
                                                 className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[10px] font-semibold transition-colors disabled:opacity-50">
                                                 {prevEditBusy ? t('Renaming…') : t('Rename')}
                                               </button>
@@ -3059,7 +3059,7 @@ export default function QuoteEditorPage() {
                                         <div className="relative group/prev">
                                           <button
                                             data-ac-idx={acResults.comps.length + pi}
-                                            onMouseDown={(e) => { e.preventDefault(); selectPrevItem(sec.section_id, item.item_id, p); }}
+                                            onMouseDown={(e) => { e.preventDefault(); selectDescSuggestion(sec.section_id, item.item_id, p); }}
                                             onMouseEnter={() => setAcIndex(acResults.comps.length + pi)}
                                             className={`w-full text-left px-4 py-2.5 pr-11 transition-colors flex items-center justify-between gap-3 ${acIndex === acResults.comps.length + pi ? 'bg-slate-800' : ''}`}
                                           >
@@ -3181,7 +3181,7 @@ export default function QuoteEditorPage() {
                                     if (Object.keys(patch).length) updateItem(sec.section_id, item.item_id, patch);
                                   }}
                                   placeholder="0 or =800000+180000"
-                                  title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.pct > 0 ? '+' : ''}${(drift.pct * 100).toFixed(1)}%). The Costs button refreshes all items; sell prices stay as quoted.` : 'Type a number, or =800000+180000 to calculate'}
+                                  title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.riseFraction > 0 ? '+' : ''}${(drift.riseFraction * 100).toFixed(1)}%). The Costs button refreshes all items; sell prices stay as quoted.` : 'Type a number, or =800000+180000 to calculate'}
                                   className={`w-full bg-transparent outline-none text-right placeholder:text-slate-700 border-b transition-colors focus:border-violet-500 ${drift ? 'text-amber-300 border-amber-500/70 hover:border-amber-400' : 'text-slate-400 border-slate-800 hover:border-slate-600'} ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
                                 )}
                                 {drift && (
@@ -3235,7 +3235,7 @@ export default function QuoteEditorPage() {
                                           {isOwner && h.buffered && h.rawUnitCost != null && (
                                             <button
                                               onClick={() => {
-                                                if (locked) return;
+                                                if (readOnlyForMe) return;
                                                 updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(Math.round(h.rawUnitCost!)) });
                                               }}
                                               title={`Raw ${h.kind === 'quote' ? 'supplier quote' : 'TUC'} before buffer — click to use it as the cost (sell price unchanged)`}
@@ -3246,7 +3246,7 @@ export default function QuoteEditorPage() {
                                           )}
                                           <button
                                             onClick={() => {
-                                              if (locked) return;
+                                              if (readOnlyForMe) return;
                                               updateItem(costHover.sectionId, costHover.itemId, { cost_price: String(Math.round(h.unitCost)) });
                                             }}
                                             title="Click to use this cost for the row (sell price unchanged)"
@@ -3552,12 +3552,12 @@ export default function QuoteEditorPage() {
             capexIdr={subtotal}
             dcKwp={totalWp > 0 ? totalWp / 1000 : (quote.system_specs?.kwp_dc ?? 0)}
             hybrid={quote.project_type === 'hybrid_bess'}
-            locked={locked}
+            locked={readOnlyForMe}
           />
         )}
 
         {/* ── Terms & Conditions ── */}
-        <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 ${locked ? 'pointer-events-none opacity-70' : ''}`}>
+        <div className={`bg-slate-900/50 border border-slate-800 rounded-2xl p-5 ${readOnlyForMe ? 'pointer-events-none opacity-70' : ''}`}>
           <div className="flex items-center justify-between mb-2">
             <label className="block text-[10px] uppercase tracking-widest text-slate-500">
               Terms &amp; Conditions

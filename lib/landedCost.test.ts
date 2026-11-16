@@ -14,7 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  computeLandedVariances, landedFactorOf, poolIdrOf, isSettled, revaluationRows,
+  computeLandedVariances, landedFactorOf, poolIdrOf, hasBalancePayment, revaluationRows,
   MATERIAL_IDR, DUST_IDR, REVALUE_DIRECTION, REVALUE_SOURCE_TYPE,
   type LcPo, type LcLine, type LcCost, type LcMovement, type LcBalance,
 } from './landedCost.ts';
@@ -76,9 +76,9 @@ test('freight billed separately reaches the unit cost', () => {
 });
 
 test('settled means a balance payment exists — a down payment alone is not final', () => {
-  assert.equal(isSettled([cost({ cost_category: 'down_payment' })]), false);
-  assert.equal(isSettled([cost({ cost_category: 'down_payment' }), cost({ cost_category: 'balance_payment' })]), true);
-  assert.equal(isSettled([cost({ cost_category: 'additional_balance_payment' })]), true);
+  assert.equal(hasBalancePayment([cost({ cost_category: 'down_payment' })]), false);
+  assert.equal(hasBalancePayment([cost({ cost_category: 'down_payment' }), cost({ cost_category: 'balance_payment' })]), true);
+  assert.equal(hasBalancePayment([cost({ cost_category: 'additional_balance_payment' })]), true);
 });
 
 test('freight recorded after the receipt becomes the correction, split on-hand vs sold', () => {

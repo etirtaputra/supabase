@@ -298,7 +298,7 @@ export default function FxBenchmarkSettings({ flash }: { flash: (m: string) => v
               {summary.map((r) => (
                 <div key={`${r.key}·${r.currency}`} className="flex flex-wrap items-baseline gap-x-4 gap-y-0.5 px-4 sm:px-5 py-2.5 text-[12.5px]">
                   <span className="font-semibold text-slate-200 min-w-[10rem]">{keyLabel(r.key)}</span>
-                  <span className="text-slate-500">{r.currency} · {r.pos === 1 ? t('one PO') : tf('{n} POs', { n: r.pos })}</span>
+                  <span className="text-slate-500">{r.currency} · {r.poCount === 1 ? t('one PO') : tf('{n} POs', { n: r.poCount })}</span>
                   <span className="text-slate-400 tabular-nums">
                     {tf('paid at {paid} against {company}', { paid: fmtInt(Math.round(r.idr / r.foreign)), company: fmtInt(Math.round(r.benchmarkIdr / r.foreign)) })}
                   </span>

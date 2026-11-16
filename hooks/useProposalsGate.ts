@@ -17,13 +17,14 @@ import { canOpenPath } from '@/constants/navigation';
  * in — or offered to someone it throws out. `path` is the screen being guarded
  * (the list, its library, its directory); each carries its own entry there.
  *
- * viewOnly (print page): same check — the print renders the whole proposal, so
- * a role without EPC access must not reach it either. RLS on 10.x mirrors this
- * at the data layer.
+ * The print page uses the same check — it renders the whole proposal, so a
+ * role without EPC access must not reach it either. RLS on 10.x mirrors this
+ * at the data layer. (Until 2026-11-16 this was `useProposalsGate(viewOnly, path)`;
+ * "quotes" was the proposals' old name and `viewOnly` was never read.)
  *
  * Render nothing sensitive until `ready` is true.
  */
-export function useQuotesGate(viewOnly = false, path = '/proposals') {
+export function useProposalsGate(path = '/proposals') {
   const router = useRouter();
   const { user, profile, loading, signOut } = useAuth();
 
@@ -38,7 +39,7 @@ export function useQuotesGate(viewOnly = false, path = '/proposals') {
     if (profile && !canOpenPath(ROLE_PERMISSIONS[profile.role], path)) {
       router.replace('/unauthorized');
     }
-  }, [loading, user, profile, viewOnly, path]);
+  }, [loading, user, profile, path]);
 
   return { ready: !loading && allowed, loading, user, profile, signOut };
 }

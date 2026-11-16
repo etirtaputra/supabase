@@ -85,7 +85,7 @@ function MasterInsertPage() {
   usePageTitle(null, [activeTab, searchParams]);
 
   const [showSupplierForm, setShowSupplierForm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
   const [singlePoId, setSinglePoId] = useState('');
@@ -288,7 +288,7 @@ function MasterInsertPage() {
   // FKs cascade (5.1/6.0/9.0 for a PO, 4.1 for a quote), so we only delete the
   // header — but replaces_* is a self-ref CASCADE, so inbound links are severed
   // first or deleting an original would drag its successor down with it.
-  const poDeletableLive = async (poId: string): Promise<string | null> => {
+  const poDeleteBlocker = async (poId: string): Promise<string | null> => {
     const po = data.pos.find((p) => String(p.po_id) === String(poId));
     if (po && inGroup('purchase_order', 'received', po.status))
       return `${po.po_number || 'This PO'} has received goods — cancel it instead of deleting.`;
@@ -303,7 +303,7 @@ function MasterInsertPage() {
     return true;
   };
   const handleDeletePo = async (poId: string) => {
-    const blocked = await poDeletableLive(poId);
+    const blocked = await poDeleteBlocker(poId);
     if (blocked) { showToast(blocked, 'error'); return; }
     const po = data.pos.find((p) => String(p.po_id) === String(poId));
     if (await deletePoRow(poId)) { showToast(`PO ${po?.po_number || ''} deleted.`.trim(), 'success'); refetch(); }
@@ -311,7 +311,7 @@ function MasterInsertPage() {
   const handleDeleteDeal = async (quoteIds: string[], poIds: string[]) => {
     // Re-verify every PO before destroying anything — one blocker stops it all
     for (const poId of poIds) {
-      const blocked = await poDeletableLive(poId);
+      const blocked = await poDeleteBlocker(poId);
       if (blocked) { showToast(blocked.replace('cancel it instead of deleting', 'cancel the deal instead'), 'error'); return; }
     }
     for (const poId of poIds) { if (!(await deletePoRow(poId))) return; }
@@ -457,7 +457,7 @@ function MasterInsertPage() {
   }, [pdfData, data.suppliers, data.companies]);
 
   const handleInsert = async (table: string, insertData: any): Promise<any[] | null> => {
-    setLoading(true);
+    setSaving(true);
     const payload = Array.isArray(insertData) ? insertData : [insertData];
     const cleanPayload = payload.map((item) =>
       Object.fromEntries(
@@ -471,7 +471,7 @@ function MasterInsertPage() {
       )
     );
     const { data: insertedRows, error } = await supabase.from(table).insert(cleanPayload).select();
-    setLoading(false);
+    setSaving(false);
     if (error) {
       showToast(`Error: ${error.message}`, 'error');
       return null;
@@ -816,16 +816,16 @@ function MasterInsertPage() {
         // the total goes on last, for the reason above (every delete and insert
         // below moves total_value through the trigger, so a total written first
         // would be shuffled by them).
-        setLoading(true);
+        setSaving(true);
         await supabase.from('5.1_purchase_line_items').delete().eq('po_id', src.po_id);
         if (poLineRows.length) {
           const { error: liErr } = await supabase.from('5.1_purchase_line_items')
             .insert(poLineRows.map((r) => ({ ...r, po_id: src.po_id })));
-          if (liErr) { setLoading(false); showToast(`Error: ${liErr.message}`, 'error'); return false; }
+          if (liErr) { setSaving(false); showToast(`Error: ${liErr.message}`, 'error'); return false; }
         }
         const { error: upErr } = await supabase.from('5.0_purchases').update(header).eq('po_id', src.po_id);
-        if (upErr) { setLoading(false); showToast(`Error: ${upErr.message}`, 'error'); return false; }
-        setLoading(false);
+        if (upErr) { setSaving(false); showToast(`Error: ${upErr.message}`, 'error'); return false; }
+        setSaving(false);
         refetch();
         setStoredPoSel(''); setPendingStoredPo(''); setPoNumberChanged(false);
         setLastSaved({ message: `${src.po_number} amended — ${poLineRows.length} item${poLineRows.length !== 1 ? 's' : ''} now on the PO.`, cta: 'Open in Deal Lookup →', nextTab: 'lookup', poId: String(src.po_id) });
@@ -979,14 +979,14 @@ function MasterInsertPage() {
     });
   }, [pdfData, data.components]);
 
-  const handleUpdateQuoteItem = async (quoteLineId: number, componentId: string) => {
+  const handleRelinkQuoteLine = async (quoteLineId: number, componentId: string) => {
     const { error } = await supabase.from('4.1_price_quote_line_items').update({ component_id: componentId }).eq('quote_line_id', quoteLineId);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
     showToast('Component re-assigned on quote line.', 'success');
     refetch();
   };
 
-  const handleUpdatePoItem = async (poItemId: number, componentId: string) => {
+  const handleRelinkPoLine = async (poItemId: number, componentId: string) => {
     const { error } = await supabase.from('5.1_purchase_line_items').update({ component_id: componentId }).eq('po_line_item_id', poItemId);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
     showToast('Component re-assigned on PO line.', 'success');
@@ -1050,7 +1050,7 @@ function MasterInsertPage() {
   const handleReorderPoLineItems = (_poId: string, orderedIds: string[]) =>
     writeSortOrder('5.1_purchase_line_items', 'po_line_item_id', orderedIds);
 
-  const handleDeleteQuoteLineItem = async (quoteLineId: number) => {
+  const handleDeleteQuoteLine = async (quoteLineId: number) => {
     const { error } = await supabase.from('4.1_price_quote_line_items').delete().eq('quote_line_id', quoteLineId);
     if (error) { showToast(`Error: ${error.message}`, 'error'); throw error; }
     showToast('Quote line deleted.', 'success');
@@ -1064,7 +1064,7 @@ function MasterInsertPage() {
     refetch();
   };
 
-  const handleSaveLineItem = async (item: Record<string, any>) => {
+  const handleSaveQuoteLine = async (item: Record<string, any>) => {
     const { quote_line_id, ...fields } = item;
     if (quote_line_id) {
       const { error } = await supabase.from('4.1_price_quote_line_items').update(fields).eq('quote_line_id', quote_line_id);
@@ -1075,13 +1075,6 @@ function MasterInsertPage() {
       if (error) { showToast(`Error adding line item: ${error.message}`, 'error'); throw error; }
       showToast('Line item added.', 'success');
     }
-    refetch();
-  };
-
-  const handleDeleteLineItem = async (quote_line_id: number) => {
-    const { error } = await supabase.from('4.1_price_quote_line_items').delete().eq('quote_line_id', quote_line_id);
-    if (error) { showToast(`Error deleting line item: ${error.message}`, 'error'); throw error; }
-    showToast('Line item deleted.', 'success');
     refetch();
   };
 
@@ -1309,7 +1302,7 @@ function MasterInsertPage() {
                           { name: 'supplier_bank_details', label: 'Bank Details', type: 'textarea' },
                         ]}
                         onSubmit={async (d) => { await handleInsert('2.0_suppliers', d); setShowSupplierForm(false); }}
-                        loading={loading}
+                        loading={saving}
                       />
                       <button
                         onClick={() => setShowSupplierForm(false)}
@@ -1344,8 +1337,8 @@ function MasterInsertPage() {
                     onAdd={async (fields) => { const rows = await handleInsert('3.0_components', [fields]); return (rows?.[0] as { component_id?: string } | undefined)?.component_id; }}
                     onAddSupplier={() => setShowSupplierForm(true)}
                     onDelete={handleComponentDelete}
-                    onSaveLineItem={handleSaveLineItem}
-                    onDeleteLineItem={handleDeleteLineItem}
+                    onSaveQuoteLine={handleSaveQuoteLine}
+                    onDeleteQuoteLine={handleDeleteQuoteLine}
                   />
                 </div>
               )}
@@ -1572,7 +1565,7 @@ function MasterInsertPage() {
                         ] : []),
                       ]}
                       onSubmit={submitDeal}
-                      loading={loading}
+                      loading={saving}
                       projects={reasonProjects}
                       salesOrders={reasonOrders}
                       supplierCodes={supplierCodes}
@@ -1623,7 +1616,10 @@ function MasterInsertPage() {
                     const selPo = singlePoId ? data.pos.find((p) => String(p.po_id) === singlePoId) : null;
                     const selCosts = singlePoId ? data.poCosts.filter((c) => String(c.po_id) === singlePoId) : [];
                     const totalIdr = selPo ? (selPo.currency === 'IDR' ? Number(selPo.total_value) : Number(selPo.total_value) * (Number(selPo.exchange_rate) || 1)) : 0;
-                    const paidIdr  = selCosts.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(selPo?.exchange_rate) || 1)), 0);
+                    // Each payment at its OWN rate, else the PO's — the same as the PO picker
+                    // and the recent-payments list (until 2026-11-16 this used the PO's
+                    // booked rate for every payment, so the two could disagree).
+                    const paidIdr  = selCosts.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + (c.currency === 'IDR' ? Number(c.amount) : Number(c.amount) * (Number(c.exchange_rate) || Number(selPo?.exchange_rate) || 1)), 0);
                     const outIdr   = Math.max(0, totalIdr - paidIdr);
                     const pct      = totalIdr > 0 ? Math.min(100, (paidIdr / totalIdr) * 100) : 0;
                     return (<>
@@ -1661,7 +1657,7 @@ function MasterInsertPage() {
                       ]}
                       stickyFields={['currency', 'payment_date']}
                       onSubmit={(items) => handleInsert('6.0_po_costs', items)}
-                      loading={loading}
+                      loading={saving}
                     />
                     {selPo && totalIdr > 0 && (
                       <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl ring-1 ring-white/5 p-4 mt-1">
@@ -1850,7 +1846,7 @@ function MasterInsertPage() {
                   quotes={data.quotes}
                   competitorPrices={data.competitorPrices}
                   onSubmit={(d) => handleInsert('7.0_competitor_prices', d)}
-                  loading={loading}
+                  loading={saving}
                 />
               )}
 
@@ -1898,8 +1894,8 @@ function MasterInsertPage() {
                   onRevisePo={(poId) => startRevisionForPo(poId)}
                   onDeletePo={perms?.buySide ? handleDeletePo : undefined}
                   onDeleteDeal={perms?.buySide ? handleDeleteDeal : undefined}
-                  onUpdateQuoteItem={handleUpdateQuoteItem}
-                  onUpdatePoItem={handleUpdatePoItem}
+                  onRelinkQuoteLine={handleRelinkQuoteLine}
+                  onRelinkPoLine={handleRelinkPoLine}
                   onReorderQuoteLineItems={handleReorderQuoteLineItems}
                   onReorderPoLineItems={handleReorderPoLineItems}
                   onUpdateQuoteLineItem={handleUpdateQuoteLineItem}
@@ -1907,7 +1903,7 @@ function MasterInsertPage() {
                   onAddPoLineItem={handleAddPoLineItem}
                   onAddQuoteLineItem={handleAddQuoteLineItem}
                   onDeletePoLineItem={handleDeletePoLineItem}
-                  onDeleteQuoteLineItem={handleDeleteQuoteLineItem}
+                  onDeleteQuoteLineItem={handleDeleteQuoteLine}
                 />
               )}
             </>

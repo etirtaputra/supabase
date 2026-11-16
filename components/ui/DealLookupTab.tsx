@@ -393,9 +393,9 @@ function detectGroupMismatches(
 
 // ── Deal stage (module-level so useMemos can reference it) ────────────────────
 
-function dealStage(g: DealGroup): 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'superseded' {
+function dealStage(g: DealGroup): 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'void' {
   if (g.pos.length === 0) return 'quote';
-  if (isVoidPo(g.poStatus)) return 'superseded';
+  if (isVoidPo(g.poStatus)) return 'void';
   if (g.poStatus === 'Fully Received') {
     return (g.totalIdr > 0 && g.outstandingIdr === 0) ? 'completed' : 'received';
   }
@@ -422,7 +422,7 @@ const STAGE_META: Record<DealStage, { label: string; dot: string; tag: string }>
   active:     { label: 'Active PO', dot: 'bg-blue-500',    tag: 'bg-blue-500/15 text-blue-300 tone-step' },
   received:   { label: 'Received',  dot: 'bg-emerald-400', tag: 'bg-emerald-500/15 text-emerald-300 tone-wait' },
   completed:  { label: 'Completed', dot: 'bg-emerald-600', tag: 'bg-emerald-500/20 text-emerald-300 tone-done' },
-  superseded: { label: 'Void',      dot: 'bg-slate-700',   tag: 'bg-slate-700/40 text-slate-500 tone-off' },
+  void:       { label: 'Void',      dot: 'bg-slate-700',   tag: 'bg-slate-700/40 text-slate-500 tone-off' },
 };
 const STAGE_KEYS = Object.keys(STAGE_META) as DealStage[];
 
@@ -467,8 +467,8 @@ interface Props {
   onDeletePo?: (poId: string) => Promise<void>;
   /** Hard-delete a whole deal — every quote and PO in the group. Same guard. */
   onDeleteDeal?: (quoteIds: string[], poIds: string[]) => Promise<void>;
-  onUpdateQuoteItem?: (quoteLineId: number, componentId: string) => Promise<void>;
-  onUpdatePoItem?: (poItemId: number, componentId: string) => Promise<void>;
+  onRelinkQuoteLine?: (quoteLineId: number, componentId: string) => Promise<void>;
+  onRelinkPoLine?: (poItemId: number, componentId: string) => Promise<void>;
   onUpdateQuoteLineItem?: (id: number, updates: { component_id?: string; quantity?: number; unit_price?: number }) => Promise<void>;
   onUpdatePoLineItem?: (id: number, updates: { component_id?: string; quantity?: number; unit_cost?: number }) => Promise<void>;
   onAddPoLineItem?: (poId: number, data: { component_id?: string; quantity: number; unit_cost: number; currency: string }) => Promise<void>;
@@ -490,7 +490,7 @@ export default function DealLookupTab({
   quotes, quoteItems, pos, poItems, poCosts,
   suppliers, companies, components,
   onQuoteStatusChange, onPoStatusChange, onUpdatePo, onUpdateQuote, onMarkFullyPaid, onCreatePO, onRevisePo, onDeletePo, onDeleteDeal,
-  onUpdateQuoteItem, onUpdatePoItem,
+  onRelinkQuoteLine: onUpdateQuoteItem, onRelinkPoLine: onUpdatePoItem,
   onUpdateQuoteLineItem, onUpdatePoLineItem,
   onAddPoLineItem, onAddQuoteLineItem,
   onDeletePoLineItem, onDeleteQuoteLineItem,
@@ -584,7 +584,7 @@ export default function DealLookupTab({
   // A deep link is the exception: arriving from the command palette with a PO
   // number means you want THAT deal, and it is usually completed. Landing on
   // Active would show an empty list over a search that matched.
-  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'superseded'>(
+  const [stageFilter, setStageFilter]         = useState<'all' | 'quote' | 'draft' | 'active' | 'received' | 'completed' | 'void'>(
     initialSearch ? 'all' : 'active');
   const [filterMismatch, setFilterMismatch]   = useState(false);
   // Deals filter on latestDate = max(quote date, PO date) — the date the deal
@@ -848,18 +848,18 @@ export default function DealLookupTab({
   }, [allGroups, search, selectedSuppId, selectedCompId, range, filterMismatch, mismatchGroupIds, acknowledgedDealMismatches]);
 
   const summary = useMemo(() => {
-    let openQuotes = 0, activePOs = 0, drafts = 0, received = 0, completed = 0, superseded = 0, outstandingTotal = 0;
+    let quoteOnlyDeals = 0, activeDeals = 0, drafts = 0, received = 0, completed = 0, voided = 0, outstandingTotal = 0;
     for (const g of scoped) {
       const s = dealStage(g);
-      if (s === 'quote')          openQuotes++;
+      if (s === 'quote')          quoteOnlyDeals++;
       else if (s === 'draft')     drafts++;
-      else if (s === 'active')    activePOs++;
+      else if (s === 'active')    activeDeals++;
       else if (s === 'received')  received++;
       else if (s === 'completed') completed++;
-      else if (s === 'superseded') superseded++;
+      else if (s === 'void')      voided++;
       outstandingTotal += g.outstandingIdr;
     }
-    return { openQuotes, activePOs, drafts, received, completed, superseded, outstandingTotal, total: scoped.length };
+    return { quoteOnlyDeals, activeDeals, drafts, received, completed, voided, outstandingTotal, total: scoped.length };
   }, [scoped]);
 
   // NOT capped. This used to be `base.slice(0, 80)`, which silently hid 207 of
@@ -1383,7 +1383,7 @@ export default function DealLookupTab({
                 const fees    = costs.filter((c) => BANK_FEE_CATS.has(c.cost_category));
                 const taxes   = costs.filter((c) => TAX_CATS.has(c.cost_category));
                 const landed  = costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category));
-                const tIdr     = Number(po.total_value || 0) * (po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 1));
+                const poTotalIdr     = Number(po.total_value || 0) * (po.currency === 'IDR' ? 1 : (Number(po.exchange_rate) || 1));
                 const princPay = princ.filter((c) => c.cost_category !== 'overpayment_credit');
                 // Actual IDR paid — uses cost-level rate when available, else PO rate
                 const paidIdr  = princPay.reduce((s, c) => {
@@ -1396,21 +1396,21 @@ export default function DealLookupTab({
                 const foreignPaid    = po.currency !== 'IDR'
                   ? princPay.filter((c) => c.currency === po.currency).reduce((s, c) => s + Number(c.amount), 0)
                   : 0;
-                const hasForeignTracking = po.currency !== 'IDR' && foreignPaid > 0;
-                const foreignTotal       = hasForeignTracking ? (Number(po.total_value) || 0) : 0;
-                const foreignOut         = hasForeignTracking ? Math.max(0, foreignTotal - foreignPaid) : 0;
-                const isObligationMet    = hasForeignTracking && foreignOut < 0.005;
+                const paidInPoCurrency = po.currency !== 'IDR' && foreignPaid > 0;
+                const foreignTotal       = paidInPoCurrency ? (Number(po.total_value) || 0) : 0;
+                const foreignRemaining         = paidInPoCurrency ? Math.max(0, foreignTotal - foreignPaid) : 0;
+                const foreignObligationMet    = paidInPoCurrency && foreignRemaining < 0.005;
 
                 // Progress % — track in original currency when possible
-                const pct = hasForeignTracking && foreignTotal > 0
+                const pct = paidInPoCurrency && foreignTotal > 0
                   ? Math.min(100, (foreignPaid / foreignTotal) * 100)
-                  : tIdr > 0 ? Math.min(100, (paidIdr / tIdr) * 100) : 0;
+                  : poTotalIdr > 0 ? Math.min(100, (paidIdr / poTotalIdr) * 100) : 0;
 
                 // What to show as "outstanding obligation"
-                const outIdr       = isObligationMet ? 0 : Math.max(0, tIdr - paidIdr);
+                const outIdr       = foreignObligationMet ? 0 : Math.max(0, poTotalIdr - paidIdr);
                 // FX variance: only meaningful when obligation met (rate diff, not missing payment)
-                const fxVariance   = isObligationMet ? paidIdr - tIdr : 0;
-                const hasFxVariance = isObligationMet && Math.abs(fxVariance) >= 1;
+                const fxVariance   = foreignObligationMet ? paidIdr - poTotalIdr : 0;
+                const hasFxVariance = foreignObligationMet && Math.abs(fxVariance) >= 1;
 
                 // Total cash out = every cost converted to IDR at actual rate
                 const toIdrLocal = (c: typeof costs[number]) => {
@@ -1678,7 +1678,7 @@ export default function DealLookupTab({
                         that said what the "FX gain" tag in that box already said.
                         Line 1: what it costs, and what is left to transfer.
                         Line 2: what is paid, and what the paying cost on top. */}
-                    {(items.length > 0 || po.total_value || tIdr > 0) && (() => {
+                    {(items.length > 0 || po.total_value || poTotalIdr > 0) && (() => {
                       const itemsSum = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_cost), 0);
                       const docTotal = Number(po.total_value) || itemsSum;
                       const freight = Number((po as any).freight_charges_intl) || 0;
@@ -1688,9 +1688,9 @@ export default function DealLookupTab({
                       const fx = compareToBenchmark(po, costs, fxBenchmarks);
                       const effRate = (() => {
                         const fxPaid = princPay.filter((c) => c.currency !== 'IDR' && c.exchange_rate != null);
-                        const tf_ = fxPaid.reduce((s2, c) => s2 + Number(c.amount), 0);
-                        const ti = fxPaid.reduce((s2, c) => s2 + Number(c.amount) * (Number(c.exchange_rate) || 0), 0);
-                        return tf_ > 0 ? ti / tf_ : null;
+                        const foreignPaidSum = fxPaid.reduce((s2, c) => s2 + Number(c.amount), 0);
+                        const idrPaidSum = fxPaid.reduce((s2, c) => s2 + Number(c.amount) * (Number(c.exchange_rate) || 0), 0);
+                        return foreignPaidSum > 0 ? idrPaidSum / foreignPaidSum : null;
                       })();
                       return (
                       <div className="space-y-1.5 text-xs">
@@ -1718,14 +1718,14 @@ export default function DealLookupTab({
                           )}
                           {po.currency !== 'IDR' && po.exchange_rate && (
                             <span className="text-slate-500 tabular-nums">
-                              @ {Number(po.exchange_rate).toLocaleString()} = {fmtIdr(tIdr)}
+                              @ {Number(po.exchange_rate).toLocaleString()} = {fmtIdr(poTotalIdr)}
                             </span>
                           )}
                           {/* THE number this panel exists for: what to type into
                               the transfer, in the currency the supplier is owed
                               in. The rupiah beside it is an estimate and names
                               its rate. */}
-                          {tIdr > 0 && (b.remaining <= 0 ? (
+                          {poTotalIdr > 0 && (b.remaining <= 0 ? (
                             <span className="ml-auto sm:whitespace-nowrap">
                               <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
                               <span className="font-bold tabular-nums text-emerald-400">
@@ -1743,10 +1743,10 @@ export default function DealLookupTab({
                             <span className="ml-auto sm:whitespace-nowrap">
                               <span className="text-[10px] text-slate-500 mr-1">To transfer</span>
                               <span className="font-bold tabular-nums text-amber-400">{fmtMoney(b.remaining, b.currency)}</span>
-                              {b.idr != null && b.currency !== 'IDR' && b.idrSource && (
+                              {b.remainingIdr != null && b.currency !== 'IDR' && b.idrSource && (
                                 <span className="text-[10px] font-normal text-slate-500 tabular-nums ml-1"
                                   title={`${fmtMoney(b.total, b.currency)} ordered − ${fmtMoney(b.paid, b.currency)} paid${b.derived ? ' (payments recorded in another currency, converted back' + (b.assumedRate ? " at the PO's rate — approximate)" : ' at their own rate)') : ''}`}>
-                                  ≈ {fmtIdr(b.idr)} {rateNote(b)}
+                                  ≈ {fmtIdr(b.remainingIdr)} {rateNote(b)}
                                 </span>
                               )}
                               {b.rateSuspect && (
@@ -1760,18 +1760,18 @@ export default function DealLookupTab({
                         </div>
 
                         {/* ── Line 2: paid · what paying cost on top ── */}
-                        {tIdr > 0 && (
+                        {poTotalIdr > 0 && (
                           <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px]">
                             <span className="w-24 sm:w-40 h-1.5 bg-slate-700 rounded-full overflow-hidden flex-shrink-0">
-                              <span className={`block h-full rounded-full transition-all ${payBarCls(b.remaining <= 0 || isObligationMet, pct)}`}
-                                style={{ width: `${b.remaining <= 0 || isObligationMet ? 100 : pct}%` }} />
+                              <span className={`block h-full rounded-full transition-all ${payBarCls(b.remaining <= 0 || foreignObligationMet, pct)}`}
+                                style={{ width: `${b.remaining <= 0 || foreignObligationMet ? 100 : pct}%` }} />
                             </span>
                             <span className="whitespace-nowrap">
                               <span className="text-[10px] text-slate-500 mr-1">{t('Paid')}</span>
                               <span className="font-bold text-emerald-400 tabular-nums">{fmtIdr(paidIdr)}</span>
                               <span className="text-slate-500 tabular-nums ml-1">
-                                · {b.remaining <= 0 || isObligationMet ? '100' : pct.toFixed(pct > 0 && pct < 1 ? 1 : 0)}%
-                                {hasForeignTracking && <span className="text-[10px] ml-1">({po.currency})</span>}
+                                · {b.remaining <= 0 || foreignObligationMet ? '100' : pct.toFixed(pct > 0 && pct < 1 ? 1 : 0)}%
+                                {paidInPoCurrency && <span className="text-[10px] ml-1">({po.currency})</span>}
                               </span>
                               {totalCashOutExclTaxIdr > paidIdr && (
                                 <span className="text-[10px] text-slate-600 tabular-nums ml-1">+{fmtIdr(totalCashOutExclTaxIdr - paidIdr)} fees/landed</span>
@@ -1811,7 +1811,7 @@ export default function DealLookupTab({
                       );
                     })()}
 
-                    {tIdr > 0 && (
+                    {poTotalIdr > 0 && (
                       <div>
                         {/* Total spend row with cost breakdown */}
                         {totalCashOutIdr > 0 && (() => {
@@ -2016,7 +2016,7 @@ export default function DealLookupTab({
                         Hidden once poBalance calls it settled — the same verdict as "✓ Settled"
                         above. outIdr > 0 alone let a fraction of a rupiah through, so a paid
                         PO offered to "close IDR 0 gap" (2026-11-14). */}
-                    {onMarkFullyPaid && !isVoidPo(po.status) && !isObligationMet && pct >= 80 && (hasForeignTracking ? foreignOut > 0.005 : outIdr > 0)
+                    {onMarkFullyPaid && !isVoidPo(po.status) && !foreignObligationMet && pct >= 80 && (paidInPoCurrency ? foreignRemaining > 0.005 : outIdr > 0)
                       && !poBalance(po, costs, { liveRates }).settled && (
                       <div className="flex items-center gap-2 pt-1">
                         <button
@@ -2025,8 +2025,8 @@ export default function DealLookupTab({
                             e.stopPropagation();
                             setMarkingPaid(pKey);
                             // System derives amount and currency — no user input needed
-                            const amount   = hasForeignTracking ? foreignOut : outIdr;
-                            const currency = hasForeignTracking ? po.currency : 'IDR';
+                            const amount   = paidInPoCurrency ? foreignRemaining : outIdr;
+                            const currency = paidInPoCurrency ? po.currency : 'IDR';
                             try { await onMarkFullyPaid(pKey, amount, currency); }
                             finally { setMarkingPaid(null); }
                           }}
@@ -2038,7 +2038,7 @@ export default function DealLookupTab({
                           {markingPaid === pKey ? t('Saving…') : t('Mark as fully paid')}
                         </button>
                         <span className="text-[10px] text-slate-600 tabular-nums">
-                          closes {hasForeignTracking ? `${po.currency} ${foreignOut.toFixed(2)}` : fmtIdr(outIdr)} gap
+                          closes {paidInPoCurrency ? `${po.currency} ${foreignRemaining.toFixed(2)}` : fmtIdr(outIdr)} gap
                         </span>
                       </div>
                     )}
@@ -2648,7 +2648,7 @@ export default function DealLookupTab({
     active:     { row: 'bg-blue-500/5 border-blue-500/10 hover:bg-blue-500/10',          open: 'bg-blue-500/10 border-blue-500/20' },
     received:   { row: 'bg-emerald-500/5 border-emerald-500/10 hover:bg-emerald-500/10', open: 'bg-emerald-500/10 border-emerald-500/15' },
     completed:  { row: 'bg-emerald-500/10 border-emerald-500/15 hover:bg-emerald-500/15', open: 'bg-emerald-500/15 border-emerald-500/25' },
-    superseded: { row: 'border-white/5 hover:bg-white/5 opacity-40',                    open: 'bg-white/5 border-white/10 opacity-50' },
+    void:       { row: 'border-white/5 hover:bg-white/5 opacity-40',                    open: 'bg-white/5 border-white/10 opacity-50' },
   };
 
   // ── Deal row renderer ─────────────────────────────────────────────────────
@@ -2806,10 +2806,10 @@ export default function DealLookupTab({
                         full still shows a rupiah difference when the rate moved. */}
                     {owed ? (
                       <span className="font-semibold text-amber-400"
-                        title={`Still to transfer${bal.idr ? ` — about ${fmtIdr(bal.idr)} ${rateNote(bal)}` : ''}${bal.anyAssumedRate ? '. Some payments carry no rate of their own, so this is approximate.' : ''}`}>
+                        title={`Still to transfer${bal.remainingIdr ? ` — about ${fmtIdr(bal.remainingIdr)} ${rateNote(bal)}` : ''}${bal.anyAssumedRate ? '. Some payments carry no rate of their own, so this is approximate.' : ''}`}>
                         {tf('{amount} to pay', { amount: owed })}
-                        {bal.idr != null && bal.idr > 0 && bal.idrSource && (
-                          <span className="text-[10px] font-normal text-slate-500 ml-1">≈ {fmtIdr(bal.idr)}</span>
+                        {bal.remainingIdr != null && bal.remainingIdr > 0 && bal.idrSource && (
+                          <span className="text-[10px] font-normal text-slate-500 ml-1">≈ {fmtIdr(bal.remainingIdr)}</span>
                         )}
                       </span>
                     ) : (
@@ -2838,7 +2838,7 @@ export default function DealLookupTab({
 
   const renderDealTable = (groups: DealGroup[], showSupplier = true) => {
     // Header sort overrides the incoming order until cleared by another click
-    const STAGE_ORDER = ['quote', 'draft', 'active', 'received', 'completed', 'superseded'];
+    const STAGE_ORDER = ['quote', 'draft', 'active', 'received', 'completed', 'void'];
     const refOf = (g: DealGroup) => g.piNumber ?? (g.quotes[0] ? `Q#${g.quotes[0].quote_id}` : `PO#${g.pos[0]?.po_number ?? g.key}`);
     const sortedGroups = !colSort ? groups : [...groups].sort((a, b) => {
       let cmp = 0;
@@ -2853,7 +2853,7 @@ export default function DealLookupTab({
         // CNY deal and a USD deal can sit in one ordering. `outstandingIdr` is
         // the old books figure and would rank a settled foreign PO above an
         // unpaid one whenever the rate moved.
-        case 'outstanding': cmp = (balanceOf(a).idr ?? 0) - (balanceOf(b).idr ?? 0); break;
+        case 'outstanding': cmp = (balanceOf(a).remainingIdr ?? 0) - (balanceOf(b).remainingIdr ?? 0); break;
       }
       return colSort.dir === 'asc' ? cmp : -cmp;
     });
@@ -2915,7 +2915,7 @@ export default function DealLookupTab({
                   stage === 'active'     ? 'bg-indigo-500/5' :
                   stage === 'received'   ? 'bg-emerald-500/5' :
                   stage === 'completed'  ? 'bg-emerald-500/8' :
-                  stage === 'superseded' ? 'opacity-40' : ''
+                  stage === 'void' ? 'opacity-40' : ''
                 }`}
               >
                 <td className="py-2 px-3 font-semibold text-white min-w-0">
@@ -2987,7 +2987,7 @@ export default function DealLookupTab({
                     if (!owed) return <span className="text-slate-600">—</span>;
                     return (
                       <span className="inline-flex flex-col items-end leading-tight"
-                        title={`Still to transfer${bal.idr ? ` — about ${fmtIdr(bal.idr)} ${rateNote(bal)}` : ''}`}>
+                        title={`Still to transfer${bal.remainingIdr ? ` — about ${fmtIdr(bal.remainingIdr)} ${rateNote(bal)}` : ''}`}>
                         <span className="text-amber-300 font-bold">
                           {owed}
                           {/* Visible without expanding the row: a booked rate
@@ -2996,8 +2996,8 @@ export default function DealLookupTab({
                               column is the one about to move money. */}
                           {bal.anySuspectRate && <span className="text-red-400 ml-1" title="This deal's PO is booked at an exchange rate far from the market — the foreign amount is right, every rupiah figure for it is not. Open the deal for detail.">⚠</span>}
                         </span>
-                        {bal.idr != null && bal.idr > 0 && bal.idrSource && (
-                          <span className="text-[10px] text-slate-500">≈ {fmtIdr(bal.idr)}</span>
+                        {bal.remainingIdr != null && bal.remainingIdr > 0 && bal.idrSource && (
+                          <span className="text-[10px] text-slate-500">≈ {fmtIdr(bal.remainingIdr)}</span>
                         )}
                       </span>
                     );
@@ -3103,12 +3103,12 @@ export default function DealLookupTab({
           <div className="flex flex-wrap items-center gap-1.5 mb-3">
             <div className="flex items-center gap-1.5 overflow-x-auto sm:overflow-visible sm:flex-wrap max-w-full -mx-1 px-1 pb-0.5 sm:pb-0 scrollbar-none">
             {[
-              { key: 'active' as const,     label: 'Active',   count: summary.activePOs },
-              { key: 'quote' as const,      label: 'Quotes',   count: summary.openQuotes },
+              { key: 'active' as const,     label: 'Active',   count: summary.activeDeals },
+              { key: 'quote' as const,      label: 'Quotes',   count: summary.quoteOnlyDeals },
               { key: 'draft' as const,      label: 'Drafts',   count: summary.drafts },
               { key: 'received' as const,   label: 'Received', count: summary.received },
               { key: 'completed' as const,  label: 'Done',     count: summary.completed },
-              { key: 'superseded' as const, label: 'Void',     count: summary.superseded },
+              { key: 'void' as const,       label: 'Void',     count: summary.voided },
               { key: 'all' as const,        label: 'All',      count: summary.total },
             ].map(({ key, label, count }) => {
               const on = stageFilter === key;
@@ -3193,7 +3193,7 @@ export default function DealLookupTab({
                 const ordered = v.deals.reduce((sum, g) => sum + g.totalIdr, 0);
                 // The TRANSFER total at today's rate — the same basis as the
                 // column under it.
-                const out = v.deals.reduce((sum, g) => sum + (balanceOf(g).idr || 0), 0);
+                const out = v.deals.reduce((sum, g) => sum + (balanceOf(g).remainingIdr || 0), 0);
                 const stages = new Map<string, number>();
                 for (const g of v.deals) stages.set(dealStage(g), (stages.get(dealStage(g)) ?? 0) + 1);
                 return (

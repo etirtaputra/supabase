@@ -740,7 +740,7 @@ function SetPricingTab({
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   // Staged cells: `${component_id}:${tier_id | 'net'}` → what is in the box.
   const [draft, setDraft] = useState<Record<string, string>>({});
-  const [page, setPage] = useState(200);
+  const [rowLimit, setRowLimit] = useState(200);
   /** Which row has its price log open. One at a time — this is a reference. */
   const [openLog, setOpenLog] = useState<string | null>(null);
 
@@ -875,10 +875,10 @@ function SetPricingTab({
           The result count sits here rather than on its own line — it belongs
           to the search box, not to the filters below it. */}
       <div className="flex flex-wrap items-center gap-2">
-        <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(200); }}
+        <input value={search} onChange={(e) => { setSearch(e.target.value); setRowLimit(200); }}
           placeholder="Search item, model or category…"
           className={`w-full sm:w-72 ${BAR_INPUT}`} />
-        <select value={catFilter} onChange={(e) => { setCatFilter(e.target.value); setPage(200); }}
+        <select value={catFilter} onChange={(e) => { setCatFilter(e.target.value); setRowLimit(200); }}
           title="Product category"
           className={BAR_SELECT}>
           <option value="">All categories</option>
@@ -886,7 +886,7 @@ function SetPricingTab({
             <option key={c.value || 'none'} value={c.value || 'none'}>{c.label} ({c.count})</option>
           ))}
         </select>
-        <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setPage(200); }}
+        <select value={profileFilter} onChange={(e) => { setProfileFilter(e.target.value); setRowLimit(200); }}
           title="Margin profile — what the item is supposed to earn"
           className={BAR_SELECT}>
           <option value="">All margin profiles</option>
@@ -926,7 +926,7 @@ function SetPricingTab({
       <div className="flex flex-wrap items-center gap-1.5">
         {(['no_price', 'below_floor', 'below_band', 'in_band', 'above_band', 'unclassified'] as PriceIssue[]).map((id) => (
           <Chip key={id} label={ISSUE_LABEL[id]} count={counts.get(id) ?? 0} on={wanted.has(id)}
-            tone="issue" onClick={() => { setWanted((w) => toggle(w, id)); setPage(200); }} />
+            tone="issue" onClick={() => { setWanted((w) => toggle(w, id)); setRowLimit(200); }} />
         ))}
         <span className="w-px self-stretch bg-slate-800 mx-1.5" aria-hidden />
         {/* "Has landed cost" WAS hidden here, on the grounds that it selects
@@ -941,12 +941,12 @@ function SetPricingTab({
             the user has to know; a chip is not. Owner asked for it, 2026-09-08. */}
         {(['in_stock', 'landed_cost', 'quoted_cost', 'no_cost'] as PriceScope[]).map((id) => (
           <Chip key={id} label={SCOPE_LABEL[id]} count={scopeCounts.get(id) ?? 0} on={scope.has(id)}
-            tone="scope" onClick={() => { setScope((w) => toggle(w, id)); setPage(200); }} />
+            tone="scope" onClick={() => { setScope((w) => toggle(w, id)); setRowLimit(200); }} />
         ))}
         {/* Items whose reorder or newer quote costs more than the basis — the
             prices most likely to be stale. Narrows, like the scope chips. */}
         <Chip label={`▲ ${t('Cost rising')}`} count={risingCount} on={risingOnly}
-          tone="scope" onClick={() => { setRisingOnly((v) => !v); setPage(200); }} />
+          tone="scope" onClick={() => { setRisingOnly((v) => !v); setRowLimit(200); }} />
         {(wanted.size > 0 || scope.size > 0 || risingOnly || profileFilter !== '' || catFilter !== '') && (
           <button type="button" onClick={() => { setWanted(new Set()); setScope(new Set()); setRisingOnly(false); setProfileFilter(''); setCatFilter(''); }}
             className="ml-1 text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">
@@ -977,7 +977,7 @@ function SetPricingTab({
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, page).map((r) => {
+            {rows.slice(0, rowLimit).map((r) => {
               const cid = r.c.component_id;
               const dirty = Object.keys(draft).some((k) => k.startsWith(`${cid}:`));
               const range = suggestRange(r.cost, r.profile, roundStep);
@@ -1312,10 +1312,10 @@ function SetPricingTab({
         )}
       </div>
 
-      {rows.length > page && (
-        <button type="button" onClick={() => setPage((p) => p + 200)}
+      {rows.length > rowLimit && (
+        <button type="button" onClick={() => setRowLimit((p) => p + 200)}
           className="w-full py-2 text-[12px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg hover:bg-slate-800/40">
-          {tf('Show more ({n} left)', { n: fmtInt(rows.length - page) })}
+          {tf('Show more ({n} left)', { n: fmtInt(rows.length - rowLimit) })}
         </button>
       )}
     </div>
@@ -1338,7 +1338,7 @@ function PriceHistoryTab({ log, compById, tiers }: {
   const { t, tf } = useT();
   const [q, setQ] = useState('');
   const [only, setOnly] = useState<'' | 'out'>('');
-  const [page, setPage] = useState(100);
+  const [rowLimit, setRowLimit] = useState(100);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -1375,10 +1375,10 @@ function PriceHistoryTab({ log, compById, tiers }: {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <input value={q} onChange={(e) => { setQ(e.target.value); setPage(100); }}
+        <input value={q} onChange={(e) => { setQ(e.target.value); setRowLimit(100); }}
           placeholder="Search item, model or who changed it…"
           className={`w-full sm:w-80 ${BAR_INPUT}`} />
-        <button type="button" onClick={() => { setOnly(only === 'out' ? '' : 'out'); setPage(100); }}
+        <button type="button" onClick={() => { setOnly(only === 'out' ? '' : 'out'); setRowLimit(100); }}
           className={`${BAR_BTN} px-2.5 ${
             only === 'out' ? 'bg-amber-500/15 text-amber-300 border-amber-500/40' : BAR_BTN_OFF}`}>
           {t('Landed outside target')} <span className="tabular-nums opacity-70">{fmtInt(outCount)}</span>
@@ -1400,7 +1400,7 @@ function PriceHistoryTab({ log, compById, tiers }: {
             </tr>
           </thead>
           <tbody>
-            {rows.slice(0, page).map(({ l, c, gp, inBand, tier }) => (
+            {rows.slice(0, rowLimit).map(({ l, c, gp, inBand, tier }) => (
               <tr key={l.history_id} className="border-t border-slate-800/70 hover:bg-slate-800/30">
                 <td className="px-3 py-1.5 text-slate-400 tabular-nums whitespace-nowrap">{fmtDay(l.changed_at)}</td>
                 <td className="px-3 py-1.5">
@@ -1433,10 +1433,10 @@ function PriceHistoryTab({ log, compById, tiers }: {
         </table>
       </div>
 
-      {rows.length > page && (
-        <button type="button" onClick={() => setPage((p) => p + 100)}
+      {rows.length > rowLimit && (
+        <button type="button" onClick={() => setRowLimit((p) => p + 100)}
           className="w-full py-2 text-[12px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg hover:bg-slate-800/40">
-          {tf('Show more ({n} left)', { n: fmtInt(rows.length - page) })}
+          {tf('Show more ({n} left)', { n: fmtInt(rows.length - rowLimit) })}
         </button>
       )}
     </div>

@@ -63,8 +63,8 @@ interface ComponentEditorProps {
   onAdd?: (fields: Omit<Component, 'component_id' | 'created_at' | 'updated_at'>) => Promise<string | void>;
   onAddSupplier?: () => void;
   onDelete?: (component_id: string) => Promise<void>;
-  onSaveLineItem?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
-  onDeleteLineItem?: (quote_line_id: number) => Promise<void>;
+  onSaveQuoteLine?: (item: Omit<PriceQuoteLineItem, 'quote_line_id' | 'created_at' | 'updated_at'> & { quote_line_id?: number }) => Promise<void>;
+  onDeleteQuoteLine?: (quote_line_id: number) => Promise<void>;
   poCosts?: POCost[];
   componentHistory?: ComponentHistoryEntry[];
   competitorPrices?: CompetitorPrice[];
@@ -860,7 +860,7 @@ function RowMenuItem({ label, hint, icon, onClick, href, external, tone }: {
     : <button type="button" onClick={onClick} role="menuitem" className={cls}>{inner}</button>;
 }
 
-export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], suppliers = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveLineItem, onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onAddComponentLinks, onDeleteComponentLink }: ComponentEditorProps) {
+export default function ComponentEditor({ components, brandSuggestions, initialSearch = '', quoteItems = [], quotes = [], pos = [], poItems = [], suppliers = [], poCosts = [], componentHistory, competitorPrices, onSave, onAdd, onAddSupplier, onDelete, onSaveQuoteLine: onSaveLineItem, onDeleteQuoteLine: onDeleteLineItem, onDeleteCompetitorPrice, onUpdateCompetitorPrice, componentLinks, onAddComponentLink, onAddComponentLinks, onDeleteComponentLink }: ComponentEditorProps) {
   const { t, tf } = useT();
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [search, setSearch] = useState(initialSearch);
@@ -873,7 +873,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
   const [filterReorder, setFilterReorder] = useState(false);   // at/below reorder point
   const [filterDuplicates, setFilterDuplicates] = useState(false);
   const [filterHasIntel, setFilterHasIntel] = useState(false);
-  const [filterTucHidden, setFilterTucHidden] = useState(false); // TUC hidden from Project Quotes
+  const [filterStdCost, setFilterStdCost] = useState(false); // TUC hidden from Project Quotes
   // Margin tiers. '' = every tier, 'none' = the Unclassified pile — which is
   // the filter that matters, since it is how the gap gets closed.
   const [filterTier, setFilterTier] = useState('');
@@ -1537,7 +1537,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
     if (!showArchived) result = result.filter((c) => !archivedIds.has(c.component_id));
     if (filterDuplicates) result = result.filter((c) => duplicateModels.has(c.supplier_model?.toLowerCase().trim() ?? ''));
     if (filterHasIntel) result = result.filter((c) => intelComponentIds.has(c.component_id));
-    if (filterTucHidden) result = result.filter((c) => {
+    if (filterStdCost) result = result.filter((c) => {
       const mode = optimistic[c.component_id]?.quote_cost_mode ?? c.quote_cost_mode ?? (c.show_tuc_in_quotes === false ? 'hidden' : 'buffered');
       return mode !== 'tuc'; // hidden or buffered — anything not showing raw TUC
     });
@@ -1605,7 +1605,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
       const bv = ((b[sortCol as keyof Component] as string) || '').toLowerCase();
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
-  }, [components, search, filterBrand, filterCategory, filterTier, tierIdOf, filterOffTarget, profileById, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterTucHidden, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, supplierNamesByComponent, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
+  }, [components, search, filterBrand, filterCategory, filterTier, tierIdOf, filterOffTarget, profileById, filterPI, filterPO, filterSupplier, filterUnused, filterReorder, filterDuplicates, filterHasIntel, filterStdCost, optimistic, filterLinked, filterHasSpecs, filterHasLeadTime, filterHasCashCycle, filterLowMargin, marginThreshold, filterBelowMarket, sortCol, sortDir, usageMap, supplierNamesByComponent, duplicateModels, intelComponentIds, linkedComponentIds, compIdsWithLeadTime, compIdsWithCashCycle, sparklineLinesByComponent, marginByComponent, marketAvgIdrByComponent, lastPoByComponent, externalUsedIds, reorderById]);
 
   const toggleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -2896,15 +2896,15 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
               {archivedIds.size > 0 && <span className="ml-1 opacity-70 tabular-nums">{archivedIds.size}</span>}
             </button>
             <button
-              onClick={() => setFilterTucHidden((v) => !v)}
+              onClick={() => setFilterStdCost((v) => !v)}
               className={`py-1 px-2.5 rounded-lg text-[11.5px] font-semibold border transition-colors flex-shrink-0 ${
-                filterTucHidden
+                filterStdCost
                   ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
                   : 'bg-slate-950 border-slate-700 text-slate-400 hover:text-amber-300 hover:border-amber-500/30'
               }`}
               title="Show only items not exposing raw TUC to Project Quotes (Std Cost or Hidden — owner setting on the Inspect panel's TUC card)"
             >
-              {t('Std cost')}{filterTucHidden ? ` (${filtered.length})` : ''}
+              {t('Std cost')}{filterStdCost ? ` (${filtered.length})` : ''}
             </button>
             <button
               onClick={() => { setFilterLinked((v) => !v); setFilterUnused(false); setFilterDuplicates(false); }}

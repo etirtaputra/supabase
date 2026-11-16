@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-14** · last change: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-16** · last change: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,91 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-14 (latest) — Deal Lookup: the PO's money in two lines
+### 2026-11-16 (latest) — Names that did not say what they meant
+
+Owner: *"Find names that don't say what they mean and rename them."* Three
+read-only sweeps (lib+constants+hooks, components, app) proposed ~45; each was
+checked against its body and call sites. Renames were done with the
+TypeScript language service (every reference, JSX props and shorthand
+included), not text replace. Behaviour is identical except the two bugs below.
+Nothing agent-facing was renamed (no /api/agent key, no pack).
+
+**Two bugs the names were hiding (fixed):**
+- **Items › Pricing** (`components/ui/PricingIntelligence.tsx`). `tucIdr` added
+  payment amounts without converting them (a USD payment's dollars counted as
+  rupiah) — the old local copy ComponentEditor had already dropped. Now
+  `computeTUC` (lib/computeTUC), the same numbers as the Item Editor. And
+  `xrUsd` was the exchange rate of the item's latest paid PO *whatever its
+  currency*: for the 57 items last bought in CNY every "USD" figure used
+  ~2,300–2,800 (≈7× too high); for the 96 last bought in IDR it was null, so
+  the Pricing Tiers panel never showed. Now `usdRate` = the newest USD
+  payment's own rate, else the newest USD PO's booked rate; the card reads
+  "USD Rate Used · paid on PIO-… · date".
+- **Payments › single PO** (`app/purchasing/page.tsx`): "paid" converted every
+  foreign payment at the PO's booked rate; the PO picker and the recent list
+  use the payment's own rate. Now the same.
+
+**Renamed (old → new):**
+- lib: `isSettled` (landedCost) / `fullyPaid` (fxBenchmark) / PoAgg `settled`
+  (computeTUC) → `hasBalancePayment` (true once ANY balance row exists, not
+  "fully paid"); dealGroups `isObligationMet` → `foreignObligationMet`;
+  `PoBalance.idr` / `DealBalance.idr` / `UnpaidPo.idr` → `remainingIdr`;
+  `Leaderboard.ranked` / `.total` → `nameCount` / `positiveTotal`;
+  `FxSummaryRow.pos` and lead-times `suppliers[].pos` → `poCount`;
+  incomingCost `poRate()` → `effectiveRateForPo` (poRate elsewhere = the typed
+  rate); theme `readStoredTheme` → `migrateAndReadStoredTheme` (it writes);
+  hook `useQuotesGate(viewOnly, path)` → `useProposalsGate(path)` (file
+  renamed; `viewOnly` was never read). Deleted dead aliases `VOID_PO_STATUS`,
+  `roundUp1000`.
+- Deal Lookup: stage `'superseded'` → `'void'` (it is the lifecycle's void
+  group, labelled Void); `summary.openQuotes` / `activePOs` → `quoteOnlyDeals`
+  / `activeDeals` (they count deals); `isObligationMet` →
+  `foreignObligationMet`, `hasForeignTracking` → `paidInPoCurrency`,
+  `foreignOut` → `foreignRemaining`, `tIdr` → `poTotalIdr`, `tf_`/`ti` →
+  `foreignPaidSum`/`idrPaidSum`; props `onUpdateQuoteItem`/`onUpdatePoItem` →
+  `onRelinkQuoteLine`/`onRelinkPoLine` (they only re-link the component).
+- Purchasing page: `poDeletableLive` → `poDeleteBlocker` (returns the reason it
+  may NOT be deleted); `loading` → `saving`; `handleSaveLineItem` →
+  `handleSaveQuoteLine`; the duplicate `handleDeleteLineItem` merged into
+  `handleDeleteQuoteLine`; ComponentEditor props `onSaveLineItem` /
+  `onDeleteLineItem` → `onSaveQuoteLine` / `onDeleteQuoteLine`.
+- Elsewhere: ComponentEditor `filterTucHidden` → `filterStdCost`;
+  ItemCostForensics `hasBalance` → `hasBalancePayment`; CommandPalette
+  `recents`/`stored` → `latestDocuments`/`recentlyOpened`; MultiPaymentForm
+  `poTotal`/`totalAmount` → `poAllocation`/`batchTotal`; Widgets `half`/`both`
+  → `oneDirectionOnly`/`bothDirections`; products `hasFilters` →
+  `differsFromDefault`; aftersales `orders` → `salesDocs`; proposal editor
+  `locked` → `readOnlyForMe` (false for an Owner on a locked proposal),
+  `PrevItem`/`prevItems` → `DescSuggestion`/`descSuggestions`,
+  `renamePrevItem` → `renameLibraryEntry`, drift `pct` → `riseFraction` (0–1);
+  sales list `pctOf` → `paidFraction`; pricing `page` → `rowLimit`; sales
+  document `editing` → `salesDoc`.
+- Source-reading tests updated to the new names, same assertions:
+  lib/access.test.ts, lib/epcUnsend.test.ts, lib/productDefaults.test.ts.
+
+**Found, NOT changed — each changes a number someone already sees (owner's call):**
+1. `PRINCIPAL_CATS` includes `overpayment_credit`. dealBalance / dealGroups /
+   fxBenchmark / Deal Lookup exclude it; position (AP), inTransit, dashboard,
+   poProgress, exchangeRates, supplierLeadTimes, incomingCost count it as a
+   payment — AP and the deal balance can disagree on the same PO.
+2. `PositionRow.poQty` / `poValue` (lib/tradePosition) add EVERY inbound stock
+   movement, incl. a reopened delivery and an agent sale reversal — "Sum PO
+   Qty" is inflated by reversals.
+3. "Has a balance payment" is used as "fully paid" in landed cost (`ready`),
+   TUC and fxBenchmark (sets foreign = total) — a partial balance counts as
+   paid. Renamed honestly above; the rule itself is unchanged.
+4. dealGroups `poTotalIdr`/`costToIdr` and poProgress multiply by `rate || 1`
+   (a rate-less foreign PO reads as rupiah); position/inTransit use `|| 0` and
+   exclude it. New POs cannot lack a rate (trigger), old rows may.
+5. `deriveExchangeRates` returns `ExchangeRateHistory` rows whose
+   `paid_amount_idr` is sometimes an estimate and `quoted_amount_foreign`
+   sometimes the payments' sum — needs its own type.
+6. Bigger renames left for their own pass: `data` (useSupabaseData) →
+   `catalog` on ~10 pages; `quotes`/`quoteItems` props that are supplier PIs.
+7. Agent-facing, report only: `/api/agent/sales/mirror` key `lines` is a count.
+8. `components/ui/ProductCostLookup.tsx` is not imported anywhere (dead).
+
+### 2026-11-14 — Deal Lookup: the PO's money in two lines
 
 Owner: *"yes, simplify the money lines too"* (the candidate left below).
 
@@ -1651,7 +1735,7 @@ must not affect the existing proposals.
   inverters · DC cable · AC cable · Bill of Material · Checks; summary strip;
   Ctrl+S; catalogue fill for module/inverter; catalogue pick + cost on BOM rows
   via the EPC cost rule `getComponentCost`). Menu: Projects → BOM Calculator,
-  `cap: canEditQuotes` (owner, engineer). Gate `useQuotesGate(false, '/proposals/bom')`.
+  `cap: canEditQuotes` (owner, engineer). Gate `useProposalsGate('/proposals/bom')` (was `useQuotesGate(false, …)` until 2026-11-16).
 - **Schema**: `migrations/create_bom_calcs.sql` → `10.6_bom_calcs` (calc_id, title,
   doc jsonb, project_quote_id → 10.0 SET NULL, audit emails, timestamps), RLS =
   `can_view_epc()` for all four verbs. Applied 2026-10-11 with the owner's OK, ledger

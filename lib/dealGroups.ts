@@ -203,12 +203,12 @@ export function buildDealGroups(
         : 0;
       const hasForeignTracking = po.currency !== 'IDR' && foreignPaid > 0;
       const foreignTotal       = hasForeignTracking ? (Number(po.total_value) || 0) : 0;
-      const isObligationMet    = hasForeignTracking && (foreignTotal - foreignPaid) < 0.005;
+      const foreignObligationMet    = hasForeignTracking && (foreignTotal - foreignPaid) < 0.005;
 
       g.totalIdr       += tIdr;
       g.paidIdr        += paidActual;
-      g.outstandingIdr += isObligationMet ? 0 : Math.max(0, tIdr - paidActual);
-      g.fxVarianceIdr  += isObligationMet ? (paidActual - tIdr) : 0;
+      g.outstandingIdr += foreignObligationMet ? 0 : Math.max(0, tIdr - paidActual);
+      g.fxVarianceIdr  += foreignObligationMet ? (paidActual - tIdr) : 0;
 
       // Track original currency (only if all active POs share the same non-IDR currency)
       if (po.currency !== 'IDR' && Number(po.total_value) > 0) {

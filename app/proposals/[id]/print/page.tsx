@@ -5,7 +5,7 @@ import { createSupabaseClient } from '@/lib/supabase';
 import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
 import { quoteFileName } from '@/lib/quoteFilename';
 import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
-import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { useProposalsGate } from '@/hooks/useProposalsGate';
 import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
 import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS } from '@/lib/energyEconomics';
 import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtQtyDoc, fmtNumDoc, fmtDayDoc, moneyUnitDoc, fmtMoneyCellDoc } from '@/lib/formatters';
@@ -28,7 +28,7 @@ export default function PrintPage() {
   const { t, tf } = useT();
   const supabase = createSupabaseClient();
   // Any signed-in role may print; no session redirects to login
-  const gate = useQuotesGate(true);
+  const gate = useProposalsGate();
 
   const [quote, setQuote] = useState<ProjectQuote | null>(null);
   const [sections, setSections] = useState<Section[]>([]);

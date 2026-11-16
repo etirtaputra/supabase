@@ -4,7 +4,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { incomingCosts, costRise, poRate, freightTerms, RISE_THRESHOLD_PCT,
+import { incomingCosts, costRise, effectiveRateForPo, freightTerms, RISE_THRESHOLD_PCT,
          type IncPo, type IncPoLine, type IncQuote, type IncQuoteLine, type IncReceipt, type IncPoCost } from './incomingCost.ts';
 import type { FxRate } from './computeTUC.ts';
 
@@ -55,17 +55,17 @@ test('LR51100: the Confirmed reorder is the incoming cost — paid share at its 
 });
 
 test('poRate: unpaid → benchmark; fully paid → the bank rate; no benchmark → the PO rate', () => {
-  assert.deepEqual(poRate(NEW_PO, [], FX), { rate: 18_000, source: 'benchmark', paidPct: 0 });
-  const full = poRate(OLD_PO, [paid('po-008', 61_957, 17_600)], FX);
+  assert.deepEqual(effectiveRateForPo(NEW_PO, [], FX), { rate: 18_000, source: 'benchmark', paidPct: 0 });
+  const full = effectiveRateForPo(OLD_PO, [paid('po-008', 61_957, 17_600)], FX);
   assert.equal(full.source, 'paid');
   assert.equal(full.rate, 17_600);
-  assert.deepEqual(poRate(NEW_PO, [], {}), { rate: 17_912, source: 'po', paidPct: 0 });
+  assert.deepEqual(effectiveRateForPo(NEW_PO, [], {}), { rate: 17_912, source: 'po', paidPct: 0 });
   // A rupiah payment carries its own rate when typed, else the PO's stands in.
-  const idr = poRate(OLD_PO, [{ po_id: 'po-008', cost_category: 'balance_payment', amount: 61_957 * 17_700, currency: 'IDR', exchange_rate: 17_700 }], FX);
+  const idr = effectiveRateForPo(OLD_PO, [{ po_id: 'po-008', cost_category: 'balance_payment', amount: 61_957 * 17_700, currency: 'IDR', exchange_rate: 17_700 }], FX);
   assert.equal(idr.source, 'paid');
   assert.ok(Math.abs(idr.rate - 17_700) < 1e-6);
   // Freight, tax and fees never move the rate.
-  assert.equal(poRate(NEW_PO, [{ po_id: 'po-017', cost_category: 'freight', amount: 5_000, currency: 'USD', exchange_rate: 15_000 }], FX).source, 'benchmark');
+  assert.equal(effectiveRateForPo(NEW_PO, [{ po_id: 'po-017', cost_category: 'freight', amount: 5_000, currency: 'USD', exchange_rate: 15_000 }], FX).source, 'benchmark');
 });
 
 test('LR51100: the markup is PIO-008’s add-ons ÷ principal (+0.75%), applied to the reorder', () => {

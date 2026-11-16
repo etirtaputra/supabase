@@ -124,7 +124,7 @@ export interface PoRate { rate: number; source: RateSource; paidPct: number }
  * the PO's currency carry the bank rate; rupiah rows carry it when the person
  * typed one, else the PO's rate stands in for that slice.
  */
-export function poRate(po: IncPo, costs: IncPoCost[], fx: Record<string, FxRate>): PoRate {
+export function effectiveRateForPo(po: IncPo, costs: IncPoCost[], fx: Record<string, FxRate>): PoRate {
   const cur = po.currency || 'IDR';
   if (cur === 'IDR') return { rate: 1, source: 'paid', paidPct: 100 };
   const typed = n(po.exchange_rate);
@@ -207,7 +207,7 @@ export function incomingCosts(
   const rateCache = new Map<string, PoRate>();
   const rateOfPo = (po: IncPo): PoRate => {
     const k = String(po.po_id);
-    return rateCache.get(k) ?? rateCache.set(k, poRate(po, costsByPo.get(k) ?? [], fx)).get(k)!;
+    return rateCache.get(k) ?? rateCache.set(k, effectiveRateForPo(po, costsByPo.get(k) ?? [], fx)).get(k)!;
   };
 
   const supplierOfPo = (po: IncPo | undefined): string | null =>

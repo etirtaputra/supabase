@@ -114,7 +114,7 @@ export default function PurchasingInbox({ pos: rawPos, poItems: rawItems, poCost
             </span>))}
           {open === 'unpay' && unpaid.map((u) => line(u.poId,
             u.poNumber || '—',
-            <>{u.currency} {fmtInt(u.remaining)}{u.currency !== 'IDR' && u.idr ? ` ≈ ${fmtRupiah(u.idr)}` : ''} · {t('goods received')}</>,
+            <>{u.currency} {fmtInt(u.remaining)}{u.currency !== 'IDR' && u.remainingIdr ? ` ≈ ${fmtRupiah(u.remainingIdr)}` : ''} · {t('goods received')}</>,
             dealBtn(u.poNumber)))}
         </div>
       )}

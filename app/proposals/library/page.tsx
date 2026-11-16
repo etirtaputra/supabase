@@ -10,14 +10,14 @@
  * draft proposals are reworded.
  */
 import Link from 'next/link';
-import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { useProposalsGate } from '@/hooks/useProposalsGate';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useT } from '@/hooks/useT';
 import LibraryManager from '@/components/library/LibraryManager';
 
 export default function DescriptionLibraryPage() {
   const { t } = useT();
-  const gate = useQuotesGate(false, '/proposals/library');
+  const gate = useProposalsGate('/proposals/library');
   const isOwner = gate.profile?.role === 'owner';
   usePageTitle();
 

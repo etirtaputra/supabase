@@ -106,7 +106,7 @@ export function poolIdrOf(costs: LcCost[], poRate: number | null): number {
 }
 
 /** A balance payment exists — the supplier is paid off, so the costs are final. */
-export const isSettled = (costs: LcCost[]): boolean => costs.some((c) => BALANCE_CATS.has(c.cost_category));
+export const hasBalancePayment = (costs: LcCost[]): boolean => costs.some((c) => BALANCE_CATS.has(c.cost_category));
 
 /**
  * IDR landed cost per unit of PO-currency line value. Multiply a line's unit
@@ -336,7 +336,7 @@ export function computeLandedVariances(
       currency: po.currency ?? 'IDR',
       supplierId: po.supplier_id ?? null,
       quoteId: po.quote_id != null ? String(po.quote_id) : null,
-      status: isSettled(poCosts) ? 'ready' : 'awaiting',
+      status: hasBalancePayment(poCosts) ? 'ready' : 'awaiting',
       factor,
       poolIdr: poolIdrOf(poCosts, po.exchange_rate),
       bookedValue, actualValue, delta, deltaPct,

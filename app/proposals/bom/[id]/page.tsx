@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { selectAll } from '@/lib/fetchAllRows';
-import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { useProposalsGate } from '@/hooks/useProposalsGate';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useT } from '@/hooks/useT';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
@@ -52,7 +52,7 @@ const newId = (p: string) => `${p}${Date.now().toString(36)}${(uid++).toString(3
 
 export default function BomCalcEditorPage() {
   const { id } = useParams<{ id: string }>();
-  const { ready, user, profile } = useQuotesGate(false, '/proposals/bom');
+  const { ready, user, profile } = useProposalsGate('/proposals/bom');
   const { t, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();

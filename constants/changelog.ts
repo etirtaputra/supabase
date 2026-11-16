@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-16T05:00:00Z",
+    title: "Perbaikan angka: Harga di halaman Item, dan \"sudah dibayar\" di Pembayaran",
+    details: [
+      "Item › Pricing: TUC kini dihitung dengan mesin yang sama dengan Item Editor — pembayaran dalam USD dikonversi ke rupiah (dulu dijumlahkan apa adanya).",
+      "Item › Pricing: kurs USD kini benar-benar kurs USD — dari pembayaran USD terakhir (atau PO USD terakhir). Dulu dipakai kurs PO terakhir barang itu, apa pun mata uangnya: untuk barang yang terakhir dibeli dalam CNY semua angka \"USD\" sekitar 7× terlalu tinggi, dan untuk barang yang dibeli dalam IDR panel Pricing Tiers tidak muncul sama sekali. Kartunya kini bernama \"USD Rate Used\" dan menyebut sumbernya.",
+      "Pembayaran › satu PO: jumlah \"sudah dibayar\" kini memakai kurs masing-masing pembayaran, sama dengan daftar PO dan riwayat pembayaran.",
+      "Di balik layar: sekitar 60 nama di kode diganti agar sesuai artinya — tidak ada yang berubah di layar selain dua perbaikan di atas.",
+    ],
+  },
+  {
     at: "2026-11-14T09:00:00Z",
     title: "Deal Lookup: tombol \"Mark as fully paid\" tidak muncul lagi di PO yang sudah lunas",
     details: [

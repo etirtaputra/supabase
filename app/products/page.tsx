@@ -660,7 +660,7 @@ function ProductsInner() {
   // "Clear" appears when the view DEVIATES from the default, which now means an
   // unticked default counts too — otherwise unticking Priced would leave you
   // looking at a wider list with no visible way back to the narrow one.
-  const hasFilters = !!(search.trim() || filterCategory || newFirst || !pricedOnly || !stockOnly);
+  const differsFromDefault = !!(search.trim() || filterCategory || newFirst || !pricedOnly || !stockOnly);
   async function saveMeta(componentId: string, patch: Partial<Pick<Comp, 'warranty' | 'datasheet_url' | 'warranty_value' | 'warranty_unit' | 'perf_warranty_value' | 'perf_warranty_unit'>>) {
     const { error } = await supabase.from('3.0_components').update(patch).eq('component_id', componentId);
     if (error) { flash(`Failed: ${error.message}`); return; }
@@ -961,7 +961,7 @@ function ProductsInner() {
             <span className="hidden sm:block w-px self-stretch bg-slate-800 mx-1" aria-hidden />
             <FilterChip on={newFirst} count={tickCounts.isNew} onClick={() => setNewFirst((v) => !v)} label={t('↑ New first')} tone="sky"
               title={tf('Floats products we had never carried until their first stock landed in the last {days} days to the top of the list, without hiding anything else. Fresh stock of an item we already sell is not new — the Live figure says that.', { days: newArrivalDays })} />
-            {hasFilters && (
+            {differsFromDefault && (
               // A text link, not a fifth bordered control (Selling Prices).
               <button onClick={() => { setSearch(''); setFilterCategory(''); setStockOnly(true); setNewFirst(false); setPricedOnly(true); }}
                 className="ml-1 text-xs sm:text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">{t('Clear')}</button>

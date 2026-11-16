@@ -166,7 +166,7 @@ export default function SalesQuotePage() {
   // What a brand-new quotation starts with (Settings)
   const { defaultPpnPct, defaultCompanyId, defaultSalesTerms, defaultCustomerTier, quoteValidityDays, salesPaymentTermsOptions, salesDeliveryTermsOptions } = useSettings();
 
-  const [editing, setEditing] = useState<Quote | null>(null);
+  const [salesDoc, setSalesDoc] = useState<Quote | null>(null);
   const [lines, setLines] = useState<EditLine[]>([]);
   // The System Designer run behind the generated lines (22.0.system_design)
   const [systemDesign, setSystemDesign] = useState<SystemDesign | null>(null);
@@ -201,10 +201,10 @@ export default function SalesQuotePage() {
   // last — one combined picker, ordered for the document at hand. (Stable
   // sort, so recency order inside each group is preserved.)
   const sortedExtras = useMemo(() => {
-    const svc = !!editing?.case_id;
+    const svc = !!salesDoc?.case_id;
     const hit = (x: Extra) => ((x.section === 'aftersales') === svc ? 1 : 0);
     return [...extras].sort((a, b) => hit(b) - hit(a)).map((x) => ({ ...x, first: hit(x) === 1 }));
-  }, [extras, editing?.case_id]);
+  }, [extras, salesDoc?.case_id]);
   // Split fulfillment: this order's child invoices + delivery orders
   const [savedLines, setSavedLines] = useState<SoLine[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -404,7 +404,7 @@ export default function SalesQuotePage() {
         q.customer_id = custId;
       }
       const ls = [blankLine()];
-      setEditing((prev) => prev ?? q);
+      setSalesDoc((prev) => prev ?? q);
       setLines((prev) => (prev.length ? prev : ls));
       if (savedSnapRef.current === null) savedSnapRef.current = snapshotOf(q, ls);
     } else {
@@ -421,7 +421,7 @@ export default function SalesQuotePage() {
       if (!qRes.data) { setNotFound(true); setLoading(false); return; }
       const loadedQ = qRes.data as Quote;
       const loadedLines = [...((iRes.data as DbLine[]) ?? []).map(mapLine), blankLine()];
-      setEditing(loadedQ);
+      setSalesDoc(loadedQ);
       setLines(loadedLines);
       // The stored designer run comes back with the quote, so REGENERATE
       // reopens on the same answers even after a reload.
@@ -467,7 +467,7 @@ export default function SalesQuotePage() {
   const activeTiers = useMemo(() => [...tiers].filter((t) => t.is_active !== false).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)), [tiers]);
 
   // Tab title: the menu's name for this page + the document you are on
-  usePageTitle(editing ? displayDocNumber(editing) || null : null);
+  usePageTitle(salesDoc ? displayDocNumber(salesDoc) || null : null);
   const ovByKey = useMemo(() => { const m = new Map<string, Override>(); for (const o of overrides) m.set(`${o.component_id}:${o.tier_id}`, o); return m; }, [overrides]);
 
   const availableOf = (componentId: string | null) =>
@@ -475,7 +475,7 @@ export default function SalesQuotePage() {
 
   function priceFor(componentId: string): number | null {
     const comp = compById.get(componentId);
-    const cust = editing?.customer_id ? custById.get(editing.customer_id) : undefined;
+    const cust = salesDoc?.customer_id ? custById.get(salesDoc.customer_id) : undefined;
     // The customer's tier, or the house default for a customer carrying none
     const tierCode = cust?.tier || defaultCustomerTier;
     const tier = tierCode ? tierByCode.get(tierCode) : undefined;
@@ -486,7 +486,7 @@ export default function SalesQuotePage() {
 
   // The customer's tier code (falling back to the house default) — what the
   // auto-filled price is based on, shown pre-chosen in the price popover.
-  const custTierCode = (editing?.customer_id ? custById.get(editing.customer_id)?.tier : '') || defaultCustomerTier;
+  const custTierCode = (salesDoc?.customer_id ? custById.get(salesDoc.customer_id)?.tier : '') || defaultCustomerTier;
 
   /** Every active tier's price for a component, the customer's own marked. */
   function tierOptionsFor(componentId: string): TierOption[] {
@@ -509,12 +509,12 @@ export default function SalesQuotePage() {
     for (const it of histItems) {
       if (it.component_id !== componentId || !(Number(it.unit_price) > 0)) continue;
       const q = qById.get(it.quote_id);
-      if (!q || q.quote_id === editing?.quote_id) continue;
+      if (!q || q.quote_id === salesDoc?.quote_id) continue;
       const c = q.customer_id ? custById.get(q.customer_id) : undefined;
       out.push({
         quote_number: displayDocNumber(q as any), date: q.quote_date,
         customer: c ? (c.display_name || c.legal_name) : '—',
-        mine: !!editing?.customer_id && q.customer_id === editing.customer_id,
+        mine: !!salesDoc?.customer_id && q.customer_id === salesDoc.customer_id,
         qty: Number(it.quantity) || 0, price: Number(it.unit_price) || 0,
       });
     }
@@ -541,7 +541,7 @@ export default function SalesQuotePage() {
     return null;
   }
 
-  const setHeader = <K extends keyof Quote>(k: K, v: Quote[K]) => setEditing((e) => (e ? { ...e, [k]: v } : e));
+  const setHeader = <K extends keyof Quote>(k: K, v: Quote[K]) => setSalesDoc((e) => (e ? { ...e, [k]: v } : e));
   const setLine = (key: string, patch: Partial<EditLine>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setLines((ls) => ls.filter((l) => l.key !== key));
   // ── System Designer (mounting) ──────────────────────────────────────────
@@ -645,8 +645,8 @@ export default function SalesQuotePage() {
   }
 
   const totals = useMemo(
-    () => totalsOf(lines, num(editing?.ppn_pct ?? defaultPpnPct)),
-    [lines, editing?.ppn_pct, defaultPpnPct]);
+    () => totalsOf(lines, num(salesDoc?.ppn_pct ?? defaultPpnPct)),
+    [lines, salesDoc?.ppn_pct, defaultPpnPct]);
 
   // Owner-only order margin: Σ (price − avg landed cost) × qty over the lines
   // whose catalog item carries a cost. Custom lines have no cost basis and are
@@ -694,16 +694,16 @@ export default function SalesQuotePage() {
   const loadedStampRef = useRef<string | null>(null);
   const baseRef = useRef<EditLine[]>([]);
   const baseHeaderRef = useRef<Quote | null>(null);
-  const editingRef = useRef<Quote | null>(editing); editingRef.current = editing;
+  const editingRef = useRef<Quote | null>(salesDoc); editingRef.current = salesDoc;
   const linesRef = useRef<EditLine[]>(lines); linesRef.current = lines;
 
   const snapshotOf = (q: Quote | null, ls: EditLine[]) => JSON.stringify([
     q?.customer_id, q?.company_id, q?.quote_date, q?.valid_until ?? null, q?.payment_terms ?? '', q?.delivery_terms ?? '', q?.ppn_pct, q?.notes,
     ls.map((l) => [l.component_id, l.is_section, l.description, l.brand, l.note, l.lead_time, l.unit, l.quantity, l.unit_price, l.qty_formula, l.price_formula]),
   ]);
-  const snapshot = snapshotOf(editing, lines);
-  const draftLike = !!editing && (editing.status === 'draft' || !editing.quote_id);
-  const hasContent = !!editing?.customer_id || lines.some((l) => l.description.trim() || l.component_id);
+  const snapshot = snapshotOf(salesDoc, lines);
+  const draftLike = !!salesDoc && (salesDoc.status === 'draft' || !salesDoc.quote_id);
+  const hasContent = !!salesDoc?.customer_id || lines.some((l) => l.description.trim() || l.component_id);
 
   // ── Fold in what a colleague saved ─────────────────────────────────────────
   /** What a merge did, so the caller can write with it and say what happened. */
@@ -765,7 +765,7 @@ export default function SalesQuotePage() {
       mergeHeader(baseHeaderRef.current ?? remoteHeader, localHeader, remoteHeader);
 
     setLines(merged);
-    setEditing(mergedHeader);
+    setSalesDoc(mergedHeader);
     // Saved state is what the DATABASE now holds, so `dirty` still means
     // exactly "this tab is holding edits nobody else has seen" — a colleague's
     // row arriving must not, by itself, arm the autosaver.
@@ -807,11 +807,11 @@ export default function SalesQuotePage() {
   }, [syncNow]);
 
   const autosave = useCallback(async () => {
-    if (!editing || autosavingRef.current || busy) return;
+    if (!salesDoc || autosavingRef.current || busy) return;
     if (!draftLike || !hasContent) return;
-    if (snapshotOf(editing, lines) === savedSnapRef.current) return;
+    if (snapshotOf(salesDoc, lines) === savedSnapRef.current) return;
     autosavingRef.current = true;
-    const wasNew = !editing.quote_id;
+    const wasNew = !salesDoc.quote_id;
     const qid = await persist();
     if (qid) {
       // persist() stamps savedSnapRef itself, from the POST-merge state — the
@@ -823,7 +823,7 @@ export default function SalesQuotePage() {
     }
     autosavingRef.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing, lines, busy, draftLike, hasContent]);
+  }, [salesDoc, lines, busy, draftLike, hasContent]);
   const autosaveRef = useRef(autosave);
   autosaveRef.current = autosave;
 
@@ -852,7 +852,7 @@ export default function SalesQuotePage() {
   }, []);
 
   // ── Unsaved-changes guard ──────────────────────────────────────────────────
-  const dirty = !loading && !!editing && snapshot !== savedSnapRef.current;
+  const dirty = !loading && !!salesDoc && snapshot !== savedSnapRef.current;
   // Browser-level leave (close / refresh / external link): the native prompt.
   useEffect(() => {
     if (!dirty) return;
@@ -887,7 +887,7 @@ export default function SalesQuotePage() {
   }
 
   async function persist(status?: string, extra?: Record<string, unknown>): Promise<string | null> {
-    if (!editing) return null;
+    if (!salesDoc) return null;
     // The autosaver must never open a dialog — it fires 2.5s after a keystroke
     // and again on tab-hide, so a confirm() there would ambush someone
     // mid-sentence. On that path the merge is reported in the toast instead.
@@ -897,12 +897,12 @@ export default function SalesQuotePage() {
     // Whatever a colleague saved since this tab last looked is folded in
     // BEFORE anything is written, so this save carries their rows forward
     // instead of writing over them.
-    let liveHeader = editing;
+    let liveHeader = salesDoc;
     let liveLines = lines;
     let merged: RemoteMerge | null = null;
-    if (editing.quote_id && loadedStampRef.current) {
+    if (salesDoc.quote_id && loadedStampRef.current) {
       const { data: peek } = await supabase.from('22.0_sales_quotes')
-        .select('updated_at').eq('quote_id', editing.quote_id).single();
+        .select('updated_at').eq('quote_id', salesDoc.quote_id).single();
       const stamp = (peek as { updated_at?: string } | null)?.updated_at;
       if (stamp && stamp > loadedStampRef.current) {
         const res = await mergeRemote();
@@ -914,7 +914,7 @@ export default function SalesQuotePage() {
       // screen were drawn from a status that no longer exists, so the
       // transition they name is not the one that would happen — say so rather
       // than, say, quietly reverting a confirmed order to a draft quotation.
-      if (status && liveHeader.status !== editing.status) {
+      if (status && liveHeader.status !== salesDoc.status) {
         flash(`Not saved — ${merged.actor || 'someone'} moved this to ${STATUS[liveHeader.status]?.label ?? liveHeader.status} while you had it open`);
         return null;
       }
@@ -945,7 +945,7 @@ export default function SalesQuotePage() {
       ...(systemDesign ? { system_design: systemDesign } : {}),
       ...(extra ?? {}),
     };
-    let qid = editing.quote_id;
+    let qid = salesDoc.quote_id;
     if (qid) {
       // The stamp comes back from the same round trip: adopting what the
       // trigger just wrote is what stops this tab's OWN save looking like a
@@ -963,7 +963,7 @@ export default function SalesQuotePage() {
       qid = data.quote_id as string;
       const qnum = (data as { quote_number?: string }).quote_number ?? '';
       loadedStampRef.current = (data as { updated_at?: string }).updated_at ?? null;
-      setEditing((e) => (e ? { ...e, quote_id: qid!, quote_number: e.quote_number || qnum } : e));
+      setSalesDoc((e) => (e ? { ...e, quote_id: qid!, quote_number: e.quote_number || qnum } : e));
     }
     // ── Lines: UPSERT what survives, DELETE what went — IN THAT ORDER ────────
     // This was `delete every line for the quote, then insert them all back`,
@@ -1060,7 +1060,7 @@ export default function SalesQuotePage() {
   async function save() {
     setBusy(true);
     try {
-      const wasNew = !editing?.quote_id;
+      const wasNew = !salesDoc?.quote_id;
       const qid = await persist();
       if (!qid) return;
       flash('Saved');
@@ -1075,7 +1075,7 @@ export default function SalesQuotePage() {
     setBusy(true);
     try {
       const qid = await persist();
-      if (qid) { if (!editing?.quote_id) router.replace(`/sales/${qid}${asOrder ? '?as=order' : ''}`); window.open(`/sales/${qid}/print`, '_blank', 'noopener'); }
+      if (qid) { if (!salesDoc?.quote_id) router.replace(`/sales/${qid}${asOrder ? '?as=order' : ''}`); window.open(`/sales/${qid}/print`, '_blank', 'noopener'); }
     } catch (e) {
       flash(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
@@ -1083,10 +1083,10 @@ export default function SalesQuotePage() {
 
   // Advance / revert status — stays on this page. Delivery writes stock-out movements.
   async function transition(next: string) {
-    if (!editing) return;
+    if (!salesDoc) return;
     setBusy(true);
     try {
-      const wasNew = !editing.quote_id;
+      const wasNew = !salesDoc.quote_id;
       const qid = await persist(next);
       if (!qid) return;
       // Stock-outs are written PER DELIVERY ORDER (FulfillmentPanel), not on the
@@ -1103,7 +1103,7 @@ export default function SalesQuotePage() {
   // the details later (while still preparing) saves without a transition.
   const [showDoModal, setShowDoModal] = useState(false);
   async function submitDeliveryOrder(d: DeliveryDetails) {
-    if (!editing) return;
+    if (!salesDoc) return;
     setBusy(true);
     try {
       const fields = {
@@ -1113,10 +1113,10 @@ export default function SalesQuotePage() {
         delivery_map_url: d.method === 'pickup' ? '' : d.mapUrl,
         delivery_contact: d.contact,
       };
-      const qid = await persist(editing.status === 'preparing' ? undefined : 'preparing', fields);
+      const qid = await persist(salesDoc.status === 'preparing' ? undefined : 'preparing', fields);
       if (!qid) return;
       setShowDoModal(false);
-      flash(editing.status === 'preparing' ? 'Delivery details updated' : 'Delivery Order created — warehouse can start preparing');
+      flash(salesDoc.status === 'preparing' ? 'Delivery details updated' : 'Delivery Order created — warehouse can start preparing');
       load(true);
     } catch (e) {
       flash(`Could not save the delivery order: ${e instanceof Error ? e.message : String(e)}`);
@@ -1128,25 +1128,25 @@ export default function SalesQuotePage() {
   // number tracks what went out the door. Validated-but-never-sent simply
   // reopens under the same number; the trigger clears milestones only on a
   // bump, so that path clears validated_at itself.
-  const reviseBumps = !!editing?.sent_at || ['sent', 'accepted'].includes(editing?.status ?? '');
+  const reviseBumps = !!salesDoc?.sent_at || ['sent', 'accepted'].includes(salesDoc?.status ?? '');
   async function revise() {
-    if (!editing?.quote_id) return;
+    if (!salesDoc?.quote_id) return;
     setBusy(true);
     try {
       // A bumped revision is a fresh offer — its validity restarts from today,
       // so an old quote doesn't come back already Expired.
       const qid = await persist('draft', reviseBumps
-        ? { revision: (editing.revision ?? 0) + 1, valid_until: addDays(todayISO(), quoteValidityDays) }
+        ? { revision: (salesDoc.revision ?? 0) + 1, valid_until: addDays(todayISO(), quoteValidityDays) }
         : { validated_at: null });
       if (!qid) return;
-      flash(reviseBumps ? `Revision ${(editing.revision ?? 0) + 1} — back to draft` : 'Back to draft — same revision');
+      flash(reviseBumps ? `Revision ${(salesDoc.revision ?? 0) + 1} — back to draft` : 'Back to draft — same revision');
       load(true);
     } catch (e) {
       flash(`Could not revise: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
   }
 
-  if (authLoading || !profile || (loading && !editing)) return <CenterSpinner />;
+  if (authLoading || !profile || (loading && !salesDoc)) return <CenterSpinner />;
   if (!canEdit) return <CenterSpinner />;
   if (notFound) return (
     <div className="min-h-screen bg-chrome flex flex-col items-center justify-center gap-3 text-slate-400">
@@ -1154,14 +1154,14 @@ export default function SalesQuotePage() {
       <button onClick={() => router.push('/sales')} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-sm">← {t('Back to Sales')}</button>
     </div>
   );
-  if (!editing) return <CenterSpinner />;
+  if (!salesDoc) return <CenterSpinner />;
 
-  const cust = editing.customer_id ? custById.get(editing.customer_id) : undefined;
-  const newDoc = !editing.quote_id;
-  const st = editing.status;
+  const cust = salesDoc.customer_id ? custById.get(salesDoc.customer_id) : undefined;
+  const newDoc = !salesDoc.quote_id;
+  const st = salesDoc.status;
   const canRecord = ROLE_PERMISSIONS[profile.role].canRecordReceipts;
   const received = receipts.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-  const billTotal = Number(editing.grand_total) || totals.grand;
+  const billTotal = Number(salesDoc.grand_total) || totals.grand;
   const fullyPaid = isSettled(billTotal, received);
   const showPayments = !newDoc && inGroup('sales_document', 'order', st);
   // Receipts per invoice — the link that makes an invoice's PAID/PARTIAL state
@@ -1173,8 +1173,8 @@ export default function SalesQuotePage() {
   const todayIso = todayISO();
   // An offer past its own date, while still on the table (draft is not an
   // offer yet; accepted/ordered+ has already landed). NULL = no expiry.
-  const expired = !!editing.valid_until && inGroup('sales_document', 'awaitingAnswer', st)
-    && editing.valid_until < todayIso;
+  const expired = !!salesDoc.valid_until && inGroup('sales_document', 'awaitingAnswer', st)
+    && salesDoc.valid_until < todayIso;
   // Entered via "+ New Order": the quotation actions do not exist AT ALL on
   // the draft — offering Validate invited the wrong click and quietly turned
   // the order into a price quote (field report 2026-08-19). The only forward
@@ -1183,9 +1183,9 @@ export default function SalesQuotePage() {
   // The buttons are the declared moves of the sales lifecycle
   // (lib/lifecycles.ts → salesDocumentActions). Revert from Preparing lands on
   // Invoiced only when there is an invoice — it used to land there regardless.
-  const actions = salesDocumentActions(st, { orderMode, hasInvoice: invoices.length > 0 || !!editing.invoice_number });
+  const actions = salesDocumentActions(st, { orderMode, hasInvoice: invoices.length > 0 || !!salesDoc.invoice_number });
   // Revising re-opens the quote for edits with a bumped revision counter
-  const canRevise = !!editing.quote_id && ['validated', 'sent', 'accepted'].includes(st);
+  const canRevise = !!salesDoc.quote_id && ['validated', 'sent', 'accepted'].includes(st);
 
   return (
     <div className="min-h-screen bg-chrome text-slate-200 font-sans text-sm">
@@ -1214,17 +1214,17 @@ export default function SalesQuotePage() {
           {/* Identity: the SQ number exists from the FIRST (auto)save — a
               draft carries its own unique number, not a placeholder. */}
           <h1 className="text-sm sm:text-base font-bold text-white whitespace-nowrap flex-shrink-0">
-            {displayDocNumber(editing) || t('New Sales Quote')}
+            {displayDocNumber(salesDoc) || t('New Sales Quote')}
           </h1>
-          {(editing.revision ?? 0) > 0 && (
-            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {editing.revision}</span>
+          {(salesDoc.revision ?? 0) > 0 && (
+            <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-sky-500/15 text-sky-300">Rev {salesDoc.revision}</span>
           )}
           {/* Who else is in this quotation right now. A colleague's amber dot
               means they are holding unsaved edits, and their flag clearing
               pulls their save in immediately instead of on the next poll. */}
-          {editing.quote_id && profile?.email && (
+          {salesDoc.quote_id && profile?.email && (
             <DocumentPresence
-              channelId={`sales:${editing.quote_id}`}
+              channelId={`sales:${salesDoc.quote_id}`}
               email={profile.email}
               name={profile.display_name || profile.email}
               editing={dirty}
@@ -1243,7 +1243,7 @@ export default function SalesQuotePage() {
             </span>
           )}
           {/* After-sales quote — repair/replacement, badge links back to the case */}
-          {(caseInfo || editing.case_id) && (
+          {(caseInfo || salesDoc.case_id) && (
             <a href="/aftersales" target="_blank" rel="noopener noreferrer"
               className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/30 hover:bg-orange-500/25 transition-colors"
               title={t('After-sales quote — open the case list')}>
@@ -1252,8 +1252,8 @@ export default function SalesQuotePage() {
           )}
           {expired && (
             <span className="flex-shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
-              title={tf('Offer expired {date} — Revise to re-issue with fresh validity', { date: fmtDay(editing.valid_until!) })}>
-              {t('Expired')} {fmtDay(editing.valid_until!)}
+              title={tf('Offer expired {date} — Revise to re-issue with fresh validity', { date: fmtDay(salesDoc.valid_until!) })}>
+              {t('Expired')} {fmtDay(salesDoc.valid_until!)}
             </span>
           )}
           {showPayments && fullyPaid && (
@@ -1274,15 +1274,15 @@ export default function SalesQuotePage() {
             {/* Derived from the REAL child documents, not the legacy mirror of
                 the first one — two invoices show as "INV-… +1", all numbers in
                 the tooltip. */}
-            {editing.order_number && <DocTag label="SO" value={editing.order_number} />}
+            {salesDoc.order_number && <DocTag label="SO" value={salesDoc.order_number} />}
             {invoices.length > 0 ? (
               <DocTag label="INV" title={invoices.map((i) => i.invoice_number).join(' · ')}
                 value={invoices.length === 1 ? invoices[0].invoice_number : `${invoices[0].invoice_number} +${invoices.length - 1}`} />
-            ) : editing.invoice_number ? <DocTag label="INV" value={editing.invoice_number} /> : null}
+            ) : salesDoc.invoice_number ? <DocTag label="INV" value={salesDoc.invoice_number} /> : null}
             {dos.length > 0 ? (
               <DocTag label="DO" title={dos.map((d) => d.do_number).join(' · ')}
                 value={dos.length === 1 ? dos[0].do_number : `${dos[0].do_number} +${dos.length - 1}`} />
-            ) : editing.do_number ? <DocTag label="DO" value={editing.do_number} /> : null}
+            ) : salesDoc.do_number ? <DocTag label="DO" value={salesDoc.do_number} /> : null}
           </span>
           {/* Actions — right side of the same bar */}
           <span className="ml-auto flex items-center gap-2 flex-shrink-0">
@@ -1332,20 +1332,20 @@ export default function SalesQuotePage() {
       <main className="max-w-[1200px] 2xl:max-w-[1760px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 space-y-5">
 
         {/* Milestone timeline — the defined progression with each stage's doc code */}
-        {!newDoc && <SalesMilestones q={editing} received={received} billTotal={billTotal} invoices={invoices} dos={dos} />}
+        {!newDoc && <SalesMilestones q={salesDoc} received={received} billTotal={billTotal} invoices={invoices} dos={dos} />}
 
         {/* Fulfillment: this order's invoices + delivery orders (split-capable) */}
         {!newDoc && inGroup('sales_document', 'order', st) && (
           <FulfillmentPanel
-            quote={editing}
+            quote={salesDoc}
             soLines={savedLines}
             invoices={invoices}
             invItems={invItems}
             dos={dos}
             doItems={doItems}
             paidByInvoice={paidByInvoice}
-            contacts={custContacts.filter((c) => c.customer_id === editing.customer_id)}
-            shippingAddress={editing.customer_id ? (custById.get(editing.customer_id)?.shipping_address || custById.get(editing.customer_id)?.billing_address || '') : ''}
+            contacts={custContacts.filter((c) => c.customer_id === salesDoc.customer_id)}
+            shippingAddress={salesDoc.customer_id ? (custById.get(salesDoc.customer_id)?.shipping_address || custById.get(salesDoc.customer_id)?.billing_address || '') : ''}
             canEdit={canEdit}
             onChanged={() => load(true)}
             flash={flash}
@@ -1357,8 +1357,8 @@ export default function SalesQuotePage() {
         {showPayments && (
           <PaymentsPanel
             receipts={receipts} billTotal={billTotal} received={received} canRecord={canRecord}
-            quoteId={editing.quote_id} companyId={editing.company_id}
-            docNumber={displayDocNumber(editing)}
+            quoteId={salesDoc.quote_id} companyId={salesDoc.company_id}
+            docNumber={displayDocNumber(salesDoc)}
             invoices={invoices} paidByInvoice={paidByInvoice}
             onChanged={() => load(true)} flash={flash}
           />
@@ -1366,35 +1366,35 @@ export default function SalesQuotePage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4">
           <FieldBox label={t('Customer')} full>
-            <CustomerPicker customers={customers} value={editing.customer_id} onPick={(cid) => setHeader('customer_id', cid)} />
+            <CustomerPicker customers={customers} value={salesDoc.customer_id} onPick={(cid) => setHeader('customer_id', cid)} />
           </FieldBox>
           <FieldBox label={t('Selling company')} full>
-            <select value={editing.company_id ?? ''} onChange={(e) => setHeader('company_id', e.target.value || null)} className={inp}>
+            <select value={salesDoc.company_id ?? ''} onChange={(e) => setHeader('company_id', e.target.value || null)} className={inp}>
               <option value="">{t('— Select company —')}</option>
               {companies.map((c) => <option key={c.company_id} value={c.company_id}>{c.legal_name}</option>)}
             </select>
           </FieldBox>
           <FieldBox label={t('Quote date')}>
-            <input type="date" value={editing.quote_date} onChange={(e) => setHeader('quote_date', e.target.value)} className={inp} />
+            <input type="date" value={salesDoc.quote_date} onChange={(e) => setHeader('quote_date', e.target.value)} className={inp} />
             {/* Always right under the box — a fixed control, not one that
                 appears and vanishes. Muted when the date is already today. */}
             <span className="mt-1.5 block">
-              <button onClick={() => setHeader('quote_date', todayIso)} disabled={editing.quote_date === todayIso}
-                title={editing.quote_date === todayIso ? t('The quote is already dated today') : undefined}
+              <button onClick={() => setHeader('quote_date', todayIso)} disabled={salesDoc.quote_date === todayIso}
+                title={salesDoc.quote_date === todayIso ? t('The quote is already dated today') : undefined}
                 className="px-2 py-1 rounded-lg border border-white/[0.06] text-[10px] font-medium text-slate-400 hover:text-white hover:bg-white/10 transition-all disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400">
                 {t('Set to today’s date')}
               </button>
             </span>
           </FieldBox>
           <FieldBox label={t('Valid until')}>
-            <input type="date" value={editing.valid_until ?? ''} onChange={(e) => setHeader('valid_until', e.target.value || null)} className={inp} />
+            <input type="date" value={salesDoc.valid_until ?? ''} onChange={(e) => setHeader('valid_until', e.target.value || null)} className={inp} />
             {/* Segmented preset control — one hairline outline, divided cells,
                 the active span tinted; same ghost grammar as the command bar. */}
             <span className="mt-1.5 flex items-center gap-2">
               <span className="inline-flex rounded-lg border border-white/[0.06] overflow-hidden divide-x divide-white/[0.06]">
                 {[7, 14, 30].map((d) => {
-                  const target = addDays(editing.quote_date, d);
-                  const active = editing.valid_until === target;
+                  const target = addDays(salesDoc.quote_date, d);
+                  const active = salesDoc.valid_until === target;
                   return (
                     <button key={d} onClick={() => setHeader('valid_until', target)}
                       title={tf('Valid until {date} (quote date + {days} days)', { date: fmtDay(target), days: d })}
@@ -1407,9 +1407,9 @@ export default function SalesQuotePage() {
                 })}
               </span>
               <span className="text-[10px] text-slate-600">
-                {editing.valid_until
+                {salesDoc.valid_until
                   ? (() => {
-                      const days = Math.round((new Date(`${editing.valid_until}T12:00:00`).getTime() - new Date(`${editing.quote_date}T12:00:00`).getTime()) / 86400000);
+                      const days = Math.round((new Date(`${salesDoc.valid_until}T12:00:00`).getTime() - new Date(`${salesDoc.quote_date}T12:00:00`).getTime()) / 86400000);
                       return days >= 0 ? tf('{days} days', { days }) : t('before quote date');
                     })()
                   : t('no expiry')}
@@ -1417,14 +1417,14 @@ export default function SalesQuotePage() {
             </span>
           </FieldBox>
           <FieldBox label="PPN %">
-            <input value={String(editing.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} tabular-nums`} />
+            <input value={String(salesDoc.ppn_pct)} onChange={(e) => setHeader('ppn_pct', num(e.target.value) as any)} className={`${inp} tabular-nums`} />
           </FieldBox>
           <FieldBox label={t('Payment terms')} full>
-            <TermSelect value={editing.payment_terms ?? ''} options={salesPaymentTermsOptions}
+            <TermSelect value={salesDoc.payment_terms ?? ''} options={salesPaymentTermsOptions}
               placeholder={t('— Select payment terms —')} onChange={(v) => setHeader('payment_terms', v)} />
           </FieldBox>
           <FieldBox label={t('Delivery terms')} full>
-            <TermSelect value={editing.delivery_terms ?? ''} options={salesDeliveryTermsOptions}
+            <TermSelect value={salesDoc.delivery_terms ?? ''} options={salesDeliveryTermsOptions}
               placeholder={t('— Select delivery terms —')} onChange={(v) => setHeader('delivery_terms', v)} />
           </FieldBox>
         </div>
@@ -1484,12 +1484,12 @@ export default function SalesQuotePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
           <div className="flex flex-col">
             <label className="block text-[11px] font-medium text-slate-500 mb-1">{t('Notes / terms')}</label>
-            <textarea value={editing.notes} onChange={(e) => setHeader('notes', e.target.value)} rows={4}
+            <textarea value={salesDoc.notes} onChange={(e) => setHeader('notes', e.target.value)} rows={4}
               className={`${inp} flex-1 min-h-[96px] resize-y rounded-2xl`} />
           </div>
           <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-2 text-sm">
             <Row label={t('Subtotal')} value={fmtInt(totals.subtotal)} />
-            <Row label={`PPN (${num(editing.ppn_pct)}%)`} value={fmtInt(totals.ppn)} />
+            <Row label={`PPN (${num(salesDoc.ppn_pct)}%)`} value={fmtInt(totals.ppn)} />
             <div className="border-t border-slate-800 pt-2 flex justify-between items-baseline">
               <span className="text-slate-300 font-semibold">{t('Grand Total')}</span>
               <span className="text-xl font-extrabold text-emerald-300 tabular-nums">IDR {fmtInt(totals.grand)}</span>

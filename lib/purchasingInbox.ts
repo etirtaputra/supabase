@@ -59,7 +59,7 @@ export function latePos(leads: SupplierLead[], today: string): LatePo[] {
 /** Goods are in (fully or partly received) and the PO still has money to pay. */
 export const GOODS_IN = groupSet('purchase_order', 'received');
 
-export interface UnpaidPo { poId: string; poNumber: string; currency: string; remaining: number; idr: number | null }
+export interface UnpaidPo { poId: string; poNumber: string; currency: string; remaining: number; remainingIdr: number | null }
 
 export function unpaidReceived(pos: (BalancePo & { status?: string | null })[], costs: BalanceCost[]): UnpaidPo[] {
   const out: UnpaidPo[] = [];
@@ -68,7 +68,7 @@ export function unpaidReceived(pos: (BalancePo & { status?: string | null })[], 
     if (!GOODS_IN.has(status) || NOT_PAYABLE_PO_STATUS.has(status)) continue;
     const b = poBalance(po, costs);
     if (b.settled || !(b.remaining > 0)) continue;
-    out.push({ poId: b.poId, poNumber: b.poNumber ?? '', currency: b.currency, remaining: b.remaining, idr: b.idr });
+    out.push({ poId: b.poId, poNumber: b.poNumber ?? '', currency: b.currency, remaining: b.remaining, remainingIdr: b.remainingIdr });
   }
-  return out.sort((a, b) => (b.idr ?? 0) - (a.idr ?? 0));
+  return out.sort((a, b) => (b.remainingIdr ?? 0) - (a.remainingIdr ?? 0));
 }

@@ -173,11 +173,11 @@ test('every menu entry is a real destination with a hint someone can read', () =
 
 /**
  * A screen may delegate its gate to a shared hook instead of redirecting
- * inline — the EPC proposal screens do, through useQuotesGate. That is still
+ * inline — the EPC proposal screens do, through useProposalsGate. That is still
  * the one rule (the hook asks canOpenPath), so the delegation must be visible
  * here rather than looking like an ungated page.
  */
-const DELEGATED = 'useQuotesGate';
+const DELEGATED = 'useProposalsGate';
 
 test('a menu-gated screen always enforces a gate — inline or through the shared hook', () => {
   const ungated: string[] = [];
@@ -198,11 +198,11 @@ test('the EPC screens are guarded by the path they actually are', () => {
   const list = readFileSync('app/proposals/page.tsx', 'utf8');
   const lib = readFileSync('app/proposals/library/page.tsx', 'utf8');
   const dir = readFileSync('app/proposals/directory/page.tsx', 'utf8');
-  assert.ok(list.includes('useQuotesGate()'), 'the proposal list guards /proposals');
+  assert.ok(list.includes('useProposalsGate()'), 'the proposal list guards /proposals');
   assert.ok(lib.includes("'/proposals/library'"), 'the library guards its own path');
   assert.ok(dir.includes("'/proposals/directory'"), 'the directory guards its own path');
   for (const f of ['app/proposals/bom/page.tsx', 'app/proposals/bom/[id]/page.tsx']) {
-    assert.ok(readFileSync(f, 'utf8').includes("useQuotesGate(false, '/proposals/bom')"), `${f} guards /proposals/bom`);
+    assert.ok(readFileSync(f, 'utf8').includes("useProposalsGate('/proposals/bom')"), `${f} guards /proposals/bom`);
   }
   // Costs and margins on every row: the same roles that see them on proposals.
   assert.equal(canOpenPath(ROLE_PERMISSIONS.engineer, '/proposals/bom'), true);

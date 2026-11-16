@@ -186,7 +186,7 @@ export function computeTUCMap(
   }
 
   // Pre-aggregate each PO once: settled? + cost buckets in IDR + line-value total
-  interface PoAgg { settled: boolean; costPool: number; totalValue: number }
+  interface PoAgg { hasBalancePayment: boolean; costPool: number; totalValue: number }
   const aggByPo = new Map<string, PoAgg>();
   const costsByPo = new Map<string, POCost[]>();
   for (const c of poCosts) {
@@ -201,15 +201,15 @@ export function computeTUCMap(
       ? Number(c.amount)
       : Number(c.amount) * (Number(c.exchange_rate) || Number(po.exchange_rate) || 1);
     let pool = 0;
-    let settled = false;
+    let hasBalancePayment = false;
     for (const c of costs) {
-      if (BALANCE_CATS.has(c.cost_category)) settled = true;
+      if (BALANCE_CATS.has(c.cost_category)) hasBalancePayment = true;
       if (TAX_CATS.has(c.cost_category)) continue;
       // principal + bank fees + everything else except taxes
       pool += toIdr(c);
     }
     const totalValue = (itemsByPo.get(k) ?? []).reduce((s, i) => s + i.unit_cost * i.quantity, 0);
-    aggByPo.set(k, { settled, costPool: pool, totalValue });
+    aggByPo.set(k, { hasBalancePayment, costPool: pool, totalValue });
   }
 
   interface Acc { wSum: number; wQty: number; latestDate: string; latestTuc: number; latestXr: number | null; poIds: Set<string>; entries: CostEntry[] }
@@ -220,7 +220,7 @@ export function computeTUCMap(
     const k = String(item.po_id);
     const po = poMap.get(k);
     const agg = aggByPo.get(k);
-    if (!po || !agg || !agg.settled || agg.totalValue <= 0) continue;
+    if (!po || !agg || !agg.hasBalancePayment || agg.totalValue <= 0) continue;
 
     const share = (item.unit_cost * item.quantity) / agg.totalValue;
     const tuc = (share * agg.costPool) / item.quantity;

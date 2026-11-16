@@ -10,7 +10,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllRows } from '@/lib/fetchAllRows';
-import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { useProposalsGate } from '@/hooks/useProposalsGate';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { useT } from '@/hooks/useT';
 import { PROPOSAL_FIELDS, type ProposalFieldKey, clusterDuplicates } from '@/lib/proposalFields';
@@ -20,7 +20,7 @@ interface Row { customer_name: string; customer_address: string; location: strin
 
 export default function ProposalDirectoryPage() {
   const supabase = createSupabaseClient();
-  const gate = useQuotesGate(false, '/proposals/directory');
+  const gate = useProposalsGate('/proposals/directory');
   const isOwner = gate.profile?.role === 'owner';
 
   const [rows, setRows] = useState<Row[]>([]);       // 10.0 header fields

@@ -145,8 +145,8 @@ export function paidRate(po: FxPo, costs: FxCost[]): PaidRate | null {
   }
   // Rupiah with no rate: readable only once the order is fully paid, as what
   // settled the rest of it. Until the balance is paid it is left out.
-  const fullyPaid = mine.some((c) => BALANCE_CATS.has(c.cost_category));
-  if (bare > 0 && fullyPaid && total - foreign > 0) { idr += bare; foreign = total; }
+  const hasBalancePayment = mine.some((c) => BALANCE_CATS.has(c.cost_category));
+  if (bare > 0 && hasBalancePayment && total - foreign > 0) { idr += bare; foreign = total; }
   if (foreign <= 0 || idr <= 0) return null;
   const bank = [...byBank.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
   return { rate: idr / foreign, foreign, idr, paidOn, bankAccountId: bank };
@@ -182,7 +182,7 @@ export function compareToBenchmark(po: FxPo, costs: FxCost[], rows: FxBenchmark[
   };
 }
 
-export interface FxSummaryRow { key: string; currency: string; pos: number; foreign: number; idr: number; benchmarkIdr: number; diffIdr: number }
+export interface FxSummaryRow { key: string; currency: string; poCount: number; foreign: number; idr: number; benchmarkIdr: number; diffIdr: number }
 
 /**
  * The comparisons rolled up by a key — the month paid, the supplier, the bank.
@@ -195,8 +195,8 @@ export function summarise(rows: FxComparison[], keyOf: (c: FxComparison) => stri
     const k = keyOf(c);
     if (!k) continue;
     const id = `${k}·${c.currency}`;
-    const r = m.get(id) ?? { key: k, currency: c.currency, pos: 0, foreign: 0, idr: 0, benchmarkIdr: 0, diffIdr: 0 };
-    r.pos += 1; r.foreign += c.paid.foreign; r.idr += c.paid.idr;
+    const r = m.get(id) ?? { key: k, currency: c.currency, poCount: 0, foreign: 0, idr: 0, benchmarkIdr: 0, diffIdr: 0 };
+    r.poCount += 1; r.foreign += c.paid.foreign; r.idr += c.paid.idr;
     r.benchmarkIdr += c.benchmarkRate * c.paid.foreign; r.diffIdr += c.diffIdr;
     m.set(id, r);
   }

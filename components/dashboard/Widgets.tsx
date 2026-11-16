@@ -621,8 +621,8 @@ export function FeedCard({ title, feed, href, empty, showMoney = false }: {
   showMoney?: boolean;
 }) {
   const { t } = useT();
-  const both = feed?.includes.includes('in') && feed?.includes.includes('out');
-  const half = feed && !both && (feed.includes.includes('in') || feed.includes.includes('out'));
+  const bothDirections = feed?.includes.includes('in') && feed?.includes.includes('out');
+  const oneDirectionOnly = feed && !bothDirections && (feed.includes.includes('in') || feed.includes.includes('out'));
   return (
     <div className="bg-slate-900/40 border border-slate-800/80 ring-1 ring-white/5 rounded-2xl overflow-hidden h-full flex flex-col">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-800/70">
@@ -670,7 +670,7 @@ export function FeedCard({ title, feed, href, empty, showMoney = false }: {
 
       {/* Only where it changes the meaning: a feed carrying one direction of
           the money must not be read as carrying both. */}
-      {half && (
+      {oneDirectionOnly && (
         <p className="px-4 py-2 border-t border-slate-800/70 text-[10px] text-slate-600">
           {feed!.includes.includes('in')
             ? t('Money in only — supplier payments are buy-side.')
@@ -783,10 +783,10 @@ export function TopBoard({ title, board, by, onPick, noun, period, canProfit, hr
             <p className="text-[11px] text-slate-600">
               {/* The denominator, always — a top ten of four is not a league
                   table, and saying so costs one line. */}
-              {board.ranked <= board.rows.length
-                ? tf('All {n} {noun} that have sold in this period.', { n: board.ranked, noun: nounText })
-                : tf('Top {shown} of {n} {noun} that have sold.', { shown: board.rows.length, n: board.ranked, noun: nounText })}
-              {board.total > 0 && ` ${tf('These carry {pct}% of the total.',
+              {board.nameCount <= board.rows.length
+                ? tf('All {n} {noun} that have sold in this period.', { n: board.nameCount, noun: nounText })
+                : tf('Top {shown} of {n} {noun} that have sold.', { shown: board.rows.length, n: board.nameCount, noun: nounText })}
+              {board.positiveTotal > 0 && ` ${tf('These carry {pct}% of the total.',
                 { pct: Math.round(board.rows.reduce((s, r) => s + r.share, 0) * 100) })}`}
             </p>
             {!profitOffered && canProfit && (

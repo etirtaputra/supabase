@@ -160,7 +160,7 @@ test('Per product: each PO that carried the item counts once, with that PO\'s ow
   assert.equal(sea.poToReceived!.median, 40, 'sea alone: 50 and 30');
   assert.equal(rail.byVia.find((b) => b.via === 'Air')!.poToReceived!.median, 7);
   assert.equal(rail.overdue, 1, 'the open sea PO is past PO date + the sea median of 40 days, not the overall 30');
-  assert.deepEqual(rail.suppliers.map((s) => [s.supplierId, s.pos]), [['s1', 3], ['s2', 1]]);
+  assert.deepEqual(rail.suppliers.map((s) => [s.supplierId, s.poCount]), [['s1', 3], ['s2', 1]]);
   assert.equal(clamp.poToReceived!.median, 50);
   assert.equal(clamp.overdue, 0);
 });

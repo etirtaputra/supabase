@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createSupabaseClient } from '@/lib/supabase';
 import { fetchAllRows } from '@/lib/fetchAllRows';
 import { useSupabaseData } from '@/hooks/useSupabaseData';
-import { useQuotesGate } from '@/hooks/useQuotesGate';
+import { useProposalsGate } from '@/hooks/useProposalsGate';
 import { useT } from '@/hooks/useT';
 import { fetchOpenNotes, newestOpenByQuote, openCountByQuote, type QuoteNote } from '@/lib/quoteNotes';
 import { openFlagsByQuote } from '@/lib/quoteFlags';
@@ -76,7 +76,7 @@ export default function QuotesListPage() {
   const { t, t: tr, tf } = useT();
   const supabase = createSupabaseClient();
   const router = useRouter();
-  const gate = useQuotesGate();
+  const gate = useProposalsGate();
   const { data: catalog, loading: catalogLoading } = useSupabaseData();
   const [quotes, setQuotes] = useState<ProjectQuote[]>([]);
   const [loading, setLoading] = useState(true);

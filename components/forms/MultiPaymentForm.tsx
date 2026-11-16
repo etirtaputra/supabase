@@ -211,7 +211,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   };
 
   // ── Grand total across all cost entries ───────────────────────────────
-  const totalAmount = useMemo(
+  const batchTotal = useMemo(
     () => costItems.reduce((s, item) => s + (parseFloat(item.amountStr) || 0), 0),
     [costItems]
   );
@@ -224,15 +224,15 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
       if (overrides[key] !== undefined) {
         r[key] = parseFloat(overrides[key]) || 0;
       } else {
-        r[key] = Math.round(totalAmount * shareOf(key));
+        r[key] = Math.round(batchTotal * shareOf(key));
       }
     }
     return r;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPos, overrides, totalAmount, poIdrValues, totalIdrValue, poOutstanding, totalOutstanding]);
+  }, [selectedPos, overrides, batchTotal, poIdrValues, totalIdrValue, poOutstanding, totalOutstanding]);
 
   const allocatedTotal = Object.values(allocations).reduce((s, v) => s + v, 0);
-  const delta = totalAmount - allocatedTotal;
+  const delta = batchTotal - allocatedTotal;
 
   // ── Helpers ────────────────────────────────────────────────────────────
   const togglePo = (poId: string) => {
@@ -260,9 +260,9 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
   // ── Submit ─────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (selectedPos.length === 0) { onError('Select at least one PO.'); return; }
-    if (totalAmount <= 0)         { onError('Add at least one cost entry with an amount.'); return; }
+    if (batchTotal <= 0)         { onError('Add at least one cost entry with an amount.'); return; }
     if (Math.abs(delta) > 1)     {
-      onError(`Allocation total (${fmtIdr(allocatedTotal)}) ≠ payment total (${fmtIdr(totalAmount)}). Adjust amounts.`);
+      onError(`Allocation total (${fmtIdr(allocatedTotal)}) ≠ payment total (${fmtIdr(batchTotal)}). Adjust amounts.`);
       return;
     }
 
@@ -274,7 +274,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
       .from('payment_batches')
       .insert({
         batch_date:     paymentDate,
-        total_amount:   totalAmount,
+        total_amount:   batchTotal,
         currency:       'IDR',
         bank_reference: bankRef || null,
         bank_account_id: bankId || null,
@@ -297,8 +297,8 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
 
     for (const po of selectedPos) {
       const key = String(po.po_id);
-      const poTotal = allocations[key] ?? 0;
-      const poShare = totalAmount > 0 ? poTotal / totalAmount : 1 / (selectedPos.length || 1);
+      const poAllocation = allocations[key] ?? 0;
+      const poShare = batchTotal > 0 ? poAllocation / batchTotal : 1 / (selectedPos.length || 1);
 
       for (const item of costItems) {
         const itemTotal = parseFloat(item.amountStr) || 0;
@@ -512,17 +512,17 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
           </div>
 
           {/* Running total */}
-          {totalAmount > 0 && (
+          {batchTotal > 0 && (
             <div className="mt-4 pt-3 border-t border-slate-700/60 flex justify-between items-center">
               <span className="text-xs font-bold text-slate-400">Total</span>
-              <span className="text-sm font-bold text-white tabular-nums">{fmtIdr(totalAmount)}</span>
+              <span className="text-sm font-bold text-white tabular-nums">{fmtIdr(batchTotal)}</span>
             </div>
           )}
         </div>
       )}
 
       {/* ── Step 4: Allocation ── */}
-      {selectedIds.length > 0 && totalAmount > 0 && (
+      {selectedIds.length > 0 && batchTotal > 0 && (
         <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-5">
           <h4 className="text-sm font-bold text-white mb-0.5">4 · Allocation</h4>
           <p className="text-xs text-slate-500 mb-4">
@@ -614,7 +614,7 @@ export default function MultiPaymentForm({ pos, suppliers, quotes, poCosts, onSu
                 entries: costItems.filter((i) => parseFloat(i.amountStr) > 0).length === 1
                   ? t('1 entry')
                   : tf('{n} entries', { n: costItems.filter((i) => parseFloat(i.amountStr) > 0).length }),
-                amount: fmtIdr(totalAmount),
+                amount: fmtIdr(batchTotal),
               })}
         </button>
       )}

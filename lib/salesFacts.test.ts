@@ -152,8 +152,8 @@ test('the board reports how many names it ranked, not just the ten it shows', ()
     fact({ component_id: `c${i}`, revenue: (i + 1) * 1000, cogs: 0 }));
   const b = rank(facts, 'revenue', (f) => f.component_id, named);
   assert.equal(b.rows.length, 10);
-  assert.equal(b.ranked, 14, 'a top ten of fourteen must say there are fourteen');
-  assert.equal(b.total, facts.reduce((s, f) => s + f.revenue, 0));
+  assert.equal(b.nameCount, 14, 'a top ten of fourteen must say there are fourteen');
+  assert.equal(b.positiveTotal, facts.reduce((s, f) => s + f.revenue, 0));
   // 1k..14k sums to 105k; the top ten (5k..14k) are 95k of it.
   assert.ok(Math.abs(b.rows.reduce((s, r) => s + r.share, 0) - 95 / 105) < 0.001,
     'the shown rows carry most, not all, of the total');
@@ -186,7 +186,7 @@ test('a fact with no key is left out rather than bucketed under a blank name', (
   const b = rank([fact({ customer_id: null })], 'revenue', (f) => f.customer_id,
     () => ({ name: 'x', sub: () => '' }));
   assert.deepEqual(b.rows, []);
-  assert.equal(b.ranked, 0);
+  assert.equal(b.nameCount, 0);
 });
 
 test('a reader who may not see cost gets no profit figure, not a wrong one', () => {

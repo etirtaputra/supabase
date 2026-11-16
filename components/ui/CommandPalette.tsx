@@ -216,8 +216,8 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
   const [items, setItems] = useState<Item[] | null>(null);
-  const [recents, setRecents] = useState<Item[]>([]);       // fallback: newest documents
-  const [stored, setStored] = useState<Item[]>([]);         // personal: recently opened
+  const [latestDocuments, setLatestDocuments] = useState<Item[]>([]);       // fallback: newest documents
+  const [recentlyOpened, setRecentlyOpened] = useState<Item[]>([]);         // personal: recently opened
   // Per-user palette preferences + the inline settings panel
   const [prefs, setPrefs] = useState<SpotPrefs>(DEFAULT_SPOT_PREFS);
   const [showPrefs, setShowPrefs] = useState(false);
@@ -272,7 +272,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
 
   // Refresh the personal recents whenever the palette activates
   useEffect(() => {
-    if (active && perms) setStored(readStoredRecents(allowedKinds(perms)));
+    if (active && perms) setRecentlyOpened(readStoredRecents(allowedKinds(perms)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
@@ -689,7 +689,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
     ];
     setItems(list);
 
-    setRecents(
+    setLatestDocuments(
       [...quoteItemsList.slice(0, 4), ...salesItemsList.slice(0, 5), ...piItemsList.slice(0, 5), ...poItemsList.slice(0, 5)]
         .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
         .slice(0, 8),
@@ -768,7 +768,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
   }, [items, query, kindEnabled]);
 
   const searching = query.trim().length >= 2;
-  const enabledRecents = prefs.recents ? (stored.length > 0 ? stored : recents).filter((r) => kindEnabled(r.kind)) : [];
+  const enabledRecents = prefs.recents ? (recentlyOpened.length > 0 ? recentlyOpened : latestDocuments).filter((r) => kindEnabled(r.kind)) : [];
   const rootRows = searching ? results : enabledRecents;
 
   useEffect(() => { setIndex(0); setOpenLines(null); }, [query, drill]);
@@ -856,7 +856,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
             onChange={(e) => savePrefs({ ...prefs, recents: e.target.checked })}
             className="w-3.5 h-3.5 accent-emerald-500 flex-shrink-0" />
           <span className="text-xs text-slate-200">Show my recent activity when the search is empty</span>
-          <button onClick={(e) => { e.preventDefault(); try { localStorage.removeItem(RECENTS_KEY); } catch {} setStored([]); }}
+          <button onClick={(e) => { e.preventDefault(); try { localStorage.removeItem(RECENTS_KEY); } catch {} setRecentlyOpened([]); }}
             className="ml-auto text-[10px] text-slate-500 hover:text-red-300 transition-colors flex-shrink-0">{tr('Clear history')}</button>
         </label>
         <label className="flex items-center gap-2.5 cursor-pointer">
@@ -897,7 +897,7 @@ export default function CommandPalette({ variant = 'modal', enabled = true, hotk
       )}
       {!drill && items !== null && !searching && rootRows.length > 0 && (
         <p className="px-4 pt-3 pb-1 text-[9px] uppercase tracking-wider text-slate-600">
-          {stored.length > 0 ? 'Recently opened' : 'Recent activity'}
+          {recentlyOpened.length > 0 ? 'Recently opened' : 'Recent activity'}
         </p>
       )}
       {drill && drill.refs.length === 0 && (

@@ -150,7 +150,7 @@ export default function ItemCostForensics({
     const totalForeign = siblings.reduce((s, i) => s + i.unit_cost * i.quantity, 0);
     const lineShare = totalForeign > 0 ? (item.unit_cost * item.quantity) / totalForeign : 0;
     const costs = poCosts.filter((c) => String(c.po_id) === String(item.po_id));
-    const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
+    const hasBalancePayment = costs.some((c) => BALANCE_CATS.has(c.cost_category));
     const toIdr = (c: POCost) => c.currency === 'IDR'
       ? Number(c.amount)
       : Number(c.amount) * (Number(c.exchange_rate) || Number(po.exchange_rate) || 1);
@@ -163,7 +163,7 @@ export default function ItemCostForensics({
       ? Math.round((new Date(po.actual_received_date).getTime() - new Date(po.po_date).getTime()) / 86_400_000)
       : null;
     return {
-      item, po, lineShare, allocP, allocB, allocL, total, hasBalance, lead,
+      item, po, lineShare, allocP, allocB, allocL, total, hasBalancePayment, lead,
       tuc: item.quantity > 0 ? total / item.quantity : 0,
     };
   }).filter((a): a is NonNullable<typeof a> => !!a)
@@ -179,14 +179,14 @@ export default function ItemCostForensics({
       if (!po) return [];
       const costs = poCosts.filter((c) => String(c.po_id) === poId);
       if (!costs.length) return [];
-      const hasBalance = costs.some((c) => BALANCE_CATS.has(c.cost_category));
+      const hasBalancePayment = costs.some((c) => BALANCE_CATS.has(c.cost_category));
       const toIdr = (c: POCost) => c.currency === 'IDR'
         ? Number(c.amount)
         : Number(c.amount) * (Number(c.exchange_rate) || Number(po.exchange_rate) || 1);
       const sub: Record<string, number> = {};
       costs.filter((c) => !TAX_CATS.has(c.cost_category)).forEach((c) => { sub[c.currency] = (sub[c.currency] || 0) + Number(c.amount); });
       return [{
-        po, costs, hasBalance, sub,
+        po, costs, hasBalancePayment, sub,
         principalIdr: costs.filter((c) => PRINCIPAL_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0),
         bankFeesIdr: costs.filter((c) => BANK_FEE_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0),
         landedIdr: costs.filter((c) => !PRINCIPAL_CATS.has(c.cost_category) && !BANK_FEE_CATS.has(c.cost_category) && !TAX_CATS.has(c.cost_category)).reduce((s, c) => s + toIdr(c), 0),
@@ -413,7 +413,7 @@ export default function ItemCostForensics({
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
                     {allocs.map((a) => (
-                      <tr key={a.item.po_line_item_id} className={`hover:bg-slate-800/30 transition-colors ${!a.hasBalance ? 'opacity-60' : ''}`}>
+                      <tr key={a.item.po_line_item_id} className={`hover:bg-slate-800/30 transition-colors ${!a.hasBalancePayment ? 'opacity-60' : ''}`}>
                         <td className="px-3 py-2 whitespace-nowrap">
                           {a.po.po_number ? <DealLink number={a.po.po_number} className="text-sky-400 hover:text-sky-300 font-mono" /> : <span className="text-sky-400 font-mono">{`PO ${a.po.po_id}`}</span>}
                         </td>
@@ -421,7 +421,7 @@ export default function ItemCostForensics({
                         <td className="px-3 py-2 text-right text-white font-semibold tabular-nums">{fmtInt(a.item.quantity)}</td>
                         <td className="px-3 py-2 text-right text-slate-200 tabular-nums whitespace-nowrap">{fmtCcy(a.item.unit_cost, a.item.currency || a.po.currency)}</td>
                         <td className="px-3 py-2 text-right text-slate-400 tabular-nums">{(a.lineShare * 100).toFixed(1)}%</td>
-                        {a.hasBalance && a.tuc > 0 ? (
+                        {a.hasBalancePayment && a.tuc > 0 ? (
                           <td className="px-3 py-2 text-right bg-amber-500/5">
                             <p className="text-amber-400 font-bold tabular-nums whitespace-nowrap">{fmtMoneyCell(a.tuc)}</p>
                             {a.total > 0 && (a.allocB > 0 || a.allocL > 0) && (
@@ -466,8 +466,8 @@ export default function ItemCostForensics({
                       <span className="text-sky-400 font-mono text-xs font-semibold"><DealLink number={g.po.po_number} className="hover:text-sky-300" /></span>
                       {g.po.pi_number && <span className="text-violet-400 font-mono text-[10px]">PI: <DealLink number={g.po.pi_number} className="hover:text-violet-300" /></span>}
                       <span className="text-slate-500 text-[11px]">{fmtDay(g.po.po_date)}</span>
-                      <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full border ${g.hasBalance ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
-                        {g.hasBalance ? 'Balance Paid' : 'Balance Unpaid'}
+                      <span className={`ml-auto text-[10px] font-bold px-2 py-0.5 rounded-full border ${g.hasBalancePayment ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
+                        {g.hasBalancePayment ? 'Balance Paid' : 'Balance Unpaid'}
                       </span>
                     </div>
                     {(() => {

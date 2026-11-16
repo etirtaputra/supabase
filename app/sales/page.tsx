@@ -206,7 +206,7 @@ export default function SalesListPage() {
     return matchesSearch(q);
   }).sort((a, b) => {
     if (colSort) {
-      const pctOf = (q: Quote) => {
+      const paidFraction = (q: Quote) => {
         const t = Number(q.grand_total) || 0;
         return t > 0 ? (receivedByQuote[q.quote_id] ?? 0) / t : -1;
       };
@@ -215,7 +215,7 @@ export default function SalesListPage() {
         case 'number':   cmp = displayDocNumber(a).localeCompare(displayDocNumber(b), undefined, { numeric: true }); break;
         case 'customer': cmp = nameOf(a).localeCompare(nameOf(b)); break;
         case 'status':   cmp = milestoneIndex(a.status) - milestoneIndex(b.status); break;
-        case 'payment':  cmp = pctOf(a) - pctOf(b); break;
+        case 'payment':  cmp = paidFraction(a) - paidFraction(b); break;
         case 'total':    cmp = exPpn(a) - exPpn(b); break;   // sort on the shown value
         case 'updated':  cmp = (a.updated_at || '').localeCompare(b.updated_at || ''); break;
       }
