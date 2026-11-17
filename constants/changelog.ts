@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-17T01:45:00Z",
+    title: "Proposal EPC, tampilan Kartu: nomor penawaran kini di baris paling atas",
+    details: [
+      "Sama dengan tampilan Ringkas: No. penawaran dan tanggal di depan, lalu status; nama lokasi di baris berikutnya. Baris bawah kini hanya \"sent\" (kuning, seperti status Sent) dan siapa yang terakhir mengubah.",
+    ],
+  },
+  {
     at: "2026-11-17T01:00:00Z",
     title: "Daftar Proposal EPC: nomor penawaran di depan, warna per status",
     details: [

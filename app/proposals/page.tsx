@@ -635,9 +635,13 @@ export default function QuotesListPage() {
       </span>
     </div>
   ) : (<>
-  {/* Primary focus: the customer + status/type */}
-  <div className="flex flex-wrap items-center gap-2 mb-0.5">
-    <span className={`truncate max-w-full ${nested ? 'font-medium text-slate-500 text-[14px]' : 'font-semibold text-white text-base'}`} title={title}>{title}</span>
+  {/* WHICH quote first, the same as the compact row (owner, 2026-11-17):
+      number and date, then its state and chips. The site / title is the
+      line under it; the customer is the section's header. */}
+  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+    <span className={`font-mono text-[12px] truncate max-w-full ${nested ? 'text-slate-500' : 'font-semibold text-slate-200'}`}
+      title={q.quote_number || undefined}>{q.quote_number || '—'}</span>
+    <span className="text-[11px] text-slate-500 tabular-nums flex-shrink-0">{fmtDate(q.quote_date)}</span>
     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${statusCls(q.status)}`}>
       {tr(statusLabel(q.status))}
     </span>
@@ -658,6 +662,7 @@ export default function QuotesListPage() {
     )}
     {waitingBadge(q.quote_id, true)}
   </div>
+  <p className={`truncate max-w-full mb-0.5 ${nested ? 'font-medium text-slate-500 text-[14px]' : 'font-semibold text-white text-base'}`} title={title}>{title}</p>
   {/* An OPEN follow-up note. Compact view swaps it in for the
       description because the row cannot grow; a card has the
       room for both, so the note sits ABOVE — a live "waiting on
@@ -694,12 +699,11 @@ export default function QuotesListPage() {
       )}
     </div>
   )}
-  {/* Reference line: quote number, dates, editor */}
+  {/* Reference line: when it went out, who touched it last (the number
+      and date moved to the top line, 2026-11-17) */}
   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-    <span className="font-mono text-slate-500 flex-shrink-0" title="Proposal number">{q.quote_number || '—'}</span>
-    <span className="flex-shrink-0">{fmtDate(q.quote_date)}</span>
     {q.sent_at && (
-      <span className="flex-shrink-0 text-blue-300/80" title="Stamped when the status was set to SENT">
+      <span className={`flex-shrink-0 ${statusInk('sent')}`} title="Stamped when the status was set to SENT">
         ➤ sent {fmtDate(q.sent_at)}
       </span>
     )}
