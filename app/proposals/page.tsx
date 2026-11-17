@@ -38,6 +38,9 @@ import { proposalChecks } from '@/lib/proposalChecks';
 const PROPOSAL_STATUS = badgeMap('epc_proposal');
 const statusCls = (s: string) => (PROPOSAL_STATUS[s] ?? PROPOSAL_STATUS.draft).cls;
 const statusLabel = (s: string) => PROPOSAL_STATUS[s]?.label ?? s;
+/** The state's colour as TEXT only (its text-* and tone-* classes) — for the
+ *  customer header's counts, so they read in the same colours as the pills. */
+const statusInk = (s: string) => statusCls(s).split(/\s+/).filter((c) => c.startsWith('text-') || c.startsWith('tone-')).join(' ');
 
 // The list is grouped by CUSTOMER (lib/proposalGroups.ts). A customer shows
 // this many proposals before "Show N more" — Imigrasi alone has 31.
@@ -587,11 +590,18 @@ export default function QuotesListPage() {
     <div key={q.quote_id} className={`group flex items-center gap-3 sm:gap-4 transition-colors ${compact ? 'py-1.5' : 'py-3'} ${nested ? 'pl-3 sm:pl-4 pr-3 sm:pr-4 bg-slate-950/40' : compact ? 'px-3' : 'px-4 sm:px-5'} ${someoneEditing ? 'bg-amber-500/[0.07]' : livePeers.length ? 'bg-emerald-500/[0.05]' : 'hover:bg-slate-800/40'}`}>
                 <Link href={`/proposals/${q.quote_id}`} className="flex-1 min-w-0">
   {compact ? (
-    /* One line: who, what state, what it's worth, which number */
+    /* One line, read left to right the way the list is scanned (owner,
+       2026-11-17: "too wordy upfront before the user realize which is the
+       quote we were working on"). WHICH quote first — number and date, fixed
+       widths so they line up as a column — then its state, then the site and
+       the rest. The customer is already the section's header. */
     <div className="flex items-center gap-2 min-w-0">
-      <span className={`text-[13px] truncate flex-shrink min-w-0 max-w-[45%] ${nested ? 'font-medium text-slate-500' : 'font-semibold text-slate-100'}`} title={title}>{title}</span>
-      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 ${statusCls(q.status)}`}>{tr(statusLabel(q.status))}</span>
+      <span className={`block font-mono text-[11px] truncate flex-shrink min-w-[4.5rem] w-[7.5rem] sm:flex-shrink-0 sm:w-[14rem] xl:w-[17rem] ${nested ? 'text-slate-500' : 'text-slate-200 font-semibold'}`}
+        title={q.quote_number || undefined}>{q.quote_number || '—'}</span>
+      <span className="hidden sm:block flex-shrink-0 w-[4.5rem] text-[11px] text-slate-500 tabular-nums">{fmtDate(q.quote_date)}</span>
+      <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 text-center sm:w-[4.75rem] ${statusCls(q.status)}`}>{tr(statusLabel(q.status))}</span>
       {versions && versionsChip(versions)}
+      <span className={`text-[13px] truncate flex-shrink min-w-0 sm:min-w-[6rem] max-w-[40%] sm:max-w-[16rem] ${nested ? 'text-slate-500' : 'font-medium text-slate-300'}`} title={title}>{title}</span>
       {checkChip(q.quote_id, false)}
       {driftByQuote.has(q.quote_id) && (
         <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
@@ -613,20 +623,15 @@ export default function QuotesListPage() {
       ) : desc ? (
         <span className="text-[11px] text-slate-500 truncate hidden md:inline">{desc}</span>
       ) : null}
-      {/* Money and date are FIXED-WIDTH and last (from sm up), so
-          every row's amount shares a right edge and the column can
-          be read as a column. On a PHONE the fixed widths would
-          overflow the viewport and drag the whole page sideways —
-          there the amount sizes itself and the date steps aside
-          (it's one tap away in the proposal). */}
-      <span className="ml-auto flex items-center gap-2 sm:gap-3 flex-shrink-0 tabular-nums">
-        <span className="font-mono text-[10px] text-slate-600 hidden sm:block max-w-[14rem] truncate" title={q.quote_number || undefined}>
-          {q.quote_number || '—'}
-        </span>
+      {/* Money is FIXED-WIDTH and last (from sm up), so every row's
+          amount shares a right edge and reads as a column. On a PHONE
+          a fixed width would drag the page sideways, so there the
+          amount sizes itself and the date steps aside (it's one tap
+          away in the proposal). */}
+      <span className="ml-auto flex items-center flex-shrink-0 tabular-nums">
         <span className="sm:w-[9rem] text-right whitespace-nowrap text-[13px] font-bold text-slate-100">
           {t && t.subtotal > 0 ? fmtRp(t.subtotal) : ''}
         </span>
-        <span className="hidden sm:block w-[4.5rem] text-right text-[10px] text-slate-500">{fmtDate(q.quote_date)}</span>
       </span>
     </div>
   ) : (<>
@@ -922,9 +927,9 @@ export default function QuotesListPage() {
                       <h2 className="text-sm font-bold text-white truncate min-w-0 max-w-full">{g.name || tr('No customer')}</h2>
                       <span className="flex flex-wrap items-baseline gap-x-2.5 text-[11px] tabular-nums">
                         <span className="text-slate-400">{c.total === 1 ? tr('One proposal') : tf('{n} proposals', { n: c.total })}</span>
-                        {([['Draft', c.draft, 'text-slate-300'], ['Sent', c.sent, 'text-blue-300 tone-step'],
-                          ['Won', c.won, 'text-emerald-300'], ['Rejected', c.rejected, 'text-red-400']] as const).map(([label, n, tone]) => (
-                          <span key={label} className={n ? tone : 'text-slate-600'}>{tr(label)} {n}</span>
+                        {([['Draft', c.draft, 'draft'], ['Sent', c.sent, 'sent'],
+                          ['Won', c.won, 'accepted'], ['Rejected', c.rejected, 'rejected']] as const).map(([label, n, state]) => (
+                          <span key={label} className={n ? statusInk(state) : 'text-slate-600'}>{tr(label)} {n}</span>
                         ))}
                         <span className="text-slate-500">· {tf('Last activity {date}', { date: fmtDate(g.lastActivity) })}</span>
                       </span>

@@ -107,7 +107,11 @@ const EPC_PROPOSAL: Lifecycle = {
   initial: 'draft',
   states: [
     S('draft', 'Draft', 'bg-slate-700/60 text-slate-300 tone-off', 'Being written; anyone with EPC access may edit it.'),
-    S('sent', 'Sent', 'bg-blue-500/20 text-blue-300 tone-step', 'Out with the customer. LOCKED: read-only for everyone but the owner; sent_at is stamped by the database.'),
+    // WAIT, not STEP (owner, 2026-11-17: "sent or draft or won or lost can be of
+    // different color"). The corporate themes paint every STEP neutral grey, so
+    // Sent was the same grey as Draft. A sent proposal is waiting on the
+    // customer's answer — exactly what WAIT (amber) means.
+    S('sent', 'Sent', 'bg-amber-500/15 text-amber-300 tone-wait', 'Out with the customer. LOCKED: read-only for everyone but the owner; sent_at is stamped by the database.'),
     S('accepted', 'Accepted', 'bg-emerald-500/20 text-emerald-300 tone-done', 'Won. LOCKED like sent. Counted as a win (lib/proposalWins) while it stays accepted.', { terminal: true }),
     S('rejected', 'Rejected', 'bg-red-500/20 text-red-400 tone-bad', 'Lost. LOCKED like sent.', { terminal: true }),
   ],

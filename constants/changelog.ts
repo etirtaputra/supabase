@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-17T01:00:00Z",
+    title: "Daftar Proposal EPC: nomor penawaran di depan, warna per status",
+    details: [
+      "Tampilan Ringkas kini dimulai dengan No. penawaran dan tanggal (sejajar seperti kolom), lalu status, lalu lokasi dan deskripsi, dan nilai di kanan — jadi penawaran yang sedang dikerjakan langsung terlihat.",
+      "Status kini berbeda warna: Draft abu-abu, Sent kuning (menunggu jawaban pelanggan), Won hijau, Rejected merah. Dulu Sent dan Draft sama-sama abu-abu. Hitungan di judul tiap pelanggan memakai warna yang sama.",
+    ],
+  },
+  {
     at: "2026-11-16T13:30:00Z",
     title: "Kredit kelebihan bayar kini dihitung sama di semua layar",
     details: [
