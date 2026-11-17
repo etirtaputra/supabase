@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-17T08:00:00Z",
+    title: "Proposal EPC: tombol Arsipkan",
+    details: [
+      "Proposal kini bisa diarsipkan sendiri — ikon kotak arsip di baris proposal (muncul saat kursor di atas baris). Cocok untuk penawaran yang sudah tidak ditindaklanjuti tanpa jawaban jelas. Statusnya tetap (mis. Sent), hanya pindah ke Arsip, dan tidak lagi muncul di pengingat dashboard.",
+      "Di Arsip, tombol yang sama menjadi \"Kembalikan ke Aktif\". Setelah mengarsipkan atau mengembalikan, muncul baris konfirmasi dengan tombol Urungkan.",
+      "Arsip tetap dikelompokkan per pelanggan, dan tiap proposal menyebut alasannya: \"Diarsipkan oleh …\" atau \"Diam 61 hari\" (terkirim dan tidak disentuh lebih dari 60 hari). Revisi baru dari proposal yang diarsipkan otomatis aktif lagi.",
+      "Bisa dipakai oleh semua yang boleh mengedit draft proposal — juga untuk proposal yang sudah Sent / Won / Lost, tanpa membuka kuncinya.",
+    ],
+  },
+  {
     at: "2026-11-17T01:45:00Z",
     title: "Proposal EPC, tampilan Kartu: nomor penawaran kini di baris paling atas",
     details: [

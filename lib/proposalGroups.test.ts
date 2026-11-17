@@ -100,3 +100,16 @@ test('same title but a different project type, or no title at all, stays separat
   const d = q({ customer_name: 'Rajawali', quote_number: 'Q-20261004-DDDD' });
   assert.equal(groupProposals([a, b, c, d], { now: NOW })[0].families.length, 4);
 });
+
+test('archived by hand: out of Active whatever its status or notes; a new revision is live again', () => {
+  const sent = q({ created_at: daysAgo(3), updated_at: daysAgo(3), archived_at: daysAgo(1) });
+  assert.equal(groupProposals([sent], { now: NOW })[0].families[0].active, false);
+  // An open note does not pull it back — archiving it was the person's decision.
+  assert.equal(groupProposals([sent], { now: NOW, hasOpenNote: () => true })[0].families[0].active, false);
+  const draft = q({ status: 'draft', created_at: daysAgo(3), updated_at: daysAgo(3), archived_at: daysAgo(1) });
+  assert.equal(groupProposals([draft], { now: NOW })[0].families[0].active, false);
+  // The archive mark sits on the version it was put on: a newer revision is live.
+  const base = q({ quote_number: 'Q-20261101-ABCD', created_at: daysAgo(10), updated_at: daysAgo(10), archived_at: daysAgo(5) });
+  const rev = q({ quote_number: 'Q-20261101-ABCD-REV', created_at: daysAgo(2), updated_at: daysAgo(2) });
+  assert.equal(groupProposals([base, rev], { now: NOW })[0].families[0].active, true);
+});

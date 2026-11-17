@@ -169,6 +169,8 @@ const ACTIVITY_BADGE: Record<string, string> = {
   edited:  'bg-slate-600/40 text-slate-300',
   status:  'bg-sky-500/20 text-sky-300',
   deleted: 'bg-red-500/20 text-red-300',
+  archived: 'bg-slate-700/40 text-slate-400',
+  restored: 'bg-emerald-500/20 text-emerald-300',
 };
 
 function gmFromPrices(cost: string, sell: string): string {

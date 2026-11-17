@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-17** · last change: *EPC proposals Card view: number + date on the top line too*; before that: *EPC proposals list: compact row leads with quote number + date; Sent is amber (tone-wait), header counts read the lifecycle colours*; before that: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-17** · last change: *EPC proposals: archive by hand (RPC proposal_set_archived, applied) — Archive / Move back to Active on the list, reason chips in Archived, Undo bar*; before that: *EPC proposals Card view: number + date on the top line too*; before that: *EPC proposals list: compact row leads with quote number + date; Sent is amber (tone-wait), header counts read the lifecycle colours*; before that: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,43 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-17 (latest) — EPC proposals list: which quote first, and a colour per state
+### 2026-11-17 (latest) — EPC proposals: archive by hand
+
+Owner: *"yes, add a manual Archive button. But in the archive also sectioned
+like in proposal?"* — the Archived view already was (same grouping code,
+`groupProposals`); confirmed in the rig.
+
+- **Database (applied 2026-11-17, `migrations/epc_proposal_archive.sql`):**
+  `10.0_project_quotes.archived_at` + `archived_by_email`; RPC
+  `proposal_set_archived(quote_id, archived)` (SECURITY DEFINER; roles that
+  may edit a draft: owner, engineer, data_entry, finance; any status; a
+  repeat is a no-op). `guard_quote_unsend()` lets a change to the archive
+  columns ALONE through on a locked proposal; RLS still refuses a non-owner's
+  direct UPDATE of a locked row, so the RPC is the only way in.
+  `log_quote_activity()` logs `archived` / `restored` (not `edited`):
+  archiving leaves updated_at and "Edited by" alone; restoring sets them,
+  restarting the 60-day clock. Rehearsed in a rolled-back transaction as an
+  engineer on a SENT proposal: direct UPDATE refused by RLS; RPC archived it
+  (status kept, one history row for two clicks); content edit still refused;
+  restore bumped updated_at; a non-EPC user refused.
+- **Rule** (`lib/proposalGroups.ts isActive`): the family's NEWEST version
+  carrying `archived_at` is out of Active whatever its status or open notes;
+  a new revision (-REV, a new row) is live again. `lib/proposalNudges epcDue`
+  returns nothing for it (no chase / close-out / idle reminders); the
+  dashboard's select reads `archived_at`. Declared as lifecycle
+  `epc_proposal_archive` (served to agents in onboarding `lifecycles`).
+- **List** (`app/proposals/page.tsx`): row action Archive (archive-box icon)
+  on a proposal's own row, Move back to Active when it is archived by hand;
+  `canEditQuotes` only. Archived view chips say WHY: "Archived by budi"
+  (hover: who + when) or "Quiet 61 days" (sent, untouched past
+  ACTIVE_DAYS); won/lost say so by status. A status bar after each action
+  with Undo. Row actions now show without hover on touch screens
+  (`[@media(hover:hover)]:opacity-0`, as Deal Lookup). Editor history panel
+  colours `archived` / `restored`.
+- Not done: no Archive button inside the proposal editor, and on a phone the
+  row actions stay hidden (the list's existing `hidden sm:flex`).
+
+### 2026-11-17 — EPC proposals list: which quote first, and a colour per state
 
 Owner (screenshot of the compact list): *"maybe we can rearrange again the
 Quote No. Date to be infront. Right now it's too wordy upfront before the user

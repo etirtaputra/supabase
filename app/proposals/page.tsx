@@ -32,6 +32,7 @@ import { groupProposals, customerKey, ACTIVE_DAYS } from '@/lib/proposalGroups';
 import { epcDue, EPC_OUTCOME_DAYS, EPC_IDLE_DRAFT_DAYS, type EpcDue } from '@/lib/proposalNudges';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
 import { badgeMap, isProposalLocked } from '@/lib/lifecycles';
+import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { proposalChecks } from '@/lib/proposalChecks';
 
 // Declared once in lib/lifecycles.ts (epc_proposal) — the editor reads the same map.
@@ -80,11 +81,15 @@ export default function QuotesListPage() {
   const supabase = createSupabaseClient();
   const router = useRouter();
   const gate = useProposalsGate();
+  // May archive / restore: the people who may edit a draft (RPC proposal_set_archived checks the same roles).
+  const canEditQuotes = !!(gate.profile && ROLE_PERMISSIONS[gate.profile.role]?.canEditQuotes);
   const { data: catalog, loading: catalogLoading } = useSupabaseData();
   const [quotes, setQuotes] = useState<ProjectQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  // The last archive / restore, for its confirmation bar and Undo.
+  const [shelfMsg, setShelfMsg] = useState<{ q: ProjectQuote; archived: boolean; error?: string } | null>(null);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');   // '' = all project types
   const [noteFilter, setNoteFilter] = useState('');    // '' = all · open · none
@@ -421,6 +426,26 @@ export default function QuotesListPage() {
     }
   }
 
+  /**
+   * Archive by hand (owner, 2026-11-17) — or put back. Through the RPC, not a
+   * plain UPDATE: a sent, won or lost proposal is locked, and putting it away
+   * is not editing it (migrations/epc_proposal_archive.sql). The mark sits on
+   * the family's newest version; a new revision is live again by itself.
+   */
+  async function setArchived(q: ProjectQuote, archived: boolean) {
+    const { error } = await supabase.rpc('proposal_set_archived', { p_quote_id: q.quote_id, p_archived: archived });
+    if (error) { setShelfMsg({ q, archived, error: error.message }); return; }
+    const now = new Date().toISOString();
+    setQuotes((prev) => prev.map((x) => x.quote_id !== q.quote_id ? x : {
+      ...x,
+      archived_at: archived ? now : null,
+      archived_by_email: archived ? (gate.user?.email ?? null) : null,
+      // Restoring restarts the 60-day clock (the database does the same).
+      ...(archived ? {} : { updated_at: now }),
+    }));
+    setShelfMsg({ q, archived });
+  }
+
   async function confirmDelete(id: string) {
     await supabase.from('10.0_project_quotes').delete().eq('quote_id', id);
     setDeleteId(null);
@@ -575,6 +600,35 @@ export default function QuotesListPage() {
     );
   };
 
+  /**
+   * WHY a proposal is out of Active, on its own row — archived by hand (who,
+   * when), or a sent proposal nobody has touched for ACTIVE_DAYS. Won and lost
+   * say so with their status already.
+   */
+  const shelfChip = (q: ProjectQuote, full: boolean) => {
+    const pill = `${full ? 'px-2 py-0.5 rounded-full text-[10px]' : 'px-1.5 py-0.5 rounded text-[9px]'} font-semibold whitespace-nowrap flex-shrink-0 bg-slate-700/40 text-slate-400 tone-off`;
+    if (q.archived_at) {
+      const who = (q.archived_by_email ?? '').split('@')[0];
+      return (
+        <span className={pill} title={tf('Archived by {who} on {date}. A new revision, or Move back to Active, brings it back.', { who: q.archived_by_email || '—', date: fmtDateTime(q.archived_at) })}>
+          {who ? tf('Archived by {who}', { who }) : tr('Archived')}
+        </span>
+      );
+    }
+    if (q.status === 'sent') {
+      const t = Date.parse(q.updated_at || q.created_at || '');
+      const days = Number.isFinite(t) ? Math.floor((Date.now() - t) / 86_400_000) : 0;
+      if (days > ACTIVE_DAYS) {
+        return (
+          <span className={pill} title={tf('Sent and not touched for {n} days — archived automatically after {limit} days. Any edit brings it back.', { n: days, limit: ACTIVE_DAYS })}>
+            {tf('Quiet {n} days', { n: days })}
+          </span>
+        );
+      }
+    }
+    return null;
+  };
+
   const renderRow = (q: ProjectQuote, nested = false, versions?: { count: number; open: boolean; onToggle: () => void }) => {
     const t = totalsByQuote.get(q.quote_id);
     // The customer is the group's header, so a row leads with what tells its
@@ -601,6 +655,7 @@ export default function QuotesListPage() {
       <span className="hidden sm:block flex-shrink-0 w-[4.5rem] text-[11px] text-slate-500 tabular-nums">{fmtDate(q.quote_date)}</span>
       <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 text-center sm:w-[4.75rem] ${statusCls(q.status)}`}>{tr(statusLabel(q.status))}</span>
       {versions && versionsChip(versions)}
+      {!nested && shelfChip(q, false)}
       <span className={`text-[13px] truncate flex-shrink min-w-0 sm:min-w-[6rem] max-w-[40%] sm:max-w-[16rem] ${nested ? 'text-slate-500' : 'font-medium text-slate-300'}`} title={title}>{title}</span>
       {checkChip(q.quote_id, false)}
       {driftByQuote.has(q.quote_id) && (
@@ -646,6 +701,7 @@ export default function QuotesListPage() {
       {tr(statusLabel(q.status))}
     </span>
     {versions && versionsChip(versions)}
+    {!nested && shelfChip(q, true)}
     {q.project_type && q.project_type !== 'custom' && (
       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap flex-shrink-0 bg-sky-500/15 text-sky-300">
         {PROJECT_TYPES.find((t) => t.key === q.project_type)?.label ?? q.project_type}
@@ -730,7 +786,9 @@ export default function QuotesListPage() {
   </>)}
                 </Link>
                 {livePeers.length > 0 && <LivePresence peers={livePeers} />}
-                <div className="hidden sm:flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Hidden until hover only where there IS hover — on a tablet
+                    they are simply there (the same rule as Deal Lookup). */}
+                <div className="hidden sm:flex items-center gap-2 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
   <button
     onClick={() => { setDup({ id: q.quote_id, number: q.quote_number, date: q.quote_date ?? '' }); setDupToday(true); setDupRefresh(false); setDupInternal(true); setDupNumbering('revision'); setDupError(''); }}
     className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
@@ -746,6 +804,25 @@ export default function QuotesListPage() {
   >
     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
   </Link>
+  {/* Archive / Restore — on the proposal's own row (its newest version), not
+      on each older version: the list files a proposal by its newest. */}
+  {!nested && canEditQuotes && (q.archived_at ? (
+  <button
+    onClick={() => setArchived(q, false)}
+    className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
+    title={tr('Move back to Active')}
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125zM12 17.25v-6m0 0l-2.5 2.5M12 11.25l2.5 2.5" /></svg>
+  </button>
+  ) : (
+  <button
+    onClick={() => setArchived(q, true)}
+    className="p-2 rounded-lg hover:bg-white/10 text-slate-500 hover:text-white transition-colors"
+    title={tr('Archive — move out of Active')}
+  >
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125zM10 11.25h4" /></svg>
+  </button>
+  ))}
   {/* The slot is kept when Delete is not offered, so draft and locked rows
       in one customer group put their amounts on the same edge. Sent, won and
       lost proposals are owner-only to delete (can_edit_quote). */}
@@ -909,6 +986,24 @@ export default function QuotesListPage() {
             )}
             {searchLc && !due && (
               <p className="px-1 text-[11px] text-slate-500">{tr('Searching all proposals, archive included')}</p>
+            )}
+            {/* The last archive / restore: said once, with its way back. */}
+            {shelfMsg && (
+              <div role="status" className={`flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 rounded-xl border text-xs ${shelfMsg.error ? 'border-red-500/30 bg-red-500/10 text-red-300' : 'border-slate-700 bg-slate-800/60 text-slate-300'}`}>
+                <span className="min-w-0">
+                  {shelfMsg.error
+                    ? tf('Could not change {number}: {error}', { number: shelfMsg.q.quote_number || '—', error: shelfMsg.error })
+                    : shelfMsg.archived
+                      ? tf('{number} archived — it is under Archived now.', { number: shelfMsg.q.quote_number || '—' })
+                      : tf('{number} is back in Active.', { number: shelfMsg.q.quote_number || '—' })}
+                </span>
+                {!shelfMsg.error && (
+                  <button onClick={() => setArchived(shelfMsg.q, !shelfMsg.archived)} className="font-semibold text-sky-300 hover:text-sky-200 underline underline-offset-2">
+                    {tr('Undo')}
+                  </button>
+                )}
+                <button onClick={() => setShelfMsg(null)} className="ml-auto text-slate-500 hover:text-slate-300" aria-label={tr('Close')}>✕</button>
+              </div>
             )}
             {groups.length === 0 && (
               <div className="flex flex-col items-center justify-center h-32 text-slate-500 gap-2">

@@ -27,6 +27,10 @@ export interface ProjectQuote {
   updated_by_email?: string;
   created_at?: string;
   updated_at?: string;
+  // Put away by hand (RPC proposal_set_archived; lifecycle epc_proposal_archive).
+  // Read on the family's NEWEST version — a new revision is live again.
+  archived_at?: string | null;
+  archived_by_email?: string | null;
 }
 
 // Fixed top-level groups every quote is divided into.

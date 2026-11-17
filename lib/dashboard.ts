@@ -324,7 +324,7 @@ export async function fetchActionQueue(
   if (perms.projects) {
     try {
       const [qRes, itemsRes, notesRes] = await Promise.all([
-        supabase.from('10.0_project_quotes').select('quote_id, quote_number, customer_name, status, created_at, updated_at, sent_at'),
+        supabase.from('10.0_project_quotes').select('quote_id, quote_number, customer_name, status, created_at, updated_at, sent_at, archived_at'),
         // 10.2 passed the 1,000-row cap on 2026-08-28 — paged, or totals come out short.
         fetchAllRows<{ quote_id: string; parent_item_id: string | null; quantity: number | null; sell_price: number | null }>((from, to) =>
           supabase.from('10.2_quote_items').select('quote_id, parent_item_id, quantity, sell_price').order('item_id').range(from, to)),

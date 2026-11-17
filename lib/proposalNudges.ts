@@ -32,6 +32,8 @@ const ageDays = (iso: string | null | undefined, now: number): number | null => 
 
 /** What the NEWEST version of a proposal needs, if anything. */
 export function epcDue(latest: NudgeQuote, now: number, followUpDays: number): EpcDue | null {
+  // Archived by hand: someone decided it is done — no reminders (2026-11-17).
+  if (latest.archived_at) return null;
   if (latest.status === 'sent') {
     const age = ageDays(latest.sent_at || latest.updated_at || latest.created_at, now);
     if (age == null) return null;

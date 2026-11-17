@@ -553,6 +553,28 @@ const CATALOGUE_ITEM: Lifecycle = {
   notes: ['quote_cost_mode = hidden is a SEPARATE switch (kept out of EPC proposals and support letters), not a lifecycle state.'],
 };
 
+const EPC_PROPOSAL_ARCHIVE: Lifecycle = {
+  id: 'epc_proposal_archive',
+  title: 'EPC proposal — archived by hand',
+  table: '10.0_project_quotes',
+  column: 'archived_at',
+  storage: 'columns',
+  initial: 'in_play',
+  states: [
+    S('in_play', 'In play', 'bg-slate-700/40 text-slate-300 tone-off', 'archived_at is null. The list may still archive it BY RULE (lib/proposalGroups isActive): newest version won or lost, or sent and untouched for 60 days, with no open follow-up note.'),
+    S('archived', 'Archived', 'bg-slate-700/40 text-slate-400 tone-off', 'archived_at set (with archived_by_email) on the family\'s NEWEST version: out of Active whatever its status or notes. Its status is kept. A new revision (-REV) is a new row without the mark, so it is live again.'),
+  ],
+  moves: [
+    { from: ['in_play'], to: 'archived', action: 'Archive', by: 'user', where: 'owner, engineer, data_entry, finance — app/proposals list (row action) → RPC proposal_set_archived(id, true)' },
+    { from: ['archived'], to: 'in_play', action: 'Restore', by: 'user', where: 'owner, engineer, data_entry, finance — app/proposals Archived view (row action) → RPC proposal_set_archived(id, false)' },
+  ],
+  enforced: [
+    'Only through RPC proposal_set_archived (SECURITY DEFINER; roles that may edit a draft). It works on any status — a sent, won or lost proposal stays locked: guard_quote_unsend() lets a change to the archive columns ALONE through, and RLS still refuses a non-owner\'s direct UPDATE of a locked row.',
+    'Logged in 10.3_quote_activity as `archived` / `restored`, not `edited`. Archiving leaves updated_at alone; restoring sets it, restarting the 60-day clock.',
+  ],
+  notes: ['Agents: a proposal is in play when it is NOT archived by hand and passes isActive. Archive is not a status — never filter on status for it.'],
+};
+
 const CUSTOMER: Lifecycle = {
   id: 'customer',
   title: 'Customer',
@@ -610,14 +632,15 @@ const QUOTE_NOTE: Lifecycle = {
 export const LIFECYCLES: Lifecycle[] = [
   EPC_PROPOSAL, SALES_DOCUMENT, DELIVERY_ORDER, AFTERSALES_CASE, SUPPORT_LETTER, SERIAL_NUMBER,
   PURCHASE_ORDER, PRICE_QUOTE, PROFORMA, LIBRARY_ENTRY, QUOTE_ITEM_FLAG, LANDED_COST, TRUE_UP_QUEUE,
-  SALES_PAYMENT, SALES_DELIVERY, CATALOGUE_ITEM, CUSTOMER, SUPPORT_LETTER_FEE, QUOTE_NOTE,
+  SALES_PAYMENT, SALES_DELIVERY, CATALOGUE_ITEM, CUSTOMER, SUPPORT_LETTER_FEE, QUOTE_NOTE, EPC_PROPOSAL_ARCHIVE,
 ];
 
 export type LifecycleId =
   | 'epc_proposal' | 'sales_document' | 'delivery_order' | 'aftersales_case' | 'support_letter' | 'serial_number'
   | 'purchase_order' | 'price_quote' | 'proforma_invoice' | 'library_entry' | 'quote_item_flag' | 'landed_cost'
   | 'true_up_queue'
-  | 'sales_payment' | 'sales_delivery' | 'catalogue_item' | 'customer' | 'support_letter_fee' | 'quote_note';
+  | 'sales_payment' | 'sales_delivery' | 'catalogue_item' | 'customer' | 'support_letter_fee' | 'quote_note'
+  | 'epc_proposal_archive';
 
 export function lifecycle(id: LifecycleId): Lifecycle {
   const l = LIFECYCLES.find((x) => x.id === id);

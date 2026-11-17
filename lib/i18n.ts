@@ -186,6 +186,15 @@ export const ID: Record<string, string> = {
   '1 earlier version': '1 versi sebelumnya',
   'Show earlier versions': 'Tampilkan versi sebelumnya',
   'Hide earlier versions': 'Sembunyikan versi sebelumnya',
+  'Move back to Active': 'Kembalikan ke Aktif',
+  'Archive — move out of Active': 'Arsipkan — pindahkan dari Aktif',
+  'Archived by {who}': 'Diarsipkan oleh {who}',
+  'Archived by {who} on {date}. A new revision, or Move back to Active, brings it back.': 'Diarsipkan oleh {who} pada {date}. Revisi baru, atau Kembalikan ke Aktif, akan mengaktifkannya lagi.',
+  'Quiet {n} days': 'Diam {n} hari',
+  'Sent and not touched for {n} days — archived automatically after {limit} days. Any edit brings it back.': 'Terkirim dan tidak disentuh selama {n} hari — otomatis diarsipkan setelah {limit} hari. Perubahan apa pun akan mengaktifkannya lagi.',
+  'Could not change {number}: {error}': 'Gagal mengubah {number}: {error}',
+  '{number} archived — it is under Archived now.': '{number} diarsipkan — sekarang ada di Arsip.',
+  '{number} is back in Active.': '{number} kembali ke Aktif.',
   'Show {n} more': 'Tampilkan {n} lagi',
 
   // ── Document statuses ─────────────────────────────────────────────────────

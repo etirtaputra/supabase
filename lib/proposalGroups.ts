@@ -26,6 +26,8 @@ export interface GroupableQuote {
   location?: string | null;
   project_description?: string | null;
   project_type?: string | null;
+  /** Archived by hand (RPC proposal_set_archived). */
+  archived_at?: string | null;
 }
 
 /** A sent proposal untouched for longer than this leaves the Active view. */
@@ -95,11 +97,14 @@ export function countStatuses(qs: GroupableQuote[]): StatusCounts {
 }
 
 /**
- * Is this proposal still in play? Its newest version is a draft, or was sent
- * within ACTIVE_DAYS, or someone left a follow-up note on any version that is
- * still open — a live "waiting on the customer" never hides.
+ * Is this proposal still in play? Someone archiving its newest version by hand
+ * settles it (owner, 2026-11-17 — the person said so). Otherwise: its newest
+ * version is a draft, or was sent within ACTIVE_DAYS, or someone left a
+ * follow-up note on any version that is still open — a live "waiting on the
+ * customer" never hides by itself.
  */
 export function isActive(latest: GroupableQuote, members: GroupableQuote[], hasOpenNote: (id: string) => boolean, now: number): boolean {
+  if (latest.archived_at) return false;
   if (members.some((m) => hasOpenNote(m.quote_id))) return true;
   if (latest.status === 'draft') return true;
   if (latest.status !== 'sent') return false;

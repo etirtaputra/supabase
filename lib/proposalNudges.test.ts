@@ -18,6 +18,9 @@ test('what a proposal needs: chase, close out, or pick up', () => {
   assert.equal(epcDue(q({ status: 'draft', updated_at: ago(2) }), NOW, 7), null);
   assert.equal(epcDue(q({ status: 'accepted' }), NOW, 7), null, 'won needs nothing');
   assert.equal(epcDue(q({ status: 'rejected' }), NOW, 7), null);
+  // Archived by hand: someone decided it is done — no chasing, whatever its age or status.
+  assert.equal(epcDue(q({ sent_at: ago(EPC_OUTCOME_DAYS), archived_at: ago(1) }), NOW, 7), null);
+  assert.equal(epcDue(q({ status: 'draft', updated_at: ago(30), archived_at: ago(1) }), NOW, 7), null);
 });
 
 test('follow-ups are counted by customer; versions count once, newest decides', () => {
