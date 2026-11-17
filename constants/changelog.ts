@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-17T09:00:00Z",
+    title: "Proposal EPC: Arsipkan juga dari dalam proposal",
+    details: [
+      "Tombol Arsipkan / Pulihkan kini juga ada di deretan tombol proposal (di samping Columns, Costs, PDF) — termasuk di ponsel. Proposal yang diarsipkan menampilkan \"Diarsipkan oleh …\" di samping statusnya.",
+      "Jika yang dibuka adalah versi lama, tombol tetap mengarsipkan proposal itu menurut versi terbarunya (sama seperti di daftar) — keterangan tombol menyebut nomornya.",
+    ],
+  },
+  {
     at: "2026-11-17T08:00:00Z",
     title: "Proposal EPC: tombol Arsipkan",
     details: [

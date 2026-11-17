@@ -35,6 +35,7 @@ import { fmtDayTime, fmtRupiah, fmtRupiahDoc, fmtIntDoc, fmtMoneyCell, moneyUnit
 import { isOfferable } from '@/lib/itemVisibility';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { badgeMap, stateIds, isProposalLocked } from '@/lib/lifecycles';
+import { groupProposals, type GroupableQuote } from '@/lib/proposalGroups';
 import { proposalChecks } from '@/lib/proposalChecks';
 import { catalogMatches, lastQuotedDates } from '@/lib/catalogSearch';
 import { rankLibrary, exactEntry, nearEntries, mainComponentKind, libraryErrorKey, libNorm, type MainKind } from '@/lib/libraryMatch';
@@ -418,6 +419,38 @@ export default function QuoteEditorPage() {
   const readOnlyForMe = isProposalLocked(savedStatus) && !isOwner;
   /** The locked status this tab holds, for the messages (SENT / ACCEPTED / REJECTED). */
   const lockedWord = (PROPOSAL_STATUS[savedStatus ?? '']?.label ?? 'Sent').toUpperCase();
+
+  // ── Archive by hand, from inside the proposal (owner, 2026-11-17) ──────────
+  // The list files a proposal by its NEWEST version (lib/proposalGroups), so
+  // the mark goes there even when an older version is open here — the same
+  // proposal, archived the same way from either screen. Not part of the draft
+  // and never in the save's header patch: the RPC writes it, at once, and a
+  // sent / won / lost proposal stays locked (migrations/epc_proposal_archive.sql).
+  const canArchive = !!(gate.profile && ROLE_PERMISSIONS[gate.profile.role]?.canEditQuotes);
+  const [shelf, setShelf] = useState<{ latestId: string; latestNumber: string; archivedAt: string | null; archivedBy: string | null } | null>(null);
+  const [shelfBusy, setShelfBusy] = useState(false);
+  const [shelfErr, setShelfErr] = useState<string | null>(null);
+  const loadShelf = useCallback(async () => {
+    const { data } = await supabase.from('10.0_project_quotes')
+      .select('quote_id, quote_number, customer_name, status, created_at, updated_at, quote_date, location, project_description, project_type, archived_at, archived_by_email');
+    const rows = (data ?? []) as (GroupableQuote & { archived_by_email?: string | null })[];
+    for (const g of groupProposals(rows)) for (const f of g.families) {
+      if (f.latest.quote_id !== id && !f.older.some((o) => o.quote_id === id)) continue;
+      const l = f.latest as GroupableQuote & { archived_by_email?: string | null };
+      setShelf({ latestId: l.quote_id, latestNumber: l.quote_number ?? '', archivedAt: l.archived_at ?? null, archivedBy: l.archived_by_email ?? null });
+      return;
+    }
+  }, [supabase, id]);
+  useEffect(() => { void loadShelf(); }, [loadShelf]);
+  async function toggleShelf() {
+    if (!shelf) return;
+    setShelfBusy(true); setShelfErr(null);
+    const archive = !shelf.archivedAt;
+    const { error } = await supabase.rpc('proposal_set_archived', { p_quote_id: shelf.latestId, p_archived: archive });
+    setShelfBusy(false);
+    if (error) { setShelfErr(error.message); return; }
+    setShelf({ ...shelf, archivedAt: archive ? new Date().toISOString() : null, archivedBy: archive ? (gate.user?.email ?? null) : null });
+  }
   /** The engineer's one move on a locked proposal: send it back to draft. */
   const unsendOnly = readOnlyForMe && canUnsend;
   /**
@@ -2325,6 +2358,13 @@ export default function QuoteEditorPage() {
             {(unsendOnly && savedStatus ? [savedStatus, 'draft' as const] : STATUS_OPTS)
               .map((s) => <option key={s} value={s}>{t(PROPOSAL_STATUS[s]?.label ?? s)}</option>)}
           </select>
+          {/* Archived by hand: said beside the status, which it does not change. */}
+          {shelf?.archivedAt && (
+            <span className="order-2 flex-shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold whitespace-nowrap bg-slate-700/40 text-slate-400 tone-off"
+              title={tf('Archived by {who} on {date}. A new revision, or Move back to Active, brings it back.', { who: shelf.archivedBy || '—', date: fmtDateTime(shelf.archivedAt) })}>
+              {shelf.archivedBy ? tf('Archived by {who}', { who: shelf.archivedBy.split('@')[0] }) : t('Archived')}
+            </span>
+          )}
 
           {/* Save — the one thing that must never sit behind a scroll. */}
           <button onClick={save} disabled={saving || !dirty || (readOnlyForMe && !unsendOnly)}
@@ -2368,6 +2408,22 @@ export default function QuoteEditorPage() {
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 14l5-5-5-5m5 5H9a5 5 0 000 10h1" /></svg>
                 </button>
               </div>
+            )}
+            {canArchive && shelf && (
+              <button onClick={toggleShelf} disabled={shelfBusy}
+                title={shelfErr
+                  ? tf('Could not change {number}: {error}', { number: shelf.latestNumber || '—', error: shelfErr })
+                  : shelf.archivedAt
+                    ? t('Move back to Active')
+                    : shelf.latestId === id
+                      ? t('Archive — move out of Active')
+                      : tf('Archive this proposal — it is filed by its newest version, {number}', { number: shelf.latestNumber || '—' })}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all disabled:opacity-40 ${shelfErr
+                  ? 'text-red-300 border-red-500/30 hover:bg-red-500/10'
+                  : 'text-slate-400 hover:text-white hover:bg-white/10 border-white/[0.06]'}`}>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d={`M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z${shelf.archivedAt ? 'M12 17.25v-6m0 0l-2.5 2.5M12 11.25l2.5 2.5' : 'M10 11.25h4'}`} /></svg>
+                {shelfBusy ? t('Saving…') : shelf.archivedAt ? t('Restore') : t('Archive')}
+              </button>
             )}
             <div>
               <button

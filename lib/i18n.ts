@@ -187,6 +187,7 @@ export const ID: Record<string, string> = {
   'Show earlier versions': 'Tampilkan versi sebelumnya',
   'Hide earlier versions': 'Sembunyikan versi sebelumnya',
   'Move back to Active': 'Kembalikan ke Aktif',
+  'Archive this proposal — it is filed by its newest version, {number}': 'Arsipkan proposal ini — disimpan menurut versi terbarunya, {number}',
   'Archive — move out of Active': 'Arsipkan — pindahkan dari Aktif',
   'Archived by {who}': 'Diarsipkan oleh {who}',
   'Archived by {who} on {date}. A new revision, or Move back to Active, brings it back.': 'Diarsipkan oleh {who} pada {date}. Revisi baru, atau Kembalikan ke Aktif, akan mengaktifkannya lagi.',
