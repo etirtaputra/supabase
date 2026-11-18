@@ -16,5 +16,14 @@
  *
  * Rubik stays second in the stack as the fallback it always was.
  */
-export const DOC_FONT_FAMILY = "'IBM Plex Sans', Rubik, -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif";
+export const DOC_FONT_FAMILY = "'IBM Plex Sans', Rubik, -apple-system, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, 'Noto Sans Math', 'Noto Sans Symbols 2', sans-serif";
+
+/**
+ * The two fallbacks above, for the characters IBM Plex lacks (arrows, ✓, ≥, Ω…).
+ * A desktop finds those in a system font; the server that makes the EPC PDF
+ * (lib/pdfRender) has none, so they printed as empty boxes (2026-11-18). A
+ * print page that can be rendered there links this stylesheet; Google serves
+ * each font only for the characters a page actually uses.
+ */
+export const DOC_SYMBOL_FONTS_CSS = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Math&family=Noto+Sans+Symbols+2&display=swap';
 export const DOC_LINE_HEIGHT = 1.19;

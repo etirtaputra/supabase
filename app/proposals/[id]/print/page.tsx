@@ -16,22 +16,12 @@ import { useT } from '@/hooks/useT';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
 import { waitingLines, personName, FLAG_COLS, type QuoteFlag } from '@/lib/quoteFlags';
 import { FlagIcon } from '@/components/ui/QuoteFlags';
-import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
+import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT, DOC_SYMBOL_FONTS_CSS } from '@/lib/documentType';
 import { resolveIssuer, COMPANY_COLUMNS, RECEIVING_ACCOUNT_COLUMNS, type CompanyRecord, type ReceivingAccount } from '@/lib/issuer';
 
 const fmtDate = (d: string) => fmtDayDoc(d);
 
 interface Section extends QuoteSection { items: QuoteItem[] }
-
-/**
- * The fonts the server's Chromium may borrow from (2026-11-18). A desktop finds
- * a missing character (an arrow, ≥, Ω…) in some system font; the server that
- * makes the PDF has NO system fonts, so the character printed as an empty box.
- * IBM Plex has no arrows or maths signs: these two Google fonts do, and load
- * only for the characters that need them.
- */
-const PRINT_FONT_FAMILY = `${DOC_FONT_FAMILY.replace(/,\s*sans-serif$/, '')}, 'Noto Sans Math', 'Noto Sans Symbols 2', sans-serif`;
-const SYMBOL_FONTS_CSS = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Math&family=Noto+Sans+Symbols+2&display=swap';
 
 /** "↳" before a component line, DRAWN rather than typed: the arrow is in no
  *  font the PDF server has, and printed as an empty box with the text pushed
@@ -244,10 +234,10 @@ export default function PrintPage() {
 
   return (
     <>
-      <link rel="stylesheet" href={SYMBOL_FONTS_CSS} precedence="default" />
+      <link rel="stylesheet" href={DOC_SYMBOL_FONTS_CSS} precedence="default" />
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: ${PRINT_FONT_FAMILY}; line-height: ${DOC_LINE_HEIGHT}; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
+        body { font-family: ${DOC_FONT_FAMILY}; line-height: ${DOC_LINE_HEIGHT}; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
         @page { size: A4; margin: 10mm 8mm; }
         @media print {
           .no-print { display: none !important; }
