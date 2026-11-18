@@ -23,6 +23,28 @@ const fmtDate = (d: string) => fmtDayDoc(d);
 
 interface Section extends QuoteSection { items: QuoteItem[] }
 
+/**
+ * The fonts the server's Chromium may borrow from (2026-11-18). A desktop finds
+ * a missing character (an arrow, ≥, Ω…) in some system font; the server that
+ * makes the PDF has NO system fonts, so the character printed as an empty box.
+ * IBM Plex has no arrows or maths signs: these two Google fonts do, and load
+ * only for the characters that need them.
+ */
+const PRINT_FONT_FAMILY = `${DOC_FONT_FAMILY.replace(/,\s*sans-serif$/, '')}, 'Noto Sans Math', 'Noto Sans Symbols 2', sans-serif`;
+const SYMBOL_FONTS_CSS = 'https://fonts.googleapis.com/css2?family=Noto+Sans+Math&family=Noto+Sans+Symbols+2&display=swap';
+
+/** "↳" before a component line, DRAWN rather than typed: the arrow is in no
+ *  font the PDF server has, and printed as an empty box with the text pushed
+ *  over it (owner's iPhone download, 2026-11-18). */
+function SubArrow() {
+  return (
+    <svg viewBox="0 0 12 12" width="0.85em" height="0.85em" aria-hidden
+      style={{ display: 'inline-block', verticalAlign: '-0.05em', marginRight: '0.35em', overflow: 'visible' }}>
+      <path d="M2.5 1.5v5.5h7.5M7.5 4.5l2.5 2.5-2.5 2.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function PrintPage() {
   const { id } = useParams<{ id: string }>();
   // Only the on-screen toolbar is translated — the printed document is the customer's.
@@ -222,9 +244,10 @@ export default function PrintPage() {
 
   return (
     <>
+      <link rel="stylesheet" href={SYMBOL_FONTS_CSS} precedence="default" />
       <style>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: ${DOC_FONT_FAMILY}; line-height: ${DOC_LINE_HEIGHT}; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
+        body { font-family: ${PRINT_FONT_FAMILY}; line-height: ${DOC_LINE_HEIGHT}; font-size: 9.5pt; color: #1f2937; background: #fff; -webkit-font-smoothing: antialiased; }
         @page { size: A4; margin: 10mm 8mm; }
         @media print {
           .no-print { display: none !important; }
@@ -421,7 +444,7 @@ export default function PrintPage() {
                               )}
                               {subItems.map((sub) => (
                                 <tr key={sub.item_id} className="sub-row">
-                                  <td colSpan={1 + (cols.brand ? 1 : 0)}>↳ {sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
+                                  <td colSpan={1 + (cols.brand ? 1 : 0)}><SubArrow />{sub.description}{sub.brand ? ` — ${sub.brand}` : ''}</td>
                                   {cols.qty && <td className="num">{sub.quantity != null ? fmtQtyDoc(Number(sub.quantity)) : ''}</td>}
                                   {cols.unit && <td style={{ whiteSpace: 'nowrap' }}>{sub.unit}</td>}
                                   {cols.amount && <td />}

@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-18T14:00:00Z",
+    title: "Unduh PDF: tanda ↳ pada baris komponen kini tampil benar",
+    details: [
+      "Di PDF yang diunduh, tanda panah sebelum baris komponen (mis. \"↳ AC MCB 1P 6A — SCHNEIDER\") sempat tampil sebagai kotak kosong dan menindih huruf pertama. Kini panahnya digambar langsung, jadi sama persis di komputer dan ponsel.",
+      "Simbol lain yang diketik di proposal (mis. ✓, ≥) juga kini punya huruf cadangan di PDF.",
+    ],
+  },
+  {
     at: "2026-11-18T12:00:00Z",
     title: "PDF proposal EPC kini sama persis di ponsel dan komputer",
     details: [
