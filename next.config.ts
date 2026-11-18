@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The proposal PDF renders in a server-side Chromium (lib/pdfRender.ts).
+  // Both packages load native files at run time, so they stay out of the
+  // bundle, and the compressed browser in @sparticuz/chromium/bin is shipped
+  // with the one route that uses it.
+  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+  outputFileTracingIncludes: {
+    '/api/proposals/**/*': ['./node_modules/@sparticuz/chromium/bin/**'],
+  },
   async redirects() {
     // Route renames — keeps old bookmarks, previously-sent login-link emails
     // and Spotlight recents resolving. History:

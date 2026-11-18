@@ -10,7 +10,8 @@ import { computeTUCMap, pickCost, fxFromHistory, priceAgeDays, AGED_PRICE_DAYS, 
 import { useEpcCostBase } from '@/hooks/useEpcCostBase';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries, quoteContext, QUOTE_CONTEXT_COLS, type QuoteContextRow } from '@/lib/usedPrices';
-import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
+import { EXPORT_COL_KEYS, EXPORT_COL_LABELS } from '@/lib/exportCols';
+import { useExportCols } from '@/hooks/useExportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
 import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragReorder';
 import QuoteNoteThread from '@/components/ui/QuoteNoteThread';
@@ -1186,15 +1187,12 @@ export default function QuoteEditorPage() {
     window.setTimeout(() => row.querySelector<HTMLInputElement>('input[data-nav-col="cost"]')?.focus({ preventScroll: true }), 450);
   }
 
-  // ── Export column choices (shared with the print page via localStorage) ────
-  const [exportCols, setExportCols] = useState<ExportCols>(DEFAULT_EXPORT_COLS);
+  // ── Export column choices — the person's own, the same on every device they
+  //    sign in on (hooks/useExportCols; shared with the print page) ──────────
+  const { cols: exportCols, setCol: setExportCol } = useExportCols(supabase, gate.user?.id);
   // Anchored with position:fixed — the toolbar scrolls horizontally
   // (overflow-x-auto), which would clip an absolutely-positioned panel.
   const [showExportCols, setShowExportCols] = useState<{ right: number; top: number } | null>(null);
-  useEffect(() => { setExportCols(loadExportCols()); }, []);
-  const setExportCol = (k: keyof ExportCols, v: boolean) => {
-    setExportCols((prev) => { const next = { ...prev, [k]: v }; saveExportCols(next); return next; });
-  };
 
   // ── Per-item cost drift: stored cost vs today's recommendation ─────────────
   const DRIFT_THRESHOLD = 0.10;
@@ -2450,7 +2448,7 @@ export default function QuoteEditorPage() {
                         {EXPORT_COL_LABELS[k]}
                       </label>
                     ))}
-                    <p className="text-[10px] text-slate-600 leading-snug">Applies to PDF and Excel. Amounts off = scope-only BOM.</p>
+                    <p className="text-[10px] text-slate-600 leading-snug">Saved with your account — the same on your phone and computer. Applies to PDF and Excel. Amounts off = scope-only BOM.</p>
                   </div>
                 </>
               )}

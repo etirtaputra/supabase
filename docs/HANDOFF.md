@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-17** · last change: *Archive / Restore inside the proposal editor too (acts on the newest version)*; before that: *EPC proposals: archive by hand (RPC proposal_set_archived, applied) — Archive / Move back to Active on the list, reason chips in Archived, Undo bar*; before that: *EPC proposals Card view: number + date on the top line too*; before that: *EPC proposals list: compact row leads with quote number + date; Sent is amber (tone-wait), header counts read the lifecycle colours*; before that: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-18** · last change: *EPC proposal PDF made on the server (same engine as desktop Chrome) — identical on every device, desktop's file name; column choice saved per account (migration NOT YET APPLIED)*; before that: *Archive / Restore inside the proposal editor too (acts on the newest version)*; before that: *EPC proposals: archive by hand (RPC proposal_set_archived, applied) — Archive / Move back to Active on the list, reason chips in Archived, Undo bar*; before that: *EPC proposals Card view: number + date on the top line too*; before that: *EPC proposals list: compact row leads with quote number + date; Sent is amber (tone-wait), header counts read the lifecycle colours*; before that: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,64 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-17 (latest) — EPC proposals: archive by hand
+### 2026-11-18 (latest) — EPC proposal PDF: the same file on every device
+
+Owner: *"the pdf result between desktop vs mobile is different. why?"* → *"i
+want the mobile pdf to follow the desktop version"* → *"yes do option 2, and
+name the file similar to desktop version"*.
+
+**Why they differed** (measured on the owner's two files): same A4, same IBM
+Plex, same columns — but the iPhone (Brave, iOS WebKit) rendered everything
+~1.155× (text height 10.5 pt vs 8.6; BRAND column at 309 pt vs 342), so lines
+wrapped and R10B ran to 4 pages instead of 3. A browser zoom carried into
+print (115% is a Brave/Safari step); a phone's print engine also sets its own
+margins. Nothing in the page was device-dependent: the same page rendered at
+390 px and 1440 px in Chromium is pixel-identical.
+
+**Fix — the server makes the PDF:**
+- `POST /api/proposals/:id/pdf` (`app/api/proposals/[id]/pdf/route.ts`,
+  nodejs, maxDuration 60): `callerFromRequest` (Bearer token) + the menu's own
+  `canOpenPath(perms, '/proposals')`; then `lib/pdfRender.ts` opens the app's
+  OWN print page in `@sparticuz/chromium` + `puppeteer-core` (1280-px window,
+  print media, `preferCSSPageSize`) as the caller: their session is put in the
+  headless browser's localStorage before the first script. The REFRESH TOKEN
+  IS NOT SENT (a dummy is stored): a headless refresh would rotate and revoke
+  the person's own token — so the client refreshes first when < 5 min remain
+  and the route refuses a token with < 3 min left. Their column choice and the
+  energy-annex tick travel in the body (`?econ=` on the page URL).
+- The print page marks itself ready (`<html data-pdf-ready="1">`) once data,
+  the column choice and fonts are in; the renderer waits for that, or for a
+  redirect to /login or /unauthorized (→ 403), or 40 s (→ 504).
+- **Name**: `lib/pdfFileName.ts desktopPdfName` — the page title (the house
+  `quoteFileName`) with only letters, digits, `-` `_` `.` kept, which is what
+  desktop Chrome saves (`PV+BESS_SBO-(PV-CU+AC-AL)` → `PVBESS_SBO-PV-CUAC-AL`,
+  `BOH-&-Atap` → `BOH--Atap`; pinned by the owner's real R9B name in
+  `lib/pdfFileName.test.ts`). Sent as `Content-Disposition` (ASCII +
+  `filename*`), and used client-side for the File.
+- **Print page buttons**: *Download PDF* (primary; Preparing PDF… → on iPhone /
+  iPad *Save PDF*, a second tap that opens the share sheet with the named file
+  — the wait uses up the first tap's permission; elsewhere it downloads at
+  once) and *Print* (the browser's own print, kept for paper). The iOS
+  copy-the-name notice is gone from this page (the download carries the name).
+- Bundling: `next.config.ts` `serverExternalPackages` for both packages and
+  `outputFileTracingIncludes` `'/api/proposals/**/*'` → the four
+  `@sparticuz/chromium/bin/*.br` files (a key with `[id]` matched nothing).
+  Versions: `@sparticuz/chromium` 153 + `puppeteer-core` 25.18 (Chromium 153,
+  launched and printed in the sandbox).
+- Verified locally: `renderPdf` against the app with the R10B data → 3 pages,
+  A4, IBM Plex, pixel-identical to a desktop-Chrome print of the same page;
+  0.9 s render. NOT verifiable here: the deployed function (cold start, size)
+  and the iPhone share sheet — check on first use.
+
+**Column choice per ACCOUNT** (`hooks/useExportCols.ts`, editor + print page):
+the Brand/Qty/Unit/Lead/Amounts/Notes choice lives in `public.user_preferences`
+(`prefs.quote_export_cols`, own row only), localStorage is a cache; a device
+that already has a choice seeds the account once. **`migrations/
+user_preferences.sql` is NOT YET APPLIED** (approval prompt timed out
+2026-11-18); until then the hook reads nothing and each browser keeps its own
+choice, as before.
+
+### 2026-11-17 — EPC proposals: archive by hand
 
 Owner: *"yes, add a manual Archive button. But in the archive also sectioned
 like in proposal?"* — the Archived view already was (same grouping code,

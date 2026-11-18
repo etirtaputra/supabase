@@ -6,13 +6,14 @@ import { SECTION_GROUPS, type SectionGroup, type ProjectQuote, type QuoteSection
 import { quoteFileName } from '@/lib/quoteFilename';
 import { specFileTag, type SystemSpecs } from '@/lib/projectSpec';
 import { useProposalsGate } from '@/hooks/useProposalsGate';
-import { DEFAULT_EXPORT_COLS, EXPORT_COL_KEYS, EXPORT_COL_LABELS, loadExportCols, saveExportCols, type ExportCols } from '@/lib/exportCols';
+import { EXPORT_COL_KEYS, EXPORT_COL_LABELS } from '@/lib/exportCols';
+import { useExportCols } from '@/hooks/useExportCols';
+import { desktopPdfName } from '@/lib/pdfFileName';
 import { computeEnergyEconomics, fmtPayback, ECON_DEFAULTS } from '@/lib/energyEconomics';
 import { fmtRupiahDoc as fmtIdr, fmtRupiahDoc2 as fmtIdr2, fmtIntDoc, fmtQtyDoc, fmtNumDoc, fmtDayDoc, moneyUnitDoc, fmtMoneyCellDoc } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import { useT } from '@/hooks/useT';
 import { usePrintFileName } from '@/hooks/usePrintFileName';
-import PrintFileNameNotice from '@/components/ui/PrintFileNameNotice';
 import { waitingLines, personName, FLAG_COLS, type QuoteFlag } from '@/lib/quoteFlags';
 import { FlagIcon } from '@/components/ui/QuoteFlags';
 import { DOC_FONT_FAMILY, DOC_LINE_HEIGHT } from '@/lib/documentType';
@@ -51,12 +52,9 @@ export default function PrintPage() {
   // ticked (owner, 2026-10-22: unchecked by default); overridable here.
   const [showEcon, setShowEcon] = useState<boolean | null>(null);
 
-  // Column choices (shared with the editor's Excel export via localStorage)
-  const [cols, setCols] = useState<ExportCols>(DEFAULT_EXPORT_COLS);
-  useEffect(() => { setCols(loadExportCols()); }, []);
-  const setCol = (k: keyof ExportCols, v: boolean) => {
-    setCols((prev) => { const next = { ...prev, [k]: v }; saveExportCols(next); return next; });
-  };
+  // Column choices — the person's own, the same on every device they sign in
+  // on (hooks/useExportCols; shared with the editor's Excel export).
+  const { cols, setCol, ready: colsReady } = useExportCols(supabase, gate.user?.id);
 
   useEffect(() => {
     async function load() {
@@ -124,7 +122,25 @@ export default function PrintPage() {
         location: quote.location ?? '',
       })
     : '';
-  const { isIOS, copied, copyName, printNow } = usePrintFileName(fileName);
+  const { isIOS, printNow } = usePrintFileName(fileName);
+
+  // The server's PDF (app/api/proposals/[id]/pdf) opens this same page with
+  // ?econ=… to carry the annex choice across, and waits for the mark below.
+  useEffect(() => {
+    const e = new URLSearchParams(window.location.search).get('econ');
+    if (e === '1' || e === '0') setShowEcon(e === '1');
+  }, []);
+  // "Ready to print": data, the person's column choice and the fonts are in.
+  useEffect(() => {
+    if (!gate.ready || loading || !quote || !colsReady) return;
+    let live = true;
+    document.fonts.ready.then(() => { if (live) document.documentElement.dataset.pdfReady = '1'; });
+    return () => { live = false; };
+  }, [gate.ready, loading, quote, colsReady]);
+
+  // Download: the server's PDF, identical on every device (owner, 2026-11-18 —
+  // an iPhone printed this page ~115% larger, 4 pages for desktop's 3).
+  const [pdf, setPdf] = useState<{ phase: 'idle' | 'working' | 'ready' | 'error'; file?: File; msg?: string }>({ phase: 'idle' });
 
   if (!gate.ready || loading || !quote) {
     return (
@@ -154,6 +170,53 @@ export default function PrintPage() {
     ? computeEnergyEconomics(subtotal, econDcKwp, econAssump ?? {}, econHybrid)
     : null;
   const econVisible = econ != null && (showEcon ?? (econAssump?.enabled === true));
+  /** Hand a finished PDF to the device: the share sheet on iPhone/iPad (so it
+   *  keeps its name — Save to Files, WhatsApp…), a plain download elsewhere. */
+  const deliverPdf = async (file: File) => {
+    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+    if (isIOS && nav.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file] }); return; } catch { /* cancelled → nothing */ return; }
+    }
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url; a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+  async function downloadPdf() {
+    if (pdf.phase === 'ready' && pdf.file) { await deliverPdf(pdf.file); return; }
+    setPdf({ phase: 'working' });
+    try {
+      // A token with minutes to spare: the server renders WITHOUT the refresh
+      // token (lib/pdfRender.ts), so it must not need one mid-render.
+      let { data: { session } } = await supabase.auth.getSession();
+      if (session && (session.expires_at ?? 0) * 1000 - Date.now() < 5 * 60_000) {
+        session = (await supabase.auth.refreshSession()).data.session;
+      }
+      if (!session) throw new Error(t('Sign in again, then try once more.'));
+      const res = await fetch(`/api/proposals/${id}/pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          session: { access_token: session.access_token, expires_at: session.expires_at, expires_in: session.expires_in, token_type: session.token_type, user: session.user },
+          cols, econ: econVisible,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(j?.error || `HTTP ${res.status}`);
+      }
+      // The desktop's own name for this file (lib/pdfFileName desktopPdfName).
+      const file = new File([await res.blob()], desktopPdfName(fileName), { type: 'application/pdf' });
+      // iOS wants the share sheet opened by a tap, and the wait ate this one:
+      // the button turns into "Save PDF" for the second tap. Elsewhere, at once.
+      if (isIOS) setPdf({ phase: 'ready', file });
+      else { setPdf({ phase: 'idle' }); await deliverPdf(file); }
+    } catch (e) {
+      setPdf({ phase: 'error', msg: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   const econTariff0 = econAssump?.pln_tariff ?? ECON_DEFAULTS.pln_tariff;
   const econLife = econAssump?.lifetime_years ?? ECON_DEFAULTS.lifetime_years;
 
@@ -602,11 +665,23 @@ export default function PrintPage() {
               Energy simulation
             </label>
           )}
-          <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px' }}>Also applies to the Excel export</p>
+          <p style={{ fontSize: '10px', color: '#94a3b8', marginTop: '6px' }}>{t('Saved with your account — the same on your phone and computer. Also applies to the Excel export.')}</p>
         </div>
-        <PrintFileNameNotice show={isIOS} fileName={fileName} copied={copied} onCopy={copyName} />
-        <button className="print-btn" onClick={printNow}>
-          {t('Print / save PDF')}
+        {/* The file everyone gets: made on the server, the same on a phone
+            as on the desktop, under the desktop's name. */}
+        <button className="print-btn" onClick={downloadPdf} disabled={!colsReady || pdf.phase === 'working'}
+          style={!colsReady || pdf.phase === 'working' ? { opacity: 0.7, cursor: 'wait' } : undefined}>
+          {pdf.phase === 'working' ? t('Preparing PDF…') : pdf.phase === 'ready' ? t('Save PDF') : t('Download PDF')}
+        </button>
+        {pdf.phase === 'error' && (
+          <p style={{ fontSize: '11px', color: '#b02a37', background: '#fff', border: '1px solid #f5c2c7', borderRadius: '8px', padding: '6px 8px' }}>
+            {tf('PDF not made: {error}', { error: pdf.msg ?? '' })}
+          </p>
+        )}
+        {/* Paper copies, and the old way: this browser's own print. */}
+        <button onClick={printNow} disabled={!colsReady}
+          style={{ padding: '8px 14px', background: '#fff', color: '#1f5aa8', border: '1px solid #c9d8ec', borderRadius: '10px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+          {t('Print')}
         </button>
       </div>
     </>

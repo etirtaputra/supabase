@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-18T12:00:00Z",
+    title: "PDF proposal EPC kini sama persis di ponsel dan komputer",
+    details: [
+      "Tombol baru \"Unduh PDF\" di halaman cetak: PDF dibuat di server dengan mesin yang sama seperti Chrome di komputer, jadi hasilnya identik di perangkat apa pun — ukuran, margin, jumlah halaman. Sebelumnya iPhone mencetak sekitar 15% lebih besar (4 halaman, bukan 3).",
+      "Nama file sama dengan yang disimpan Chrome di komputer (mis. Q-20261116-R9B-PVBESS_SBO-PV-CUAC-AL_AYANA-…pdf), tidak lagi \"Brave.pdf\" di iPhone. Di iPhone/iPad, setelah PDF siap tekan \"Simpan PDF\" untuk membuka menu bagikan (Simpan ke File, WhatsApp, …).",
+      "Tombol \"Print\" tetap ada untuk mencetak ke kertas.",
+    ],
+  },
+  {
     at: "2026-11-17T09:00:00Z",
     title: "Proposal EPC: Arsipkan juga dari dalam proposal",
     details: [

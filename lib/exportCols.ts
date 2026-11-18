@@ -1,7 +1,9 @@
 /**
  * Which columns the client-facing exports (PDF + Excel) include.
- * Persisted in localStorage so the choice sticks across quotes and is shared
- * between the editor's Excel export and the print page.
+ * The choice sticks across quotes and is shared between the editor's Excel
+ * export and the print page. It belongs to the PERSON, not the browser:
+ * hooks/useExportCols keeps it in public.user_preferences so a phone prints
+ * what the desktop prints (2026-11-18). localStorage here is only its cache.
  */
 export interface ExportCols {
   brand: boolean;
@@ -34,6 +36,11 @@ export function loadExportCols(): ExportCols {
   } catch {
     return DEFAULT_EXPORT_COLS;
   }
+}
+
+/** Has THIS browser ever saved a choice? (Lets it seed the account once.) */
+export function hasStoredExportCols(): boolean {
+  try { return localStorage.getItem(KEY) != null; } catch { return false; }
 }
 
 export function saveExportCols(c: ExportCols) {
