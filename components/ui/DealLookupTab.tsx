@@ -3061,6 +3061,8 @@ export default function DealLookupTab({
             />
             {/* New Deal left the menu (2026-10-23); starting one is a button where the deals are. */}
             <Link href="/purchasing?tab=quoting" className={`${BAR_BTN} ${BAR_BTN_ON_SKY} px-3 font-semibold`}>+ {t('New deal')}</Link>
+            {/* Zero-entry (2026-11-22): the same deal, read from the supplier's document instead of typed. */}
+            <Link href="/inbox" className={`${BAR_BTN} ${BAR_BTN_OFF} px-3`} title={t('Drop a supplier PI or quote; ICAPROC reads it and proposes the deal')}>{t('From a document')}</Link>
             {/* Vendors are ordered by what we OWE them, not alphabetically:
                 opening the list should answer "who is waiting for money" before
                 it answers "where is B". */}

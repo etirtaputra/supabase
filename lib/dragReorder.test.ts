@@ -44,18 +44,19 @@ test('no screen starts a drag of its own — every grip comes from the one hook'
 });
 
 /**
- * Three drop targets legitimately are NOT a seam between two rows, and they
+ * Four drop targets legitimately are NOT a seam between two rows, and they
  * keep their own handler and their own highlight — a ring around the thing
  * they mean, which is the honest shape for "put it IN here":
  *   • the EPC group header  — "move this section into this group"
  *   • the sales end zone    — "move this line past the last one"
  *   • the CSV import box    — a file from the desktop, not a row at all
- * Anything beyond those three is a row drag that escaped the hook.
+ *   • the Inbox drop box    — a supplier's PI from the desktop (2026-11-22)
+ * Anything beyond those four is a row drag that escaped the hook.
  */
-test('only the three container drop zones handle a drag themselves', () => {
+test('only the four container drop zones handle a drag themselves', () => {
   const zones = appFiles()
     .flatMap((f) => (readFileSync(f, 'utf8').match(/onDragOver=/g) ?? []).map(() => f));
-  assert.equal(zones.length, 3, `unexpected drag handlers outside ${MODULE}: ${zones.join(', ')}`);
+  assert.equal(zones.length, 4, `unexpected drag handlers outside ${MODULE}: ${zones.join(', ')}`);
 });
 
 test('the landing line is a line, in the app colour, on either side of a row', () => {

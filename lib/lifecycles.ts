@@ -629,10 +629,44 @@ const QUOTE_NOTE: Lifecycle = {
   enforced: ['Writable by anyone who can view EPC (can_view_epc), on purpose: a note must work on a locked proposal.'],
 };
 
+// ── Zero-entry Inbox ──────────────────────────────────────────────────────────
+const INBOX_ITEM: Lifecycle = {
+  id: 'inbox_item',
+  title: 'Inbox document',
+  table: '43.0_inbox_items',
+  column: 'status',
+  storage: 'text+check',
+  initial: 'received',
+  states: [
+    S('received', 'Received', 'bg-slate-700/40 text-slate-300 tone-off', 'Stored, not read yet (the reader runs as it arrives; a row stays here only if that was cut short).'),
+    S('proposed', 'To review', 'bg-amber-500/15 text-amber-300 tone-wait', 'Read: the system proposes a record and waits for a person.'),
+    S('failed', 'Could not read', 'bg-red-500/15 text-red-300 tone-bad', 'The reader failed or declined; `error` says why. Read again, or dismiss.'),
+    S('done', 'Done', 'bg-emerald-500/15 text-emerald-300 tone-done', 'A person saved the record it proposed; quote_id / po_id link it.', { terminal: true }),
+    S('dismissed', 'Dismissed', 'bg-slate-700/40 text-slate-400 tone-off', 'Not needed (duplicate, already entered, not a supplier document); dismissed_reason says which.'),
+  ],
+  moves: [
+    { from: ['received'], to: 'proposed', action: 'Read', by: 'system', where: 'POST /api/inbox (lib/inboxRead + lib/inboxMatch)' },
+    { from: ['received'], to: 'failed', action: 'Read', by: 'system', where: 'POST /api/inbox' },
+    { from: ['failed', 'received'], to: 'proposed', action: 'Read again', by: 'user', where: 'app/inbox → POST /api/inbox/:id/read' },
+    { from: ['proposed'], to: 'done', action: 'Create deal', by: 'user', where: 'app/inbox → /purchasing?inbox=:id (New Deal, pre-filled) → saved' },
+    { from: ['received', 'proposed', 'failed'], to: 'dismissed', action: 'Dismiss', by: 'user', where: 'app/inbox' },
+    { from: ['dismissed'], to: 'proposed', action: 'Put back', by: 'user', where: 'app/inbox', when: 'dismissed by mistake' },
+    { from: ['dismissed'], to: 'received', action: 'Put back', by: 'user', where: 'app/inbox', when: 'dismissed by mistake, before it was ever read' },
+  ],
+  enforced: [
+    'CHECK inbox_item_status_valid (migrations/inbox_items.sql). RLS: buy side reads (can_read_buy_side), adds and updates (can_write_buy_side).',
+    'A document is never written into a deal by the system: `done` only after a person saved the pre-filled New Deal.',
+  ],
+  groups: {
+    /** Still needs a person — the Inbox's default view and its count. */
+    open: ['received', 'proposed', 'failed'],
+  },
+};
+
 export const LIFECYCLES: Lifecycle[] = [
   EPC_PROPOSAL, SALES_DOCUMENT, DELIVERY_ORDER, AFTERSALES_CASE, SUPPORT_LETTER, SERIAL_NUMBER,
   PURCHASE_ORDER, PRICE_QUOTE, PROFORMA, LIBRARY_ENTRY, QUOTE_ITEM_FLAG, LANDED_COST, TRUE_UP_QUEUE,
-  SALES_PAYMENT, SALES_DELIVERY, CATALOGUE_ITEM, CUSTOMER, SUPPORT_LETTER_FEE, QUOTE_NOTE, EPC_PROPOSAL_ARCHIVE,
+  SALES_PAYMENT, SALES_DELIVERY, CATALOGUE_ITEM, CUSTOMER, SUPPORT_LETTER_FEE, QUOTE_NOTE, EPC_PROPOSAL_ARCHIVE, INBOX_ITEM,
 ];
 
 export type LifecycleId =
@@ -640,7 +674,7 @@ export type LifecycleId =
   | 'purchase_order' | 'price_quote' | 'proforma_invoice' | 'library_entry' | 'quote_item_flag' | 'landed_cost'
   | 'true_up_queue'
   | 'sales_payment' | 'sales_delivery' | 'catalogue_item' | 'customer' | 'support_letter_fee' | 'quote_note'
-  | 'epc_proposal_archive';
+  | 'epc_proposal_archive' | 'inbox_item';
 
 export function lifecycle(id: LifecycleId): Lifecycle {
   const l = LIFECYCLES.find((x) => x.id === id);

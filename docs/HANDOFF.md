@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-18** · last change: *server PDF: "↳" before component lines printed as an empty box — now drawn (SVG), symbol fallback fonts, glyph guard test*; before that: *EPC proposal PDF made on the server (same engine as desktop Chrome) — identical on every device, desktop's file name; column choice saved per account (migration NOT YET APPLIED)*; before that: *agents track — MANDA connected to Basecamp as project@ptmbs.co (CLI sign-in on v0.20.6; working route in §8.6)*; before that: *Archive / Restore inside the proposal editor too (acts on the newest version)*; before that: *EPC proposals: archive by hand (RPC proposal_set_archived, applied) — Archive / Move back to Active on the list, reason chips in Archived, Undo bar*; before that: *EPC proposals Card view: number + date on the top line too*; before that: *EPC proposals list: compact row leads with quote number + date; Sent is amber (tone-wait), header counts read the lifecycle colours*; before that: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-22** · last change: *the Inbox — zero-entry ERP, first stream: a supplier PI / quote (PDF or phone photo) is read by Claude, matched, and proposed as a deal; Create deal opens New Deal pre-filled, saving marks it Done and links quote/PO (table 43.0_inbox_items + bucket `inbox`, applied)*; before that: *server PDF: "↳" before component lines printed as an empty box — now drawn (SVG), symbol fallback fonts, glyph guard test*; before that: *EPC proposal PDF made on the server (same engine as desktop Chrome) — identical on every device, desktop's file name; column choice saved per account (migration NOT YET APPLIED)*; before that: *agents track — MANDA connected to Basecamp as project@ptmbs.co (CLI sign-in on v0.20.6; working route in §8.6)*; before that: *Archive / Restore inside the proposal editor too (acts on the newest version)*; before that: *EPC proposals: archive by hand (RPC proposal_set_archived, applied) — Archive / Move back to Active on the list, reason chips in Archived, Undo bar*; before that: *EPC proposals Card view: number + date on the top line too*; before that: *EPC proposals list: compact row leads with quote number + date; Sent is amber (tone-wait), header counts read the lifecycle colours*; before that: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -138,7 +138,80 @@ page, and it is how the team learns anything changed.)
 
 ## 4. What the previous threads did (for context, all shipped to main)
 
-### 2026-11-18 (latest) — EPC proposal PDF: the same file on every device
+### 2026-11-22 (latest) — The Inbox: zero-entry ERP, first stream
+
+Owner: *"Yes i love the zero-entry ERP, path of least resistance. Let's make
+no. 1 happen first."* First document type: **supplier PI / quote → deal**.
+Channels: **upload / phone photo in ICAPROC** (built), **MIRA** (same API,
+built — her runbook is NOT updated yet), **forward by email** (not built).
+
+**The idea**: nobody types a supplier document. It comes in, the system reads
+it and PROPOSES the record; a person checks and saves. Nothing is ever written
+into a deal by the system alone.
+
+- **DB (applied, `migrations/inbox_items.sql`)**: `public."43.0_inbox_items"`
+  — one row per document (file path/name/type/bytes/sha256, `status`, `kind`,
+  `extracted` = the reader's answer, `proposal` = the matcher's, `error`,
+  `quote_id` / `po_id` it became, done/dismissed stamps). CHECKs on `source`
+  (upload|agent|email) and `status`. RLS: buy side reads
+  (`can_read_buy_side`), adds and updates (`can_write_buy_side`). GRANTs to
+  authenticated + service_role. Private storage bucket **`inbox`** (20 MB;
+  PDF/JPEG/PNG/WebP), read/add policies only — never overwritten.
+- **Lifecycle `inbox_item`** (`lib/lifecycles.ts`): received → proposed (read)
+  | failed; failed/received → proposed (Read again); proposed → done (a person
+  saved the New Deal) | dismissed; dismissed → proposed/received (Put back).
+  Group `open` = received, proposed, failed (the Inbox's "To do" view/count).
+- **Reader** `lib/inboxRead.ts`: Claude (`claude-opus-5-5`), the PDF or photo
+  as a document/image block, asks for JSON in text in the SAME shape New
+  Deal's PDF button already fills `pdfData` with (supplier_name, company_name,
+  pi/quote/po numbers + dates, currency, total, freight, line_items, plus
+  document_type, is_supplier_document, summary). Refusal and max_tokens are
+  explicit `ReadFailure`s. The installed SDK is 0.71 (no structured outputs) —
+  an SDK upgrade would let it use a JSON schema instead of parsing text.
+- **Matcher** `lib/inboxMatch.ts buildProposal` (+ test, KSTAR PIO-2026021
+  cases): supplier/company by `lib/docMatch matchByName` (the SAME matcher New
+  Deal's pre-fill now uses), lines by `matchComponent` (SKU exact → SKU
+  contained → brand+desc → desc), duplicate PI by normalised number
+  (`docNumberKey`), totals by `checkPoTotal`. `withPo` = a PI/PO goes in as
+  quote + PO, a quote alone as a quote. Warnings come twice: `warnings`
+  (English, filled in — for agents) and `notes` (phrase + values — the screen
+  translates them with `tf`).
+- **API**: `POST /api/inbox` (multipart file/note/source, Bearer token via
+  `callerFromRequest` — users and MIRA alike, RLS is the gate; sha256 dedupe
+  returns the existing row with `duplicate: true`; stores, inserts, reads,
+  proposes) and `POST /api/inbox/:id/read` (read again; 409 once done). Both
+  `maxDuration` 300 — a cut-short read leaves the row `received`, and Read
+  again finishes it. **They spend money: one Claude read per new document.**
+- **Screen `/inbox`** (`app/inbox/page.tsx`; search-only — the menu stays the
+  owner's four Purchasing entries; a **"From a document"** button sits beside
+  "+ New deal" on Deal Lookup): Choose file (multi, drag-drop) / Take photo
+  (phone camera); To do / All; per card: summary, supplier ✓ or "new",
+  number + date, total, "x of y matched", warnings; Create deal → / Open
+  <duplicate> / View document (10-min signed URL) / Read again / Already
+  entered / Dismiss / Put back.
+- **Hand-off** (`app/purchasing/page.tsx`): `/purchasing?tab=quoting&inbox=<id>`
+  loads the row, sets `pdfData` = `extracted` (one pre-fill engine), sets
+  Quote / Quote + PO for this deal only (not remembered), and shows a banner.
+  `submitDealAndFile` wraps `submitDeal`; each success path records the ids in
+  `savedIdsRef`, and the row goes `done` with `quote_id` / `po_id` /
+  `done_by_email`. Verified in the rig: the save writes 4.0 → 4.1 → 5.0 →
+  5.1 → total stamp → `PATCH 43.0_inbox_items {status: done, quote_id, po_id}`.
+- Tests: `lib/inboxMatch.test.ts`, `lib/docMatch.test.ts`, lifecycle CHECK
+  pin + open-group test; `lib/dragReorder.test.ts` now allows FOUR drop zones
+  (the Inbox's is a file from the desktop, like the CSV import box).
+- **NOT verified here** (no API key in the sandbox): a real Claude read on the
+  deployed function — first real PI on production is the check. The rig used
+  fixtures built by the real matcher.
+
+**Still to do on this stream** (in order): MIRA's runbook (an agent-pack
+release: Drive upload, trash the old copy, MIRA + MANDA prompts) so she posts
+supplier PIs from Telegram/email to `POST /api/inbox` with `source=agent`;
+the forwarding email address (needs an inbound-mail provider + MX); keep the
+original file as the deal's document (today the inbox row links the deal, the
+deal does not show the file); then the next document types (payment proof →
+payment, supplier invoice → landed cost).
+
+### 2026-11-18 — EPC proposal PDF: the same file on every device
 
 Owner: *"the pdf result between desktop vs mobile is different. why?"* → *"i
 want the mobile pdf to follow the desktop version"* → *"yes do option 2, and
@@ -5378,7 +5451,19 @@ has not decided.
 
 ---
 
-## 6. NEXT MODULE — Dolibarr → ICAPROC transition (data and users, in batches)
+## 6. NEXT MODULE — Residential quick quote (survey → variables → quote)
+
+Owner, 2026-11-22 (frontier idea no. 2): *"especially for residential
+projects, the engineering will survey, check, input variables and a quote
+immediately comes out."* The engineer on site fills a short survey (roof,
+load / bills, phase, backup wish, budget), MANDA's design engine
+(`lib/systemDesign/`, golden tests are the contract) sizes the system, the
+catalogue + price list price it, and an EPC proposal (10.x) comes out ready to
+send. Kickoff: read `docs/agents/MANDA-SOLAR-DESIGN*.md` and the proposal
+editor's data model; ask the owner which survey fields an engineer can really
+fill on site, and which residential packages they quote most.
+
+## 6c. ONGOING — Dolibarr → ICAPROC transition (data and users, in batches)
 
 Owner, 2026-10-27: *"our next big task is to transition Dolibarr usage to
 ICAPROC. But for that we need to transition the data and users, and we need to

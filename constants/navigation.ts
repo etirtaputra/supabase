@@ -97,6 +97,13 @@ export const DESTINATIONS: Destination[] = [
   { href: '/purchasing?tab=lookup', label: 'Deal Lookup', group: 'Purchasing', section: 'buySide', inNav: true,
     hint: 'Every PI → PO → payment as one deal',
     keywords: 'deals pi po payments history search catalog' },
+  // The Inbox (2026-11-22, zero-entry ERP): drop a supplier's PI / quote and
+  // the system reads it and proposes the deal. Search-only, like New Deal —
+  // the menu stays the owner's four entries; it is a button on Deal Lookup,
+  // beside New deal, where the deals are.
+  { href: '/inbox', label: 'Inbox', group: 'Purchasing', section: 'buySide', inNav: false,
+    hint: 'Drop a supplier PI or quote; ICAPROC reads it and proposes the deal',
+    keywords: 'inbox upload document pdf photo scan read ai pi proforma quote zero entry kotak masuk unggah foto' },
   // Item Editor led Purchasing from 2026-08-10 (owner's call): the component
   // master sits beside New Deal, the two buy-side entry points, which is where
   // the buyer expects it — more intuitive than filed under Catalog.

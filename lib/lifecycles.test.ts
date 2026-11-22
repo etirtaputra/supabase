@@ -101,6 +101,7 @@ test('the database CHECKs list exactly the declared states', () => {
     ['sales_document', 'lifecycle_checks.sql', 'sales_document_status_valid'],
     ['delivery_order', 'lifecycle_checks.sql', 'delivery_order_status_valid'],
     ['true_up_queue', 'true_up_queue_check.sql', 'landed_true_up_queue_outcome_valid'],
+    ['inbox_item', 'inbox_items.sql', 'inbox_item_status_valid'],
   ];
   for (const [id, file, name] of cases) assert.deepEqual(checkList(file, name).sort(), stateIds(id).sort(), `${id} vs ${name}`);
   // The older tables carried their CHECK from the start.
@@ -361,4 +362,8 @@ test('the dashboard and the spend overview count POs with the lifecycle groups',
     const dealLookupActive = !inGroup('purchase_order', 'void', s) && s !== 'Draft' && s !== 'Fully Received';
     assert.equal(open.has(s), dealLookupActive, s);
   }
+});
+
+test('inbox: the open group is what still needs a person', () => {
+  assert.deepEqual([...groupList('inbox_item', 'open')].sort(), ['failed', 'proposed', 'received']);
 });

@@ -37,6 +37,8 @@ import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { fetchLiveFx } from '@/lib/liveFx';
 import { autoPostTrueUp, autoPostMessage, drainTrueUpQueue, drainMessage } from '@/lib/landedAutoPostClient';
 import { extractPdf } from '@/lib/extractPdfClient';
+import { matchByName, matchComponent } from '@/lib/docMatch';
+import type { ReadDocument } from '@/lib/inboxMatch';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { fmtIdr, fmtInt } from '@/lib/formatters';
@@ -87,6 +89,14 @@ function MasterInsertPage() {
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
+  // Zero-entry hand-off (2026-11-22): /purchasing?tab=quoting&inbox=<id> opens
+  // New Deal pre-filled from what the Inbox read (43.0_inbox_items.extracted —
+  // the same shape the PDF button fills pdfData with, so one pre-fill engine).
+  // Saving marks the inbox item Done and links the quote / PO it became.
+  const inboxParam = searchParams.get('inbox');
+  const [inboxItem, setInboxItem] = useState<{ item_id: string; file_name: string; status: string; summary: string | null } | null>(null);
+  const [inboxDone, setInboxDone] = useState(false);
+  const savedIdsRef = useRef<{ quote_id?: string | null; po_id?: string | null }>({});
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
   const [singlePoId, setSinglePoId] = useState('');
   // Default to showing every PO — the PO picker has its own search, so
@@ -130,6 +140,38 @@ function MasterInsertPage() {
     setActiveTab((cur) => (cur === t ? cur : t));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!inboxParam || !user) return;
+    let alive = true;
+    supabase.from('43.0_inbox_items').select('item_id, file_name, status, extracted, proposal').eq('item_id', inboxParam).maybeSingle()
+      .then(({ data: row }) => {
+        if (!alive || !row) return;
+        const r = row as { item_id: string; file_name: string; status: string; extracted: ReadDocument | null; proposal: { withPo?: boolean } | null };
+        setInboxItem({ item_id: r.item_id, file_name: r.file_name, status: r.status, summary: r.extracted?.summary ?? null });
+        setInboxDone(r.status === 'done');
+        if (r.status === 'done' || !r.extracted) return;
+        setPdfData(r.extracted);
+        // This deal only — not remembered as the browser's mode (setQuoteMode does that).
+        setWithPo(!!r.proposal?.withPo);
+      });
+    return () => { alive = false; };
+  }, [inboxParam, user]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** New Deal's save, plus: an Inbox document that became this deal is marked Done and linked. */
+  const submitDealAndFile = async (d: Parameters<typeof submitDeal>[0], items: DealLine[]): Promise<boolean> => {
+    savedIdsRef.current = {};
+    const ok = await submitDeal(d, items);
+    if (ok && inboxItem && !inboxDone) {
+      const { error } = await supabase.from('43.0_inbox_items').update({
+        status: 'done', done_at: new Date().toISOString(), done_by_email: profile?.email ?? user?.email ?? null,
+        quote_id: savedIdsRef.current.quote_id ?? null, po_id: savedIdsRef.current.po_id ?? null,
+      }).eq('item_id', inboxItem.item_id);
+      if (error) showToast(`Deal saved, but the Inbox item could not be marked done: ${error.message}`, 'error');
+      else setInboxDone(true);
+    }
+    return ok;
+  };
 
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
@@ -435,24 +477,11 @@ function MasterInsertPage() {
   const pdfDefaults = useMemo(() => {
     if (!pdfData) return {};
     const defaults: any = {};
-    if (pdfData.supplier_name && data.suppliers.length > 0) {
-      const supplierName = pdfData.supplier_name.toLowerCase().trim();
-      const matchedSupplier = data.suppliers.find((s: any) =>
-        s.supplier_name?.toLowerCase().trim() === supplierName ||
-        s.supplier_name?.toLowerCase().includes(supplierName) ||
-        supplierName.includes(s.supplier_name?.toLowerCase())
-      );
-      if (matchedSupplier) defaults.supplier_id = matchedSupplier.supplier_id;
-    }
-    if (pdfData.company_name && data.companies.length > 0) {
-      const companyName = pdfData.company_name.toLowerCase().trim();
-      const matchedCompany = data.companies.find((c: any) =>
-        c.legal_name?.toLowerCase().trim() === companyName ||
-        c.legal_name?.toLowerCase().includes(companyName) ||
-        companyName.includes(c.legal_name?.toLowerCase())
-      );
-      if (matchedCompany) defaults.company_id = matchedCompany.company_id;
-    }
+    // One matcher for the pre-fill and the Inbox's proposal (lib/docMatch).
+    const matchedSupplier = matchByName(pdfData.supplier_name, data.suppliers as any[], (s) => s.supplier_name);
+    if (matchedSupplier) defaults.supplier_id = matchedSupplier.supplier_id;
+    const matchedCompany = matchByName(pdfData.company_name, data.companies as any[], (c) => c.legal_name);
+    if (matchedCompany) defaults.company_id = matchedCompany.company_id;
     return defaults;
   }, [pdfData, data.suppliers, data.companies]);
 
@@ -773,6 +802,7 @@ function MasterInsertPage() {
       if (!q0) return false;
       if (lineRows.length) await handleInsert('4.1_price_quote_line_items', lineRows.map((r) => ({ ...r, quote_id: q0.quote_id })));
       await recordSuccessors(quote.pi_number);
+      savedIdsRef.current = { quote_id: String(q0.quote_id) };
       return true;
     }
 
@@ -828,6 +858,7 @@ function MasterInsertPage() {
         setSaving(false);
         refetch();
         setStoredPoSel(''); setPendingStoredPo(''); setPoNumberChanged(false);
+        savedIdsRef.current = { quote_id: src.quote_id ? String(src.quote_id) : null, po_id: String(src.po_id) };
         setLastSaved({ message: `${src.po_number} amended — ${poLineRows.length} item${poLineRows.length !== 1 ? 's' : ''} now on the PO.`, cta: 'Open in Deal Lookup →', nextTab: 'lookup', poId: String(src.po_id) });
         return true;
       }
@@ -858,6 +889,7 @@ function MasterInsertPage() {
         refetch();
       }
       setStoredPoSel(''); setPendingStoredPo(''); setPoNumberChanged(false); setNewPoMode('split');
+      savedIdsRef.current = { quote_id: src.quote_id ? String(src.quote_id) : null, po_id: newPoId };
       setLastSaved({
         message: supersede
           ? `${po_number} created — ${src.po_number} marked Replaced and linked.`
@@ -933,6 +965,7 @@ function MasterInsertPage() {
     }
     setStoredQuoteSel('');
     setPendingStoredQuote('');
+    savedIdsRef.current = { quote_id: String(q.quote_id), po_id: poId };
     setLastSaved(existing_quote_id
       ? { message: `PO ${po_number} raised from the stored quote — ${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} carried across${replacedNote}.`, cta: 'Log payment →', nextTab: 'financials', poId }
       : { message: `Quote + PO ${po_number} saved — the ${copiedItems.length ? `${copiedItems.length} item${copiedItems.length !== 1 ? 's' : ''} went` : 'items go'} onto both documents${replacedNote}.`, cta: 'Log payment →', nextTab: 'financials', poId });
@@ -947,26 +980,7 @@ function MasterInsertPage() {
     if (!lineItems?.length) return null;
     const comps = data.components as any[];
     return lineItems.map((item: any): DealLine => {
-      const searchSku = item.model_sku?.toLowerCase().trim() || '';
-      const searchDesc = item.description?.toLowerCase().trim() || '';
-      const searchBrand = item.brand?.toLowerCase().trim() || '';
-      let m: any = searchSku ? comps.find((c) => c.supplier_model?.toLowerCase().trim() === searchSku) : null;
-      if (!m && searchSku) {
-        m = comps.find((c) => c.supplier_model?.toLowerCase().includes(searchSku) || searchSku.includes(c.supplier_model?.toLowerCase()));
-      }
-      if (!m && searchBrand && searchDesc) {
-        m = comps.find((c) => {
-          const b = c.brand?.toLowerCase().trim() || '';
-          const dsc = c.internal_description?.toLowerCase().trim() || '';
-          return b === searchBrand && dsc && (dsc.includes(searchDesc) || searchDesc.includes(dsc));
-        });
-      }
-      if (!m && searchDesc && searchDesc.length > 10) {
-        m = comps.find((c) => {
-          const dsc = c.internal_description?.toLowerCase().trim() || '';
-          return dsc && (dsc.includes(searchDesc) || searchDesc.includes(dsc));
-        });
-      }
+      const m: any = matchComponent(item, comps);
       return {
         ...blankDealLine(pdfData.currency || ''),
         component_id: m ? String(m.component_id) : null,
@@ -1346,6 +1360,18 @@ function MasterInsertPage() {
               {/* Quoting Tab */}
               {activeTab === 'quoting' && (
                 <>
+                  {/* Came from the Inbox: say so, and after the save, offer the next document */}
+                  {inboxItem && (
+                    <div className={`mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 rounded-xl border ${inboxDone ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-sky-500/10 border-sky-500/25'}`}>
+                      <span className={`text-sm font-semibold ${inboxDone ? 'text-emerald-300' : 'text-sky-200'}`}>
+                        {inboxDone ? t('Filed: this document is Done in the Inbox, linked to the deal.') : t('Pre-filled from the Inbox. Check it, then save.')}
+                      </span>
+                      <span className="text-[12px] text-slate-400 truncate">{inboxItem.summary || inboxItem.file_name}</span>
+                      <Link href="/inbox" className="ml-auto text-[12px] font-semibold text-sky-300 hover:text-sky-200">
+                        {inboxDone ? t('Next document →') : t('← Back to the Inbox')}
+                      </Link>
+                    </div>
+                  )}
                   {/* What's next banner — any save made on this tab */}
                   {lastSaved && (
                     <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
@@ -1564,7 +1590,7 @@ function MasterInsertPage() {
                           { name: 'replaces_po_id', label: 'Replaces PO', hint: 'This PO supersedes an older one — the menu lists this supplier’s POs; type a number to search them all. The old PO is marked Replaced and linked. (Use Stored PO above to also load its items.)', type: 'rich-select' as const, options: options.posReplace, config: { labelKey: '_label', valueKey: 'po_id', subLabelKey: '_sub' }, browseScope: { fieldName: 'supplier_id', optionKey: 'supplier_id', label: 'this supplier' }, accent: true },
                         ] : []),
                       ]}
-                      onSubmit={submitDeal}
+                      onSubmit={submitDealAndFile}
                       loading={saving}
                       projects={reasonProjects}
                       salesOrders={reasonOrders}

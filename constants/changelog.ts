@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-22T09:00:00Z",
+    title: "Kotak Masuk: PI pemasok masuk, deal keluar — tanpa mengetik",
+    details: [
+      "Halaman baru Kotak Masuk (tombol \"Dari dokumen\" di Deal Lookup, atau cari \"Kotak Masuk\"): tambahkan PI, penawaran atau PO pemasok — PDF, atau foto langsung dari kamera ponsel. ICAPROC membacanya dan mengusulkan deal-nya: pemasok, nomor dan tanggal dokumen, mata uang, total, dan setiap baris dicocokkan ke item katalog.",
+      "Yang perlu dicek ditandai: pemasok baru, baris yang belum cocok dengan katalog, total yang tidak sama dengan jumlah barisnya, dan PI yang sudah pernah dimasukkan (dengan tautan ke deal-nya).",
+      "\"Buat deal\" membuka New Deal yang sudah terisi (penawaran + PO untuk PI, penawaran saja untuk quote). Periksa, isi nomor PO, simpan — dokumennya otomatis Selesai di Kotak Masuk dan tertaut ke deal-nya.",
+      "File aslinya tersimpan (tombol \"Lihat dokumen\"). File yang sama dua kali tidak tersimpan dua kali.",
+    ],
+  },
+  {
     at: "2026-11-18T14:00:00Z",
     title: "Unduh PDF: tanda ↳ pada baris komponen kini tampil benar",
     details: [
