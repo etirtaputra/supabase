@@ -10,7 +10,7 @@ const db: InboxLookups = {
     { component_id: 'k2', supplier_model: 'YDC3330H', internal_description: 'KSTAR YDC3330H Long Run 30kVA', brand: 'KSTAR' },
   ],
   quotes: [{ quote_id: 'q-old', pi_number: 'KST226-6823', supplier_id: 's1' }],
-  pos: [{ po_id: 'p-old', po_number: 'PIO-2026021', pi_number: 'KST226-6823', supplier_id: 's1' }],
+  pos: [{ po_id: 'p-old', po_number: 'PIO-2026021', pi_number: 'KST226-6823', quote_id: 'q-old', supplier_id: 's1', total_value: 333798, currency: 'CNY' }],
 };
 
 // PIO-2026021 as KSTAR sent it: 250 × CNY 1,200 + 3 × CNY 11,266 = CNY 333,798.
@@ -66,4 +66,20 @@ test('not a supplier deal document → review, never a deal', () => {
   assert.equal(p.withPo, false);
   const q = buildProposal({ document_type: 'proforma_invoice', is_supplier_document: false }, db);
   assert.equal(q.action, 'review');
+});
+
+test('same PI number, different total: a revised PI, not a second deal', () => {
+  const p = buildProposal({ ...kstarPi, pi_number: 'KST226-6823', total_value: 350000,
+    line_items: [{ model_sku: 'SIN202-9 II', quantity: 250, unit_price: 1400 }] }, db);
+  assert.equal(p.duplicates?.[0]?.kind, 'revision');
+  assert.match(p.warnings.join(' '), /a revised PI\?/);
+});
+
+test('the same PI waiting twice in the Inbox (a PDF and a photo) is flagged', () => {
+  const p = buildProposal(kstarPi, { ...db, inbox: [{
+    item_id: 'other', file_name: 'IMG_0001.jpg', received_at: '2026-11-21T00:00:00Z', status: 'proposed',
+    supplier_id: 's1', numbers: ['KST226 6900'], total: 333798, currency: 'CNY', date: null,
+  }] });
+  assert.deepEqual(p.duplicates?.map((h) => h.kind), ['inbox']);
+  assert.match(p.warnings.join(' '), /also in the Inbox: IMG_0001\.jpg/);
 });

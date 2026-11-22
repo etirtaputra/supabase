@@ -6,6 +6,14 @@
 > 2026-10-09, 2026-10-11, 2026-10-23 and 2026-10-24, against `main` @ the commit that carries it. Row counts are from
 > those days and drift; the NAMES and the RULES are what matter.
 >
+> **v12 (2026-11-22) adds one table, `43.0_inbox_items`** — the Inbox: one row
+> per supplier document that came in (a person's upload or an agent's), what was
+> read from it (`extracted`), what ICAPROC proposes (`proposal`), what it became
+> (`quote_id`, `po_id`) and where its file is (`filed_at`, `drive_url`,
+> `file_cleared_at`). The file itself is in the private storage bucket `inbox`.
+> Do NOT write the table directly: use `POST /api/inbox` and
+> `POST /api/agent/inbox/:id` (purchasing runbook §8). Buy side only.
+>
 > **v11 (2026-10-24) corrects §5 on `9.1_fx_benchmark_rates`.** Its rows CAN
 > be edited (rate and note, by an owner; the database stamps `edited_at` and
 > `edited_by_email`), and a server job adds rows by itself each morning
@@ -602,7 +610,8 @@ attribution is the point of the account, not a side effect.
 
 **This is the whole database — 60 tables, read from `information_schema` on
 2026-09-19, plus `10.6_bom_calcs` added 2026-10-11 and `9.1_fx_benchmark_rates`,
-`9.2_fx_reference_rates` and `10.7_quote_item_flags` added by 2026-10-23.** It exists so that "I could not find a table for X" is always a
+`9.2_fx_reference_rates` and `10.7_quote_item_flags` added by 2026-10-23, and
+`43.0_inbox_items` added 2026-11-22.** It exists so that "I could not find a table for X" is always a
 checkable claim. Nothing outside this list exists; if you need something that
 is not here, the answer is that ICAPROC does not store it yet.
 
@@ -617,6 +626,7 @@ Counts drift. Names do not.
 | `4.0_price_quotes` → `4.1_price_quote_line_items` | 5, 5a, 5f | **no total trigger**; source + line reason (§5f) |
 | `5.0_purchases` → `5.1_purchase_line_items` | 5, 5a, 5f | **lines first, total last**; no `price_check` reason on `5.1` |
 | `6.0_po_costs` | 5 | freight, PIB, OPS — landed cost |
+| `43.0_inbox_items` | 5 | the Inbox — supplier documents in, proposed deals out; **write through the API only** (purchasing runbook §8) |
 | `7.0_competitor_prices` | 5 | |
 | `8.0_component_links` | 5 | `brand_equivalent` · `normalized` · `successor` |
 | `9.0_exchange_rate_history` | 5 | old paid rates per PO; unused by the app |

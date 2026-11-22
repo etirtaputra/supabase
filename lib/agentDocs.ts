@@ -30,15 +30,15 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'schema',
     title: 'ICAPROC schema map',
-    file: 'ICAPROC-SCHEMA_v11_2026-10-24.md',
+    file: 'ICAPROC-SCHEMA_v12_2026-11-22.md',
     audience: 'every agent, before its first query',
     first: true,
   },
   {
     id: 'purchasing-runbook',
     title: 'Purchasing runbook (buy side)',
-    file: 'PURCHASING-RUNBOOK_v8_2026-10-24.md',
-    audience: 'buy-side agents: quotes, POs, payments, landed cost',
+    file: 'PURCHASING-RUNBOOK_v9_2026-11-22.md',
+    audience: 'buy-side agents: the Inbox (supplier documents in, duplicates checked), quotes, POs, payments, landed cost',
     first: false,
   },
   {
@@ -72,8 +72,8 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'purchasing-sync',
     title: 'Purchasing sync: Drive, ICAPROC, Dolibarr, Basecamp',
-    file: 'PURCHASING-SYNC-RUNBOOK_v10_2026-10-30.md',
-    audience: 'MIRA: one order the same in all four places; acts where evidence is clear, fills gaps herself first, Drive names (files and folders, renamed to the convention whoever made them) and duplicates, one folder per order checked BEFORE any upload (§11.5, drive_order_folder.py), Indonesian checklist on every card, tags Enrica only for what needs a person',
+    file: 'PURCHASING-SYNC-RUNBOOK_v11_2026-11-22.md',
+    audience: 'MIRA: one order the same in all four places; acts where evidence is clear, fills gaps herself first, Drive names (files and folders, renamed to the convention whoever made them) and duplicates, one folder per order checked BEFORE any upload (§11.5, drive_order_folder.py), Indonesian checklist on every card, tags Enrica only for what needs a person; files the Inbox documents that became deals into their Drive order folder (§11.7)',
     first: false,
   },
   {

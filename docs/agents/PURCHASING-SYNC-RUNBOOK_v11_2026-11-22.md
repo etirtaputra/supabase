@@ -3,6 +3,13 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version. If this file is not the one the index names, it is stale.
 >
+> **v11 (2026-11-22), owner's rule:** *"MIRA files to Drive."* A supplier
+> document that came in through the ICAPROC Inbox and became a deal is filed
+> by YOU in the deal's order folder (§11.7), with the §11.5 checks — the Inbox
+> gives you its md5 so a file already on Drive is never uploaded twice — and
+> you record where it went. ICAPROC deletes its own copy 30 days after you
+> filed it, so the Drive copy is the only one that lasts: file it right.
+>
 > **v10 (2026-10-30), owner's rule:** *"For the file name dates, use the
 > file or document's date."* §11.1: the date in a file name is the date the
 > document shows; when it shows none, the file's own date — never the day
@@ -133,7 +140,8 @@ Two numbering schemes exist side by side — `PIO-017-ISL-09-2026` and
 1. READ    G, I, D, B — all four, for every order, before any write.
 2. COMPARE order by order (§4). Sort every finding into §5's A, B or C.
 3. WRITE   the A-findings, in this order:  G  →  I  →  D  →  B
-           (Drive: renames to §11 and copies of documents found elsewhere.
+           (Drive: renames to §11, copies of documents found elsewhere, and
+           the Inbox documents waiting to be filed — §11.7.
            Dolibarr writes are B-findings for now.)
 4. READ BACK every write. A tool's "success" is not proof. Read the record
             again and compare it with what you meant to write.
@@ -575,3 +583,45 @@ YYYYMMDD <PI> <PO>, <SEA|AIR>, [<items>]
 - Domestic (`-MBS-`) orders have no PI: the PO takes the PI's place. For a
   case this table does not cover (several PIs, a sample order), copy the
   earlier folders of the same supplier and keep the order of the parts.
+
+### 11.7 Filing the Inbox's documents (v11, 2026-11-22)
+
+People add supplier PIs, quotes and POs to the ICAPROC **Inbox** (`/inbox`), and so
+do you (purchasing runbook §8). When a deal is saved from one, the document is
+`done` but lives only in ICAPROC. Filing it in Drive is yours, every run, in step 3.
+
+1. **What is waiting:**
+   ```
+   GET https://icaproc.com/api/agent/inbox?to_file=1
+   ```
+   Each item: `file_name`, `mime_type`, `file_md5`, `download_url` (valid 1 hour),
+   the deal (`po`: `po_number`, `pi_number`, `pi_date`, `document_url`; `quote`:
+   `pi_number`, `document_url`), `supplier`.
+2. **Find the order folder — §11.5 step 1**, with `--pi`, `--po` and EVERY
+   `document_url` as `--link`. One candidate → that folder. None → create the PI
+   folder (§11.6), then `find` again. Two or more → stop, ask Eric.
+3. **Download** the file from `download_url` to your work folder. Check its md5
+   equals `file_md5`; if not, the download broke — fetch it again.
+4. **Already on Drive?** `existing --supplier-folder <id> <file>`. A match → do NOT
+   upload. Make sure that copy has the §11.1 name and sits in the order folder;
+   its link is your `drive_url`.
+5. **Otherwise upload** through the script only, named by §11.1 (the date is the
+   document's own date, v10):
+   `upload --supplier-folder <id> --target <order folder> --name "<§11.1 name>" <file>`
+   with the same `--pi/--po/--link`. Its read-back link is your `drive_url`.
+   An ISL order also gets its accounting copy (§11.4).
+6. **Record it in ICAPROC:**
+   ```
+   POST https://icaproc.com/api/agent/inbox/<item_id>
+   {"action": "filed", "drive_url": "<the Drive link of the file>"}
+   ```
+   Read the answer back: `item.filed_at` is set.
+7. **The deal's Document Folder:** if the PO's (or quote's) `document_url` is empty,
+   set it to the ORDER FOLDER's link (purchasing runbook §6). If it points somewhere
+   else, that is a §11.5 finding — report it, do not overwrite it.
+8. **Report** in Telegram (§9): `filed <file> → <folder>` per document, and every one
+   you could not file, and why.
+
+Never file a document that is not `done` (the API refuses it). Never delete
+anything from the Inbox — ICAPROC's own cleanup does that, 30 days after `filed`.
+

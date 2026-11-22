@@ -7,7 +7,8 @@
  * same matcher (lib/docMatch) and saves through the usual rules.
  * Tested in lib/inboxMatch.test.ts.
  */
-import { matchByName, matchComponent, docNumberKey, type CatalogueItem } from './docMatch.ts';
+import { matchByName, matchComponent, type CatalogueItem } from './docMatch.ts';
+import { dealsFrom, findDuplicates, dupMessage, type DupHit, type DupInboxItem } from './inboxDuplicates.ts';
 import { checkPoTotal, totalDisagrees } from './poTotals.ts';
 
 /** What the reader returns (lib/inboxRead.ts) — the shape New Deal's pre-fill reads. */
@@ -30,8 +31,10 @@ export interface InboxLookups<C extends CatalogueItem = CatalogueItem> {
   suppliers: { supplier_id: string; supplier_name: string | null }[];
   companies: { company_id: string; legal_name: string | null }[];
   components: C[];
-  quotes: { quote_id: string; pi_number: string | null; supplier_id: string | null }[];
-  pos: { po_id: string; po_number: string | null; pi_number: string | null; supplier_id: string | null }[];
+  quotes: Parameters<typeof dealsFrom>[0];
+  pos: Parameters<typeof dealsFrom>[1];
+  /** Other Inbox documents (lib/inboxDuplicates inboxDupView) — the same PI waiting twice. */
+  inbox?: DupInboxItem[];
 }
 
 export interface ProposedLine { description: string; quantity: number | null; unit_price: number | null; component_id: string | null; component_name: string | null }
@@ -53,7 +56,10 @@ export interface InboxProposal {
   lines: ProposedLine[];
   matchedLines: number;
   /** Already in ICAPROC under the same supplier document number. */
+  /** The strongest deal it repeats (same / revision), for links. */
   duplicate: { quote_id: string | null; po_id: string | null; label: string } | null;
+  /** Every duplicate found when it was read (lib/inboxDuplicates). Screens re-check live. */
+  duplicates?: DupHit[];
   /** Things a person should look at before confirming, in plain words. */
   /** In English, values filled in — what an agent reads. */
   warnings: string[];
@@ -86,17 +92,13 @@ export function buildProposal<C extends CatalogueItem>(doc: ReadDocument, db: In
   const freight = num(doc.freight_charges_intl) ?? 0;
   const total = num(doc.total_value);
 
-  // The same supplier document already entered: by PI / quote number on a
-  // quote or PO of this supplier (any supplier when the supplier is unknown).
-  let duplicate: InboxProposal['duplicate'] = null;
-  const keys = [doc.pi_number, doc.quote_number].map(docNumberKey).filter(Boolean);
-  const poKey = docNumberKey(doc.po_number);
-  if (keys.length || poKey) {
-    const sameSup = (sid: string | null) => !sup || String(sid) === String(sup.supplier_id);
-    const po = db.pos.find((p) => sameSup(p.supplier_id) && ((p.pi_number && keys.includes(docNumberKey(p.pi_number))) || (poKey && docNumberKey(p.po_number) === poKey)));
-    const q = db.quotes.find((x) => sameSup(x.supplier_id) && x.pi_number && keys.includes(docNumberKey(x.pi_number)));
-    if (po || q) duplicate = { quote_id: q?.quote_id ?? null, po_id: po?.po_id ?? null, label: po?.po_number || q?.pi_number || docNumber || '' };
-  }
+  // Already in ICAPROC, or waiting twice in the Inbox (lib/inboxDuplicates).
+  const duplicates = findDuplicates(
+    { supplier_id: sup ? String(sup.supplier_id) : null, numbers: [doc.pi_number ?? null, doc.quote_number ?? null, doc.po_number ?? null],
+      total: total ?? (itemsSum || null), currency: doc.currency ?? null, date: docDate },
+    dealsFrom(db.quotes, db.pos), db.inbox ?? []);
+  const dealHit = duplicates.find((h) => h.where === 'deal' && (h.kind === 'same' || h.kind === 'revision'));
+  const duplicate: InboxProposal['duplicate'] = dealHit ? { quote_id: dealHit.quote_id ?? null, po_id: dealHit.po_id ?? null, label: dealHit.label } : null;
 
   const warnings: string[] = [];
   const notes: NonNullable<InboxProposal['notes']> = [];
@@ -105,7 +107,7 @@ export function buildProposal<C extends CatalogueItem>(doc: ReadDocument, db: In
     warnings.push(text.replace(/\{(\w+)\}/g, (_, k: string) => String(vars?.[k] ?? '')));
   };
   if (!isDeal) say(doc.is_supplier_document === false ? 'This does not look like a supplier document.' : 'This is not a PI, quote or PO — decide what it should become.');
-  if (duplicate) say('Already in ICAPROC: {label}. Check before creating it again.', { label: duplicate.label });
+  for (const h of duplicates) { const m = dupMessage(h); say(m.text, m.vars); }
   if (isDeal && !sup) {
     if (doc.supplier_name) say('Supplier "{name}" is not in ICAPROC yet — add it or pick the right one.', { name: doc.supplier_name });
     else say('No supplier name was found on the document.');
@@ -130,6 +132,6 @@ export function buildProposal<C extends CatalogueItem>(doc: ReadDocument, db: In
     currency: doc.currency ?? null,
     total, itemsSum, freight, lines,
     matchedLines: lines.length - unmatched,
-    duplicate, warnings, notes,
+    duplicate, duplicates, warnings, notes,
   };
 }

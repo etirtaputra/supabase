@@ -44,8 +44,12 @@ export async function POST(request: Request) {
 
   const bytes = new Uint8Array(await file.arrayBuffer());
   const sha = createHash('sha256').update(bytes).digest('hex');
+  // md5 = what Google Drive reports as md5Checksum: MIRA's upload script
+  // compares it before filing, so a file already on Drive is not added again.
+  const md5 = createHash('md5').update(bytes).digest('hex');
 
   // The same file again (forwarded twice, sent by two people): return the row.
+  // (The same DOCUMENT in another file — a photo of a PDF — is lib/inboxDuplicates' job.)
   const { data: same } = await db.from(INBOX_TABLE).select('*').eq('file_sha256', sha).limit(1).maybeSingle();
   if (same) return NextResponse.json({ item: same, duplicate: true });
 
@@ -60,8 +64,14 @@ export async function POST(request: Request) {
 
   const { data: row, error } = await db.from(INBOX_TABLE).insert({
     received_by_email: caller.email || null, source, note,
-    file_path: path, file_name: file.name || safe, mime_type: mime as ReadableType, file_bytes: file.size, file_sha256: sha,
+    file_path: path, file_name: file.name || safe, mime_type: mime as ReadableType, file_bytes: file.size, file_sha256: sha, file_md5: md5,
   }).select('*').single();
+  if (error?.code === '23505') {
+    // Two uploads of one file at the same moment: the other won. Keep its row, drop our copy.
+    await db.storage.from(INBOX_BUCKET).remove([path]);
+    const { data: first } = await db.from(INBOX_TABLE).select('*').eq('file_sha256', sha).maybeSingle();
+    if (first) return NextResponse.json({ item: first, duplicate: true });
+  }
   if (error || !row) return fail(error && /row-level security/i.test(error.message) ? 403 : 500, error?.message ?? 'The document could not be recorded.');
 
   try {

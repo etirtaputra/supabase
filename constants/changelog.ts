@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-22T23:55:00Z",
+    title: "Kotak Masuk: cek dokumen ganda, foto diperkecil, file disimpan MIRA ke Drive",
+    details: [
+      "Dokumen ganda dicek setiap kali Kotak Masuk dibuka: nomor PI/PO yang sama dengan deal di ICAPROC (ejaan nomor tidak berpengaruh), nomor sama tetapi total berbeda (PI revisi — ubah deal-nya di Deal Lookup), dokumen yang sama dua kali di Kotak Masuk (mis. PDF dan fotonya), dan — kalau nomor tidak terbaca — pemasok, mata uang dan total yang sama.",
+      "Foto dari ponsel diperkecil sebelum diunggah (sekitar 0,3 MB, bukan 3 MB) dan tetap terbaca.",
+      "Setelah deal disimpan, MIRA menyimpan dokumennya di folder Drive deal tersebut. Salinan di ICAPROC dihapus 30 hari kemudian; dokumen yang diabaikan juga dihapus setelah 30 hari.",
+      "MIRA kini mengirim PI pemasok yang ia terima ke Kotak Masuk; ia hanya membuat deal sendiri bila diminta, dan selalu mengecek dulu apakah dokumen itu sudah ada.",
+    ],
+  },
+  {
     at: "2026-11-22T09:00:00Z",
     title: "Kotak Masuk: PI pemasok masuk, deal keluar — tanpa mengetik",
     details: [

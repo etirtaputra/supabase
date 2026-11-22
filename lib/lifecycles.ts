@@ -630,6 +630,35 @@ const QUOTE_NOTE: Lifecycle = {
 };
 
 // ── Zero-entry Inbox ──────────────────────────────────────────────────────────
+/**
+ * Where an Inbox document's FILE lives (2026-11-22, owner: "MIRA files to
+ * Drive, do the photo shrinking and cleanup"). The Inbox is a waiting room;
+ * the evidence lives in the deal's Google Drive folder.
+ */
+const INBOX_FILE: Lifecycle = {
+  id: 'inbox_file',
+  title: 'Inbox document — its file',
+  table: '43.0_inbox_items',
+  column: 'filed_at',
+  storage: 'columns',
+  initial: 'in_icaproc',
+  states: [
+    S('in_icaproc', 'In ICAPROC only', 'bg-amber-500/15 text-amber-300 tone-wait', 'filed_at and file_cleared_at are null: the only copy ICAPROC holds is in storage bucket `inbox`. A document that became a deal waits here for MIRA.'),
+    S('filed', 'Filed in Drive', 'bg-emerald-500/15 text-emerald-300 tone-done', 'filed_at + drive_url set: the file is in the deal\'s Drive folder (uploaded by MIRA, or the same file was already there). The ICAPROC copy is deleted 30 days later (lib/inboxFiling clearAfter).'),
+    S('cleared', 'Copy deleted', 'bg-slate-700/40 text-slate-400 tone-off', 'file_cleared_at set: the copy in storage is gone. The row stays (what was read, what it became, drive_url).', { terminal: true }),
+  ],
+  moves: [
+    { from: ['in_icaproc'], to: 'filed', action: 'Filed', by: 'user', where: 'MIRA (a buy-side login) — POST /api/agent/inbox/:id {action: filed, drive_url}', when: 'the document became a deal (status done)' },
+    { from: ['filed'], to: 'cleared', action: 'Delete the copy', by: 'system', where: 'GET /api/cron/inbox-cleanup (daily)', when: '30 days after filed_at' },
+    { from: ['in_icaproc'], to: 'cleared', action: 'Delete the copy', by: 'system', where: 'GET /api/cron/inbox-cleanup (daily)', when: 'dismissed, 30 days after dismissed_at' },
+  ],
+  enforced: [
+    'CHECK inbox_item_filed_when_done: filed only once it is a deal. CHECK inbox_item_drive_url_valid: a Google Drive link (migrations/inbox_filing.sql).',
+    'A deal that is not filed yet is never deleted — the cleanup only reads filed_at and (for dismissed) dismissed_at.',
+  ],
+  notes: ['Agents: GET /api/agent/inbox?to_file=1 lists what to file, with the md5 Drive reports — compare before uploading.'],
+};
+
 const INBOX_ITEM: Lifecycle = {
   id: 'inbox_item',
   title: 'Inbox document',
@@ -666,7 +695,7 @@ const INBOX_ITEM: Lifecycle = {
 export const LIFECYCLES: Lifecycle[] = [
   EPC_PROPOSAL, SALES_DOCUMENT, DELIVERY_ORDER, AFTERSALES_CASE, SUPPORT_LETTER, SERIAL_NUMBER,
   PURCHASE_ORDER, PRICE_QUOTE, PROFORMA, LIBRARY_ENTRY, QUOTE_ITEM_FLAG, LANDED_COST, TRUE_UP_QUEUE,
-  SALES_PAYMENT, SALES_DELIVERY, CATALOGUE_ITEM, CUSTOMER, SUPPORT_LETTER_FEE, QUOTE_NOTE, EPC_PROPOSAL_ARCHIVE, INBOX_ITEM,
+  SALES_PAYMENT, SALES_DELIVERY, CATALOGUE_ITEM, CUSTOMER, SUPPORT_LETTER_FEE, QUOTE_NOTE, EPC_PROPOSAL_ARCHIVE, INBOX_ITEM, INBOX_FILE,
 ];
 
 export type LifecycleId =
@@ -674,7 +703,7 @@ export type LifecycleId =
   | 'purchase_order' | 'price_quote' | 'proforma_invoice' | 'library_entry' | 'quote_item_flag' | 'landed_cost'
   | 'true_up_queue'
   | 'sales_payment' | 'sales_delivery' | 'catalogue_item' | 'customer' | 'support_letter_fee' | 'quote_note'
-  | 'epc_proposal_archive' | 'inbox_item';
+  | 'epc_proposal_archive' | 'inbox_item' | 'inbox_file';
 
 export function lifecycle(id: LifecycleId): Lifecycle {
   const l = LIFECYCLES.find((x) => x.id === id);

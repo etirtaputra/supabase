@@ -26,6 +26,10 @@ import { badgeMap, canMove, groupList } from '@/lib/lifecycles';
 import { fmtDay, fmtDayTime } from '@/lib/formatters';
 import BrandMenu from '@/components/ui/BrandMenu';
 import type { InboxProposal, ReadDocument } from '@/lib/inboxMatch';
+import { dealsFrom, findDuplicates, dupMessage, inboxDupView, DUP_TEXTS, DEAL_QUOTE_COLS, DEAL_PO_COLS, type DupDeal, type DupHit } from '@/lib/inboxDuplicates';
+import { clearAfter } from '@/lib/inboxFiling';
+import { shrinkPhoto } from '@/lib/shrinkPhoto';
+import { fetchAllRows, type PageResult } from '@/lib/fetchAllRows';
 
 const STATUS = badgeMap('inbox_item');
 const OPEN = new Set(groupList('inbox_item', 'open'));
@@ -35,7 +39,9 @@ interface InboxItem {
   file_path: string; file_name: string; mime_type: string; status: string; kind: string | null;
   extracted: ReadDocument | null; proposal: InboxProposal | null; error: string | null;
   quote_id: string | null; po_id: string | null; done_at: string | null; dismissed_reason: string | null;
+  dismissed_at: string | null; filed_at: string | null; drive_url: string | null; file_cleared_at: string | null;
 }
+const DUP_SET = new Set(DUP_TEXTS);
 
 type View = 'open' | 'all';
 const money = (n: number | null | undefined, ccy?: string | null) =>
@@ -60,9 +66,19 @@ export default function InboxPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const camRef = useRef<HTMLInputElement>(null);
 
+  // The deals, for the LIVE duplicate check: a deal typed by hand after a
+  // document was read still shows here (lib/inboxDuplicates).
+  const [deals, setDeals] = useState<DupDeal[]>([]);
   const load = useCallback(async () => {
-    const { data } = await supabase.from('43.0_inbox_items').select('*').order('received_at', { ascending: false }).limit(300);
+    const all = <T,>(table: string, cols: string) => fetchAllRows<T>((f, to) =>
+      supabase.from(table).select(cols).range(f, to) as unknown as PromiseLike<PageResult<T>>).then((r) => r.rows);
+    const [{ data }, quotes, pos] = await Promise.all([
+      supabase.from('43.0_inbox_items').select('*').order('received_at', { ascending: false }).limit(300),
+      all<Parameters<typeof dealsFrom>[0][number]>('4.0_price_quotes', DEAL_QUOTE_COLS),
+      all<Parameters<typeof dealsFrom>[1][number]>('5.0_purchases', DEAL_PO_COLS),
+    ]);
     setItems((data ?? []) as InboxItem[]);
+    setDeals(dealsFrom(quotes, pos));
   }, [supabase]);
   useEffect(() => { if (user) void load(); }, [user, load]);
 
@@ -70,10 +86,11 @@ export default function InboxPage() {
 
   async function addFiles(files: FileList | null) {
     if (!files?.length) return;
-    for (const f of Array.from(files)) {
-      const key = `${f.name}-${f.size}-${Date.now()}`;
-      setUploads((u) => [...u, { key, name: f.name, state: 'reading' }]);
+    for (const original of Array.from(files)) {
+      const key = `${original.name}-${original.size}-${Date.now()}`;
+      setUploads((u) => [...u, { key, name: original.name, state: 'reading' }]);
       try {
+        const f = await shrinkPhoto(original);   // a 3 MB phone photo goes up as ~0.3 MB
         const body = new FormData();
         body.append('file', f);
         const res = await fetch('/api/inbox', { method: 'POST', headers: { Authorization: `Bearer ${await token()}` }, body });
@@ -99,7 +116,10 @@ export default function InboxPage() {
   }
 
   async function setStatus(it: InboxItem, status: 'dismissed' | 'proposed' | 'received', reason?: string) {
-    await supabase.from('43.0_inbox_items').update({ status, dismissed_reason: status === 'dismissed' ? reason ?? null : null }).eq('item_id', it.item_id);
+    const dismissing = status === 'dismissed';
+    await supabase.from('43.0_inbox_items').update({
+      status, dismissed_reason: dismissing ? reason ?? null : null, dismissed_at: dismissing ? new Date().toISOString() : null,
+    }).eq('item_id', it.item_id);
     await load();
   }
 
@@ -107,6 +127,17 @@ export default function InboxPage() {
     const { data } = await supabase.storage.from('inbox').createSignedUrl(it.file_path, 600);
     if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener');
   }
+
+  // Live duplicates per waiting document — against the deals as they are NOW and the other documents here.
+  const dups = useMemo(() => {
+    const all = (items ?? []).map(inboxDupView);
+    const out = new Map<string, DupHit[]>();
+    for (const v of all) {
+      if (!OPEN.has(v.status) || !items?.find((i) => i.item_id === v.item_id)?.proposal) continue;
+      out.set(v.item_id, findDuplicates(v, deals, all));
+    }
+    return out;
+  }, [items, deals]);
 
   const shown = useMemo(() => (items ?? []).filter((i) => view === 'all' || OPEN.has(i.status)), [items, view]);
   const openCount = useMemo(() => (items ?? []).filter((i) => OPEN.has(i.status)).length, [items]);
@@ -172,6 +203,13 @@ export default function InboxPage() {
               const d = it.extracted;
               const st = STATUS[it.status];
               const reading = busy[it.item_id] === 'reading';
+              const hits = dups.get(it.item_id) ?? [];
+              const dealHit = hits.find((h) => h.where === 'deal');
+              // Stored notes without their (read-time) duplicate lines; the live check says those.
+              const notes = (p?.notes ?? p?.warnings.map((w) => ({ text: w, vars: undefined as Record<string, string | number> | undefined })) ?? [])
+                .filter((n) => !DUP_SET.has(n.text));
+              const warn = [...hits.map(dupMessage), ...notes];
+              const clearsOn = clearAfter(it);
               return (
                 <article key={it.item_id} className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4 space-y-2.5">
                   {/* Line 1: what it is, and its state */}
@@ -209,13 +247,25 @@ export default function InboxPage() {
                       </div>
                     </div>
                   )}
-                  {p && p.warnings.length > 0 && OPEN.has(it.status) && (
+                  {p && warn.length > 0 && OPEN.has(it.status) && (
                     <ul className="space-y-0.5 text-[12px] text-amber-300/90">
-                      {/* notes = the same warnings as phrases, so they read in the screen's language */}
-                      {(p.notes ?? p.warnings.map((w) => ({ text: w, vars: undefined }))).map((n, i) => (
+                      {/* phrases + values, so they read in the screen's language */}
+                      {warn.map((n, i) => (
                         <li key={i}>⚠ {n.vars ? tf(n.text, n.vars) : t(n.text)}</li>
                       ))}
                     </ul>
+                  )}
+                  {/* Where the file lives: the deal's Drive folder is its home; this copy is temporary. */}
+                  {it.status === 'done' && (
+                    <p className="text-[12px]">
+                      {it.filed_at && it.drive_url
+                        ? <a href={it.drive_url} target="_blank" rel="noopener" className="text-emerald-300 hover:text-emerald-200">✓ {t('Filed in the deal’s Drive folder')} ↗</a>
+                        : <span className="text-slate-400">{t('MIRA files it in the deal’s Drive folder on her next run.')}</span>}
+                      {!it.file_cleared_at && clearsOn && <span className="text-slate-500"> · {tf('The copy here is deleted on {date}.', { date: fmtDay(new Date(clearsOn).toISOString()) })}</span>}
+                    </p>
+                  )}
+                  {it.status === 'dismissed' && !it.file_cleared_at && clearsOn && (
+                    <p className="text-[12px] text-slate-500">{tf('The file is deleted on {date}.', { date: fmtDay(new Date(clearsOn).toISOString()) })}</p>
                   )}
                   {it.status === 'failed' && it.error && <p className="text-[12px] text-red-300">{it.error}</p>}
                   {it.status === 'dismissed' && it.dismissed_reason && <p className="text-[12px] text-slate-500">{tf('Dismissed: {reason}', { reason: it.dismissed_reason })}</p>}
@@ -224,18 +274,20 @@ export default function InboxPage() {
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     {it.status === 'proposed' && p?.action === 'create_deal' && (
                       <Link href={`/purchasing?tab=quoting&inbox=${it.item_id}`} className={`${BAR_BTN} px-4 ${BAR_BTN_ON}`}>
-                        {p.duplicate ? t('Create deal anyway') : p.withPo ? t('Create deal (quote + PO)') : t('Create deal (quote)')} →
+                        {dealHit ? t('Create deal anyway') : p.withPo ? t('Create deal (quote + PO)') : t('Create deal (quote)')} →
                       </Link>
                     )}
-                    {p?.duplicate && (
-                      <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(p.duplicate.label)}`} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF}`}>
-                        {tf('Open {label}', { label: p.duplicate.label })}
+                    {dealHit && (
+                      <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(dealHit.label)}`} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF}`}>
+                        {tf('Open {label}', { label: dealHit.label })}
                       </Link>
                     )}
                     {it.status === 'done' && p?.docNumber && (
                       <Link href={`/purchasing?tab=lookup&q=${encodeURIComponent(p.docNumber)}`} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF}`}>{t('Open the deal')}</Link>
                     )}
-                    <button type="button" onClick={() => void openFile(it)} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF}`}>{t('View document')}</button>
+                    {!it.file_cleared_at && (
+                      <button type="button" onClick={() => void openFile(it)} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF}`}>{t('View document')}</button>
+                    )}
                     {canMove('inbox_item', it.status, 'proposed') && (
                       <button type="button" disabled={reading} onClick={() => void readAgain(it)} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF} disabled:opacity-50`}>
                         {reading ? t('Reading…') : t('Read again')}
@@ -243,13 +295,15 @@ export default function InboxPage() {
                     )}
                     {OPEN.has(it.status) && (
                       <>
-                        {p?.duplicate && (
+                        {dealHit ? (
                           <button type="button" onClick={() => void setStatus(it, 'dismissed', t('Already entered'))} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF}`}>{t('Already entered')}</button>
+                        ) : hits.length > 0 && (
+                          <button type="button" onClick={() => void setStatus(it, 'dismissed', t('Duplicate in the Inbox'))} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF}`}>{t('Duplicate — dismiss this one')}</button>
                         )}
                         <button type="button" onClick={() => void setStatus(it, 'dismissed', t('Not needed'))} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF} ml-auto`}>{t('Dismiss')}</button>
                       </>
                     )}
-                    {it.status === 'dismissed' && (
+                    {it.status === 'dismissed' && !it.file_cleared_at && (
                       <button type="button" onClick={() => void setStatus(it, it.extracted ? 'proposed' : 'received')} className={`${BAR_BTN} px-3 ${BAR_BTN_OFF} ml-auto`}>{t('Put back')}</button>
                     )}
                   </div>

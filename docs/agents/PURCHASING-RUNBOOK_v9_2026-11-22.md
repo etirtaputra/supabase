@@ -3,6 +3,15 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v9, 2026-11-22** — the INBOX. Owner: *"Yes i love the zero-entry ERP, path
+> of least resistance"* and, on who creates a deal: *"Inbox, plus she may
+> create"*. A supplier's PI, quote or PO now goes INTO the Inbox
+> (`POST /api/inbox`); ICAPROC reads it, matches it, checks it for duplicates and
+> proposes the deal, and a person saves it. You create a deal yourself only when
+> someone asks you to on Telegram — and then you check first and link the Inbox
+> copy (rule 8, §8). Owner: *"how will the Inbox and MIRA check for duplicates?
+> This is important."* — §8.3.
+>
 > **v8, 2026-10-24** — a correction to v7, no new procedure. v7 said the
 > database refuses an agent's write to `9.1_fx_benchmark_rates`. It does NOT
 > refuse MIRA: her login has the `owner` role, and the table lets owners add
@@ -58,7 +67,7 @@ recorded incidents, not hypotheticals.
 
 ## Rules that override everything else
 
-An agent that remembers nothing else from this document must still obey these seven.
+An agent that remembers nothing else from this document must still obey these eight.
 
 1. **Lines before totals.** Never write `5.0_purchases.total_value` before
    `5.1_purchase_line_items` rows exist. See §4.
@@ -97,6 +106,17 @@ An agent that remembers nothing else from this document must still obey these se
      rate, not to correct one. **The database will NOT stop you**: your login has the
      `owner` role, and owners may add and edit company rates. Only Eric sets them.
      A rate you think is wrong is a finding for Eric.
+
+8. **A supplier document goes into the Inbox; a person saves the deal.** When you
+   receive a supplier PI, quote or PO (Telegram, email, a Drive link), send the
+   FILE to `POST /api/inbox` with `source=agent` (§8.1) and report what came back.
+   Do not create the deal from it yourself. Only when someone ASKS you on Telegram
+   to create a deal yourself do you use §3/§4 — and before you do, ask
+   `GET /api/agent/inbox?doc=<PI or quote no.>&supplier_id=<id>` (§8.3). A `same`
+   hit: do not create it — answer with the deal that exists. A `revision` hit: it
+   is a revised PI — Deal Lookup changes the existing deal; ask Eric. An `inbox`
+   hit: create the deal, then link that Inbox document to it (§8.4), so it does
+   not stay open as a twin.
 
 ## Escalate to a human, do not guess
 
@@ -521,3 +541,96 @@ Business rules live in the React app, not only in the database. An agent writing
 to PostgREST bypasses them, which is why the contracts above exist. In particular: the
 duplicate check (§1), the derived totals (§3, §4) and the buy-side role permissions are all
 enforced client-side.
+
+---
+
+## 8. The Inbox — documents in, deals out (v9, 2026-11-22)
+
+**Screen:** Purchasing · `/inbox` (Kotak Masuk), and the **From a document** button on
+Deal Lookup. One door for every channel: a person's upload or phone photo, and you.
+
+```
+ a person uploads in ICAPROC          you (a file someone sent on Telegram / email)
+              └──────────►  POST /api/inbox  ◄──────────┘
+                              │
+     ICAPROC reads it (Claude), matches supplier + catalogue lines, checks duplicates
+                              │
+           a person opens it → Create deal → New Deal pre-filled → Save
+                              │  (the Inbox document is now `done`, linked to quote / PO)
+           you file the document in the deal's Drive folder (sync runbook §11.7)
+                              │
+           30 days after filing, ICAPROC deletes its own copy (the row stays)
+```
+
+Statuses: lifecycle `inbox_item` — `received` → `proposed` (read) or `failed`;
+`proposed` → `done` (a deal was saved from it) or `dismissed`. Where the FILE is:
+lifecycle `inbox_file` — `in_icaproc` → `filed` (in Drive) → `cleared`. Both come
+with `GET /api/agent/onboarding` (`lifecycles`).
+
+### 8.1 Send a document in
+
+```
+POST https://icaproc.com/api/inbox
+Authorization: Bearer <access_token>
+multipart form:  file=@<the PDF or photo>   source=agent   note=<who sent it, where>
+```
+
+PDF, JPEG, PNG or WebP, up to 20 MB. Send the ORIGINAL file (the PDF the supplier
+sent, not a screenshot of it). One document per call.
+
+The answer is `{ item, duplicate }`:
+- `duplicate: true` — this exact file is already in the Inbox. Nothing new was
+  stored. Report the existing `item.item_id` and its `status`.
+- `item.status: "proposed"` — read. `item.proposal` holds what ICAPROC proposes:
+  `supplier` (matched or not), `docNumber`, `currency`, `total`, `lines`
+  (`component_id` null = not matched), `duplicates` and `warnings` (English).
+  Report the summary and EVERY warning, then: "waiting in the Inbox for a person".
+- `item.status: "failed"` — `item.error` says why (a blurred photo, not a document).
+  Ask the sender for a better copy.
+- An `error` and no item — report it. Do not retry more than once: each new
+  document costs one read.
+
+### 8.2 What waits for a person
+
+```
+GET https://icaproc.com/api/agent/inbox
+```
+
+The documents still open (`received`, `proposed`, `failed`), each with its LIVE
+duplicate check. Use it when asked "what is in the Inbox?".
+
+### 8.3 Duplicates — the one check, used by the screen and by you
+
+```
+GET https://icaproc.com/api/agent/inbox?doc=<PI, quote or PO number>&supplier_id=<id>
+```
+
+`is_new: true` — neither ICAPROC nor the Inbox holds that number. Otherwise `hits`,
+each with a `kind` and a `message`:
+
+| kind | means | you |
+|---|---|---|
+| `same` | a deal with that number (same supplier) already exists | do NOT create it; answer with that deal |
+| `revision` | same number, different total — a revised PI | do not create; Deal Lookup amends the deal; ask Eric |
+| `inbox` | the document is waiting in the Inbox | create only if asked, then link it (§8.4) |
+| `lookalike` | no number on the document; same supplier, currency and total (±0.5 %, 120 days) | ask the person who sent it |
+
+How numbers match: upper/lower case, spaces, hyphens, slashes and dots are ignored
+(`PI-2026092101` = `pi 2026/092101`), against the PI number AND the PO number of every
+deal. Another supplier's identical number is not a duplicate. The same FILE twice
+never gets this far (§8.1, `duplicate: true`).
+
+### 8.4 Record what happened to an Inbox document
+
+```
+POST https://icaproc.com/api/agent/inbox/<item_id>
+Content-Type: application/json
+
+{ "action": "done", "quote_id": "<uuid>", "po_id": "<uuid>" }     you created its deal (when asked)
+{ "action": "filed", "drive_url": "https://drive.google.com/…" }  it is in the deal's Drive folder
+{ "action": "dismiss", "reason": "…" }                            not needed (a twin, not a supplier document)
+```
+
+`filed` is refused (409) unless the document is `done`. `done` needs at least one of
+`quote_id` / `po_id`. Read the answer back: `item.status`, `item.filed_at`.
+
