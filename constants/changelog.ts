@@ -20,6 +20,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-23T04:00:00Z",
+    title: "Penawaran Cepat rumah tinggal: survei di lokasi, proposal langsung jadi",
+    details: [
+      "Tombol baru \"⚡ Penawaran cepat\" di Proposals (juga di ponsel). Engineer mengisi survei singkat: pelanggan, daya PLN dan tagihan bulanan, on-grid atau hybrid (beban dan jam cadangan), jenis atap, jumlah lantai, dan dua jalur kabel.",
+      "Ukuran sistem dihitung dari tagihan PLN: porsi pemakaian yang ditutup (60% on-grid, 80% dengan baterai), satu inverter saja, panel dibulatkan ke bawah, tidak melebihi daya PLN. Baterai dihitung dari beban dan jam cadangan.",
+      "Seluruh proposal langsung terisi dari templat rumah tinggal (kabel, proteksi, jasa, instalasi, logistik, NIDI + SLO menurut ukuran), dengan biaya yang sama seperti di editor proposal, lalu dibuka sebagai draf untuk dicek dan dikirim.",
+      "Atap beton atau datar, lokasi di luar Jabodetabek, dan item tanpa biaya masuk tanpa harga dan ditandai \"menunggu harga\" untuk engineer.",
+      "Angka-angkanya (porsi, margin, rentang NIDI + SLO, biaya tiap baris) bisa diubah di Pengaturan › Quick quote.",
+    ],
+  },
+  {
     at: "2026-11-23T02:00:00Z",
     title: "Cadangan database setiap malam ke Google Drive",
     details: [

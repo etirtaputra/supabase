@@ -48,16 +48,17 @@ import { accountLabel, type BankAccount } from '@/lib/banks';
 import { COMPANY_COLUMNS, type CompanyRecord } from '@/lib/issuer';
 import { THEMES, OFFERED_THEME_VALUES, type ThemeName } from '@/lib/theme';
 import { useTheme } from '@/hooks/useTheme';
+import type { QuickQuoteSettings } from '@/lib/quickQuote';
 import Autocomplete from '@/components/ui/Autocomplete';
 import { fmtRupiah } from '@/lib/formatters';
 import Link from 'next/link';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import PricingSetup from '@/components/ui/PricingSetup';
 
-type Tab = 'format' | 'appearance' | 'menu' | 'dashboard' | 'lists' | 'pricing' | 'fx' | 'defaults' | 'terms' | 'company' | 'banks' | 'users';
+type Tab = 'format' | 'appearance' | 'menu' | 'dashboard' | 'lists' | 'pricing' | 'fx' | 'defaults' | 'quickquote' | 'terms' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
   ['format', 'Formatting'], ['appearance', 'Appearance'], ['menu', 'Menu'], ['dashboard', 'Dashboard'], ['lists', 'Lists'], ['pricing', 'Pricing'], ['fx', 'Exchange rates'],
-  ['defaults', 'Defaults'], ['terms', 'Terms'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
+  ['defaults', 'Defaults'], ['quickquote', 'Quick quote'], ['terms', 'Terms'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
 const SEPARATORS: { value: string; label: string }[] = [
@@ -228,6 +229,7 @@ export default function SettingsPage() {
         {tab === 'pricing'  && <PricingTab draft={draft} set={set} />}
         {tab === 'fx'       && <FxBenchmarkSettings flash={flash} />}
         {tab === 'defaults' && <DefaultsTab draft={draft} set={set} flash={flash} />}
+        {tab === 'quickquote' && <QuickQuoteTab draft={draft} set={set} />}
         {tab === 'terms'    && <TermsTab draft={draft} set={set} />}
         {tab === 'company'  && <CompanyTab draft={draft} set={set} />}
         {tab === 'banks'    && <BanksTab flash={flash} email={profile?.email ?? ''} />}
@@ -710,6 +712,88 @@ function PricingTab({ draft, set }: {
 }
 
 // ── Defaults ────────────────────────────────────────────────────────────────
+
+/** The residential quick quote's numbers (lib/quickQuote) — owner, 2026-11-23: "put these in Settings so you can change them yourself". */
+const QQ_COSTS: [keyof QuickQuoteSettings['cost'], string][] = [
+  ['mountingMetalPerWp', 'Mounting, metal roof (per Wp)'], ['mountingTilePerWp', 'Mounting, tile roof (per Wp)'],
+  ['dcCablePerM', 'DC cable 6 mm² (per m)'], ['earthCablePerM', 'Earth cable NYA 6 mm² (per m)'], ['mc4Set', 'MC4 connector (per set)'], ['conduitPerM', 'Conduit (per m)'],
+  ['acCable1pPerM', 'AC cable 1-phase NYY 3×4 (per m)'], ['acCable3pSmallPerM', 'AC cable 3-phase NYY 4×6 (per m)'], ['acCable3pLargePerM', 'AC cable 3-phase NYY 4×10 (per m)'], ['cableDuctPerM', 'Cable duct (per m)'],
+  ['panelBox', 'Panel box'], ['mcb1p', 'AC MCB 1P'], ['mcb3p', 'AC MCB 3P'], ['acSpd2p', 'AC SPD 2P'], ['acSpd4p', 'AC SPD 4P'], ['dcFuseSpdSet', 'DC fuse + SPD (per string)'],
+  ['batteryMccb', 'Battery DC MCCB'], ['electricalInstrument', 'Electrical instrument'], ['batteryJumper', 'Battery jumper cable'], ['batteryBox', 'Battery box (per 4 batteries)'],
+  ['survey', 'Site survey (per day)'], ['design', 'Engineering design (per day)'], ['commissioning', 'Testing & commissioning'],
+  ['technicianDay', 'Technician (per day)'], ['installerDay', 'Installer (per day)'], ['foodDay', 'Food & accommodation (per man-day)'], ['localTransport', 'Local transport'],
+  ['mobilisation', 'Mobilisation'], ['scaffolding', 'Scaffolding (2+ storeys)'], ['equipmentTransport', 'Equipment transport (Jabodetabek)'],
+];
+
+function QuickQuoteTab({ draft, set }: { draft: AppSettings; set: <K extends keyof AppSettings>(k: K, v: AppSettings[K]) => void }) {
+  const { t } = useT();
+  const q = draft.quickQuote;
+  const put = (patch: Partial<QuickQuoteSettings>) => set('quickQuote', { ...q, ...patch });
+  const n = (v: string) => Number(v) || 0;
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
+        The numbers behind the residential quick quote (Proposals › Quick quote). The engineer&apos;s survey sizes the system from the PLN bill;
+        these say how much of the usage to cover and what every other line costs. Concrete and flat roofs, and sites outside Jabodetabek,
+        are never priced here — those lines are left for a person.
+      </p>
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3.5">
+          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Sizing</p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Cover, on-grid (%)" hint="Share of the monthly usage the array covers.">
+              <input type="number" className={inputCls} value={q.sharePctOnGrid} onChange={(e) => put({ sharePctOnGrid: n(e.target.value) })} />
+            </Field>
+            <Field label="Cover, with battery (%)">
+              <input type="number" className={inputCls} value={q.sharePctHybrid} onChange={(e) => put({ sharePctHybrid: n(e.target.value) })} />
+            </Field>
+            <Field label="Yield (kWh per kWp per year)" hint="Same as the savings page.">
+              <input type="number" className={inputCls} value={q.yieldKwhPerKwpYear} onChange={(e) => put({ yieldKwhPerKwpYear: n(e.target.value) })} />
+            </Field>
+            <Field label="Max DC / AC" hint="Most panels one inverter carries.">
+              <input type="number" step="0.05" className={inputCls} value={q.dcAcMax} onChange={(e) => put({ dcAcMax: n(e.target.value) })} />
+            </Field>
+            <Field label="Margin (%)" hint="Sell = cost ÷ (1 − margin), every line.">
+              <input type="number" className={inputCls} value={q.marginPct} onChange={(e) => put({ marginPct: n(e.target.value) })} />
+            </Field>
+          </div>
+        </div>
+        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">NIDI + SLO, by size</p>
+          {q.permitBands.map((b, i) => (
+            <div key={i} className="flex items-end gap-2">
+              <Field label={i === 0 ? 'Up to (kWp)' : ''} className="w-28">
+                <input type="number" step="0.5" className={inputCls} value={b.upToKwp}
+                  onChange={(e) => put({ permitBands: q.permitBands.map((x, j) => (j === i ? { ...x, upToKwp: n(e.target.value) } : x)) })} />
+              </Field>
+              <Field label={i === 0 ? 'Cost (Rp)' : ''} className="flex-1">
+                <input type="number" step="500000" className={inputCls} value={b.cost}
+                  onChange={(e) => put({ permitBands: q.permitBands.map((x, j) => (j === i ? { ...x, cost: n(e.target.value) } : x)) })} />
+              </Field>
+              <button type="button" onClick={() => put({ permitBands: q.permitBands.filter((_, j) => j !== i) })} disabled={q.permitBands.length < 2}
+                className="mb-1.5 text-slate-500 hover:text-rose-300 disabled:opacity-30 text-sm" aria-label="Remove band">✕</button>
+            </div>
+          ))}
+          <button type="button" className="text-xs font-semibold text-emerald-300 hover:text-emerald-200"
+            onClick={() => { const last = q.permitBands[q.permitBands.length - 1]; put({ permitBands: [...q.permitBands, { upToKwp: (last?.upToKwp ?? 0) + 10, cost: last?.cost ?? 0 }] }); }}>
+            {t('+ Add a band')}
+          </button>
+          <p className="text-[11px] text-slate-600">Above the last band, the last band&apos;s cost.</p>
+        </div>
+      </div>
+      <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-3">Costs (Rp) — used when no catalogue item has a cost</p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {QQ_COSTS.map(([k, label]) => (
+            <Field key={k} label={label}>
+              <input type="number" className={inputCls} value={q.cost[k]} onChange={(e) => put({ cost: { ...q.cost, [k]: n(e.target.value) } })} />
+            </Field>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function DefaultsTab({ draft, set, flash }: {
   draft: AppSettings;

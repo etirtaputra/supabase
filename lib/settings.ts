@@ -30,6 +30,7 @@ import { DEFAULT_LIST_DEFAULTS } from '@/constants/listDefaults';
 import { DEFAULT_MENU_ORDER } from '@/constants/navigation';
 import { DEFAULT_WIDGET_ORDER, DEFAULT_WIDGET_HIDDEN } from '@/constants/dashboardWidgets';
 import { ENUMS } from '@/constants/enums';
+import { QUICK_QUOTE_DEFAULTS, coerceQuickQuote, type QuickQuoteSettings } from '@/lib/quickQuote';
 import { DEFAULT_ITEM_SCORE_WEIGHTS, type ItemScoreWeights } from './itemScore';
 import { isTheme } from './theme';
 import type { ThemeName } from '@/constants/palette';
@@ -133,6 +134,8 @@ export interface AppSettings {
   defaultCompanyId: string;       // issuing company prefilled on a new sales doc ('' = first)
   defaultSalesTerms: string;      // terms prefilled into a new quotation's notes
   epcCostBufferPct: number;       // EPC Cost Basis buffer (was app_settings)
+  /** Residential quick quote: shares, NIDI + SLO bands, template costs (lib/quickQuote). */
+  quickQuote: QuickQuoteSettings;
   slowMoverDays: number;          // /profitability: "no movement in N days"
   economicsPeriod: '90' | '365' | 'all';  // /profitability period the page opens on
   costDriftPct: number;           // proposals list: flag costs N% off today's
@@ -263,6 +266,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultCompanyId:      '',
   defaultSalesTerms:     '',
   epcCostBufferPct:      5,
+  quickQuote:            QUICK_QUOTE_DEFAULTS,
   slowMoverDays:         60,
   economicsPeriod:       '365',
   costDriftPct:          10,
@@ -438,6 +442,7 @@ export function coerceSettings(raw: Record<string, unknown>): AppSettings {
     fxSettledTolerancePct: pick('fxSettledTolerancePct', (v) => Math.max(0.1, numOr(v, d.fxSettledTolerancePct)), d.fxSettledTolerancePct),
     defaultMarginFloorPct: pick('defaultMarginFloorPct', (v) => numOr(v, d.defaultMarginFloorPct), d.defaultMarginFloorPct),
     epcCostBufferPct:      pick('epcCostBufferPct',      (v) => numOr(v, d.epcCostBufferPct), d.epcCostBufferPct),
+    quickQuote:            pick('quickQuote',            (v) => coerceQuickQuote(v), d.quickQuote),
     slowMoverDays:         pick('slowMoverDays',         (v) => Math.max(1, Math.round(numOr(v, d.slowMoverDays))), d.slowMoverDays),
     costDriftPct:          pick('costDriftPct',          (v) => Math.max(0, numOr(v, d.costDriftPct)), d.costDriftPct),
     aftersalesEntry:       pick('aftersalesEntry',       (v) => (v === 'order' ? 'order' : 'ticket'), d.aftersalesEntry),

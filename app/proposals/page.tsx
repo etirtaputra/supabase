@@ -883,6 +883,11 @@ export default function QuotesListPage() {
                 {t('Set password')}
               </button>
             )}
+          {/* The site-visit route: survey → sized, priced residential proposal. */}
+          <Link href="/proposals/quick" title={t('Survey a house, get the residential proposal: sized from the PLN bill, priced')}
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-violet-500/40 text-violet-200 hover:bg-violet-500/10 text-sm font-semibold transition-colors flex-shrink-0">
+            ⚡ <span className="hidden sm:inline">{t('Quick quote')}</span>
+          </Link>
           <button
             onClick={createNew}
             disabled={creating}

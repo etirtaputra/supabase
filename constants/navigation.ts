@@ -279,6 +279,12 @@ export const DESTINATIONS: Destination[] = [
   { href: '/proposals', label: 'Proposals', group: 'Projects', section: 'projects', inNav: true,
     hint: 'EPC project proposals',
     keywords: 'epc project quote solar pv' },
+  // The residential quick quote (owner, 2026-11-22: "the engineering will
+  // survey, check, input variables and a quote immediately comes out"). A
+  // phone screen for the site visit; search-only plus a button on Proposals.
+  { href: '/proposals/quick', label: 'Quick Quote', group: 'Projects', section: 'projects', cap: 'canEditQuotes', inNav: false,
+    hint: 'Survey a house, get the residential proposal: sized from the PLN bill, priced',
+    keywords: 'quick quote residential rumah survey survei pln bill tagihan instant cepat penawaran cepat' },
   // The advanced EPC costing (beta, owner 2026-10-11): strings, cables and the
   // priced BOM from one set of inputs. Beside the proposals, never inside them.
   // Costs and margins are on every row, so it is canEditQuotes' door.
