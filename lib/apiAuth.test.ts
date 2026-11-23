@@ -37,7 +37,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = process.cwd();
@@ -96,14 +96,16 @@ test('the deleted route stays deleted', () => {
     'wrote suppliers/components/quotes, and nothing in the app called it.');
 });
 
-test('extract-pdf gates on the buy side and caps the upload', () => {
-  // It reads a SUPPLIER document and bills a metered key. Both matter: the
-  // role gate keeps supplier costs on the buy side, the size cap keeps one
-  // request from being an expensive one.
-  const src = readFileSync(join(API_DIR, 'extract-pdf/route.ts'), 'utf8');
+test('the one document reader (POST /api/inbox) knows the caller, caps the upload, and stores before it reads', () => {
+  // extract-pdf, the old second reader, was deleted 2026-11-23 (owner: "Yes,
+  // merge them"). The Inbox route reads a SUPPLIER document and bills a
+  // metered key: it must know who asks, cap the size, and only spend money
+  // after the caller's RLS let the file and the row in (buy-side writers).
+  assert.ok(!existsSync(join(API_DIR, 'extract-pdf/route.ts')), 'one reader: extract-pdf stays deleted');
+  const src = readFileSync(join(API_DIR, 'inbox/route.ts'), 'utf8');
   assert.match(src, /callerFromRequest/);
-  assert.match(src, /buySide/, 'a supplier document is buy-side information');
-  assert.match(src, /MAX_PDF_BYTES/, 'an unbounded upload is an unbounded bill');
+  assert.match(src, /MAX_BYTES/, 'an unbounded upload is an unbounded bill');
+  assert.ok(src.indexOf('.upload(') < src.indexOf('processInboxItem(db'), 'stored (RLS-checked) before it is read');
 });
 
 test('the scheduler check fails closed, and the cron route asks it first', async () => {

@@ -2848,6 +2848,8 @@ export const ID: Record<string, string> = {
   'Pre-filled from the Inbox. Check it, then save.': 'Terisi dari Kotak Masuk. Periksa, lalu simpan.',
   'Filed: this document is Done in the Inbox, linked to the deal.': 'Tercatat: dokumen ini Selesai di Kotak Masuk, tertaut ke deal-nya.',
   'Next document →': 'Dokumen berikutnya →',
+  'Upload Quote/PI': 'Unggah Penawaran/PI',
+  'PDF or photo. Fills the whole form (header and lines, items matched) and keeps the file in the Inbox, checked for duplicates.': 'PDF atau foto. Mengisi seluruh formulir (kepala dan baris, item dicocokkan) dan menyimpan file di Kotak Masuk, dicek dokumen gandanya.',
   'Duplicate in the Inbox': 'Ganda di Kotak Masuk',
   'Duplicate — dismiss this one': 'Ganda — abaikan yang ini',
   'Filed in the deal’s Drive folder': 'Tersimpan di folder Drive deal-nya',

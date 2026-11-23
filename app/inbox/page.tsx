@@ -28,7 +28,7 @@ import BrandMenu from '@/components/ui/BrandMenu';
 import type { InboxProposal, ReadDocument } from '@/lib/inboxMatch';
 import { dealsFrom, findDuplicates, dupMessage, inboxDupView, DUP_TEXTS, DEAL_QUOTE_COLS, DEAL_PO_COLS, type DupDeal, type DupHit } from '@/lib/inboxDuplicates';
 import { clearAfter } from '@/lib/inboxFiling';
-import { shrinkPhoto } from '@/lib/shrinkPhoto';
+import { sendToInbox } from '@/lib/inboxClient';
 import { fetchAllRows, type PageResult } from '@/lib/fetchAllRows';
 
 const STATUS = badgeMap('inbox_item');
@@ -90,12 +90,7 @@ export default function InboxPage() {
       const key = `${original.name}-${original.size}-${Date.now()}`;
       setUploads((u) => [...u, { key, name: original.name, state: 'reading' }]);
       try {
-        const f = await shrinkPhoto(original);   // a 3 MB phone photo goes up as ~0.3 MB
-        const body = new FormData();
-        body.append('file', f);
-        const res = await fetch('/api/inbox', { method: 'POST', headers: { Authorization: `Bearer ${await token()}` }, body });
-        const j = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        await sendToInbox(original);
         setUploads((u) => u.filter((x) => x.key !== key));
         await load();
       } catch (e) {

@@ -9,7 +9,6 @@ import FieldRenderer from './FieldRenderer';
 import { Spinner } from '../ui/LoadingSkeleton';
 import QuoteItemsImportModal from './QuoteItemsImportModal';
 import type { BatchLineItemsFormProps } from '../../types/forms';
-import { extractPdf } from '../../lib/extractPdfClient';
 import { useT } from '@/hooks/useT';
 export default function BatchLineItemsForm({
   title,
@@ -20,7 +19,6 @@ export default function BatchLineItemsForm({
   onSubmit,
   loading,
   formId: customFormId,
-  enablePdfUpload = false,
   enableQuoteImport = false,
   allQuoteItems = [],
   allQuotes = [],
@@ -116,8 +114,6 @@ export default function BatchLineItemsForm({
     if (typeof window !== 'undefined') return loadSaved()?.draft ?? {};
     return {};
   });
-  const [pdfUploading, setPdfUploading] = useState(false);
-  const [pdfError, setPdfError] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [importDismissed, setImportDismissed] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -244,133 +240,6 @@ export default function BatchLineItemsForm({
     }
   };
 
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || file.type !== 'application/pdf') {
-      setPdfError('Please select a PDF file');
-      return;
-    }
-
-    setPdfUploading(true);
-    setPdfError('');
-
-    try {
-      const extractedData = await extractPdf(file) as any;
-
-      const newDraft: Record<string, any> = {};
-      const validFieldNames = itemFields.map(f => f.name);
-
-      if (extractedData.quote_date || extractedData.pi_date || extractedData.po_date) {
-        const dateValue = extractedData.quote_date || extractedData.pi_date || extractedData.po_date;
-        if (validFieldNames.includes('quote_date')) newDraft.quote_date = dateValue;
-        if (validFieldNames.includes('po_date')) newDraft.po_date = dateValue;
-      }
-
-      if (extractedData.quote_number || extractedData.pi_number || extractedData.po_number) {
-        if (validFieldNames.includes('quote_number')) newDraft.quote_number = extractedData.quote_number || extractedData.pi_number;
-        if (validFieldNames.includes('po_number')) newDraft.po_number = extractedData.po_number || extractedData.pi_number;
-      }
-
-      if (extractedData.currency && validFieldNames.includes('currency')) newDraft.currency = extractedData.currency;
-      if (extractedData.supplier_name && validFieldNames.includes('supplier_name')) newDraft.supplier_name = extractedData.supplier_name;
-
-      setDraft(newDraft);
-
-      if (extractedData.line_items && extractedData.line_items.length > 0) {
-        const hasComponentField = itemFields.some(f => f.name === 'component_id');
-
-        const newItems = extractedData.line_items.map((item: any, index: number) => {
-          const baseItem: Record<string, any> = {
-            _id: Date.now() + index,
-            ...newDraft,
-          };
-
-          if (hasComponentField) {
-            const componentField = itemFields.find(f => f.name === 'component_id');
-            let matchedComponent = null;
-
-            if (componentField?.options) {
-              const components = componentField.options as any[];
-              const searchSku = item.model_sku?.toLowerCase().trim() || '';
-              const searchDesc = item.description?.toLowerCase().trim() || '';
-              const searchBrand = item.brand?.toLowerCase().trim() || '';
-
-              if (searchSku) {
-                matchedComponent = components.find(
-                  (c: any) => c.supplier_model?.toLowerCase().trim() === searchSku
-                );
-              }
-              if (!matchedComponent && searchSku) {
-                matchedComponent = components.find(
-                  (c: any) => c.supplier_model?.toLowerCase().includes(searchSku) ||
-                             searchSku.includes(c.supplier_model?.toLowerCase())
-                );
-              }
-              if (!matchedComponent && searchBrand && searchDesc) {
-                matchedComponent = components.find((c: any) => {
-                  const componentBrand = c.brand?.toLowerCase().trim() || '';
-                  const componentDesc = c.internal_description?.toLowerCase().trim() || '';
-                  const brandMatch = componentBrand === searchBrand;
-                  const descMatch = componentDesc.includes(searchDesc) || searchDesc.includes(componentDesc);
-                  return brandMatch && descMatch;
-                });
-              }
-              if (!matchedComponent && searchDesc && searchDesc.length > 10) {
-                matchedComponent = components.find((c: any) => {
-                  const componentDesc = c.internal_description?.toLowerCase().trim() || '';
-                  return componentDesc.includes(searchDesc) || searchDesc.includes(componentDesc);
-                });
-              }
-
-              if (matchedComponent) {
-                baseItem.component_id = matchedComponent.component_id;
-                baseItem.supplier_description = matchedComponent.internal_description || matchedComponent.supplier_model || '';
-                console.log(`✅ Auto-matched: "${searchSku || searchDesc}" → Component ID ${matchedComponent.component_id} (${matchedComponent.supplier_model})`);
-              } else {
-                baseItem.supplier_description = item.description || item.supplier_description || '';
-                console.warn(`⚠️ No match found for: SKU="${item.model_sku}", Brand="${item.brand}", Desc="${item.description}"`);
-              }
-            }
-
-            baseItem.quantity = item.quantity || 0;
-            if (itemFields.some(f => f.name === 'unit_price')) baseItem.unit_price = item.unit_price || item.unit_cost || 0;
-            if (itemFields.some(f => f.name === 'unit_cost')) baseItem.unit_cost = item.unit_cost || item.unit_price || 0;
-          } else {
-            baseItem.brand = item.brand || '';
-            baseItem.description = item.description || item.supplier_description || '';
-            baseItem.model_sku = item.model_sku || '';
-            baseItem.quantity = item.quantity || 0;
-            baseItem.unit_cost = item.unit_price || item.unit_cost || 0;
-          }
-
-          return baseItem;
-        });
-
-        setItems(newItems);
-
-        const matchedCount = newItems.filter((item: Record<string, any>) => item.component_id).length;
-        const unmatchedCount = newItems.length - matchedCount;
-
-        let message = `✅ Extracted ${newItems.length} line items from PDF!\n`;
-        if (hasComponentField) {
-          message += `\n🎯 Auto-matched: ${matchedCount} components`;
-          if (unmatchedCount > 0) message += `\n⚠️ Not matched: ${unmatchedCount} items - please select components manually`;
-        }
-        message += '\n\nPlease review and edit before submitting.';
-
-        alert(message);
-      } else {
-        alert('PDF extracted but no line items found. Please add items manually.');
-      }
-
-      e.target.value = '';
-    } catch (error) {
-      setPdfError(error instanceof Error ? error.message : 'Failed to extract PDF');
-      alert('Failed to extract PDF data. Please check the console for details.');
-    } finally {
-      setPdfUploading(false);
-    }
-  };
 
   const handleImportQuoteItems = (importedItems: any[]) => {
     const newItems = importedItems.map((item, index) => ({
@@ -410,37 +279,10 @@ export default function BatchLineItemsForm({
 
   return (
     <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800/80 p-4 md:p-5 shadow-xl ring-1 ring-white/5 space-y-4">
-      {/* Title — the PDF pre-fill lives here as a small button, not a banner */}
+      {/* Title */}
       <div className="flex items-center gap-3 border-b border-slate-800/80 pb-3">
         <h3 className="text-sm font-bold text-white tracking-tight flex-1">{title}</h3>
-        {enablePdfUpload && (
-          <label className="cursor-pointer flex-shrink-0" title="AI fills the form below from an uploaded PDF">
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={handlePdfUpload}
-              disabled={pdfUploading}
-              className="hidden"
-            />
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-[11px] font-semibold transition-colors">
-              {pdfUploading ? (
-                <>
-                  <Spinner className="w-3 h-3" />
-                  Extracting…
-                </>
-              ) : (
-                'Upload PDF'
-              )}
-            </span>
-          </label>
-        )}
       </div>
-
-      {pdfError && (
-        <div className="p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
-          {pdfError}
-        </div>
-      )}
 
       {/* Quote Import - Smart Prompt (when PO has linked quote) */}
       {enableQuoteImport && linkedQuote && !importDismissed && items.length === 0 && (

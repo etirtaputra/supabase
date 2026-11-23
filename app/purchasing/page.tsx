@@ -36,7 +36,7 @@ import { currentBenchmarks, type FxBenchmark } from '@/lib/fxBenchmark';
 import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { fetchLiveFx } from '@/lib/liveFx';
 import { autoPostTrueUp, autoPostMessage, drainTrueUpQueue, drainMessage } from '@/lib/landedAutoPostClient';
-import { extractPdf } from '@/lib/extractPdfClient';
+import { sendToInbox } from '@/lib/inboxClient';
 import { matchByName, matchComponent } from '@/lib/docMatch';
 import type { ReadDocument } from '@/lib/inboxMatch';
 import { PRINCIPAL_CATS } from '@/constants/costCategories';
@@ -94,7 +94,7 @@ function MasterInsertPage() {
   // the same shape the PDF button fills pdfData with, so one pre-fill engine).
   // Saving marks the inbox item Done and links the quote / PO it became.
   const inboxParam = searchParams.get('inbox');
-  const [inboxItem, setInboxItem] = useState<{ item_id: string; file_name: string; status: string; summary: string | null } | null>(null);
+  const [inboxItem, setInboxItem] = useState<{ item_id: string; file_name: string; status: string; summary: string | null; notes?: { text: string; vars?: Record<string, string | number> }[] } | null>(null);
   const [inboxDone, setInboxDone] = useState(false);
   const savedIdsRef = useRef<{ quote_id?: string | null; po_id?: string | null }>({});
   const [paymentMode, setPaymentMode] = useState<'single' | 'batch'>('single');
@@ -148,7 +148,7 @@ function MasterInsertPage() {
       .then(({ data: row }) => {
         if (!alive || !row) return;
         const r = row as { item_id: string; file_name: string; status: string; extracted: ReadDocument | null; proposal: { withPo?: boolean } | null };
-        setInboxItem({ item_id: r.item_id, file_name: r.file_name, status: r.status, summary: r.extracted?.summary ?? null });
+        setInboxItem({ item_id: r.item_id, file_name: r.file_name, status: r.status, summary: r.extracted?.summary ?? null, notes: (r.proposal as { notes?: { text: string; vars?: Record<string, string | number> }[] } | null)?.notes });
         setInboxDone(r.status === 'done');
         if (r.status === 'done' || !r.extracted) return;
         setPdfData(r.extracted);
@@ -1160,21 +1160,28 @@ function MasterInsertPage() {
     refetch();
   };
 
+  // New Deal's "Upload Quote/PI" goes through the Inbox (owner, 2026-11-23:
+  // one reader, not two): the form fills at once, AND the file is kept,
+  // duplicate-checked, linked to the deal on save and filed to Drive by MIRA.
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || file.type !== 'application/pdf') { showToast('Please select a PDF file', 'error'); return; }
+    e.target.value = '';
+    if (!file) return;
     setPdfUploading(true);
     try {
-      const extractedData = await extractPdf(file) as any;
-      setPdfData(extractedData);
-      let message = `✅ Extracted ${extractedData.line_items?.length || 0} items from PDF!`;
-      if (extractedData.supplier_name) message += `\n📦 Supplier: ${extractedData.supplier_name}`;
-      if (extractedData.company_name) message += `\n🏢 Addressed to: ${extractedData.company_name}`;
-      showToast(message, 'success');
-      e.target.value = '';
+      const { item } = await sendToInbox(file);
+      if (item.status === 'done') {
+        showToast(`This exact file is already a deal (${item.proposal?.docNumber ?? item.file_name}) — open it in Deal Lookup.`, 'error');
+        return;
+      }
+      if (!item.extracted) { showToast(item.error || 'The document could not be read — try a clearer copy.', 'error'); return; }
+      setPdfData(item.extracted);
+      setInboxItem({ item_id: item.item_id, file_name: item.file_name, status: item.status, summary: item.extracted.summary ?? null, notes: item.proposal?.notes });
+      setInboxDone(false);
+      const n = item.extracted.line_items?.length || 0;
+      showToast(`✅ Read ${n} item${n === 1 ? '' : 's'}${item.extracted.supplier_name ? ` from ${item.extracted.supplier_name}` : ''} — check the form, then save.`, 'success');
     } catch (error) {
-      showToast('Failed to extract PDF data', 'error');
-      console.error(error);
+      showToast(error instanceof Error ? error.message : 'The document could not be read.', 'error');
     } finally {
       setPdfUploading(false);
     }
@@ -1198,7 +1205,7 @@ function MasterInsertPage() {
         </>
       )}
       <label className="cursor-pointer" title={description}>
-        <input type="file" accept="application/pdf" onChange={handlePdfUpload} disabled={pdfUploading} className="hidden" />
+        <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={handlePdfUpload} disabled={pdfUploading} className="hidden" />
         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-[11px] font-semibold transition-colors ${pdfUploading ? 'opacity-70 cursor-not-allowed' : ''}`}>
           {pdfUploading && <span className="w-3 h-3 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />}
           {pdfUploading ? 'Extracting…' : label}
@@ -1367,6 +1374,11 @@ function MasterInsertPage() {
                         {inboxDone ? t('Filed: this document is Done in the Inbox, linked to the deal.') : t('Pre-filled from the Inbox. Check it, then save.')}
                       </span>
                       <span className="text-[12px] text-slate-400 truncate">{inboxItem.summary || inboxItem.file_name}</span>
+                      {!inboxDone && !!inboxItem.notes?.length && (
+                        <ul className="basis-full space-y-0.5 text-[12px] text-amber-300/90">
+                          {inboxItem.notes.map((n, i) => <li key={i}>⚠ {n.vars ? tf(n.text, n.vars) : t(n.text)}</li>)}
+                        </ul>
+                      )}
                       <Link href="/inbox" className="ml-auto text-[12px] font-semibold text-sky-300 hover:text-sky-200">
                         {inboxDone ? t('Next document →') : t('← Back to the Inbox')}
                       </Link>
@@ -1460,7 +1472,7 @@ function MasterInsertPage() {
                       currencies={ENUMS.currency}
                       seedLines={storedPoSel ? storedPoLineSeeds : storedQuoteSel ? storedQuoteLineSeeds : pdfLineSeeds}
                       sourceKey={pendingStoredPo ? `po:${pendingStoredPo}` : pendingStoredQuote ? `q:${pendingStoredQuote}` : null}
-                      headerAction={pdfHeaderAction('Upload Quote/PI PDF', 'One upload prefills the whole form — header AND line items, components auto-matched.')}
+                      headerAction={pdfHeaderAction(t('Upload Quote/PI'), t('PDF or photo. Fills the whole form (header and lines, items matched) and keeps the file in the Inbox, checked for duplicates.'))}
                       onFieldChange={(name, value) => {
                         const o: Record<string, any> = {};
                         // Stored quote picked → the whole shared header arrives

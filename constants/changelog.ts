@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-23T01:30:00Z",
+    title: "New Deal: \"Unggah Penawaran/PI\" kini lewat Kotak Masuk",
+    details: [
+      "Tombol unggah di New Deal tetap mengisi formulir seketika, tetapi kini juga menerima foto, menyimpan file-nya di Kotak Masuk, mengecek dokumen ganda (peringatannya tampil di atas formulir), menautkannya ke deal saat disimpan, lalu MIRA menyimpannya ke Drive.",
+      "Satu pembaca dokumen untuk semua jalan masuk; pembaca lama dihapus.",
+    ],
+  },
+  {
     at: "2026-11-22T23:55:00Z",
     title: "Kotak Masuk: cek dokumen ganda, foto diperkecil, file disimpan MIRA ke Drive",
     details: [
