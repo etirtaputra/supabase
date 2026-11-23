@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-23T02:00:00Z",
+    title: "Cadangan database setiap malam ke Google Drive",
+    details: [
+      "Setiap malam pukul 02.30 WIB, seluruh database ICAPROC dicadangkan, dienkripsi, dan disimpan di shared drive ICAPROC BACKUPS. Hanya pemilik yang memegang kata sandinya; file cadangan tidak bisa dihapus oleh sistem.",
+    ],
+  },
+  {
     at: "2026-11-23T01:30:00Z",
     title: "New Deal: \"Unggah Penawaran/PI\" kini lewat Kotak Masuk",
     details: [
