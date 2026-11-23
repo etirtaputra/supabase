@@ -34,9 +34,13 @@ import { isOfferable } from '@/lib/itemVisibility';
 import { fmtRupiah } from '@/lib/formatters';
 import { TAGGABLE_ROLES } from '@/lib/quoteFlags';
 import {
-  sizeSystem, buildTemplate, sellAt, projectDescription, inverterSpec, batteryKwh, tariffForVa, matchesWords,
-  type QqSurvey, type QqPanel, type QqInverter, type QqBattery, type QqLine, type QqNote,
+  sizeSystem, buildTemplate, sellAt, projectDescription, inverterSpec, batteryKwh, tariffForVa, matchesWords, parseDims, defaultRows,
+  type QqSurvey, type QqPanel, type QqInverter, type QqBattery, type QqLine, type QqNote, type QqMounting,
 } from '@/lib/quickQuote';
+import { calculateMounting, COST_PROBE_LINES, unitCostsFrom, RAIL_LENGTHS_MM, type MountingResult } from '@/lib/systemDesign/mounting';
+import { resolveBom, type DesignCandidate } from '@/lib/systemDesign/resolve';
+import { mountingSystems, shortlist } from '@/lib/systemDesign/mountingSystem';
+import type { BomLine } from '@/lib/systemDesign/types';
 import BrandMenu from '@/components/ui/BrandMenu';
 import { BAR_H } from '@/constants/controls';
 import type { Component } from '@/types/database';
@@ -116,11 +120,55 @@ export default function QuickQuotePage() {
 
   // ── Size, lay out, price ──────────────────────────────────────────────────
   const size = useMemo(() => (panel ? sizeSystem(s, { panel, inverters, battery }, cfg) : null), [s, panel, inverters, battery, cfg]);
+
+  // ── Mounting: the layout the engineer pictures, through the mounting engine ─
+  // (lib/systemDesign/mounting, the Mounting Designer's own engine): rails,
+  // joints, clamps, roof hooks and grounding, from the catalogue's mounting
+  // family (MIBET MD, T-slot rail, by default — as the designer starts).
+  const mountCands = useMemo(() => offer.filter((c) => c.category === 'mounting') as unknown as DesignCandidate[], [offer]);
+  const systems = useMemo(() => mountingSystems(mountCands, 't_slot'), [mountCands]);
+  const defaultSeries = (systems.find((x) => /\bMD\b/.test(x.series)) ?? systems[0])?.series ?? '';
+  const panelDims = useMemo(() => {
+    const c = offer.find((x) => x.component_id === panel?.componentId);
+    return c ? parseDims(specsOf(c)?.dimensions_l_w_h_mm) ?? parseDims(nameOf(c).match(/\d{3,4}\s*[x×]\s*\d{3,4}(\s*[x×]\s*\d{2})?/)?.[0]) : null;
+  }, [offer, panel?.componentId]);
+  const series = s.mounting?.series ?? defaultSeries;
+  const system = systems.find((x) => x.series === series) ?? null;
+  const railChoices = system?.railLengths.length ? system.railLengths : [...RAIL_LENGTHS_MM];
+  const mounting: QqMounting = {
+    rows: s.mounting?.rows || defaultRows(size?.panels ?? 0),
+    orientation: s.mounting?.orientation ?? 'portrait',
+    series,
+    // The 4,850 mm stock rail when the shelf has it (the length the cut-rail rule is built on).
+    railLengthMm: railChoices.includes(s.mounting?.railLengthMm ?? -1) ? (s.mounting!.railLengthMm)
+      : railChoices.includes(4850) ? 4850 : Math.max(...railChoices),
+  };
+  const putMounting = (patch: Partial<QqMounting>) => put({ mounting: { ...mounting, ...patch } });
+  const layoutRoof = s.roof === 'metal' || s.roof === 'tile';
+  const mountingPlan = useMemo((): { result: MountingResult; lines: QqLine[] } | null => {
+    if (!size?.panels || !layoutRoof || !panelDims) return null;
+    const ctx = { candidates: shortlist(mountCands, series, 't_slot'), priceOf: (id: string) => costFor(id) };
+    // The roof hook is chosen BY ROOF TYPE: L-feet for metal, a tile hook for tile.
+    const onRoof = (ls: BomLine[]) => ls.map((l) => (l.role === 'roof_hook' ? { ...l, param: s.roof } : l));
+    const unitCosts = unitCostsFrom(resolveBom(onRoof(COST_PROBE_LINES(mounting.railLengthMm, 'roof')), ctx));
+    const result = calculateMounting({
+      panelCount: size.panels, numberOfRows: mounting.rows,
+      panelLengthMm: panelDims.l, panelWidthMm: panelDims.w, panelThicknessMm: panelDims.t || 35,
+      railLengthMm: mounting.railLengthMm, panelSpacingMm: 20, mountType: 'roof', orientation: mounting.orientation,
+    }, { unitCosts });
+    if (!result.ok) return null;
+    const lines = resolveBom(onRoof(result.lines), ctx).map((r): QqLine => ({
+      description: r.description, qty: r.qty, unit: r.unit, componentId: r.component_id ?? undefined, cost: r.unitPrice,
+      needsPricing: r.component_id ? undefined : 'Not in the catalogue for this roof: price this mounting part by hand.',
+    }));
+    return { result, lines };
+  }, [size?.panels, layoutRoof, panelDims, mountCands, series, mounting.rows, mounting.orientation, mounting.railLengthMm, s.roof, baseFor, used]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   const sections = useMemo(() => {
     if (!size) return [];
     const findMatch = (words: string[]) => offer.find((c) => matchesWords(nameOf(c), words) && costFor(c.component_id) != null)
       ?? offer.find((c) => matchesWords(nameOf(c), words));
-    return buildTemplate(s, size, cfg).map((sec) => ({
+    return buildTemplate(s, size, cfg, mountingPlan?.lines).map((sec) => ({
       ...sec,
       lines: sec.lines.map((l): PricedLine => {
         const comp = l.componentId ? offer.find((c) => c.component_id === l.componentId) : l.match ? findMatch(l.match) : undefined;
@@ -133,7 +181,7 @@ export default function QuickQuotePage() {
         };
       }),
     }));
-  }, [s, size, cfg, offer, baseFor, used]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s, size, cfg, offer, baseFor, used, mountingPlan]);   // eslint-disable-line react-hooks/exhaustive-deps
   const lines = sections.flatMap((x) => x.lines);
   const total = lines.reduce((a, l) => a + (l.sell ?? 0) * l.qty, 0);
   const flagged = lines.filter((l) => l.flag);
@@ -266,6 +314,37 @@ export default function QuickQuotePage() {
           </div>
         </section>
 
+        {layoutRoof && size && size.panels > 0 && (
+          <section className={card}>
+            <h2 className="text-slate-100 font-semibold">5. {t('Mounting layout')}</h2>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className={label}>{t('Rows')}</label>{numIn(mounting.rows, (n) => putMounting({ rows: Math.max(1, Math.min(size.panels, Math.round(n ?? 1))) }))}</div>
+              <div><label className={label}>{t('Panels')}</label>{choice(mounting.orientation, [['portrait', t('Portrait')], ['landscape', t('Landscape')]], (v) => putMounting({ orientation: v }))}</div>
+              <div><label className={label}>{t('Mounting system')}</label>
+                <select className={field} value={series} onChange={(e) => putMounting({ series: e.target.value })}>
+                  {systems.map((x) => <option key={x.series} value={x.series}>{x.series}</option>)}
+                </select></div>
+              <div><label className={label}>{t('Rail length')}</label>
+                <select className={field} value={mounting.railLengthMm} onChange={(e) => putMounting({ railLengthMm: Number(e.target.value) })}>
+                  {railChoices.map((r) => <option key={r} value={r}>{r.toLocaleString('id-ID')} mm</option>)}
+                </select></div>
+            </div>
+            {!panelDims ? <p className="text-[12px] text-amber-300">{t('This panel has no dimensions in the catalogue: the mounting is priced per Wp.')}</p>
+              : mountingPlan && <LayoutSketch plan={mountingPlan.result} dims={panelDims} orientation={mounting.orientation} panels={size.panels} />}
+            {mountingPlan && (
+              <p className="text-[12px] text-slate-400">
+                {tf('{rows} row(s) × {per} panels · array {w} m × {h} m · {rails} rails, {hooks} roof hooks', {
+                  rows: mountingPlan.result.numberOfRows, per: mountingPlan.result.panelsPerRow,
+                  w: (mountingPlan.result.arrayWidthMm / 1000).toFixed(1).replace('.', ','),
+                  h: (sketchHeightMm(mountingPlan.result, panelDims!, mounting.orientation) / 1000).toFixed(1).replace('.', ','),
+                  rails: mountingPlan.result.totalRails, hooks: mountingPlan.result.supports,
+                })}
+              </p>
+            )}
+            {mountingPlan?.result.warnings.map((w, i) => <p key={i} className="text-[12px] text-amber-300/90">⚠ {w}</p>)}
+          </section>
+        )}
+
         {/* The answer */}
         <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/[0.05] p-4 space-y-3">
           <h2 className="text-slate-100 font-semibold">{t('Quick quote')}</h2>
@@ -326,6 +405,59 @@ export default function QuickQuotePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Height of the whole array: rows of panels plus the gap between rows, mm. */
+const ROW_GAP_MM = 300;
+function sketchHeightMm(r: MountingResult, d: { l: number; w: number }, o: 'portrait' | 'landscape'): number {
+  const ph = o === 'portrait' ? d.l : d.w;
+  return r.numberOfRows * ph + (r.numberOfRows - 1) * ROW_GAP_MM;
+}
+
+/**
+ * The layout to scale, as the engineer pictures it on the roof: every panel,
+ * the two rails under each row, a roof hook every support span. A sketch, not
+ * a drawing — enough to see that 2 × 6 portrait is 6.9 m wide.
+ */
+function LayoutSketch({ plan, dims, orientation, panels }: {
+  plan: MountingResult; dims: { l: number; w: number }; orientation: 'portrait' | 'landscape'; panels: number;
+}) {
+  const pw = orientation === 'portrait' ? dims.w : dims.l;
+  const ph = orientation === 'portrait' ? dims.l : dims.w;
+  const gap = 20;
+  const width = Math.max(plan.arrayWidthMm, 1);
+  const height = sketchHeightMm(plan, dims, orientation);
+  const pad = 250;
+  const cells: { x: number; y: number }[] = [];
+  for (let r = 0, left = panels; r < plan.numberOfRows; r++) {
+    const n = Math.min(plan.panelsPerRow, left);
+    left -= n;
+    for (let i = 0; i < n; i++) cells.push({ x: i * (pw + gap), y: r * (ph + ROW_GAP_MM) });
+  }
+  return (
+    <svg viewBox={`${-pad} ${-pad} ${width + 2 * pad} ${height + 2 * pad}`} className="w-full max-h-64 rounded-xl bg-slate-950/40 border border-slate-800" role="img"
+      aria-label={`${plan.numberOfRows} × ${plan.panelsPerRow}`}>
+      {cells.map((c, i) => (
+        <rect key={i} x={c.x} y={c.y} width={pw} height={ph} rx={30} fill="rgb(30 64 175 / 0.55)" stroke="rgb(147 197 253)" strokeWidth={14} />
+      ))}
+      {Array.from({ length: plan.numberOfRows }).map((_, r) => {
+        const y0 = r * (ph + ROW_GAP_MM);
+        return [0.22, 0.78].map((f) => {
+          const y = y0 + ph * f;
+          // Exactly what is billed: the engine's supports, spread over every rail line.
+          const hooks = Math.max(2, Math.round(plan.supports / (plan.numberOfRows * 2)));
+          return (
+            <g key={`${r}-${f}`}>
+              <line x1={-120} x2={width + 120} y1={y} y2={y} stroke="rgb(203 213 225 / 0.85)" strokeWidth={28} strokeLinecap="round" />
+              {Array.from({ length: hooks }).map((__, i) => (
+                <circle key={i} cx={(i * width) / (hooks - 1)} cy={y} r={45} fill="rgb(251 191 36)" />
+              ))}
+            </g>
+          );
+        });
+      })}
+    </svg>
   );
 }
 

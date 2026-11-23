@@ -135,3 +135,18 @@ test('catalogue matching is by whole words: 6 mm is not 16 mm, NYA is not NYAF',
   assert.equal(matchesWords('JEMBO Kabel NYY 4 x 6 mm²', ['nyy', '3x4mm']), false);
   assert.equal(matchesWords('SUNTREE AC SPD SUP1H-40 2P 20-40KA T2 275V', ['ac spd', '2p']), true);
 });
+
+test('mounting: the engineer\'s layout replaces the per-Wp line on metal and tile roofs only', async () => {
+  const { parseDims, defaultRows } = await import('./quickQuote.ts');
+  assert.deepEqual(parseDims('2278 x 1134 x 30'), { l: 2278, w: 1134, t: 30 });
+  assert.deepEqual(parseDims('1134×2278'), { l: 2278, w: 1134, t: 0 });
+  assert.equal(parseDims('n/a'), null);
+  assert.deepEqual([4, 6, 7, 12, 20].map(defaultRows), [1, 1, 2, 2, 3]);
+  const parts = [{ description: 'MIBET MD T-slot Rail L4850mm', qty: 6, unit: 'pcs', componentId: 'r', cost: 300_000 }];
+  const s = survey();
+  const z = sizeSystem(s, cat, cfg);
+  const mount = (x: QqSurvey) => buildTemplate(x, z, cfg, parts).find((t) => t.title === 'Array mounting kits')!.lines;
+  assert.deepEqual(mount(s).map((l) => l.description), ['MIBET MD T-slot Rail L4850mm']);
+  assert.equal(mount(survey({ roof: 'concrete' }))[0].description, 'Triangle Mounting Kit with Cement Pedestal');
+  assert.equal(buildTemplate(s, z, cfg).find((t) => t.title === 'Array mounting kits')!.lines[0].unit, 'Wp', 'no layout: the per-Wp line');
+});

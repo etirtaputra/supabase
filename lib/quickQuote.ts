@@ -151,7 +151,33 @@ export interface QqSurvey {
   /** Metres, one way: array → inverter, inverter → PLN panel. */
   dcRunM: number;
   acRunM: number;
+  /**
+   * The layout the engineer pictures on the roof (owner, 2026-11-23: "the
+   * engineer can imagine that"): rows, orientation, the mounting system and
+   * its rail. Metal and tile roofs only — the mounting engine
+   * (lib/systemDesign/mounting) turns it into rails, clamps and roof hooks.
+   */
+  mounting?: QqMounting;
 }
+
+export interface QqMounting {
+  rows: number;
+  orientation: 'portrait' | 'landscape';
+  /** Mounting family (lib/systemDesign/mountingSystem seriesOf), '' = any. */
+  series: string;
+  railLengthMm: number;
+}
+
+/** "2278 x 1134 x 30" → long side, short side, frame thickness (mm). */
+export function parseDims(v: unknown): { l: number; w: number; t: number } | null {
+  if (typeof v !== 'string') return null;
+  const nums = v.split(/[x×*]/i).map((x) => Number(x.replace(/[^0-9.]/g, ''))).filter((n) => Number.isFinite(n) && n > 0);
+  if (nums.length < 2) return null;
+  return { l: Math.max(nums[0], nums[1]), w: Math.min(nums[0], nums[1]), t: nums[2] ?? 0 };
+}
+
+/** A first guess at the rows: up to 6 panels in one row, then as square as a house roof allows. */
+export const defaultRows = (panels: number): number => (panels <= 6 ? 1 : Math.max(2, Math.round(Math.sqrt(panels / 3))));
 
 // ── The catalogue, as the sizing sees it ────────────────────────────────────
 
@@ -284,8 +310,13 @@ export const permitCost = (kwp: number, bands: PermitBand[]): number =>
 /** Crew days: the larger of 3 and kWp ÷ 3 (rounded), one more with a battery. */
 export const crewDays = (kwp: number, battery: boolean): number => Math.max(3, Math.round(kwp / 3)) + (battery ? 1 : 0);
 
-/** The proposal's sections and lines for a sized system. Quantities only scale; prices are the screen's. */
-export function buildTemplate(s: QqSurvey, z: QqSize, cfg: QuickQuoteSettings): QqSection[] {
+/**
+ * The proposal's sections and lines for a sized system. Quantities only scale;
+ * prices are the screen's. `mountingLines`: the mounting engine's parts for
+ * the engineer's layout — they replace the per-Wp mounting line on a metal or
+ * tile roof.
+ */
+export function buildTemplate(s: QqSurvey, z: QqSize, cfg: QuickQuoteSettings, mountingLines?: QqLine[]): QqSection[] {
   const c = cfg.cost;
   const three = (z.inverter?.phase ?? s.plnPhase) === 3;
   const hybrid = s.system === 'hybrid' && z.batteries > 0;
@@ -309,7 +340,7 @@ export function buildTemplate(s: QqSurvey, z: QqSize, cfg: QuickQuoteSettings): 
           needsPricing: s.roof === 'concrete'
             ? 'Concrete roof: price the triangle kit and cement pedestals by hand.'
             : 'Flat roof: price the triangle kit and cement pedestals by hand.' };
-  sec('Array mounting kits', 'bos', [mounting]);
+  sec('Array mounting kits', 'bos', (s.roof === 'metal' || s.roof === 'tile') && mountingLines?.length ? mountingLines : [mounting]);
 
   const dcM = Math.ceil(2 * z.strings * s.dcRunM * 1.1);
   sec('DC cables, conduits and terminators', 'bos', z.strings ? [

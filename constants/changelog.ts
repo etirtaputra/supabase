@@ -20,6 +20,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-23T08:30:00Z",
+    title: "Penawaran Cepat: tata letak mounting dengan gambar",
+    details: [
+      "Langkah baru \"Tata letak mounting\" untuk atap metal dan genteng: jumlah baris, potret atau lanskap, sistem mounting (MIBET MD bawaan) dan panjang rail. Gambar berskala menunjukkan panel, rail dan dudukan atap, beserta ukuran larik (mis. 6,9 m × 4,9 m).",
+      "Baris mounting di proposal kini rincian sebenarnya dari mesin mounting: rail, sambungan, end/mid clamp, L-feet, grounding — dari katalog dengan biayanya, bukan lagi satu baris per Wp.",
+      "Atap genteng: katalog belum punya tile hook, jadi dudukannya ditandai \"menunggu harga\".",
+    ],
+  },
+  {
     at: "2026-11-23T04:00:00Z",
     title: "Penawaran Cepat rumah tinggal: survei di lokasi, proposal langsung jadi",
     details: [
