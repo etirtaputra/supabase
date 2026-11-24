@@ -7003,8 +7003,17 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    **305 tools** (every one enabled, the permanent deletes and
    `update_account_name` included — the tool filter is still owed),
    container restarted, new pass expires **2026-11-24 08:14 UTC**. Not
-   confirmed yet: whether she renews after 08:14 UTC (owner asks her the
-   Basecamp question about 08:25 UTC, then re-runs step 1). The
+   confirmed yet at that point: whether she renews after 08:14 UTC.
+   **08:28 UTC, 14 minutes past expiry:** she answered the Basecamp check
+   from live calls (`get_me`, `list_projects`: MANDA, 7 projects) — the
+   first time she has had Basecamp beyond the first hour, so the renewal
+   very probably passed with `oauth.user_agent` set. Still owed as proof:
+   step 1 re-run (a later "expires", a 200 count above 0). If it holds,
+   the lesson for v0.20.6 is: **every `auth: oauth` MCP server needs
+   `oauth.user_agent`**, and the container update is no longer urgent for
+   Basecamp. Same day she renamed the active PROJECT cards on the owner's
+   yes (titles only; 72 "Not now" cards and one card in an unnamed column
+   left alone; "OBP & TG" waits for its meaning). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
