@@ -6992,8 +6992,14 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    renewed once — and any fix proves itself an hour after sign-in, not a
    day. The gateway only tries to renew when Basecamp is used, so the check
    is: 70 minutes after sign-in, ask her the Basecamp question, then re-run
-   step 1 (expiry moved forward, first count above 0 = fixed). Not
-   confirmed yet: steps 2–4. The
+   step 1 (expiry moved forward, first count above 0 = fixed). **Step 2
+   came back:** `oauth.user_agent` is set (backup
+   `config.yaml.bak-2026-11-24`) and `hermes mcp test basecamp` still
+   failed in 3 s with "requires browser authorization" — the refresh token
+   on file is refused with the User-Agent too. That does not clear or
+   convict the setting (a token refused 1,662 times may simply be dead);
+   it stays on, and the hour after the fresh sign-in decides. Not
+   confirmed yet: steps 3–4 and the 70-minute check. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
