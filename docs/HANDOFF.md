@@ -158,7 +158,15 @@ engine's warnings (overhang, edge spacing). The layout is saved in
 `system_specs.quick.survey.mounting`. Rig: Petojo 11 × 550 Wp, 2 rows portrait
 → 6 rails (cut plan), 4 splices, 8 end + 18 mid clamps, 28 L-feet, grounding ≈
 Rp 320/Wp (the template's 400). Catalogue gap told to the owner: **no tile
-hook** (`roof_hook` with `roof_type: tile`).
+hook** (`roof_hook` with `roof_type: tile`). → **Added 2026-11-24** at the
+owner's request ("MIBET MD tile hook", "no price yet"): component
+`274d377b-157a-4682-bca6-3a90d1037484` **"MIBET MD Tile Roof Hook, adjustable,
+SUS304"** (MIBET, mounting, unit; specs `bom_role: roof_hook`, `roof_type:
+tile`, `mounting_series: MIBET MD`; margin profile and cost mode copied from
+the MD L-feet). Checked with the real resolver: tile → this hook, metal →
+L-feet. **No cost yet** — the hooks still flag "price by hand" until a
+supplier quote or PO for it is entered (New Deal / Inbox); rename it to the
+exact model then.
 
 ### 2026-11-23 — Residential quick quote (survey → proposal)
 
