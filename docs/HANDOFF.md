@@ -6998,8 +6998,13 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    failed in 3 s with "requires browser authorization" — the refresh token
    on file is refused with the User-Agent too. That does not clear or
    convict the setting (a token refused 1,662 times may simply be dead);
-   it stays on, and the hour after the fresh sign-in decides. Not
-   confirmed yet: steps 3–4 and the 70-minute check. The
+   it stays on, and the hour after the fresh sign-in decides. **Steps
+   3–4 done:** signed in again, `hermes mcp test basecamp` → Connected,
+   **305 tools** (every one enabled, the permanent deletes and
+   `update_account_name` included — the tool filter is still owed),
+   container restarted, new pass expires **2026-11-24 08:14 UTC**. Not
+   confirmed yet: whether she renews after 08:14 UTC (owner asks her the
+   Basecamp question about 08:25 UTC, then re-runs step 1). The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
