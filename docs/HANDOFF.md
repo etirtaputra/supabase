@@ -381,8 +381,11 @@ check for duplicates? This is important."*
   the neighbours' pattern. Drive: runbook v10
   `1zo40quugcFmYhLO5vMjOLIOKoZRXeLk5`, INDEX `1ZYNS9XQxvmAM-AktV_MIYPBFQ9_jAye6`;
   v9 and the old INDEX trashed. Update messages for MIRA and MANDA are in the
-  briefing ("Runbook v10 · 24 Nov"). Not confirmed: that either agent has
-  read it. Facts of the day, read from the database: MIRA created EB.42658 /
+  briefing ("Runbook v10 · 24 Nov"). **MIRA confirmed the same day:** she
+  holds v10 and the 24 Nov INDEX (md5 = Drive), restated rule 8 correctly,
+  replaced her skill's cached v9, and rewrote the two old beliefs in her
+  skill text (Inbox-first; "ya" for a new supplier). Not confirmed: MANDA's
+  "read", and v10's first real use (an own PO, a new supplier). Facts of the day, read from the database: MIRA created EB.42658 /
   EB.42659 on quotes KST226-6825 / -6826 (each PO adds CNY 8,300 freight to a
   CIF quote — the owner's question to KSTAR is open) and supplier POWEREASE
   GROUP INDO (code POWEREASE, 10:37 UTC) with quote SOPI00020 (Open, IDR).
