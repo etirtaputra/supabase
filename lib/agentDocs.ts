@@ -37,8 +37,8 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'purchasing-runbook',
     title: 'Purchasing runbook (buy side)',
-    file: 'PURCHASING-RUNBOOK_v9_2026-11-22.md',
-    audience: 'buy-side agents: the Inbox (supplier documents in, duplicates checked), quotes, POs, payments, landed cost',
+    file: 'PURCHASING-RUNBOOK_v10_2026-11-24.md',
+    audience: 'buy-side agents: the Inbox (supplier documents in, duplicates checked), new suppliers, quotes, POs, payments, landed cost',
     first: false,
   },
   {

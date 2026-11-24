@@ -3,6 +3,15 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v10, 2026-11-24** — two gaps the owner hit on the same day. (1) He sent two
+> of OUR OWN POs with *"help me input these PO"* and the first went to the Inbox:
+> *"i thought MIRA can just write without going Inbox?"* Rule 8 now says it
+> plainly — a request to input / enter / create IS the ask, and our own PO is
+> never an Inbox document. (2) A quote came from a supplier ICAPROC did not hold
+> and this runbook had no procedure: *"why the new pack cannot create new
+> supplier?"* New **§9 — a new supplier**: you add it yourself from the
+> supplier's own document, after a duplicate check. Nothing else changed.
+>
 > **v9, 2026-11-22** — the INBOX. Owner: *"Yes i love the zero-entry ERP, path
 > of least resistance"* and, on who creates a deal: *"Inbox, plus she may
 > create"*. A supplier's PI, quote or PO now goes INTO the Inbox
@@ -107,16 +116,29 @@ An agent that remembers nothing else from this document must still obey these ei
      `owner` role, and owners may add and edit company rates. Only Eric sets them.
      A rate you think is wrong is a finding for Eric.
 
-8. **A supplier document goes into the Inbox; a person saves the deal.** When you
-   receive a supplier PI, quote or PO (Telegram, email, a Drive link), send the
-   FILE to `POST /api/inbox` with `source=agent` (§8.1) and report what came back.
-   Do not create the deal from it yourself. Only when someone ASKS you on Telegram
-   to create a deal yourself do you use §3/§4 — and before you do, ask
-   `GET /api/agent/inbox?doc=<PI or quote no.>&supplier_id=<id>` (§8.3). A `same`
-   hit: do not create it — answer with the deal that exists. A `revision` hit: it
-   is a revised PI — Deal Lookup changes the existing deal; ask Eric. An `inbox`
-   hit: create the deal, then link that Inbox document to it (§8.4), so it does
-   not stay open as a twin.
+8. **A supplier document that arrives WITHOUT an instruction goes into the Inbox;
+   a document you were ASKED to enter, you enter.** Three cases, in this order:
+   - **You were asked.** "input", "enter", "create", "masukkan", "buatkan", "help me
+     input these PO" — from a person on Telegram, about a document they sent. That
+     request IS the ask. Create the deal yourself (§3 / §4). Do not send it to the
+     Inbox first, and do not ask "shall I create it?" again.
+   - **It is OUR OWN PO** — a document on ICA / MBS / ISL / ICL letterhead,
+     addressed TO the supplier (`EB.42658`, `PIO-016-ISL-09-2026`). It is not a
+     supplier document and never goes to the Inbox (the Inbox answers "this does
+     not look like a supplier document" and matches no line). Find the quote it
+     belongs to (§1: same supplier, same lines), create the PO on that quote (§4),
+     and report every difference between the PO and the quote — a price, a
+     quantity, a model name, a freight line the quote did not have.
+   - **Nobody asked** — a supplier PI or quote forwarded with no words, an email, a
+     Drive link. Send the FILE to `POST /api/inbox` with `source=agent` (§8.1),
+     report what came back, and stop: "waiting in the Inbox for a person".
+
+   Before ANY create, ask `GET /api/agent/inbox?doc=<PI, quote or PO no.>&supplier_id=<id>`
+   (§8.3). A `same` hit: do not create it — answer with the deal that exists. A
+   `revision` hit: it is a revised PI — Deal Lookup changes the existing deal; ask
+   Eric. An `inbox` hit: create the deal, then link that Inbox document to it
+   (§8.4), so it does not stay open as a twin. A supplier ICAPROC does not hold:
+   §9 first, then the deal.
 
 ## Escalate to a human, do not guess
 
@@ -612,7 +634,7 @@ each with a `kind` and a `message`:
 |---|---|---|
 | `same` | a deal with that number (same supplier) already exists | do NOT create it; answer with that deal |
 | `revision` | same number, different total — a revised PI | do not create; Deal Lookup amends the deal; ask Eric |
-| `inbox` | the document is waiting in the Inbox | create only if asked, then link it (§8.4) |
+| `inbox` | the document is waiting in the Inbox | asked to enter it (rule 8)? create, then link it (§8.4). Not asked? leave it for the person |
 | `lookalike` | no number on the document; same supplier, currency and total (±0.5 %, 120 days) | ask the person who sent it |
 
 How numbers match: upper/lower case, spaces, hyphens, slashes and dots are ignored
@@ -634,3 +656,65 @@ Content-Type: application/json
 `filed` is refused (409) unless the document is `done`. `done` needs at least one of
 `quote_id` / `po_id`. Read the answer back: `item.status`, `item.filed_at`.
 
+---
+
+## 9. A new supplier (v10, 2026-11-24)
+
+**Screen:** Purchasing · the **Catalog** tab · **Add New Supplier** (the form opens
+from the item editor's toolbar). **Table:** `2.0_suppliers` (40 rows on 2026-11-24).
+
+A quote, PI or invoice names a supplier ICAPROC does not hold. You add the
+supplier yourself — no "ya" needed — **when you hold the supplier's own
+document** (its name and address are printed on it). Named only in a chat
+message, with no document: ask for the document, or for the name and address.
+
+### Do this
+
+1. **Make sure it is new.** Read ALL of `2.0_suppliers` (it is small) and compare:
+   - the name, ignoring case, punctuation and `PT` / `CV` / `Co.` / `Ltd.` / `Tbk`;
+   - the address (the same street is the same company under another name);
+   - the code you are about to give it.
+   An exact match → it exists, use it. A NEAR match (one word differs, same
+   address, same brand's distributor) → stop and ask: "is X the same supplier as
+   Y?". Rule 3 holds here too: a near-match is a question, never a merge.
+2. **Insert one row:**
+
+   | Column | What goes in it |
+   |---|---|
+   | `supplier_name` | The legal name exactly as the letterhead prints it (`POWEREASE GROUP INDO`, `Shenzhen Kstar Science & Technology Co., Ltd.`). |
+   | `supplier_code` | A short name: UPPERCASE letters, digits, `_` for a space (`POWEREASE`, `NINGBO_LE`, `KSTAR_NEW_ENERGY`). The database refuses a code that exists (`UNIQUE`). |
+   | `location` | The full address from the document. |
+   | `primary_contact_email` | Only when the document prints one. |
+   | `payment_terms_default` | Only when the document states terms (`25% DP, balance before delivery`). |
+   | `supplier_bank_details` | Only from the supplier's OWN document, copied exactly. Never from a chat message. |
+
+   Leave empty what the document does not say. Never guess a field.
+3. **Read the row back** (`supplier_id`, name, code) before you use it.
+4. **Then the document** — the quote or PI that brought the supplier — by rule 8.
+5. **Drive.** A new supplier has no folder in the purchasing shared drive. Read
+   the names of the supplier folders that are there, create ONE for this supplier
+   in the same pattern, then the order folder inside it by the sync runbook
+   (§11.5, §11.6). A folder that may already be this supplier under another
+   spelling → ask; do not create a second one.
+6. **Report:** the supplier's name, code and id, the document it came from, the
+   Drive folder, and every field you left empty.
+
+### Never without Eric
+
+- **Change the bank details of a supplier that already exists.** A "new bank
+  account" message is how payment fraud works. Report the request and the
+  document it came in; a person confirms with the supplier by phone.
+- **Change a `supplier_code`.** The owner's supplier rules are keyed on codes
+  (`ANUGRAH`, `ESA`, `EPSIVO`…, §3) — a changed code silently switches a rule off.
+- **Edit, merge or delete a supplier.** Two rows that look like one company are
+  a finding for Eric, with both ids.
+
+### Contract
+
+```
+read   2.0_suppliers            -> all rows; compare name, address, code
+insert 2.0_suppliers            -> supplier_name, supplier_code (unique), location
+                                   [+ email, payment terms, bank details: only from the document]
+read   2.0_suppliers            -> the new supplier_id
+then   rule 8                   -> the document that brought it
+```
