@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-24T03:00:00Z",
+    title: "Tampilan lebih segar, dan \"Penawaran Cepat\" kini \"Rumah tinggal\"",
+    details: [
+      "Tema Corporate (bawaan perusahaan): huruf Inter yang lebih bersih, logo ICAPROC dua nada biru, kolom isian dan kontrol filter putih dengan bayangan tipis (bukan abu-abu), tombol utama biru navy dengan sedikit kedalaman, sudut kartu sedikit lebih lembut. Tema lain dan PDF tidak berubah.",
+      "Penawaran Cepat berganti nama menjadi \"Rumah tinggal\" (Proposal Rumah Tinggal); tombol di Proposals kini \"Rumah tinggal\" dan \"Proposal C&I baru\". Tautan lama tetap berfungsi.",
+    ],
+  },
+  {
     at: "2026-11-23T08:30:00Z",
     title: "Penawaran Cepat: tata letak mounting dengan gambar",
     details: [

@@ -58,7 +58,7 @@ import PricingSetup from '@/components/ui/PricingSetup';
 type Tab = 'format' | 'appearance' | 'menu' | 'dashboard' | 'lists' | 'pricing' | 'fx' | 'defaults' | 'quickquote' | 'terms' | 'company' | 'banks' | 'users';
 const TABS: [Tab, string][] = [
   ['format', 'Formatting'], ['appearance', 'Appearance'], ['menu', 'Menu'], ['dashboard', 'Dashboard'], ['lists', 'Lists'], ['pricing', 'Pricing'], ['fx', 'Exchange rates'],
-  ['defaults', 'Defaults'], ['quickquote', 'Quick quote'], ['terms', 'Terms'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
+  ['defaults', 'Defaults'], ['quickquote', 'Residential'], ['terms', 'Terms'], ['company', 'Company'], ['banks', 'Banks'], ['users', 'Users'],
 ];
 
 const SEPARATORS: { value: string; label: string }[] = [
@@ -733,7 +733,7 @@ function QuickQuoteTab({ draft, set }: { draft: AppSettings; set: <K extends key
   return (
     <div className="space-y-4">
       <p className="text-xs text-slate-400 leading-relaxed max-w-3xl">
-        The numbers behind the residential quick quote (Proposals › Quick quote). The engineer&apos;s survey sizes the system from the PLN bill;
+        The numbers behind the residential proposal (Proposals › Residential). The engineer&apos;s survey sizes the system from the PLN bill;
         these say how much of the usage to cover and what every other line costs. Concrete and flat roofs, and sites outside Jabodetabek,
         are never priced here — those lines are left for a person.
       </p>

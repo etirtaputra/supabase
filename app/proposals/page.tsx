@@ -884,9 +884,10 @@ export default function QuotesListPage() {
               </button>
             )}
           {/* The site-visit route: survey → sized, priced residential proposal. */}
-          <Link href="/proposals/quick" title={t('Survey a house, get the residential proposal: sized from the PLN bill, priced')}
+          <Link href="/proposals/residential" title={t('Survey a house, get the residential proposal: sized from the PLN bill, priced')}
             className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-violet-500/40 text-violet-200 hover:bg-violet-500/10 text-sm font-semibold transition-colors flex-shrink-0">
-            ⚡ <span className="hidden sm:inline">{t('Quick quote')}</span>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10.5L12 3l9 7.5M5 9v11h14V9" /></svg>
+            <span className="hidden sm:inline">{t('Residential')}</span>
           </Link>
           <button
             onClick={createNew}
@@ -899,7 +900,7 @@ export default function QuotesListPage() {
             ) : (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
             )}
-            <span className="hidden sm:inline">{t('New proposal')}</span>
+            <span className="hidden sm:inline">{t('New C&I proposal')}</span>
           </button>
           </div>
         </div>

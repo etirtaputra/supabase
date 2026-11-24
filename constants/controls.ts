@@ -32,8 +32,13 @@
 /** Every control in a filter bar stands this tall. */
 export const BAR_H = 'h-11 sm:h-9';
 
-/** …with this border, radius, fill and focus ring. */
-export const BAR_BOX = 'bg-slate-800 border border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500/40 transition-colors';
+/**
+ * …with this border, radius, fill and focus ring. `ctl` is a marker, not a
+ * style: the skin dresses every bar control from it in one rule (Corporate
+ * light, 2026-11-24: white controls with a hairline shadow instead of a grey
+ * fill) — the same reason the tokens exist.
+ */
+export const BAR_BOX = 'ctl bg-slate-800 border border-slate-700 rounded-lg outline-none focus:ring-1 focus:ring-emerald-500/40 transition-colors';
 
 /** A `<select>` in the bar. */
 export const BAR_SELECT = `${BAR_H} px-2.5 ${BAR_BOX} text-slate-300 text-[13px] sm:text-[12.5px] cursor-pointer`;
@@ -61,6 +66,6 @@ export const BAR_INPUT = `${BAR_H} px-3 ${BAR_BOX} text-white text-base sm:text-
  * that moves its neighbours when toggled is how a row starts feeling loose.
  */
 export const BAR_BTN = `${BAR_H} inline-flex items-center rounded-lg border text-[13px] sm:text-[12.5px] font-medium whitespace-nowrap transition-colors`;
-export const BAR_BTN_OFF = 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600';
+export const BAR_BTN_OFF = 'ctl bg-slate-800 border-slate-700 text-slate-300 hover:text-white hover:border-slate-600';
 export const BAR_BTN_ON = 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300';
 export const BAR_BTN_ON_SKY = 'bg-sky-500/15 border-sky-500/40 text-sky-300';

@@ -70,7 +70,9 @@ test('the default skin is a real skin, and it is the corporate one', () => {
   const appBg = (b: string) => /--c-app-bg:([^;}]*)/.exec(b)?.[1];
   assert.equal(appBg(def!.body), appBg(term!.body),
     'the unattributed default must be the corporate skin, whatever colour that is');
-  assert.ok(def!.body.includes("--font-app:'IBM Plex Sans'"), 'and it should carry the corporate typeface');
+  // Inter since the 2026-11-24 refresh (owner: "make the … font even slightly
+  // cleaner"); IBM Plex before. The printed documents keep Plex.
+  assert.ok(def!.body.includes('--font-app:Inter'), 'and it should carry the corporate typeface');
 });
 
 // ── The corporate pair (owner, 2026-09-27) ──────────────────────────────────
