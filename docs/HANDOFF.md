@@ -6984,8 +6984,16 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    _PASSWORD, TELEGRAM_BOT_TOKEN, ANTHROPIC_API_KEY, TELEGRAM_GROUP_POLICY.
    A recreate must carry those values without printing them (write them to
    a root-only env file from `docker inspect`, never to the screen) — or do
-   B3 (Compose + `.env`) in the same move. Not confirmed yet: outcome of
-   the card. The
+   B3 (Compose + `.env`) in the same move. **Step 1 came back (24 Nov):**
+   a Basecamp pass lasts **3600 s** (not a day), hers ran out 2026-11-18
+   00:34 UTC, a refresh token is on file, and `agent.log*` holds **0**
+   accepted and **1,662** refused POSTs to `oauth/tokens` (first one logged
+   2026-11-18 20:56). So she had Basecamp for one hour and has never
+   renewed once — and any fix proves itself an hour after sign-in, not a
+   day. The gateway only tries to renew when Basecamp is used, so the check
+   is: 70 minutes after sign-in, ask her the Basecamp question, then re-run
+   step 1 (expiry moved forward, first count above 0 = fixed). Not
+   confirmed yet: steps 2–4. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
