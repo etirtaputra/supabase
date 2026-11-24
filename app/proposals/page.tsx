@@ -30,7 +30,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import WinBanner from '@/components/ui/WinBanner';
 import { groupProposals, customerKey, ACTIVE_DAYS } from '@/lib/proposalGroups';
 import { epcDue, EPC_OUTCOME_DAYS, EPC_IDLE_DRAFT_DAYS, type EpcDue } from '@/lib/proposalNudges';
-import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
+import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON, BAR_H } from '@/constants/controls';
 import { badgeMap, isProposalLocked } from '@/lib/lifecycles';
 import { ROLE_PERMISSIONS } from '@/constants/roles';
 import { proposalChecks } from '@/lib/proposalChecks';
@@ -853,14 +853,14 @@ export default function QuotesListPage() {
               <>
                 <Link
                   href="/proposals/directory"
-                  className="hidden xl:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
+                  className={`hidden xl:inline-flex items-center ${BAR_H} px-3 rounded-lg ${BAR_BTN_OFF} border text-[12.5px] font-semibold whitespace-nowrap transition-colors`}
                   title="Proposal Directory — dedupe & merge customer names, sites and addresses (Owners only)"
                 >
                   Directory
                 </Link>
                 <Link
                   href="/proposals/library"
-                  className="hidden xl:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all"
+                  className={`hidden xl:inline-flex items-center ${BAR_H} px-3 rounded-lg ${BAR_BTN_OFF} border text-[12.5px] font-semibold whitespace-nowrap transition-colors`}
                   title="Description Library — review, dedupe and rename quote item texts (Owners only)"
                 >
                   Library
@@ -878,14 +878,14 @@ export default function QuotesListPage() {
               <button
                 onClick={() => { setPwOpen(true); setPw1(''); setPw2(''); setPwMsg(''); }}
                 title={`Set a password for ${gate.profile.email}`}
-                className="hidden xl:inline-block px-3 py-1.5 rounded-xl border border-white/[0.08] text-slate-400 hover:text-white hover:bg-white/10 text-xs font-semibold transition-all whitespace-nowrap"
+                className={`hidden xl:inline-flex items-center ${BAR_H} px-3 rounded-lg ${BAR_BTN_OFF} border text-[12.5px] font-semibold whitespace-nowrap transition-colors`}
               >
                 {t('Set password')}
               </button>
             )}
           {/* The site-visit route: survey → sized, priced residential proposal. */}
           <Link href="/proposals/residential" title={t('Survey a house, get the residential proposal: sized from the PLN bill, priced')}
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-violet-500/40 text-violet-200 hover:bg-violet-500/10 text-sm font-semibold transition-colors flex-shrink-0">
+            className={`${BAR_BTN} gap-2 px-3 sm:px-4 font-semibold border-violet-500/40 text-violet-200 hover:bg-violet-500/10 flex-shrink-0`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10.5L12 3l9 7.5M5 9v11h14V9" /></svg>
             <span className="hidden sm:inline">{t('Residential')}</span>
           </Link>
@@ -893,7 +893,7 @@ export default function QuotesListPage() {
             onClick={createNew}
             disabled={creating}
             title="New Proposal"
-            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
+            className={`${BAR_BTN} gap-2 px-3 sm:px-4 font-semibold border-transparent bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-50 flex-shrink-0`}
           >
             {creating ? (
               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>

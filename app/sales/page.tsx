@@ -17,6 +17,7 @@ import { SALES_STATUS as STATUS, milestoneIndex, displayDocNumber, docNumberCls 
 import { fmtDay, fmtInt, fmtRupiah, fmtMoneyCell, moneyUnit } from '@/lib/formatters';
 import DateRangeFilter from '@/components/ui/DateRangeFilter';
 import LayoutToggle from '@/components/ui/LayoutToggle';
+import { BAR_BTN, BAR_SELECT, BAR_SELECT_ON } from '@/constants/controls';
 import { useListLayout } from '@/hooks/useListLayout';
 import { useListDefaults } from '@/hooks/useListDefaults';
 import { listSpec } from '@/constants/listDefaults';
@@ -290,7 +291,7 @@ export default function SalesListPage() {
           <div className="flex items-center gap-2 flex-wrap">
             {/* Leftmost primary action — same placement + ghost style as After Sales */}
             <button onClick={() => router.push('/sales/new')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
+              className={`${BAR_BTN} gap-1.5 px-3 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10`}>
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               {t('New quote')}
             </button>
@@ -299,26 +300,26 @@ export default function SalesListPage() {
                 simply ordered (owner, 2026-08-19). */}
             <button onClick={() => router.push('/sales/new?as=order')}
               title={t('Create a Sales Order directly — fill the customer and items, then Confirm Order in one step')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-xs font-semibold whitespace-nowrap transition-colors">
+              className={`${BAR_BTN} gap-1.5 px-3 border-violet-500/40 text-violet-300 hover:bg-violet-500/10`}>
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               {t('New order')}
             </button>
             <DateRangeFilter value={range} onChange={(r) => { touched.current = true; setRange(r); }} label={t('Quote date')} align="left" />
             <select value={sort} onChange={(e) => { touched.current = true; setSort(e.target.value); setColSort(null); }}
               title={t('Order — the default lives in Settings › Lists')}
-              className="text-xs bg-slate-900/80 border border-slate-700 text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60">
+              className={BAR_SELECT}>
               {listSpec('sales').sorts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}
               title={t('Filter by lifecycle stage — draft, price quote or confirmed order')}
-              className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${stageFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
+              className={stageFilter !== 'all' ? BAR_SELECT_ON : BAR_SELECT}>
               <option value="all">{t('Stage: all')}</option>
               <option value="quote">{t('Quote (PQ)')}</option>
               <option value="order">{t('Order (SO)')}</option>
             </select>
             <select value={payFilter} onChange={(e) => setPayFilter(e.target.value)}
               title={t('Filter by payment state')}
-              className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${payFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
+              className={payFilter !== 'all' ? BAR_SELECT_ON : BAR_SELECT}>
               <option value="all">{t('Payment: all')}</option>
               <option value="unpaid">{t('Unpaid')}</option>
               <option value="partial">{t('Partial')}</option>
@@ -327,7 +328,7 @@ export default function SalesListPage() {
             </select>
             <select value={delFilter} onChange={(e) => setDelFilter(e.target.value)}
               title={t('Filter by delivery state')}
-              className={`text-xs bg-slate-900/80 border rounded-lg px-2 py-1.5 focus:outline-none focus:border-emerald-500/60 ${delFilter !== 'all' ? 'border-emerald-500/50 text-emerald-300' : 'border-slate-700 text-slate-300'}`}>
+              className={delFilter !== 'all' ? BAR_SELECT_ON : BAR_SELECT}>
               <option value="all">{t('Delivery: all')}</option>
               <option value="none">{t('Not shipped')}</option>
               <option value="preparing">{t('Preparing')}</option>

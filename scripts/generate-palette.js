@@ -392,25 +392,18 @@ const FONTS = {
   // so a typewriter face buys nothing but a second texture in every table.
   // Serial numbers — read character by character off a label — keep Plex
   // Mono through the `serial-no` marker (CORPORATE_SHELL_CSS).
-  //
-  // REFRESH (owner, 2026-11-24: "can we make the logo, buttons, font even
-  // slightly cleaner and visually appealing? … not a total revamp"): the UI
-  // face is INTER — cleaner at 12–14 px than Plex, with the same tabular
-  // figures. Codes and amounts stay in the text face. The printed documents
-  // keep IBM Plex (lib/documentType DOC_FONT_FAMILY) — that is their identity.
+  // (Inter was tried on 2026-11-24 and reverted the same day — owner: "PROC i
+  // prefer the older color, and font too".)
   corporate: {
-    sans: "Inter, 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif",
-    mono: "Inter, 'IBM Plex Sans', system-ui, sans-serif",
+    sans: "'IBM Plex Sans', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif",
+    mono: "'IBM Plex Sans', Inter, system-ui, sans-serif",
   },
 };
 // The ICA logo's own colour (owner, 2026-10-24: the wordmark is the real logo
 // now). The master blue on a light page; white on a dark one, where that blue
 // would vanish. Read only by components/ui/IcaprocLogo.tsx.
 const logoVar = (onLight) => `--c-logo:${onLight ? hexToRgb('#003ca6') : hexToRgb('#ffffff')}`;
-// PROC, in the corporate pair (refresh 2026-11-24): a lighter step of the same
-// blue instead of grey, so the wordmark reads as ONE brand in two tones. Other
-// skins keep PROC in their slate-500 ink (IcaprocLogo's fallback).
-const logoProcVar = (onLight) => `--c-logo-2:${onLight ? hexToRgb('#4f78b8') : hexToRgb('#9db7de')}`;
+
 const fontBlock = (f) => `--font-app:${f.sans};--font-mono-app:${f.mono}`;
 
 /**
@@ -482,18 +475,8 @@ const CORPORATE_SHELL_CSS = [
   // Flat panels: the decorative inner ring goes, the hairline border stays.
   // (Attribute substring match — the literal class name, no CSS escaping.)
   `${both('[class*="ring-white/5"]')}{--tw-ring-color:transparent}`,
-  // `cv05` gives Inter's lowercase l a tail, so l / I / 1 stay apart as they
-  // did in Plex (codes like PIO-2026021 are read character by character).
-  // NO global "tnum" since the Inter refresh (2026-11-24): Inter's tabular set
-  // widens hyphens and dots too, so every code read "P O - 0 8 5" and rows
-  // wrapped. Amount columns already ask for it (`tabular-nums`, ~770 sites).
-  `${C},${CD}{font-feature-settings:"cv05" 1}`,
-  // REFRESH (2026-11-24) — headings a hair tighter, the way Inter is set at
-  // display sizes; never inside an SVG (see the terminal note on scaled
-  // viewBoxes: an inherited em-tracking collapses chart labels).
-  `${both('.text-lg')}{letter-spacing:-0.006em}`,
-  `${both('.text-xl')},${both('.text-2xl')},${both('.text-3xl')}{letter-spacing:-0.014em}`,
-  `${both('svg text')}{letter-spacing:normal}`,
+  // Figures line up in every column, not only where a screen asked.
+  `${C},${CD}{font-feature-settings:"tnum" 1}`,
   // Bar controls (constants/controls.ts, class ctl): white with a hairline border
   // and shadow in the light skin, instead of a grey fill — lighter rows that
   // read as fields, not slabs. The ON state of a chip keeps its own tint.
@@ -601,15 +584,15 @@ const SHADOW_FIX = ':root[data-theme="light"] [class*="shadow-black"],:root[data
 const css = [
   // CORPORATE IS THE UNATTRIBUTED DEFAULT (owner, 2026-09-28), as terminal
   // was before it: the skin that renders before any script has run.
-  `:root{${block(corporate, APP_BG_EXTRA.corporate)};${logoVar(true)};${logoProcVar(true)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
+  `:root{${block(corporate, APP_BG_EXTRA.corporate)};${logoVar(true)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
   `:root[data-theme="terminal"]{${block(terminal, APP_BG_EXTRA.terminal)};${logoVar(false)};${fontBlock(FONTS.terminal)}}`,
   `:root[data-theme="terminal-light"]{${block(terminalLight, APP_BG_EXTRA['terminal-light'])};${logoVar(true)};${fontBlock(FONTS.terminal)}}`,
   `:root[data-theme="dark"]{${block(dark, APP_BG.dark)};${logoVar(false)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="light"]{${block(light, APP_BG.light)};${logoVar(true)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="dim"]{${block(dim, APP_BG_EXTRA.dim)};${logoVar(false)};${fontBlock(FONTS.house)}}`,
   `:root[data-theme="paper"]{${block(paper, APP_BG_EXTRA.paper)};${logoVar(true)};${fontBlock(FONTS.house)}}`,
-  `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${logoVar(true)};${logoProcVar(true)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
-  `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${logoVar(false)};${logoProcVar(false)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])};${inkBlock(CORPORATE_TEXT_INK['corporate-dark'])}}`,
+  `:root[data-theme="corporate"]{${block(corporate, APP_BG_EXTRA.corporate)};${logoVar(true)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND.corporate)};${inkBlock(CORPORATE_TEXT_INK.corporate)}}`,
+  `:root[data-theme="corporate-dark"]{${block(corporateDark, APP_BG_EXTRA['corporate-dark'])};${logoVar(false)};${fontBlock(FONTS.corporate)};${brandBlock(BRAND['corporate-dark'])};${inkBlock(CORPORATE_TEXT_INK['corporate-dark'])}}`,
   SHADOW_FIX,
   TERMINAL_SHELL_CSS,
   CORPORATE_SHELL_CSS,

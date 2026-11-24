@@ -24,6 +24,31 @@
 
 import { PLN_TARIFF_OPTIONS } from './energyEconomics.ts';
 
+/**
+ * PLN's standard connections (owner, 2026-11-24: "the PLN Connection should
+ * match the real PLN capacity. Right now it's manual and disconnected"). A
+ * connection IS a main breaker: 1-phase VA = 220 V × the MCB's amps, 3-phase
+ * VA = 3 × 220 V × amps. So the phase is not a separate answer — it follows
+ * the capacity printed on the bill. (450 VA, subsidised, is not a PV customer.)
+ */
+export interface PlnConnection { va: number; phase: 1 | 3; amps: number }
+export const PLN_CONNECTIONS: readonly PlnConnection[] = [
+  { va: 900, phase: 1, amps: 4 }, { va: 1300, phase: 1, amps: 6 }, { va: 2200, phase: 1, amps: 10 },
+  { va: 3500, phase: 1, amps: 16 }, { va: 4400, phase: 1, amps: 20 }, { va: 5500, phase: 1, amps: 25 },
+  { va: 6600, phase: 3, amps: 10 }, { va: 7700, phase: 1, amps: 35 }, { va: 10600, phase: 3, amps: 16 },
+  { va: 11000, phase: 1, amps: 50 }, { va: 13200, phase: 3, amps: 20 }, { va: 16500, phase: 3, amps: 25 },
+  { va: 23000, phase: 3, amps: 35 }, { va: 33000, phase: 3, amps: 50 }, { va: 41500, phase: 3, amps: 63 },
+  { va: 53000, phase: 3, amps: 80 }, { va: 66000, phase: 3, amps: 100 }, { va: 82500, phase: 3, amps: 125 },
+  { va: 105000, phase: 3, amps: 160 }, { va: 131000, phase: 3, amps: 200 }, { va: 147000, phase: 3, amps: 225 },
+  { va: 164000, phase: 3, amps: 250 }, { va: 197000, phase: 3, amps: 300 },
+];
+/** The connection for a capacity (the nearest standard one at or above it). */
+export const plnConnection = (va: number): PlnConnection =>
+  PLN_CONNECTIONS.find((c) => c.va >= va) ?? PLN_CONNECTIONS[PLN_CONNECTIONS.length - 1];
+
+/** The household tariff class name of a connection, as on the PLN bill. */
+export const plnClass = (va: number): string => (va <= 2200 ? 'R-1' : va <= 5500 ? 'R-2' : 'R-3');
+
 /** Rp/kWh of a household connection — the savings page's PLN tariff list. */
 export function tariffForVa(va: number): number {
   const pick = (prefix: string) => PLN_TARIFF_OPTIONS.find((o) => o.label.startsWith(prefix))?.value ?? 1699.53;
@@ -128,10 +153,14 @@ export type QqRoof = 'metal' | 'tile' | 'concrete' | 'flat';
 
 export interface QqSurvey {
   customerName: string;
+  /** Picked from the CRM list: the proposal is linked to that customer. null/absent = typed by hand. */
+  customerId?: string | null;
+  customerAddress?: string;
   location: string;
   /** Inside Jabodetabek: the house transport and labour rates apply. */
   jabodetabek: boolean;
   system: QqSystem;
+  /** A standard PLN connection (PLN_CONNECTIONS); the phase follows from it (plnConnection). */
   plnVa: number;
   plnPhase: 1 | 3;
   /** Rp per month — or kWh per month, which wins when both are given. */

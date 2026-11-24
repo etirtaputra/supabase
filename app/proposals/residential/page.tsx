@@ -34,8 +34,10 @@ import { fetchUsedEntries } from '@/lib/usedPrices';
 import { isOfferable } from '@/lib/itemVisibility';
 import { fmtRupiah } from '@/lib/formatters';
 import { TAGGABLE_ROLES } from '@/lib/quoteFlags';
+import { normField, nearestDuplicate } from '@/lib/proposalFields';
 import {
   sizeSystem, buildTemplate, sellAt, projectDescription, inverterSpec, batteryKwh, tariffForVa, matchesWords, parseDims, defaultRows,
+  PLN_CONNECTIONS, plnConnection, plnClass,
   type QqSurvey, type QqPanel, type QqInverter, type QqBattery, type QqLine, type QqNote, type QqMounting,
 } from '@/lib/quickQuote';
 import { calculateMounting, COST_PROBE_LINES, unitCostsFrom, RAIL_LENGTHS_MM, type MountingResult } from '@/lib/systemDesign/mounting';
@@ -47,10 +49,9 @@ import { BAR_H } from '@/constants/controls';
 import type { Component } from '@/types/database';
 
 const DRAFT_KEY = 'icaproc.quickQuote.draft';
-const PLN_VA = [900, 1300, 2200, 3500, 4400, 5500, 6600, 7700, 10600, 11000, 13200, 16500, 23000, 33000, 41500, 53000];
 
 const blank: QqSurvey = {
-  customerName: '', location: '', jabodetabek: true, system: 'on_grid',
+  customerName: '', customerId: null, customerAddress: '', location: '', jabodetabek: true, system: 'on_grid',
   plnVa: 5500, plnPhase: 1, billRp: null, kwhMonth: null, tariff: tariffForVa(5500), sharePct: null,
   backupKw: 1.5, backupHours: 4, roof: 'metal', storeys: 2, maxPanels: null, dcRunM: 30, acRunM: 20,
 };
@@ -74,12 +75,67 @@ export default function QuickQuotePage() {
   const [s, setS] = useState<QqSurvey>(blank);
   const [panelId, setPanelId] = useState('');
   useEffect(() => {
-    try { const raw = localStorage.getItem(DRAFT_KEY); if (raw) { const d = JSON.parse(raw); setS({ ...blank, ...d.s }); setPanelId(d.panelId ?? ''); } } catch { /* none */ }
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw);
+        // A draft from before 2026-11-24 may hold a capacity PLN does not sell, or a phase typed by hand.
+        const pln = plnConnection(Number(d.s?.plnVa) || blank.plnVa);
+        setS({ ...blank, ...d.s, plnVa: pln.va, plnPhase: pln.phase });
+        setPanelId(d.panelId ?? '');
+      }
+    } catch { /* none */ }
   }, []);
   useEffect(() => {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ s, panelId })); } catch { /* private mode */ }
   }, [s, panelId]);
   const put = (patch: Partial<QqSurvey>) => setS((x) => ({ ...x, ...patch }));
+  const pln = plnConnection(s.plnVa);
+  const setPln = (va: number) => { const c = plnConnection(va); put({ plnVa: c.va, plnPhase: c.phase, tariff: tariffForVa(c.va) }); };
+
+  // ── Who it is for: the CRM, then everyone quoted before (owner, 2026-11-24:
+  //    "the customer name should have autocomplete searchable list") — the same
+  //    two sources as the C&I editor. A CRM pick links the proposal to the
+  //    customer's profile; a past name keeps one spelling per customer.
+  const [crmCustomers, setCrmCustomers] = useState<{ customer_id: string; name: string; address: string }[]>([]);
+  const [pastCustomers, setPastCustomers] = useState<{ name: string; address: string; location: string }[]>([]);
+  const [custOpen, setCustOpen] = useState(false);
+  useEffect(() => {
+    if (!gate.ready) return;
+    supabase.from('20.0_customers').select('customer_id, display_name, legal_name, billing_address, is_active').order('display_name')
+      .then(({ data }) => setCrmCustomers(((data ?? []) as { customer_id: string; display_name: string | null; legal_name: string | null; billing_address: string | null; is_active: boolean | null }[])
+        .filter((c) => c.is_active !== false && (c.display_name || c.legal_name))
+        .map((c) => ({ customer_id: c.customer_id, name: (c.display_name || c.legal_name) as string, address: c.billing_address ?? '' }))));
+    supabase.from('10.0_project_quotes').select('customer_name, customer_address, location, updated_at').order('updated_at', { ascending: false }).limit(1000)
+      .then(({ data }) => {
+        const seen = new Set<string>();
+        const out: { name: string; address: string; location: string }[] = [];
+        for (const r of (data ?? []) as { customer_name: string | null; customer_address: string | null; location: string | null }[]) {
+          const name = String(r.customer_name ?? '').trim();
+          if (!name || seen.has(normField(name))) continue;
+          seen.add(normField(name));
+          out.push({ name, address: String(r.customer_address ?? '').trim(), location: String(r.location ?? '').trim() });
+        }
+        setPastCustomers(out);
+      });
+  }, [gate.ready]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const allCustomerNames = useMemo(() => [...new Set([...crmCustomers.map((c) => c.name), ...pastCustomers.map((c) => c.name)])], [crmCustomers, pastCustomers]);
+  const custList = useMemo(() => {
+    const q = normField(s.customerName);
+    const hit = (name: string) => !q || normField(name).includes(q);
+    const crm = crmCustomers.filter((c) => hit(c.name) && normField(c.name) !== q).slice(0, 6);
+    const crmKeys = new Set(crmCustomers.map((c) => normField(c.name)));
+    const past = pastCustomers.filter((c) => hit(c.name) && !crmKeys.has(normField(c.name)) && normField(c.name) !== q).slice(0, 6);
+    return { crm, past };
+  }, [s.customerName, crmCustomers, pastCustomers]);
+  const pickCustomer = (c: { name: string; address: string; customer_id?: string; location?: string }) => {
+    put({
+      customerName: c.name, customerId: c.customer_id ?? null, customerAddress: c.address,
+      // The house is usually where they live: the site is pre-filled, never overwritten.
+      ...(s.location.trim() ? {} : { location: c.location || c.address }),
+    });
+    setCustOpen(false);
+  };
 
   // ── Costs: the same base the proposal editor prices from ──────────────────
   const tucMap = useMemo(() => computeTUCMap(catalog.pos, catalog.poItems, catalog.poCosts), [catalog.pos, catalog.poItems, catalog.poCosts]);
@@ -202,6 +258,8 @@ export default function QuickQuotePage() {
         quote_number: `Q-${today.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
         quote_date: today,
         customer_name: s.customerName.trim(),
+        customer_id: s.customerId ?? null,
+        customer_address: s.customerAddress?.trim() || null,
         location: s.location.trim() || null,
         project_type: s.system === 'hybrid' ? 'hybrid_bess' : 'on_grid',
         project_description: projectDescription(s, size),
@@ -268,7 +326,49 @@ export default function QuickQuotePage() {
         <section className={card}>
           <h2 className="text-slate-100 font-semibold">1. {t('Customer')}</h2>
           <div className="grid sm:grid-cols-2 gap-3">
-            <div><label className={label}>{t('Customer name')}</label><input className={field} value={s.customerName} onChange={(e) => put({ customerName: e.target.value })} /></div>
+            <div className="relative">
+              <label className={label}>
+                {t('Customer name')}
+                {s.customerId && <span className="ml-1.5 normal-case tracking-normal px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-bold" title={t('Linked to a CRM customer: this proposal shows on their profile. Typing a different name unlinks it.')}>CRM ✓</span>}
+              </label>
+              <input className={field} value={s.customerName} autoComplete="off" role="combobox" aria-expanded={custOpen} aria-autocomplete="list"
+                placeholder={t('Search the CRM or type a new name')}
+                onChange={(e) => { put({ customerName: e.target.value, customerId: null }); setCustOpen(true); }}
+                onFocus={() => setCustOpen(true)} onBlur={() => setCustOpen(false)}
+                onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') setCustOpen(false); }} />
+              {custOpen && (custList.crm.length > 0 || custList.past.length > 0) && (
+                <div role="listbox" className="absolute left-0 right-0 top-full mt-1 z-40 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 max-h-72 overflow-y-auto">
+                  {custList.crm.length > 0 && <p className="px-3 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-emerald-500/80">{t('CRM customers: picking one links the proposal')}</p>}
+                  {custList.crm.map((c) => (
+                    <button key={c.customer_id} type="button" role="option" aria-selected={false} onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
+                      className="block w-full text-left px-3 py-2 hover:bg-emerald-500/15">
+                      <span className="block text-[13px] text-slate-200">{c.name} <span className="ml-1 px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-300 text-[9px] font-bold align-middle">CRM</span></span>
+                      {c.address && <span className="block text-[11px] text-slate-500 truncate">{c.address}</span>}
+                    </button>
+                  ))}
+                  {custList.past.length > 0 && <p className={`px-3 pt-1.5 pb-1 text-[10px] uppercase tracking-wider text-slate-500 ${custList.crm.length ? 'border-t border-slate-800 mt-1' : ''}`}>{t('Previous customers')}</p>}
+                  {custList.past.map((c) => (
+                    <button key={c.name} type="button" role="option" aria-selected={false} onMouseDown={(e) => { e.preventDefault(); pickCustomer(c); }}
+                      className="block w-full text-left px-3 py-2 hover:bg-slate-800">
+                      <span className="block text-[13px] text-slate-200">{c.name}</span>
+                      {(c.location || c.address) && <span className="block text-[11px] text-slate-500 truncate">{c.location || c.address}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!custOpen && !s.customerId && (() => {
+                const dup = nearestDuplicate(s.customerName, allCustomerNames);
+                if (!dup) return null;
+                const crm = crmCustomers.find((c) => c.name === dup);
+                const past = pastCustomers.find((c) => c.name === dup);
+                return (
+                  <button type="button" onClick={() => pickCustomer(crm ?? past ?? { name: dup, address: s.customerAddress ?? '' })}
+                    className="mt-1 inline-flex items-center gap-1 text-[11px] text-amber-300/90 hover:text-amber-200">
+                    ⚠ {t('Similar exists:')} <span className="font-semibold underline">{dup}</span> — {t('use it')}
+                  </button>
+                );
+              })()}
+            </div>
             <div><label className={label}>{t('Location')}</label><input className={field} value={s.location} onChange={(e) => put({ location: e.target.value })} placeholder="Petojo Utara, Gambir, Jakarta Pusat" /></div>
           </div>
           <div><label className={label}>{t('Area')}</label>{choice(s.jabodetabek ? 'in' : 'out', [['in', t('Jabodetabek')], ['out', t('Outside Jabodetabek')]], (v) => put({ jabodetabek: v === 'in' }))}</div>
@@ -277,15 +377,18 @@ export default function QuickQuotePage() {
         <section className={card}>
           <h2 className="text-slate-100 font-semibold">2. {t('PLN and usage')}</h2>
           <div className="grid grid-cols-2 gap-3">
-            <div><label className={label}>{t('PLN connection (VA)')}</label>
-              <select className={field} value={s.plnVa} onChange={(e) => { const va = Number(e.target.value); put({ plnVa: va, tariff: tariffForVa(va), plnPhase: va >= 6600 && s.plnPhase === 1 && va > 7700 ? 3 : s.plnPhase }); }}>
-                {PLN_VA.map((v) => <option key={v} value={v}>{v.toLocaleString('id-ID')} VA</option>)}
+            <div className="col-span-2"><label className={label}>{t('PLN connection (VA)')}</label>
+              <select className={field} value={pln.va} onChange={(e) => setPln(Number(e.target.value))}>
+                {PLN_CONNECTIONS.map((c) => (
+                  <option key={c.va} value={c.va}>
+                    {`${c.va.toLocaleString('id-ID')} VA · ${t(c.phase === 3 ? '3-phase' : '1-phase')} · MCB ${c.phase === 3 ? '3 × ' : ''}${c.amps} A`}
+                  </option>
+                ))}
               </select></div>
-            <div><label className={label}>{t('Phase')}</label>{choice(s.plnPhase, [[1, t('1-phase')], [3, t('3-phase')]], (v) => put({ plnPhase: v }))}</div>
             <div><label className={label}>{t('Monthly bill (Rp)')}</label>{numIn(s.billRp, (n) => put({ billRp: n }), { step: 50000 })}</div>
             <div><label className={label}>{t('or kWh per month')}</label>{numIn(s.kwhMonth, (n) => put({ kwhMonth: n }))}</div>
           </div>
-          <p className="text-[11px] text-slate-500">{tf('Tariff {rate} Rp/kWh for this connection. kWh from the bill wins when both are filled.', { rate: s.tariff.toLocaleString('id-ID') })}</p>
+          <p className="text-[11px] text-slate-500">{tf('As on the bill: {cls}, {phase}, MCB {mcb}. Tariff {rate} Rp/kWh. kWh from the bill wins when both are filled.', { cls: plnClass(pln.va), phase: t(pln.phase === 3 ? '3-phase' : '1-phase'), mcb: `${pln.phase === 3 ? '3 × ' : ''}${pln.amps} A`, rate: s.tariff.toLocaleString('id-ID') })}</p>
         </section>
 
         <section className={card}>

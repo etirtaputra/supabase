@@ -1,5 +1,6 @@
 'use client';
 import type { ListLayout } from '@/lib/settings';
+import { BAR_H } from '@/constants/controls';
 
 /**
  * Compact ↔ Card switch for a list. Compact is the dense one-line-per-record
@@ -22,13 +23,15 @@ export default function LayoutToggle({
   const off = 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-white/5';
 
   return (
-    <div className="flex items-center gap-0.5 p-0.5 rounded-lg border border-slate-800 bg-slate-900/60 flex-shrink-0">
+    // The bar's own box (2026-11-24): the same height, border and fill as the
+    // selects beside it — it stood at 34px with a darker border before.
+    <div className={`${BAR_H} flex items-stretch gap-0.5 p-0.5 ctl rounded-lg border border-slate-700 bg-slate-800 flex-shrink-0`}>
       {([
         ['compact', 'Compact', <path key="c" strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />],
         ['card', 'Card', <path key="k" strokeLinecap="round" strokeLinejoin="round" d="M4 5h16v6H4zM4 13h16v6H4z" />],
       ] as [ListLayout, string, React.ReactNode][]).map(([v, label, icon]) => (
         <button key={v} onClick={() => onChange(v)} title={`${label} view`} aria-pressed={value === v}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${value === v ? on : off}`}>
+          className={`flex items-center gap-1.5 px-2 rounded-md text-[11px] font-medium border transition-colors ${value === v ? on : off}`}>
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">{icon}</svg>
           <span className="hidden sm:inline">{label}</span>
         </button>

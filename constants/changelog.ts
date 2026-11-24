@@ -20,6 +20,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-24T09:00:00Z",
+    title: "Huruf dan warna PROC kembali seperti semula; kontrol satu ukuran; Rumah tinggal: daftar pelanggan dan daya PLN asli",
+    details: [
+      "Tema Corporate: huruf kembali ke IBM Plex Sans dan tulisan PROC kembali abu-abu, sesuai permintaan. Kolom isian putih dan bayangan tipis tetap.",
+      "Tombol dan kontrol yang berdampingan kini satu tinggi, satu sudut, satu garis tepi: tombol atas Proposals (Directory, Library, Set password, Rumah tinggal, Proposal C&I baru), baris filter Penjualan, tombol Compact/Card, dan tombol aksi di tiap baris katalog barang.",
+      "Rumah tinggal: nama pelanggan kini bisa dicari dari daftar — pelanggan CRM (tautan ke profilnya, tanda CRM ✓) dan pelanggan proposal sebelumnya; lokasi terisi otomatis bila masih kosong. Nama yang mirip dengan yang sudah ada diberi peringatan \"Sudah ada yang mirip\".",
+      "Daya PLN kini daftar daya resmi PLN (900 VA sampai 197.000 VA) dengan fase dan MCB-nya, mis. \"5.500 VA · 1 fase · MCB 25 A\" atau \"6.600 VA · 3 fase · MCB 3 × 10 A\". Fase tidak lagi dipilih manual — mengikuti daya di tagihan, begitu juga golongan tarif (R-1/R-2/R-3).",
+    ],
+  },
+  {
     at: "2026-11-24T03:00:00Z",
     title: "Tampilan lebih segar, dan \"Penawaran Cepat\" kini \"Rumah tinggal\"",
     details: [

@@ -44,6 +44,13 @@ export const BAR_BOX = 'ctl bg-slate-800 border border-slate-700 rounded-lg outl
 export const BAR_SELECT = `${BAR_H} px-2.5 ${BAR_BOX} text-slate-300 text-[13px] sm:text-[12.5px] cursor-pointer`;
 
 /**
+ * A `<select>` whose filter is SET — the same box, only the border and text
+ * colour change (2026-11-24: Sales' filters each wrote their own, at 30px
+ * beside a 36px date button).
+ */
+export const BAR_SELECT_ON = BAR_SELECT.replace('border-slate-700', 'border-emerald-500/50').replace('text-slate-300', 'text-emerald-300');
+
+/**
  * A text `<input>` in the bar. **16px on a phone, and that is not a taste
  * decision.**
  *

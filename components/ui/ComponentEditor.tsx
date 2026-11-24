@@ -3095,7 +3095,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                   <button
                     onClick={handleBulkDelete}
                     disabled={bulkDeleting}
-                    className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-500 border border-transparent rounded-lg transition-all disabled:opacity-50"
                   >
                     {bulkDeleting ? t('Deleting…') : t('Confirm')}
                   </button>
@@ -3131,7 +3131,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
             <button
               onClick={handleSaveAll}
               disabled={dirtyCount === 0 || saving}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-lg shadow-emerald-900/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-transparent rounded-lg shadow-lg shadow-emerald-900/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <><Spinner className="w-3.5 h-3.5" /> {t('Saving…')}</>
@@ -4073,7 +4073,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             rel="noopener noreferrer"
                             title="Open datasheet / file"
                             onClick={(e) => e.stopPropagation()}
-                            className="px-2 py-1 text-xs text-sky-500 bg-transparent border border-transparent rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 transition-all"
+                            className="h-6 inline-flex items-center justify-center px-2 py-1 text-xs text-sky-500 bg-transparent border border-transparent rounded-lg hover:bg-sky-500/10 hover:border-sky-500/30 transition-all"
                           >
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -4096,7 +4096,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         {!isEditing && showSpecsButton && (
                           <button
                             onClick={() => toggleSpecs(c.component_id)}
-                            className={`px-2 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                            className={`h-6 inline-flex items-center justify-center px-2 py-1 text-xs font-semibold rounded-lg border transition-all ${
                               isSpecsOpen
                                 ? 'text-sky-300 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20'
                                 : rowReadiness.relevant
@@ -4118,7 +4118,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         {isEditing ? (
                           <button
                             onClick={() => toggleEdit(c.component_id)}
-                            className="px-2.5 py-1 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-all"
+                            className="h-6 inline-flex items-center justify-center px-2.5 py-1 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-all"
                             title="Collapse row"
                           >
                             {t('Done')}
@@ -4126,7 +4126,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         ) : (
                           <button
                             onClick={() => toggleEdit(c.component_id)}
-                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
+                            className={`h-6 inline-flex items-center justify-center px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all ${
                               isDirty
                                 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20'
                                 : 'text-slate-400 bg-slate-800/60 border-slate-700/60 hover:bg-slate-700 hover:text-white'
@@ -4139,7 +4139,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                         {isDirty && (
                           <button
                             onClick={() => discardRow(c.component_id)}
-                            className="px-2.5 py-1 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-all"
+                            className="h-6 inline-flex items-center justify-center px-2.5 py-1 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-all"
                             title="Discard this row's changes"
                           >
                             ✕
@@ -4154,7 +4154,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             <button
                               onClick={() => handleDelete(c.component_id)}
                               disabled={deleting}
-                              className="px-2 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-all disabled:opacity-50"
+                              className="h-6 inline-flex items-center justify-center px-2 py-1 text-xs font-bold text-white bg-red-600 hover:bg-red-500 border border-transparent rounded-lg transition-all disabled:opacity-50"
                               title="Confirm delete"
                             >
                               {deleting ? '…' : t('Yes')}
@@ -4162,7 +4162,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             <button
                               onClick={() => setConfirmDeleteId(null)}
                               disabled={deleting}
-                              className="px-2 py-1 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
+                              className="h-6 inline-flex items-center justify-center px-2 py-1 text-xs font-semibold text-slate-400 bg-slate-800 border border-slate-700 rounded-lg hover:bg-slate-700 transition-all disabled:opacity-50"
                             >
                               {t('No')}
                             </button>
@@ -4201,7 +4201,7 @@ export default function ComponentEditor({ components, brandSuggestions, initialS
                             title="More — stock, inspect, item hub, copy, delete"
                             aria-haspopup="menu"
                             aria-expanded={rowMenu?.id === c.component_id}
-                            className={`px-2 py-1 text-xs rounded-lg border transition-all ${
+                            className={`h-6 inline-flex items-center justify-center px-2 py-1 text-xs rounded-lg border transition-all ${
                               rowMenu?.id === c.component_id
                                 ? 'text-slate-200 bg-slate-800 border-slate-700'
                                 : 'text-slate-600 bg-transparent border-transparent hover:bg-slate-800/60 hover:border-slate-700/60 hover:text-slate-300'

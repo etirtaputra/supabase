@@ -150,3 +150,17 @@ test('mounting: the engineer\'s layout replaces the per-Wp line on metal and til
   assert.equal(mount(survey({ roof: 'concrete' }))[0].description, 'Triangle Mounting Kit with Cement Pedestal');
   assert.equal(buildTemplate(s, z, cfg).find((t) => t.title === 'Array mounting kits')!.lines[0].unit, 'Wp', 'no layout: the per-Wp line');
 });
+
+test('PLN connections: the capacity decides the phase and the breaker', async () => {
+  const { PLN_CONNECTIONS, plnConnection, plnClass } = await import('./quickQuote.ts');
+  for (const c of PLN_CONNECTIONS) {
+    // VA = 220 V × amps × phases, within PLN's own rounding (3 %: 900 VA is a 4 A breaker, 880 VA; 105,000 VA is 3 × 160 A = 105,600)
+    const va = 220 * c.amps * c.phase;
+    assert.ok(Math.abs(c.va - va) <= va * 0.03, `${c.va} VA ≠ ${c.phase} × ${c.amps} A`);
+  }
+  assert.deepEqual(plnConnection(5500), { va: 5500, phase: 1, amps: 25 });
+  assert.deepEqual(plnConnection(6600), { va: 6600, phase: 3, amps: 10 });
+  assert.deepEqual(plnConnection(7700), { va: 7700, phase: 1, amps: 35 });
+  assert.equal(plnConnection(6000).va, 6600, 'an odd figure lands on the next standard connection');
+  assert.deepEqual([2200, 3500, 5500, 6600].map(plnClass), ['R-1', 'R-2', 'R-2', 'R-3']);
+});
