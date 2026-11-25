@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-25T07:30:00Z",
+    title: "Proposal EPC: kolom TUC/Biaya dan Jual/Unit yang kosong kini hanya menampilkan \"0\"",
+    details: [
+      "Contoh rumus (=800000+180000, =3800000*2) tidak lagi tampil di kolom kosong; tetap muncul saat kursor diarahkan ke kolom, dan rumus tetap bisa diketik seperti biasa.",
+    ],
+  },
+  {
     at: "2026-11-25T07:00:00Z",
     title: "HP: tombol \"siapa yang online\" sejajar dengan logo",
     details: [

@@ -3236,7 +3236,7 @@ export default function QuoteEditorPage() {
                                     }
                                     if (Object.keys(patch).length) updateItem(sec.section_id, item.item_id, patch);
                                   }}
-                                  placeholder="0 or =800000+180000"
+                                  placeholder="0"
                                   title={drift ? `Outdated: today's cost is ${fmtIdr(drift.rec)} (${drift.riseFraction > 0 ? '+' : ''}${(drift.riseFraction * 100).toFixed(1)}%). The Costs button refreshes all items; sell prices stay as quoted.` : 'Type a number, or =800000+180000 to calculate'}
                                   className={`w-full bg-transparent outline-none text-right placeholder:text-slate-700 border-b transition-colors focus:border-violet-500 ${drift ? 'text-amber-300 border-amber-500/70 hover:border-amber-400' : 'text-slate-400 border-slate-800 hover:border-slate-600'} ${item.component_id || freeTextHistory.has(item.description.trim().toLowerCase()) ? 'cursor-help' : ''}`} />
                                 )}
@@ -3351,7 +3351,7 @@ export default function QuoteEditorPage() {
                                     const val = evalCell(item.sell_price);
                                     if (val !== item.sell_price) updateItem(sec.section_id, item.item_id, { sell_price: val });
                                   }}
-                                  placeholder="0 or =3800000*2"
+                                  placeholder="0"
                                   title={(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'This line has a quantity but no sell price' : 'Type a number, or =3800000*2 to calculate'}
                                   className={`w-full bg-transparent outline-none text-right text-slate-100 placeholder:text-slate-600 border-b transition-colors focus:border-violet-500 ${(num(item.quantity) ?? 0) > 0 && !num(item.sell_price) ? 'border-amber-500/60 hover:border-amber-400' : 'border-slate-800 hover:border-slate-600'}`} />
                                 )}
