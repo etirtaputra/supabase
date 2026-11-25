@@ -1,6 +1,6 @@
 # ICAPROC — thread handoff
 
-**Last updated: 2026-11-25** · last change: *BrandMenu: clock + online pill are one right-aligned cluster, self-start below lg so the pill sits on the wordmark line (it hung half a line low beside the search icon on phones)*; before that: *Corporate font back to IBM Plex + PROC back to slate-500 (owner prefers the old ones; white fields/hairline shadows kept); controls in one row share one height/radius/border (Proposals header, Sales filters, LayoutToggle, ComponentEditor row actions; BAR_SELECT_ON token); Residential: customer autocomplete (CRM + past proposals, links customer_id/customer_address, did-you-mean) and PLN connections from PLN's real table (lib/quickQuote PLN_CONNECTIONS — phase and MCB follow the VA)*; before that: *Corporate refresh (Inter, two-tone blue wordmark, white fields/controls with hairline shadows, primary-button depth, .75rem cards) + Quick quote renamed Residential (/proposals/residential; /quick redirects; Proposals buttons 'Residential' and 'New C&I proposal')*; before that: *Quick quote mounting layout — rows / portrait-landscape / mounting system / rail on metal & tile roofs, a to-scale sketch, and the mounting engine's real parts (rails, splices, clamps, L-feet, grounding) instead of the per-Wp line; tile roofs flag the hooks (no tile hook in the catalogue)*; before that: *Residential quick quote — /proposals/quick (phone survey → sized from the PLN bill, one inverter, rounded down → residential template priced from the editor's cost base → draft EPC proposal; concrete/flat roofs, far sites and cost-less items flagged 'price'); lib/quickQuote (+ test, Petojo golden), Settings › Quick quote*; before that: *nightly encrypted DB backup to Google Drive — ops/backup/icaproc-db-backup.sh on the VPS (root cron 19:30 UTC; pg_dump 17 → gpg AES-256 → shared drive ICAPROC BACKUPS, SA as Contributor); setup is the owner's hPanel paste (ops/backup/README.md)*; before that: *New Deal's "Upload Quote/PI" reads through the Inbox (lib/inboxClient sendToInbox; photos too; dup warnings on the banner; linked on save); /api/extract-pdf + lib/extractPdfClient deleted, dead PDF upload removed from BatchLineItemsForm — one reader*; before that: *Inbox second pass — one duplicate check (same / revision / inbox twin / lookalike, live on screen and for MIRA), photos shrunk to 1600 px, MIRA files done documents into the Drive order folder, ICAPROC's copy deleted 30 days after filing (cron), agent packs: purchasing runbook v9, sync runbook v11, schema v12*; before that: *the Inbox — zero-entry ERP, first stream: a supplier PI / quote (PDF or phone photo) is read by Claude, matched, and proposed as a deal; Create deal opens New Deal pre-filled, saving marks it Done and links quote/PO (table 43.0_inbox_items + bucket `inbox`, applied)*; before that: *server PDF: "↳" before component lines printed as an empty box — now drawn (SVG), symbol fallback fonts, glyph guard test*; before that: *EPC proposal PDF made on the server (same engine as desktop Chrome) — identical on every device, desktop's file name; column choice saved per account (migration NOT YET APPLIED)*; before that: *agents track — MANDA connected to Basecamp as project@ptmbs.co (CLI sign-in on v0.20.6; working route in §8.6)*; before that: *Archive / Restore inside the proposal editor too (acts on the newest version)*; before that: *EPC proposals: archive by hand (RPC proposal_set_archived, applied) — Archive / Move back to Active on the list, reason chips in Archived, Undo bar*; before that: *EPC proposals Card view: number + date on the top line too*; before that: *EPC proposals list: compact row leads with quote number + date; Sent is amber (tone-wait), header counts read the lifecycle colours*; before that: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
+**Last updated: 2026-11-25** · last change: *BrandMenu: clock + online pill are one right-aligned cluster, self-start below lg so the pill sits on the wordmark line (it hung half a line low beside the search icon on phones)*; before that: *agents track — purchasing runbook v10: asked to input = MIRA creates, our own PO skips the Inbox, new §9 a new supplier (Drive updated, briefs in the artifact)*; before that: *agents track — MANDA's Basecamp renewal FIXED: v0.20.6 sent the refresh without a User-Agent (Basecamp 400); `oauth.user_agent` set + fresh sign-in, renewal confirmed (§8.6)*; before that: *agents track — MANDA's Basecamp sign-in expired after a day (token renewal fails on Hermes v0.20.6); update plan in §8.6*; before that: *Corporate font back to IBM Plex + PROC back to slate-500 (owner prefers the old ones; white fields/hairline shadows kept); controls in one row share one height/radius/border (Proposals header, Sales filters, LayoutToggle, ComponentEditor row actions; BAR_SELECT_ON token); Residential: customer autocomplete (CRM + past proposals, links customer_id/customer_address, did-you-mean) and PLN connections from PLN's real table (lib/quickQuote PLN_CONNECTIONS — phase and MCB follow the VA)*; before that: *Corporate refresh (Inter, two-tone blue wordmark, white fields/controls with hairline shadows, primary-button depth, .75rem cards) + Quick quote renamed Residential (/proposals/residential; /quick redirects; Proposals buttons 'Residential' and 'New C&I proposal')*; before that: *Quick quote mounting layout — rows / portrait-landscape / mounting system / rail on metal & tile roofs, a to-scale sketch, and the mounting engine's real parts (rails, splices, clamps, L-feet, grounding) instead of the per-Wp line; tile roofs flag the hooks (no tile hook in the catalogue)*; before that: *Residential quick quote — /proposals/quick (phone survey → sized from the PLN bill, one inverter, rounded down → residential template priced from the editor's cost base → draft EPC proposal; concrete/flat roofs, far sites and cost-less items flagged 'price'); lib/quickQuote (+ test, Petojo golden), Settings › Quick quote*; before that: *nightly encrypted DB backup to Google Drive — ops/backup/icaproc-db-backup.sh on the VPS (root cron 19:30 UTC; pg_dump 17 → gpg AES-256 → shared drive ICAPROC BACKUPS, SA as Contributor); setup is the owner's hPanel paste (ops/backup/README.md)*; before that: *New Deal's "Upload Quote/PI" reads through the Inbox (lib/inboxClient sendToInbox; photos too; dup warnings on the banner; linked on save); /api/extract-pdf + lib/extractPdfClient deleted, dead PDF upload removed from BatchLineItemsForm — one reader*; before that: *Inbox second pass — one duplicate check (same / revision / inbox twin / lookalike, live on screen and for MIRA), photos shrunk to 1600 px, MIRA files done documents into the Drive order folder, ICAPROC's copy deleted 30 days after filing (cron), agent packs: purchasing runbook v9, sync runbook v11, schema v12*; before that: *the Inbox — zero-entry ERP, first stream: a supplier PI / quote (PDF or phone photo) is read by Claude, matched, and proposed as a deal; Create deal opens New Deal pre-filled, saving marks it Done and links quote/PO (table 43.0_inbox_items + bucket `inbox`, applied)*; before that: *server PDF: "↳" before component lines printed as an empty box — now drawn (SVG), symbol fallback fonts, glyph guard test*; before that: *EPC proposal PDF made on the server (same engine as desktop Chrome) — identical on every device, desktop's file name; column choice saved per account (migration NOT YET APPLIED)*; before that: *agents track — MANDA connected to Basecamp as project@ptmbs.co (CLI sign-in on v0.20.6; working route in §8.6)*; before that: *Archive / Restore inside the proposal editor too (acts on the newest version)*; before that: *EPC proposals: archive by hand (RPC proposal_set_archived, applied) — Archive / Move back to Active on the list, reason chips in Archived, Undo bar*; before that: *EPC proposals Card view: number + date on the top line too*; before that: *EPC proposals list: compact row leads with quote number + date; Sent is amber (tone-wait), header counts read the lifecycle colours*; before that: *overpayment credit counts as (negative) principal on every screen; PIO-016's kasbon refund re-filed as local_delivery*; before that: *names that did not say what they meant — ~60 renamed (one compiler-driven pass), two bugs they hid fixed: Items › Pricing TUC/USD rate, Payments single-PO paid*; before that: *Deal Lookup: "Mark as fully paid" hidden once the PO is settled (poBalance verdict)*; before that: *Deal Lookup PO money in two lines — cost + to transfer, then paid + rate; committed figure and the FX variance box folded in*; before that: *Deal Lookup opened-deal panel tidied — facts said once, full-width line items with a line total, delete at the bottom, line actions visible on touch, phone overflow fixed*; before that: *Deal Lookup redesign — two-line cards that say what is in the deal, one stage tag, aligned compact table, phone toolbar; settled-but-amber bar fixed*; before that: *proposal checks — AC cables need an earthing conductor (lib/proposalChecks; editor warns before Sent, list flags R6/R8B/R8C/Z8IB)*; before that: *third state-machine pass — Replaced POs are void everywhere (attention view, spend), "Active POs" = goods still owed, proposal save note colour, import re-check after remap*; before that: *lifecycles second pass — paid/delivered decided once in lib/salesSettlement (11 copies removed), six more lifecycles declared (19)*; before that: *true-up queue declared as a lifecycle (30.5 outcome CHECK); Deal Lookup PI/PO number editors no longer share one open draft*; before that: *serial register: Returned / Back on the shelf / Scrap buttons (lib/serials serialMoves)*; before that: *won and lost EPC proposals lock like sent (can_edit_quote / quotes unsend / guard_quote_unsend on sent+accepted+rejected)*; before that: *Lifecycle GROUPS — buy-side and sales readers count with named groups (same members), Deal Lookup status menus show next steps then corrections, agents get the groups*; before that: *Lifecycles declared in lib/lifecycles.ts — 12 state machines, screens read them, CHECKs on 10.0/22.0/24.0 status, agents get them in onboarding*; before that: *agents track — MANDA's leaked refresh token: all project@ptmbs.co sessions ended; approval-timeout + smart_policy + self-review-off cards (§8.6)*; before that: *Description libraries v2 — EPC + Sales libraries logged and undoable, one autocomplete (any word order, did-you-mean, main-component nudge), 7 main components moved into the Item Editor*; before that: *sell_admin never sees cost (owner: Ade only quotes at tier prices) — no Selling Prices, below_cost signal buy-side only*; before that: *EPC: engineers see Std Cost via /api/epc/costs (444 of 521 priced items read "no price data" since the 2026-09-16 buy-side read gate)*; before that: *8 sales reps given ICAPROC access (role `sales`, owner's request)*; before that: *agents track — purchasing sync runbook v10: file-name date = the document's date; v9: folder name `YYYYMMDD {PI} {PO}, SEA/AIR, [items]`, MIRA renames any folder; v8 §11.5 + `drive_order_folder` script, duplicate check before every Drive upload (§8.6)*; before that (2026-10-27): *§8: commands for the agents go in code blocks (Telegram turns -- into —)*; last module change: *Selling Prices replacement cost — Set Pricing / Prices / floor audit price on the next order's cost when dearer* (2026-10-27) — the head of `main` is `git log -1` (see §4, §6)
 
 > This file is ALWAYS at `docs/HANDOFF.md` — never date the filename, never
 > start a second copy. Every thread opens by reading it, and every thread that
@@ -380,6 +380,27 @@ check for duplicates? This is important."*
   ICAPROC-SCHEMA **v12** (`43.0_inbox_items`), INDEX. Drive ids: runbook v9
   `1ifc5PgPczI98i6-K4F0L4sqgtoZI84gd`, sync v11 `1yTl9MfKHuo_ismP5kXw_nmb9l6hXCZ5x`,
   schema v12 `1S0UbLPjnachIlY8p30g553yBEvBZXMFI`, INDEX `1VHLQYnMP6ERoNWKHr3UBTDNSjBPaHzxe`.
+  **Superseded 24 Nov by PURCHASING-RUNBOOK v10** (agents track, §8.6): the
+  owner sent two of our own POs with "help me input these PO", the first went
+  to the Inbox ("i thought MIRA can just write without going Inbox?"), and a
+  POWEREASE quote stopped on "the packs do not cover a new supplier" ("why the
+  new pack cannot create new supplier?"). v10: rule 8 — asked to input / enter
+  / create = she creates; our own PO never goes to the Inbox, it is created on
+  its quote; only an un-instructed supplier document goes to the Inbox. New
+  §9 — a new supplier, added by her from the supplier's own document after a
+  duplicate check (name, address, code); an existing supplier's bank details,
+  codes and merges stay with Eric; she creates the supplier's Drive folder in
+  the neighbours' pattern. Drive: runbook v10
+  `1zo40quugcFmYhLO5vMjOLIOKoZRXeLk5`, INDEX `1ZYNS9XQxvmAM-AktV_MIYPBFQ9_jAye6`;
+  v9 and the old INDEX trashed. Update messages for MIRA and MANDA are in the
+  briefing ("Runbook v10 · 24 Nov"). **MIRA confirmed the same day:** she
+  holds v10 and the 24 Nov INDEX (md5 = Drive), restated rule 8 correctly,
+  replaced her skill's cached v9, and rewrote the two old beliefs in her
+  skill text (Inbox-first; "ya" for a new supplier). Not confirmed: MANDA's
+  "read", and v10's first real use (an own PO, a new supplier). Facts of the day, read from the database: MIRA created EB.42658 /
+  EB.42659 on quotes KST226-6825 / -6826 (each PO adds CNY 8,300 freight to a
+  CIF quote — the owner's question to KSTAR is open) and supplier POWEREASE
+  GROUP INDO (code POWEREASE, 10:37 UTC) with quote SOPI00020 (Open, IDR).
 - NOT verified here: MIRA's first real filing run, and the cron on Vercel
   (check its first run's response with `?dry=1` if in doubt).
 
@@ -6950,7 +6971,92 @@ The step-by-step for the owner, with rollbacks, is in the briefing artifact
    Internal, Teknisi, Customer Service); nothing written. All Basecamp tools
    are enabled (no filter). Open: confirm those 7 are the intended projects
    and MANDA's Adminland permissions; her allowlist; her Basecamp rules
-   (what she may do alone / with a yes) for the next boot prompt. The
+   (what she may do alone / with a yes) for the next boot prompt. **24 Nov —
+   the connection lasted one day.** MANDA's own report: the token of 17 Nov
+   expired 2026-11-18 00:34 UTC, a refresh token exists, the automatic
+   refresh did not work, and `hermes mcp test basecamp` now wants a browser.
+   The 17 Nov source check covered the SIGN-IN on v0.20.6 only, not renewal.
+   Upstream fixed the refresh path repeatedly right after that build
+   (`9d865810b6` 09-08 keep refresh_token when the response omits it;
+   `47ee79a647` + the 09-15 "refresh fence" series for single-use refresh
+   tokens shared by two processes; `20d80bb36f` 09-15 expired cold-loaded
+   tokens; `4beb7e29a2` 09-13 unattended paths). MIRA on v0.21.5 has stayed
+   connected since 13 Oct. Exact cause on MANDA not yet read from her log.
+   Plan: re-login as a one-day stopgap; real fix = bring MANDA to the current
+   image (plain `docker run`, so pull + recreate with the same mounts and env
+   — read-only `docker inspect`, names only, first; snapshot before).
+   **Read the same day:** her log shows, at every 300 s self-probe,
+   `POST https://app.basecamp.com/oauth/tokens "HTTP/1.1 400 Bad Request"`
+   → `Token refresh failed: 400` → browser authorization required → server
+   parked. v0.20.6 does not log the response body (upstream `f44e73dab6`,
+   09-19, added a redacted excerpt), so the 400's reason is not known.
+   One candidate that can be tested without a rebuild: on v0.20.6 the
+   token-endpoint POSTs carry NO User-Agent unless
+   `mcp_servers.<name>.oauth.user_agent` is set (`token_request_user_agent`
+   in `tools/mcp_oauth.py` at 01740f35; the default
+   `Hermes-Agent/<version>` came with `af1ac349eb`, 09-19). Weak point: the
+   17 Nov code exchange went to the same endpoint without one and passed —
+   so a spent or refused refresh token is at least as likely. Card
+   "MANDA's Basecamp renewal · 24 Nov" (briefing, Version 64): 1) read-only
+   — token lifetime/expiry from `/opt/data/mcp-tokens/basecamp.json`
+   (fields only, no token) and the count of 200s vs 400s on `oauth/tokens`
+   in `/opt/data/logs/agent.log*`, which says whether ANY renewal ever
+   passed; 2) backup `config.yaml.bak-2026-11-24`, set
+   `oauth.user_agent Hermes-Agent/0.20.6`, `hermes mcp test basecamp`
+   WITHOUT `-it` (no TTY = it fails fast instead of waiting for a paste);
+   3) if it fails, `hermes mcp login basecamp` again, run alone; 4) restart
+   and read the new expiry — that hour is the real test of renewal. If it
+   fails again there, stop patching: update the container. Her container as
+   inspected (names only): image `ghcr.io/hostinger/hvps-hermes-agent:latest`
+   (an old pull), restart `unless-stopped`, network `bridge`, user root, no
+   published ports, entrypoint `/entrypoint.sh`; binds
+   `/root/.hermes-manda/config` → `/root/.hermes` AND → `/opt/data/.hermes`,
+   `/root/.hermes-manda/workspace` → `/opt/data`; env set at `docker run`
+   (names): HERMES_SYSTEM_PROMPT, HERMES_DASHBOARD_BASIC_AUTH_USERNAME /
+   _PASSWORD, AGENT_ID, GATEWAY_ALLOW_ALL_USERS, SMTP_HOST / _PORT / _USER /
+   _PASSWORD, TELEGRAM_BOT_TOKEN, ANTHROPIC_API_KEY, TELEGRAM_GROUP_POLICY.
+   A recreate must carry those values without printing them (write them to
+   a root-only env file from `docker inspect`, never to the screen) — or do
+   B3 (Compose + `.env`) in the same move. **Step 1 came back (24 Nov):**
+   a Basecamp pass lasts **3600 s** (not a day), hers ran out 2026-11-18
+   00:34 UTC, a refresh token is on file, and `agent.log*` holds **0**
+   accepted and **1,662** refused POSTs to `oauth/tokens` (first one logged
+   2026-11-18 20:56). So she had Basecamp for one hour and has never
+   renewed once — and any fix proves itself an hour after sign-in, not a
+   day. The gateway only tries to renew when Basecamp is used, so the check
+   is: 70 minutes after sign-in, ask her the Basecamp question, then re-run
+   step 1 (expiry moved forward, first count above 0 = fixed). **Step 2
+   came back:** `oauth.user_agent` is set (backup
+   `config.yaml.bak-2026-11-24`) and `hermes mcp test basecamp` still
+   failed in 3 s with "requires browser authorization" — the refresh token
+   on file is refused with the User-Agent too. That does not clear or
+   convict the setting (a token refused 1,662 times may simply be dead);
+   it stays on, and the hour after the fresh sign-in decides. **Steps
+   3–4 done:** signed in again, `hermes mcp test basecamp` → Connected,
+   **305 tools** (every one enabled, the permanent deletes and
+   `update_account_name` included — the tool filter is still owed),
+   container restarted, new pass expires **2026-11-24 08:14 UTC**. Not
+   confirmed yet at that point: whether she renews after 08:14 UTC.
+   **08:28 UTC, 14 minutes past expiry:** she answered the Basecamp check
+   from live calls (`get_me`, `list_projects`: MANDA, 7 projects) — the
+   first time she has had Basecamp beyond the first hour, so the renewal
+   very probably passed with `oauth.user_agent` set. Still owed as proof:
+   step 1 re-run (a later "expires", a 200 count above 0). If it holds,
+   the lesson for v0.20.6 is: **every `auth: oauth` MCP server needs
+   `oauth.user_agent`**, and the container update is no longer urgent for
+   Basecamp. Same day she renamed the active PROJECT cards on the owner's
+   yes (titles only; 72 "Not now" cards and one card in an unnamed column
+   left alone; "OBP & TG" waits for its meaning). **CONFIRMED 24 Nov:**
+   step 1 re-run shows `expires 2026-11-24 09:15 UTC` (was 08:14),
+   `lifetime_s 3585`, and 2 accepted POSTs to `oauth/tokens` where there
+   had been 0 — MANDA renews by herself. Cause: v0.20.6 sends the refresh
+   request with no User-Agent and Basecamp answers 400 to it (the code
+   exchange at sign-in passes without one, which is why sign-in worked and
+   renewal did not). Fix: `mcp_servers.basecamp.oauth.user_agent
+   Hermes-Agent/0.20.6` + one fresh `hermes mcp login`. Rule while she is
+   on v0.20.6: any `auth: oauth` MCP server gets `oauth.user_agent` when it
+   is added. The container update is no longer needed for Basecamp (still
+   B3 for its own reasons). Rollback: `config.yaml.bak-2026-11-24`. The
    grant is **full read and write**
    (Basecamp offers no read-only scope) — propose-first is held by the
    runbook, not by the token. Read from the owner's side the same day: MIRA
