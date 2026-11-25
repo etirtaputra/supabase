@@ -116,7 +116,7 @@ function HeaderClock({ dateElsewhere = false }: { dateElsewhere?: boolean }) {
   const timeOnly = comma >= 0 ? now.slice(comma + 2) : now;
   return (
     <Link href="/changelog" title={`${now} — What's New, the update log`}
-      className="ml-auto flex-shrink-0 text-[10px] sm:text-xs tabular-nums whitespace-nowrap text-slate-500 hover:text-emerald-300 transition-colors print:hidden">
+      className="h-7 inline-flex items-center flex-shrink-0 text-[10px] sm:text-xs tabular-nums whitespace-nowrap text-slate-500 hover:text-emerald-300 transition-colors print:hidden">
       {/* Phones (no nav groups) and wide desktops fit the full stamp; between
           lg and xl the nav + search already fill the bar, so the clock drops
           to time-only instead of painting over its neighbours.
@@ -673,9 +673,19 @@ export default function BrandMenu({
           right-aligns beside the wordmark, on desktop after the search. A page
           that shows its own status stamp (e.g. Spend & Cash's "Updated…")
           hides these to avoid two clocks colliding in a cramped header. */}
-      {showStatus && squeeze < 1 && <HeaderClock dateElsewhere={!!subtitle} />}
-      {/* Who else is in the system right now, and on which screen */}
-      {showStatus && <OnlineUsers />}
+      {/* One cluster, pushed right, for the clock and who's online. Below lg
+          it sits on the WORDMARK's line (self-start), not the centre of the
+          wordmark + page-name block: centred, the "● 2" pill hung half a line
+          below the logo and, with the clock squeezed out, drifted left beside
+          the search icon (owner's phone, 2026-11-25). The logo row is 28px on
+          a phone, the same as the pill's h-7, so their tops line up. */}
+      {showStatus && (
+        <div className="ml-auto flex items-center gap-2 flex-shrink-0 self-start lg:self-auto print:hidden">
+          {squeeze < 1 && <HeaderClock dateElsewhere={!!subtitle} />}
+          {/* Who else is in the system right now, and on which screen */}
+          <OnlineUsers />
+        </div>
+      )}
 
       {/* ── Mobile: fixed bottom tab bar (thumb reach) + More sheet.
              Portaled to <body>: page headers use backdrop-blur, which WebKit

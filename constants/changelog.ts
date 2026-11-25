@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-25T07:00:00Z",
+    title: "HP: tombol \"siapa yang online\" sejajar dengan logo",
+    details: [
+      "Di HP, tombol titik hijau dan jumlah orang yang online kini berada di baris logo ICAPROC, rata kanan bersama jam — sebelumnya turun setengah baris dan menempel di sebelah ikon cari.",
+    ],
+  },
+  {
     at: "2026-11-24T09:00:00Z",
     title: "Huruf dan warna PROC kembali seperti semula; kontrol satu ukuran; Rumah tinggal: daftar pelanggan dan daya PLN asli",
     details: [
