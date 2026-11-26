@@ -77,6 +77,13 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
     first: false,
   },
   {
+    id: 'mira-authority',
+    title: 'MIRA authority table: alone, when asked, yes first, never',
+    file: 'MIRA-AUTHORITY_v1_2026-11-26.md',
+    audience: 'MIRA and the owner: one page of who decides — a transcription of the purchasing runbook, the sync runbook and her boot prompt, which stay the authority',
+    first: false,
+  },
+  {
     id: 'spec-sources',
     title: 'Spec sources: datasheet, ICAPROC, websites — which number wins',
     file: 'SPEC-SOURCES-RUNBOOK_v1_2026-10-20.md',

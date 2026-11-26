@@ -36,6 +36,14 @@
   Rename a pack and you must update the registry in the same commit — `npm
   test` fails otherwise, and `/api/agent/onboarding` serves the same list.
 
+- **`docs/agents/MIRA-AUTHORITY_v<N>_…md` is a TRANSCRIPTION too** (2026-11-26,
+  owner: "start with the authority table for MIRA"): one page of what she does
+  alone, when asked, after a yes, and never. It adds no rule — every row cites
+  the purchasing runbook, the sync runbook or her boot prompt, and the source
+  wins. Bump one of those three and `lib/agentAuthority.test.ts` fails until
+  the table has been checked against the change and re-issued. Never put a
+  rule in the table that its source does not hold.
+
 ## Shipping a pack change to the agents (owner's rule, 2026-09-07)
 
 The owner is not technical and should not have to move files by hand. A thread
