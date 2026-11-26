@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-26T00:30:00Z",
+    title: "Daftar Proposal EPC: harga per Wp tampil lagi, juga di tampilan Compact",
+    details: [
+      "Harga per Wp (Rp…/Wp) hilang dari proposal-proposal terbaru: daftar hanya membaca 1.000 bagian proposal pertama, padahal kini ada lebih dari 1.300, sehingga baris panel surya proposal baru tidak dikenali. Kini semua dibaca.",
+      "Tampilan Compact kini punya kolom harga per Wp sendiri di sebelah kiri total; kolom nomor proposal sedikit lebih sempit di layar sedang (nomor lengkap muncul saat kursor diarahkan) agar total setiap baris tetap sejajar.",
+    ],
+  },
+  {
     at: "2026-11-25T07:30:00Z",
     title: "Proposal EPC: kolom TUC/Biaya dan Jual/Unit yang kosong kini hanya menampilkan \"0\"",
     details: [

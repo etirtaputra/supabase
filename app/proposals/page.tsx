@@ -221,10 +221,13 @@ export default function QuotesListPage() {
     // quietly dropping lines and under-stating the money on screen.
     void fetchAllRows<ListItem>((from, to) => supabase.from('10.2_quote_items')
       .select('quote_id, section_id, parent_item_id, component_id, description, unit, quantity, cost_price, sell_price')
-      .range(from, to)).then(({ rows }) => setAllItems(rows));
-    supabase.from('10.1_quote_sections')
-      .select('section_id, group_key')
-      .then(({ data }) => setSectionGroups(new Map((data ?? []).map((s) => [s.section_id as string, (s.group_key as string) ?? 'bos']))));
+      .order('item_id').range(from, to)).then(({ rows }) => setAllItems(rows));
+    // Paged too: sections passed the cap in 2026-11 (1,362), and a section
+    // missing from this map reads as 'bos' — the newest proposals lost their
+    // Solar panels group, so their Wp and price per Wp vanished from the list.
+    void fetchAllRows<{ section_id: string; group_key: string | null }>((from, to) => supabase.from('10.1_quote_sections')
+      .select('section_id, group_key').order('section_id').range(from, to))
+      .then(({ rows }) => setSectionGroups(new Map(rows.map((s) => [s.section_id, s.group_key ?? 'bos']))));
   }, [quotes]);
 
   // Totals per quote: subtotal excl. PPN + system Wp (Solar Panels group only,
@@ -650,13 +653,13 @@ export default function QuotesListPage() {
        widths so they line up as a column — then its state, then the site and
        the rest. The customer is already the section's header. */
     <div className="flex items-center gap-2 min-w-0">
-      <span className={`block font-mono text-[11px] truncate flex-shrink min-w-[4.5rem] w-[7.5rem] sm:flex-shrink-0 sm:w-[14rem] xl:w-[17rem] ${nested ? 'text-slate-500' : 'text-slate-200 font-semibold'}`}
+      <span className={`block font-mono text-[11px] truncate flex-shrink min-w-[4.5rem] w-[7.5rem] sm:flex-shrink-0 sm:w-[12rem] 2xl:w-[17rem] ${nested ? 'text-slate-500' : 'text-slate-200 font-semibold'}`}
         title={q.quote_number || undefined}>{q.quote_number || '—'}</span>
       <span className="hidden sm:block flex-shrink-0 w-[4.5rem] text-[11px] text-slate-500 tabular-nums">{fmtDate(q.quote_date)}</span>
       <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 text-center sm:w-[4.75rem] ${statusCls(q.status)}`}>{tr(statusLabel(q.status))}</span>
       {versions && versionsChip(versions)}
       {!nested && shelfChip(q, false)}
-      <span className={`text-[13px] truncate flex-shrink min-w-0 sm:min-w-[6rem] max-w-[40%] sm:max-w-[16rem] ${nested ? 'text-slate-500' : 'font-medium text-slate-300'}`} title={title}>{title}</span>
+      <span className={`text-[13px] truncate flex-shrink min-w-0 sm:min-w-[4rem] max-w-[40%] sm:max-w-[16rem] ${nested ? 'text-slate-500' : 'font-medium text-slate-300'}`} title={title}>{title}</span>
       {checkChip(q.quote_id, false)}
       {driftByQuote.has(q.quote_id) && (
         <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold whitespace-nowrap flex-shrink-0 bg-amber-500/15 text-amber-300"
@@ -684,6 +687,16 @@ export default function QuotesListPage() {
           amount sizes itself and the date steps aside (it's one tap
           away in the proposal). */}
       <span className="ml-auto flex items-center flex-shrink-0 tabular-nums">
+        {/* Price per Wp (owner, 2026-11-26: "in compact and card view"): its
+            own fixed column before the amount, empty when the proposal has
+            no panels, so the column stays straight. Phones skip it. To make
+            room, the number column above is 12rem until 2xl (it truncates,
+            full number on hover): at 17rem a row with a version chip ran
+            past its edge on a 1440px screen and its money lost the column. */}
+        <span className="hidden sm:inline-block w-[6.5rem] text-right whitespace-nowrap text-[11px] text-amber-300/90"
+          title={t && t.wp > 0 ? `System size ${t.wp.toLocaleString('en-US')} Wp — price per Wp excl. PPN` : undefined}>
+          {t && t.subtotal > 0 && t.wp > 0 ? `${fmtRp(t.subtotal / t.wp)}/Wp` : ''}
+        </span>
         <span className="sm:w-[9rem] text-right whitespace-nowrap text-[13px] font-bold text-slate-100">
           {t && t.subtotal > 0 ? fmtRp(t.subtotal) : ''}
         </span>
