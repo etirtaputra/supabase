@@ -2901,6 +2901,8 @@ export const ID: Record<string, string> = {
   'month': 'bulan',
   'Array': 'Larik panel',
   'excl. PPN': 'belum PPN',
+  'Price / Wp': 'Harga / Wp',
+  'from the kWp typed above': 'dari kWp yang diisi di atas',
   '{n} line(s) go in without a price, flagged for you:': '{n} baris masuk tanpa harga, ditandai untuk Anda:',
   'All {n} lines': 'Semua {n} baris',
   'to price': 'perlu harga',

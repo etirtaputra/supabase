@@ -15,7 +15,7 @@ import { useExportCols } from '@/hooks/useExportCols';
 import { quoteFileName } from '@/lib/quoteFilename';
 import { useDragReorder, DRAGGING_ROW, REORDER_ROW } from '@/components/ui/dragReorder';
 import QuoteNoteThread from '@/components/ui/QuoteNoteThread';
-import { lineWp, wpPerModule } from '@/lib/quoteWp';
+import { lineWp, wpPerModule, systemWp } from '@/lib/quoteWp';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import MobileNotice from '@/components/ui/MobileNotice';
 import DocumentPresence from '@/components/ui/DocumentPresence';
@@ -1413,6 +1413,9 @@ export default function QuoteEditorPage() {
       missingSell: missing,
     };
   }, [sections, quote?.ppn_pct, itemWp]);
+  // What every "per Wp" on this screen divides by: the panel lines, else the
+  // typed PV Modules kWp (lib/quoteWp systemWp — the same rule as the list).
+  const priceWp = useMemo(() => systemWp(totalWp, quote?.system_specs?.kwp_dc), [totalWp, quote?.system_specs?.kwp_dc]);
 
   /**
    * The system size the quote's OWN items describe: modules for DC, inverters
@@ -2665,6 +2668,17 @@ export default function QuoteEditorPage() {
                   derived={derived.kwh_bess} derivedNote="Total kWh of the battery lines"
                   onChange={(v) => updateProject({ specs: { kwh_bess: v } })} />
               )}
+              {/* Price per Wp, beside the sizes it is measured against (owner,
+                  2026-11-26) — read-only, it follows the lines as you price. */}
+              <div className="w-40">
+                <label className="block text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t('Price / Wp')}</label>
+                <div className="flex items-baseline justify-end gap-1.5 border-b border-transparent py-1"
+                  title={priceWp.wp > 0 ? `${fmtIdr(subtotal)} ÷ ${priceWp.wp.toLocaleString('en-US')} Wp${priceWp.fromSpecs ? ' (PV Modules kWp DC — no panel lines to count)' : ''}` : undefined}>
+                  <span className="text-sm font-semibold text-amber-300 tabular-nums">{priceWp.wp > 0 && subtotal > 0 ? fmtIdr(subtotal / priceWp.wp) : '—'}</span>
+                  <span className="text-[10px] text-slate-500 whitespace-nowrap">{t('excl. PPN')}</span>
+                </div>
+                {priceWp.fromSpecs && subtotal > 0 && <p className="mt-0.5 text-[10px] text-slate-500 text-right">{t('from the kWp typed above')}</p>}
+              </div>
             </div>
           )}
           {(quote.project_type as ProjectType) === 'evcs' && (
@@ -2897,9 +2911,9 @@ export default function QuoteEditorPage() {
                           {((secSubtotal / subtotal) * 100).toLocaleString('en-US', { maximumFractionDigits: 1 })}%
                         </span>
                       )}
-                      {totalWp > 0 && (
+                      {priceWp.wp > 0 && (
                         <span className="ml-1.5 text-emerald-400/90 font-semibold" title="This section's contribution to price per Wp (excl. PPN)">
-                          {fmtIdr(secSubtotal / totalWp)}/Wp
+                          {fmtIdr(secSubtotal / priceWp.wp)}/Wp
                         </span>
                       )}
                     </span>
@@ -3582,18 +3596,18 @@ export default function QuoteEditorPage() {
               <span className="text-white">Grand Total</span>
               <span className="text-white tabular-nums">{fmtIdr(grandTotal)}</span>
             </div>
-            {totalWp > 0 && (
+            {priceWp.wp > 0 && (
               <div className="border-t border-slate-800 pt-2 mt-2 space-y-1.5">
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Harga per Wp (Exc. PPN{quote.ppn_pct}%)</span>
-                  <span className="text-amber-300 font-semibold tabular-nums">{fmtIdr(subtotal / totalWp)}</span>
+                  <span className="text-amber-300 font-semibold tabular-nums">{fmtIdr(subtotal / priceWp.wp)}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Harga per Wp (Inc. PPN{quote.ppn_pct}%)</span>
-                  <span className="text-slate-200 font-semibold tabular-nums">{fmtIdr(grandTotal / totalWp)}</span>
+                  <span className="text-slate-200 font-semibold tabular-nums">{fmtIdr(grandTotal / priceWp.wp)}</span>
                 </div>
                 <p className="text-right text-[10px] text-slate-600">
-                  system size {totalWp.toLocaleString('en-US')} Wp
+                  system size {priceWp.wp.toLocaleString('en-US')} Wp{priceWp.fromSpecs ? ' (PV Modules kWp DC — no panel lines to count)' : ''}
                 </p>
               </div>
             )}
@@ -3828,8 +3842,8 @@ export default function QuoteEditorPage() {
           <div className="max-w-[1600px] 2xl:max-w-[2120px] mx-auto px-3 sm:px-6 py-2.5 flex items-center gap-4 sm:gap-5 text-xs overflow-x-auto whitespace-nowrap scrollbar-none">
             <span className="text-slate-500">Subtotal <span className="ml-1 text-slate-200 font-semibold tabular-nums">{fmtIdr(subtotal)}</span></span>
             <span className="text-slate-500">Grand Total <span className="ml-1 text-white font-bold tabular-nums">{fmtIdr(grandTotal)}</span></span>
-            {totalWp > 0 && (
-              <span className="text-slate-500">per Wp <span className="ml-1 text-amber-300 font-semibold tabular-nums">{fmtIdr(subtotal / totalWp)}</span></span>
+            {priceWp.wp > 0 && (
+              <span className="text-slate-500">per Wp <span className="ml-1 text-amber-300 font-semibold tabular-nums">{fmtIdr(subtotal / priceWp.wp)}</span></span>
             )}
             {quote.system_specs?.kwp_dc && (
               <span className="text-slate-500">DC <span className="ml-1 text-slate-200 font-semibold tabular-nums">{quote.system_specs.kwp_dc} kWp</span></span>

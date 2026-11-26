@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-26T01:30:00Z",
+    title: "Editor Proposal EPC: harga per Wp di bagian atas",
+    details: [
+      "Kotak baru \"Harga / Wp\" (belum PPN) di samping PV Modules dan Inverters, langsung mengikuti harga yang Anda isi. Harga per Wp di bagian ringkasan, kepala tiap bagian, dan bilah bawah tetap ada.",
+      "Proposal tanpa baris panel surya yang bisa dihitung kini memakai kWp yang diisi di PV Modules (ditandai \"dari kWp yang diisi di atas\") — di editor dan di daftar Proposal.",
+    ],
+  },
+  {
     at: "2026-11-26T01:00:00Z",
     title: "HP: harga per Wp di daftar Proposal EPC (tampilan Compact)",
     details: [

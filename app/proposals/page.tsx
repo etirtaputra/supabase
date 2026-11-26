@@ -14,7 +14,7 @@ import { computeTUCMap, pickCost, fxFromHistory, type CostEntry } from '@/lib/co
 import { useEpcCostBase } from '@/hooks/useEpcCostBase';
 import { deriveExchangeRates } from '@/lib/exchangeRates';
 import { fetchUsedEntries } from '@/lib/usedPrices';
-import { lineWp } from '@/lib/quoteWp';
+import { lineWp, systemWp } from '@/lib/quoteWp';
 import { fmtDay, fmtDayTime, fmtRp } from '@/lib/formatters';
 import { useSettings } from '@/hooks/useSettings';
 import LayoutToggle from '@/components/ui/LayoutToggle';
@@ -248,8 +248,14 @@ export default function QuotesListPage() {
       }
       map.set(it.quote_id, t);
     }
+    // No panel lines to count: the typed PV Modules kWp stands in (lib/quoteWp
+    // systemWp — the same rule as the editor).
+    for (const q of quotes) {
+      const t = map.get(q.quote_id);
+      if (t && t.wp <= 0) t.wp = systemWp(0, q.system_specs?.kwp_dc).wp;
+    }
     return map;
-  }, [allItems, sectionGroups, catalog.components]);
+  }, [allItems, sectionGroups, catalog.components, quotes]);
 
   // Per-item Cost Basis settings for Project Quotes (mode + buffer). The global
   // buffer and the drift threshold both live in Settings › Defaults.

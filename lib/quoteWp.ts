@@ -34,3 +34,17 @@ export function lineWp(
   if (item.unit.trim().toLowerCase() === 'wp') return item.quantity;
   return item.quantity * wpPerModule(components, item.component_id, item.description);
 }
+
+/**
+ * The Wp a price per Wp is divided by (owner, 2026-11-26: "show the price per
+ * Wp in the proposal editor too"). The Solar Panels lines decide when there
+ * are any — the items ARE the system. Only when none can be counted does the
+ * typed "PV Modules kWp DC" stand in (a lump-sum PV line, panels kept in
+ * another section), and `fromSpecs` says so, so a screen can say where the
+ * figure came from.
+ */
+export function systemWp(linesWp: number, kwpDc: unknown): { wp: number; fromSpecs: boolean } {
+  if (linesWp > 0) return { wp: linesWp, fromSpecs: false };
+  const k = Number(kwpDc);
+  return Number.isFinite(k) && k > 0 ? { wp: k * 1000, fromSpecs: true } : { wp: 0, fromSpecs: false };
+}
