@@ -583,7 +583,9 @@ export default function QuotesListPage() {
    * a link, and a button inside a link is not valid HTML. Click and Enter/Space
    * toggle the versions without opening the proposal.
    */
-  const versionsChip = (v: { count: number; open: boolean; onToggle: () => void }) => {
+  // `short`: the compact row on a phone shows the icon and the count only —
+  // "11 earlier versions" was wide enough to push the amount off the screen.
+  const versionsChip = (v: { count: number; open: boolean; onToggle: () => void }, short = false) => {
     const toggle = (e: React.SyntheticEvent) => { e.preventDefault(); e.stopPropagation(); v.onToggle(); };
     return (
       <span role="button" tabIndex={0} aria-expanded={v.open} onClick={toggle}
@@ -595,7 +597,8 @@ export default function QuotesListPage() {
         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
           <rect x="7" y="7" width="13" height="13" rx="2" /><path d="M4 16V6a2 2 0 0 1 2-2h10" />
         </svg>
-        {v.count === 1 ? tr('1 earlier version') : tf('{n} earlier versions', { n: v.count })}
+        {short && <span className="sm:hidden">{v.count}</span>}
+        <span className={short ? 'hidden sm:inline' : undefined}>{v.count === 1 ? tr('1 earlier version') : tf('{n} earlier versions', { n: v.count })}</span>
         <svg className={`w-3 h-3 transition-transform ${v.open ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
           <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -657,7 +660,7 @@ export default function QuotesListPage() {
         title={q.quote_number || undefined}>{q.quote_number || '—'}</span>
       <span className="hidden sm:block flex-shrink-0 w-[4.5rem] text-[11px] text-slate-500 tabular-nums">{fmtDate(q.quote_date)}</span>
       <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider whitespace-nowrap flex-shrink-0 text-center sm:w-[4.75rem] ${statusCls(q.status)}`}>{tr(statusLabel(q.status))}</span>
-      {versions && versionsChip(versions)}
+      {versions && versionsChip(versions, true)}
       {!nested && shelfChip(q, false)}
       <span className={`text-[13px] truncate flex-shrink min-w-0 sm:min-w-[4rem] max-w-[40%] sm:max-w-[16rem] ${nested ? 'text-slate-500' : 'font-medium text-slate-300'}`} title={title}>{title}</span>
       {checkChip(q.quote_id, false)}
@@ -686,14 +689,16 @@ export default function QuotesListPage() {
           a fixed width would drag the page sideways, so there the
           amount sizes itself and the date steps aside (it's one tap
           away in the proposal). */}
-      <span className="ml-auto flex items-center flex-shrink-0 tabular-nums">
+      <span className="ml-auto flex flex-col items-end sm:flex-row sm:items-center flex-shrink-0 tabular-nums">
         {/* Price per Wp (owner, 2026-11-26: "in compact and card view"): its
             own fixed column before the amount, empty when the proposal has
-            no panels, so the column stays straight. Phones skip it. To make
+            no panels, so the column stays straight. On a phone it sits UNDER
+            the amount (owner, 2026-11-26: "show the price per Wp on phone
+            too") — a row is too narrow for a second column there. To make
             room, the number column above is 12rem until 2xl (it truncates,
             full number on hover): at 17rem a row with a version chip ran
             past its edge on a 1440px screen and its money lost the column. */}
-        <span className="hidden sm:inline-block w-[6.5rem] text-right whitespace-nowrap text-[11px] text-amber-300/90"
+        <span className={`${t && t.subtotal > 0 && t.wp > 0 ? 'block' : 'hidden'} sm:inline-block order-2 sm:order-none sm:w-[6.5rem] text-right whitespace-nowrap text-[10px] sm:text-[11px] leading-tight text-amber-300/90`}
           title={t && t.wp > 0 ? `System size ${t.wp.toLocaleString('en-US')} Wp — price per Wp excl. PPN` : undefined}>
           {t && t.subtotal > 0 && t.wp > 0 ? `${fmtRp(t.subtotal / t.wp)}/Wp` : ''}
         </span>

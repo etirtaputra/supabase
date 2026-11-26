@@ -20,6 +20,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-26T01:00:00Z",
+    title: "HP: harga per Wp di daftar Proposal EPC (tampilan Compact)",
+    details: [
+      "Di HP, harga per Wp kini tampil kecil di bawah total setiap proposal. Tanda versi lama di baris Compact cukup ikon dan angkanya (mis. \"11\") agar total tidak terpotong di tepi layar.",
+    ],
+  },
+  {
     at: "2026-11-26T00:30:00Z",
     title: "Daftar Proposal EPC: harga per Wp tampil lagi, juga di tampilan Compact",
     details: [
