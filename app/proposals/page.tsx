@@ -22,7 +22,7 @@ import { useListLayout } from '@/hooks/useListLayout';
 import MigrationBanner from '@/components/ui/MigrationBanner';
 import BrandMenu from '@/components/ui/BrandMenu';
 import MobileNotice from '@/components/ui/MobileNotice';
-import { PROJECT_TYPES } from '@/lib/projectSpec';
+import { PROJECT_TYPES, specsForType, type SystemSpecs } from '@/lib/projectSpec';
 import { SECTION_GROUPS, STANDARD_SECTIONS, type ProjectQuote } from '@/types/quotes';
 import { useEpcLobby, type LobbyPeer } from '@/hooks/useEpcLobby';
 import { initials, firstName } from '@/lib/presence';
@@ -497,7 +497,8 @@ export default function QuotesListPage() {
       if ('company_id' in src) newQuote.company_id = src.company_id ?? null;
       if ('group_margins' in src) newQuote.group_margins = src.group_margins ?? {};
       if ('project_type' in src) newQuote.project_type = src.project_type ?? 'custom';
-      if ('system_specs' in src) newQuote.system_specs = src.system_specs ?? {};
+      // A copy never carries a field its type cannot hold (lib/projectSpec specsForType).
+      if ('system_specs' in src) newQuote.system_specs = specsForType(src.project_type, (src.system_specs as SystemSpecs) ?? {});
       if ('location' in src) newQuote.location = src.location ?? '';
       const { error: qErr } = await supabase.from('10.0_project_quotes').insert(newQuote);
       if (qErr) throw qErr;

@@ -31,6 +31,23 @@ export const PROJECT_TYPES: { key: ProjectType; label: string }[] = [
   { key: 'custom',      label: 'Custom / Other' },
 ];
 
+/**
+ * The specs a project type can hold. An on-grid system has no storage, so it
+ * keeps no BESS energy (kwh_bess) and no PCS power (kw_pcs). Without this, a
+ * hybrid proposal duplicated and switched to on-grid carried its 104.4 kWh
+ * along unseen (Q-20261125-BZ2E, found 2026-11-27): nothing on screen showed
+ * it, but switching back to hybrid brought the stale figure back, and every
+ * duplicate copied it on. Other types are returned unchanged. Pure: callers
+ * use it where a TYPE CHANGES or a proposal is COPIED; rows already saved are
+ * left as they are (cleanup is the owner's decision).
+ */
+export function specsForType(type: ProjectType | string | null | undefined, specs: SystemSpecs): SystemSpecs {
+  if (type !== 'on_grid') return specs;
+  if (!('kwh_bess' in specs) && !('kw_pcs' in specs)) return specs;
+  const { kwh_bess: _bess, kw_pcs: _pcs, ...rest } = specs;
+  return rest;
+}
+
 /** Whether this project type uses the PV capacity fields (DC/AC/BESS). */
 export const isSolarType = (t: ProjectType | string | null | undefined) =>
   t === 'on_grid' || t === 'hybrid_bess' || t === 'off_grid';

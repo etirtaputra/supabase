@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-27T03:00:00Z",
+    title: "Proposal EPC: proposal On-Grid tidak lagi menyimpan kapasitas BESS/PCS",
+    details: [
+      "Saat jenis proyek diganti menjadi PV On-Grid, atau proposal On-Grid diduplikasi, isian BESS (kWh) dan PCS (kW) kini dibuang — sistem On-Grid tidak punya baterai. Sebelumnya angka itu tersimpan diam-diam dan muncul lagi bila jenisnya dikembalikan ke Hybrid.",
+      "Proposal yang sudah tersimpan tidak diubah; pembersihannya menunggu persetujuan.",
+    ],
+  },
+  {
     at: "2026-11-26T01:30:00Z",
     title: "Editor Proposal EPC: harga per Wp di bagian atas",
     details: [

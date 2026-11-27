@@ -27,7 +27,7 @@ import { evalFormula } from '@/lib/formula';
 import ProposalFieldInput from '@/components/ui/ProposalFieldInput';
 import EnergyEconomicsCard from '@/components/ui/EnergyEconomicsCard';
 import type { EconAssumptions } from '@/lib/energyEconomics';
-import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
+import { PROJECT_TYPES, composeDescription, specFileTag, isSolarType, specsForType, type ProjectType, type SystemSpecs, type Phase } from '@/lib/projectSpec';
 import { storageSize } from '@/lib/quoteStorage';
 import { lineAcWatts } from '@/lib/quoteAc';
 import { SECTION_GROUPS, STANDARD_SECTIONS, QUOTE_UNITS, type SectionGroup, type ProjectQuote, type QuoteSection, type QuoteItem } from '@/types/quotes';
@@ -1467,7 +1467,9 @@ export default function QuoteEditorPage() {
     setQuote((q) => {
       if (!q) return q;
       const type = (patch.project_type ?? (q.project_type as ProjectType)) || 'custom';
-      const specs: SystemSpecs = { ...(q.system_specs ?? {}), ...(patch.specs ?? {}) };
+      // A type change drops the fields the new type cannot hold (on-grid: no
+      // BESS, no PCS) — lib/projectSpec specsForType.
+      const specs: SystemSpecs = specsForType(type, { ...(q.system_specs ?? {}), ...(patch.specs ?? {}) });
       const location = patch.location ?? (q.location ?? '');
       const description = type === 'custom'
         ? q.project_description
