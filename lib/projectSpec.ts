@@ -32,20 +32,43 @@ export const PROJECT_TYPES: { key: ProjectType; label: string }[] = [
 ];
 
 /**
- * The specs a project type can hold. An on-grid system has no storage, so it
- * keeps no BESS energy (kwh_bess) and no PCS power (kw_pcs). Without this, a
- * hybrid proposal duplicated and switched to on-grid carried its 104.4 kWh
- * along unseen (Q-20261125-BZ2E, found 2026-11-27): nothing on screen showed
- * it, but switching back to hybrid brought the stale figure back, and every
- * duplicate copied it on. Other types are returned unchanged. Pure: callers
- * use it where a TYPE CHANGES or a proposal is COPIED; rows already saved are
- * left as they are (cleanup is the owner's decision).
+ * The capacities each project type can hold — exactly the boxes the editor
+ * shows for it. Found 2026-11-27 (Q-20261125-BZ2E): a hybrid proposal
+ * duplicated and switched to on-grid kept its 104.4 kWh BESS unseen; switching
+ * back brought the stale figure back, and every duplicate copied it on. The
+ * owner then asked for every direction ("vice versa … off-grid to on-grid"),
+ * so this is one table, not a rule per pair:
+ *   on-grid   PV kWp, inverter kW        (no storage)
+ *   hybrid    PV kWp, inverter kW, PCS kW, BESS kWh
+ *   off-grid  PV kWp, inverter kW, BESS kWh   (no PCS box)
+ *   EV        charger kW, phase
+ * `econ` (the energy-economics assumptions) is not a capacity: it is kept
+ * whatever the type, so a type switched and back does not lose typed tariffs.
+ * Custom is left untouched — it shows no boxes and composes no text, and a
+ * detour through it must not erase a solar proposal's sizes.
+ */
+const CAPACITY_KEYS = ['kwp_dc', 'kw_ac', 'kw_pcs', 'kwh_bess', 'kw_evcs', 'phase'] as const;
+const KEEPS: Partial<Record<ProjectType, readonly (typeof CAPACITY_KEYS)[number][]>> = {
+  on_grid: ['kwp_dc', 'kw_ac'],
+  hybrid_bess: ['kwp_dc', 'kw_ac', 'kw_pcs', 'kwh_bess'],
+  off_grid: ['kwp_dc', 'kw_ac', 'kwh_bess'],
+  evcs: ['kw_evcs', 'phase'],
+};
+
+/**
+ * The specs with every capacity the type cannot hold removed. Pure; returns
+ * the same object when there is nothing to drop. Callers use it where a TYPE
+ * CHANGES or a proposal is COPIED; rows already saved are left as they are
+ * (cleanup is the owner's decision).
  */
 export function specsForType(type: ProjectType | string | null | undefined, specs: SystemSpecs): SystemSpecs {
-  if (type !== 'on_grid') return specs;
-  if (!('kwh_bess' in specs) && !('kw_pcs' in specs)) return specs;
-  const { kwh_bess: _bess, kw_pcs: _pcs, ...rest } = specs;
-  return rest;
+  const keeps = KEEPS[type as ProjectType];
+  if (!keeps) return specs;
+  const drop = CAPACITY_KEYS.filter((k) => !keeps.includes(k) && k in specs);
+  if (!drop.length) return specs;
+  const out: SystemSpecs = { ...specs };
+  for (const k of drop) delete out[k];
+  return out;
 }
 
 /** Whether this project type uses the PV capacity fields (DC/AC/BESS). */

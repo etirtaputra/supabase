@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-27T04:00:00Z",
+    title: "Proposal EPC: ganti jenis proyek ke arah mana pun kini membuang kapasitas yang tidak dipakai",
+    details: [
+      "Setiap jenis hanya menyimpan kapasitas yang kotaknya tampil: On-Grid (PV, inverter), Hybrid (PV, inverter, PCS, BESS), Off-Grid (PV, inverter, BESS), EV Charging (daya charger, fase). Berlaku saat jenis diganti dan saat diduplikasi, ke arah mana pun.",
+      "Asumsi ekonomi energi (tarif, umur, dll.) tetap disimpan. Jenis Custom tidak mengubah apa pun. Proposal yang sudah tersimpan tidak diubah.",
+    ],
+  },
+  {
     at: "2026-11-27T03:00:00Z",
     title: "Proposal EPC: proposal On-Grid tidak lagi menyimpan kapasitas BESS/PCS",
     details: [
