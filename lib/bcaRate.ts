@@ -1,6 +1,6 @@
 /**
  * The morning check against KlikBCA e-Rate (owner, 2026-10-24): "use BCA
- * e-Rate, warn above 1.5% … round up to the nearest hundreds digit — if the
+ * e-Rate, warn above 1.5% [2026-11-28: every 100, FOLLOW_STEP] … round up to the nearest hundreds digit — if the
  * USD e-rate is 18.128, use 18.200, if CNY / CNH is 2.745 use 2.800. Check
  * daily every morning. and update itself." And: "this is supposed to be
  * KlikBCA e-Rate not TT Counter".
@@ -13,8 +13,17 @@
 
 /** Our benchmark currency → BCA's code for it. */
 export const BCA_CODES: Record<string, string> = { USD: 'USD', CNY: 'CNH' };
-/** The company rate follows the e-Rate once they are this far apart. */
-export const FOLLOW_PCT = 1.5;
+/**
+ * The company rate follows the e-Rate (rounded up) as soon as the two differ
+ * by this much, either way. Owner, 2026-11-28: "change to whenever it changes
+ * by 100" — it was 1.5% from 2026-10-24 (USD sat at 18,400 against a company
+ * 18,200, 1.1%, and did not follow). The rounded figure moves in steps of
+ * 100, so in practice: whenever it lands on a different hundred.
+ */
+export const FOLLOW_STEP = 100;
+
+/** Would the morning check move the company rate to `target`? */
+export const followsAt = (target: number, current: number): boolean => Math.abs(target - current) >= FOLLOW_STEP;
 /**
  * What a parsed figure must look like before anything is written: a misread
  * page must never become the company rate.
@@ -89,10 +98,9 @@ export interface FollowDecision {
 /**
  * Should the company rate follow this morning's e-Rate?
  *
- * Only when it has moved more than 1.5% (either way) from the rate in force,
- * or when there is no rate yet. Inside that band the rate stays put, so the
- * company rate does not twitch every morning and POs a day apart are planned
- * at the same figure.
+ * When the rounded-up e-Rate differs from the rate in force by FOLLOW_STEP
+ * (100) or more, either way, or when there is no rate yet. A figure inside the
+ * same hundred leaves it alone.
  */
 export function decideFollow(currency: string, sell: number, current: number | null): FollowDecision {
   const target = roundUpToHundred(sell);
@@ -100,6 +108,6 @@ export function decideFollow(currency: string, sell: number, current: number | n
   if (!(sell >= lo && sell <= hi)) return { currency, sell, target, current, changePct: null, update: false, reason: 'insane' };
   if (!current) return { currency, sell, target, current, changePct: null, update: true, reason: 'no-rate-yet' };
   const changePct = (target / current - 1) * 100;
-  const update = Math.abs(changePct) > FOLLOW_PCT;
+  const update = followsAt(target, current);
   return { currency, sell, target, current, changePct, update, reason: update ? 'moved' : 'within' };
 }

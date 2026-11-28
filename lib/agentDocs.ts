@@ -30,14 +30,14 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'schema',
     title: 'ICAPROC schema map',
-    file: 'ICAPROC-SCHEMA_v12_2026-11-22.md',
+    file: 'ICAPROC-SCHEMA_v13_2026-11-28.md',
     audience: 'every agent, before its first query',
     first: true,
   },
   {
     id: 'purchasing-runbook',
     title: 'Purchasing runbook (buy side)',
-    file: 'PURCHASING-RUNBOOK_v10_2026-11-24.md',
+    file: 'PURCHASING-RUNBOOK_v11_2026-11-28.md',
     audience: 'buy-side agents: the Inbox (supplier documents in, duplicates checked), new suppliers, quotes, POs, payments, landed cost',
     first: false,
   },
@@ -79,7 +79,7 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'mira-authority',
     title: 'MIRA authority table: alone, when asked, yes first, never',
-    file: 'MIRA-AUTHORITY_v1_2026-11-26.md',
+    file: 'MIRA-AUTHORITY_v2_2026-11-28.md',
     audience: 'MIRA and the owner: one page of who decides — a transcription of the purchasing runbook, the sync runbook and her boot prompt, which stay the authority',
     first: false,
   },

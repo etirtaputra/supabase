@@ -16,7 +16,7 @@ import { leadDigest, type ShipVia, type SupplierLead } from '@/lib/supplierLeadT
 import type { RolePermissions } from '@/constants/roles';
 import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { currentBenchmarks, benchmarkLog, type FxReference } from '@/lib/fxBenchmark';
-import { BCA_CODES, FOLLOW_PCT, roundUpToHundred } from '@/lib/bcaRate';
+import { BCA_CODES, followsAt, roundUpToHundred } from '@/lib/bcaRate';
 import { personName } from '@/lib/quoteFlags';
 
 /**
@@ -476,7 +476,7 @@ export function FxRatesCard() {
                   <span className="text-right min-w-0">
                     <span className="block text-[10px] uppercase tracking-wider text-slate-500">{t('Company rate')}</span>
                     <span className="text-base font-bold text-white tabular-nums">{company ? fmtInt(Number(company.rate)) : '—'}</span>
-                    {apart != null && Math.abs(apart) > FOLLOW_PCT && (
+                    {apart != null && rounded != null && company && followsAt(rounded, Number(company.rate)) && (
                       <span className="block text-[11px] text-amber-300 tabular-nums">{tf('{pct}% apart', { pct: apart.toFixed(1) })}</span>
                     )}
                   </span>

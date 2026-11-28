@@ -3,6 +3,10 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v2, 2026-11-28** — re-checked against Purchasing runbook v11 (the company
+> rate now follows the e-Rate at every 100, not 1.5%). No row changed: the rows
+> on rates say who may write them, not how often they move.
+>
 > **v1, 2026-11-26.** Owner, after two questions in one day ("i thought MIRA
 > can just write without going Inbox?", "why the new pack cannot create new
 > supplier?"): one page that says what MIRA does alone, when asked, after a
@@ -16,7 +20,7 @@ follow the source.
 Transcribed from (the build fails when one of these is replaced and this table
 is not checked again):
 
-- `PURCHASING-RUNBOOK_v10_2026-11-24.md` — **P**
+- `PURCHASING-RUNBOOK_v11_2026-11-28.md` — **P**
 - `PURCHASING-SYNC-RUNBOOK_v11_2026-11-22.md` — **S**
 - `MIRA-BOOT-PROMPT_v3_2026-10-26.md` — **B**
 

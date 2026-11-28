@@ -20,6 +20,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    at: "2026-11-28T08:00:00Z",
+    title: "Kurs perusahaan USD 18.400; kini mengikuti KlikBCA setiap selisih 100",
+    details: [
+      "Kurs perusahaan USD diset ke 18.400 (KlikBCA e-Rate jual 18.399 pagi ini, dibulatkan ke atas). Hanya untuk PO baru; PO yang sudah tersimpan tetap dengan kursnya.",
+      "Pemeriksaan pagi kini memperbarui kurs perusahaan setiap kali e-Rate (dibulatkan ke atas ke ratusan) berselisih 100 atau lebih, naik maupun turun — sebelumnya baru bila lebih dari 1,5%.",
+    ],
+  },
+  {
     at: "2026-11-27T04:00:00Z",
     title: "Proposal EPC: ganti jenis proyek ke arah mana pun kini membuang kapasitas yang tidak dipakai",
     details: [

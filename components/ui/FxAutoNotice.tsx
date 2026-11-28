@@ -5,19 +5,19 @@ import { useT } from '@/hooks/useT';
 import { useFxBenchmarks } from '@/hooks/useFxBenchmarks';
 import { benchmarkLog } from '@/lib/fxBenchmark';
 import { fmtDay, fmtInt } from '@/lib/formatters';
-import { FOLLOW_PCT } from '@/lib/bcaRate';
+import { FOLLOW_STEP } from '@/lib/bcaRate';
 
 /** How long an automatic change stays on the Dashboard. */
 const SHOW_DAYS = 3;
 
 /**
  * "The company rate moved by itself" — the warning half of the morning KlikBCA
- * check (owner, 2026-10-24: "warn above 1.5% … update itself"). When the
+ * check (owner, 2026-10-24: "warn above 1.5% … update itself"; every 100 since 2026-11-28). When the
  * check moved a rate in the last few days, say so where the day starts: new
  * POs and quotes are now planned at it. Nothing when nothing moved.
  */
 export default function FxAutoNotice() {
-  const { t, tf, lang } = useT();
+  const { t, tf } = useT();
   const { rows } = useFxBenchmarks();
   // Fixed once per visit: the window does not slide while the page is open.
   const [since] = useState(() => new Date(Date.now() - SHOW_DAYS * 86_400_000).toISOString());
@@ -37,7 +37,7 @@ export default function FxAutoNotice() {
           </span>
         );
       })}
-      <span className="text-slate-400">{tf('KlikBCA e-Rate moved more than {pct}%. New POs and quotes now use it.', { pct: FOLLOW_PCT.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB') })}</span>
+      <span className="text-slate-400">{tf('KlikBCA e-Rate moved by {step} or more. New POs and quotes now use it.', { step: fmtInt(FOLLOW_STEP) })}</span>
       <Link href="/settings?tab=fx" className="ml-auto text-amber-200 hover:text-amber-100 font-semibold whitespace-nowrap">{t('Exchange rates')} →</Link>
     </div>
   );

@@ -2755,8 +2755,8 @@ export const ID: Record<string, string> = {
   '{pct}% apart': 'selisih {pct}%',
   'No KlikBCA reading yet: the first one arrives with the morning check.': 'Belum ada bacaan KlikBCA: yang pertama datang dengan pengecekan pagi.',
   'Changes to the company rate': 'Perubahan kurs perusahaan',
-  'Every morning the system reads the KlikBCA e-Rate (sell), rounds it up to the next hundred, and updates the company rate by itself when the two are more than {pct}% apart.':
-    'Setiap pagi sistem membaca KlikBCA e-Rate (jual), membulatkannya ke atas ke ratusan terdekat, dan memperbarui kurs perusahaan sendiri bila keduanya berbeda lebih dari {pct}%.',
+  'Every morning the system reads the KlikBCA e-Rate (sell), rounds it up to the next hundred, and updates the company rate by itself when the two differ by {step} or more.':
+    'Setiap pagi sistem membaca KlikBCA e-Rate (jual), membulatkannya ke atas ke ratusan terdekat, dan memperbarui kurs perusahaan sendiri bila keduanya berselisih {step} atau lebih.',
   'KlikBCA e-Rate {code} sell {sell}, rounded up {rounded}': 'KlikBCA e-Rate {code} jual {sell}, dibulatkan ke atas {rounded}',
   '{pct}% apart: updates tomorrow morning': 'selisih {pct}%: diperbarui besok pagi',
   'KlikBCA e-Rate (automatic)': 'KlikBCA e-Rate (otomatis)',
@@ -2764,7 +2764,7 @@ export const ID: Record<string, string> = {
   'edited by {name} {date}': 'diubah oleh {name} {date}',
   'Company rate updated': 'Kurs perusahaan diperbarui',
   '{ccy} {from} → {to} ({pct}%) on {date}': '{ccy} {from} → {to} ({pct}%) pada {date}',
-  'KlikBCA e-Rate moved more than {pct}%. New POs and quotes now use it.': 'KlikBCA e-Rate bergerak lebih dari {pct}%. PO dan penawaran baru kini memakainya.',
+  'KlikBCA e-Rate moved by {step} or more. New POs and quotes now use it.': 'KlikBCA e-Rate bergerak {step} atau lebih. PO dan penawaran baru kini memakainya.',
   'vs company {rate}': 'vs perusahaan {rate}',
   'Paid at {paid} per {ccy}; the company rate on {date} was {company}.': 'Dibayar {paid} per {ccy}; kurs perusahaan pada {date} adalah {company}.',
   'Bank rate (from the slip)': 'Kurs bank (dari slip)',

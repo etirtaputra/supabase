@@ -13,7 +13,7 @@ import {
   BENCHMARK_CURRENCIES, STALE_AFTER_DAYS, currentBenchmarks, benchmarkLog, ageDays,
   compareToBenchmark, summarise, type FxComparison, type FxBenchmark, type FxReference,
 } from '@/lib/fxBenchmark';
-import { BCA_CODES, FOLLOW_PCT, roundUpToHundred } from '@/lib/bcaRate';
+import { BCA_CODES, FOLLOW_STEP, followsAt, roundUpToHundred } from '@/lib/bcaRate';
 import { BAR_SELECT, BAR_INPUT, BAR_BTN, BAR_BTN_OFF, BAR_BTN_ON } from '@/constants/controls';
 
 /**
@@ -32,7 +32,7 @@ type GroupBy = 'month' | 'supplier' | 'bank';
 const FAR_FROM_MARKET = 0.2;
 
 export default function FxBenchmarkSettings({ flash }: { flash: (m: string) => void }) {
-  const { t, tf, lang } = useT();
+  const { t, tf } = useT();
   const supabase = useMemo(() => createSupabaseClient(), []);
   const { rows, loaded, reload } = useFxBenchmarks();
   const { data, loading } = useSupabaseData();
@@ -135,7 +135,7 @@ export default function FxBenchmarkSettings({ flash }: { flash: (m: string) => v
             {t('Supplier quotes and new POs use these rates. A PO keeps the rate it was saved with, so a new rate only affects new POs. Payments use the rate on the bank slip, and each paid PO is compared with the rate in force on its PO date.')}
           </p>
           <p className="text-[12px] text-slate-500 mt-1.5 max-w-3xl leading-relaxed">
-            {tf('Every morning the system reads the KlikBCA e-Rate (sell), rounds it up to the next hundred, and updates the company rate by itself when the two are more than {pct}% apart.', { pct: FOLLOW_PCT.toLocaleString(lang === 'id' ? 'id-ID' : 'en-GB') })}
+            {tf('Every morning the system reads the KlikBCA e-Rate (sell), rounds it up to the next hundred, and updates the company rate by itself when the two differ by {step} or more.', { step: fmtInt(FOLLOW_STEP) })}
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -182,7 +182,7 @@ export default function FxBenchmarkSettings({ flash }: { flash: (m: string) => v
                     <p className="text-[12px] text-slate-400 mt-2 pt-2 border-t border-slate-800/70 tabular-nums">
                       {tf('KlikBCA e-Rate {code} sell {sell}, rounded up {rounded}', { code: BCA_CODES[c] ?? c, sell: fmtInt(sell), rounded: fmtInt(rounded) })}
                       <span className="text-slate-500"> · {ref.quoted_at || fmtDay(ref.rate_date)}</span>
-                      {apart != null && Math.abs(apart) > FOLLOW_PCT && (
+                      {apart != null && cur && followsAt(rounded, Number(cur.rate)) && (
                         <span className="text-amber-300"> · {tf('{pct}% apart: updates tomorrow morning', { pct: apart.toFixed(1) })}</span>
                       )}
                     </p>

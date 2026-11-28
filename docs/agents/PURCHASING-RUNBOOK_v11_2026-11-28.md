@@ -3,6 +3,10 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v11, 2026-11-28** — one fact: the company rate now follows the KlikBCA
+> e-Rate whenever the rounded figure moves by **100 or more** (it was 1.5%), so it
+> can change on more mornings than before. Rule 7 says it; nothing else changed.
+>
 > **v10, 2026-11-24** — two gaps the owner hit on the same day. (1) He sent two
 > of OUR OWN POs with *"help me input these PO"* and the first went to the Inbox:
 > *"i thought MIRA can just write without going Inbox?"* Rule 8 now says it
@@ -109,8 +113,8 @@ An agent that remembers nothing else from this document must still obey these ei
      compared with the company rate, and a copied rate makes that comparison say
      "paid exactly at plan". See §5.
    - Ask the endpoint for EVERY PO. The company rate can change by itself each morning
-     (a server job follows the KlikBCA e-Rate when it moves more than 1.5%), so a rate
-     you were given yesterday may be stale.
+     (a server job follows the KlikBCA e-Rate, rounded up to the hundred, whenever it
+     moves by 100 or more), so a rate you were given yesterday may well be stale.
    - Never write `9.1_fx_benchmark_rates` or `9.2_fx_reference_rates` — not to add a
      rate, not to correct one. **The database will NOT stop you**: your login has the
      `owner` role, and owners may add and edit company rates. Only Eric sets them.

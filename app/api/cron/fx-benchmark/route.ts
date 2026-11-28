@@ -15,8 +15,9 @@ import { verifyCronSecret } from '@/lib/cronAuth';
  *      (lib/bcaRate.ts parseBcaKurs). A figure outside a sane band is
  *      refused — a misread page must never become the company rate.
  *   2. Record it in 9.2_fx_reference_rates — one row per currency per day.
- *   3. Where the rounded-up e-Rate is more than 1.5% from the company rate in
- *      force (or there is none yet), add a new company rate to
+ *   3. Where the rounded-up e-Rate differs from the company rate in force by
+ *      100 or more (FOLLOW_STEP, owner 2026-11-28; it was 1.5%), or there is
+ *      none yet, add a new company rate to
  *      9.1_fx_benchmark_rates, marked source 'bca-erate'. It is a new row
  *      like any other: the log shows it, and it only affects new POs.
  *

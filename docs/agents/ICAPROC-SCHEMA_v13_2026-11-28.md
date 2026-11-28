@@ -6,6 +6,11 @@
 > 2026-10-09, 2026-10-11, 2026-10-23 and 2026-10-24, against `main` @ the commit that carries it. Row counts are from
 > those days and drift; the NAMES and the RULES are what matter.
 >
+> **v13 (2026-11-28) changes one rule, the morning rate job.** It now moves
+> the company rate whenever the KlikBCA e-Rate sell, rounded up to the next
+> hundred, differs from the rate in force by **100 or more** (it was "more than
+> 1.5%"). Owner: *"change to whenever it changes by 100"*. Nothing else changed.
+>
 > **v12 (2026-11-22) adds one table, `43.0_inbox_items`** — the Inbox: one row
 > per supplier document that came in (a person's upload or an agent's), what was
 > read from it (`extracted`), what ICAPROC proposes (`proposal`), what it became
@@ -274,8 +279,8 @@ means nothing is waiting, not that the feature is switched off.
   the table: the current rate is the newest row per currency (`set_at`); "our
   rate on 13 Oct" is the newest row on or before that day. `source` says who
   set it: `manual` (a person) or `bca-erate` (the job at 08:30 WIB, which adds
-  a row when the KlikBCA e-Rate sell, rounded up to the next hundred, is more
-  than 1.5% from the rate in force). An owner may correct a row's `rate` and
+  a row when the KlikBCA e-Rate sell, rounded up to the next hundred, differs
+  from the rate in force by 100 or more — since 2026-11-28; before, 1.5%). An owner may correct a row's `rate` and
   `note`; `set_at`, `set_by_email` and `source` never change, and the edit is
   stamped in `edited_at` / `edited_by_email`. A new PO's `exchange_rate`
   starts from it (`GET /api/agent/purchasing/rate`, `source: "benchmark"`);
