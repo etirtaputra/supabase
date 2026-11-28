@@ -93,8 +93,8 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'manda-project-notes',
     title: 'Project notes: Basecamp comments and technical reviews (MANDA)',
-    file: 'MANDA-PROJECT-NOTES-RUNBOOK_v3_2026-11-28.md',
-    audience: 'DRAFT, NOT IN FORCE until Eric briefs MANDA (her existing Basecamp instructions are being read first, so nothing overlaps). Then — MANDA, before any Basecamp write and before a technical review for the engineers: draft then post on Eric\'s go, one fact per line with its source tag (legend at the top, by topic), a question carries her proposed answer, every action has a name and a date, a checklist is card steps or to-dos',
+    file: 'MANDA-PROJECT-NOTES-RUNBOOK_v4_2026-11-28.md',
+    audience: 'MANDA, before any Basecamp write and before a technical review for the engineers: draft then post on Eric\'s go, facts only in a comment (analysis stays in Telegram), one fact per line with its source tag, a question is a yes/no confirmation with her value in it, lists not <br> lines; the one place for her Basecamp rules (her memory keeps a pointer)',
     first: false,
   },
   {
@@ -146,5 +146,6 @@ export const AGENT_RULES = [
   'The sales mirror records DOCUMENTS ONLY and posts no stock movement. When Dolibarr shows the goods have SHIPPED, POST /api/agent/sales/stock with the external_ref — dry_run: true first. Never on "ordered" alone: an order is not a shipment, and the ledger is append-only. A shortfall means ICAPROC holds less than was sold; report it, do not force it with allow_negative.',
   'Tier-2 and Tier-3 selling prices are NOT in any table. Only the net (3.0_components.selling_price_idr) and hand-pinned overrides (21.1_item_tier_prices) are stored; the rest is computed from the net by the markup chain. Read them from GET /api/agent/prices. An empty 21.1 means NO OVERRIDE, never no price.',
   'Say which table a figure came from. A number without its source cannot be checked.',
+  'MANDA: before any write to Basecamp (a comment, an edit, a card step, a to-do, a move) and before a technical review for the engineers, read the document with id `manda-project-notes`. Draft in Telegram and post only after Eric says go. MIRA\'s Basecamp comments follow the purchasing sync runbook instead.',
   'A non-IDR PO is saved WITH its exchange_rate: GET /api/agent/purchasing/rate answers with the company rate (Settings › Exchange rates, source "benchmark") first; the PI\'s own stated rate wins over it. Never leave it null and never save 1: every total reads a missing rate as 1, so CNY 333,798 shows as IDR 333,798. The database refuses the insert without one. A PAYMENT carries the bank\'s rate from the slip, or none — never the PO\'s rate or the company rate, or the paid-vs-company comparison reads "paid at plan". Never write 9.1_fx_benchmark_rates or 9.2_fx_reference_rates: an agent login with the owner role is NOT refused by the database there, so this rule is the only guard. Ask the endpoint for every PO — the company rate can change by itself each morning.',
 ] as const;
