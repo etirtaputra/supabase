@@ -3,6 +3,18 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **DRAFT — NOT IN FORCE.** Owner, 28 Nov: *"before installing the new brief,
+> we should ask MANDA what is their brief right now for basecamp … so there's
+> no overlapping."* This file is not a rule until Eric sends you the brief
+> that names it. If you are reading it before that brief: change nothing in
+> how you work, and do not cache it.
+>
+> **v3, 2026-11-28** (same day). The checklist was posted at 14:34 and the
+> owner looked at it on the card: *"spacing and indentation for better
+> reading and layout needs to be better."* Its HTML was one `<p>` per section
+> with `<br>` between 12 items — no space between items, no indent on a
+> wrapped line. New **§6 — layout**. The old §6–§8 are now §7–§9.
+>
 > **v2, 2026-11-28** (same day, before anyone had read v1). Your 14:27
 > draft of the Hon Chuan checklist already carried a source on every line —
 > a legend of source codes at the top, tags in square brackets — and you
@@ -13,7 +25,7 @@
 > you. The owner reviewed four of your comments (Intan Karya, Hon Chuan,
 > Kingsmen, the Hon Chuan checklist draft) and your Hon Chuan gap analysis:
 > *"for technical users, it is better to be direct without much fluff,
-> without losing context."* §1 writes down what you already do. §2–§7 are new.
+> without losing context."* §1 writes down what you already do. The rest is new.
 
 Readers: the project engineers and Eric. They read on a phone, between jobs.
 **Direct** = no sentence they can skip. **Context** = they can check every
@@ -38,7 +50,8 @@ line without asking you where it came from.
 
 ## 2. The line, and its source
 
-One fact per line. The source goes at the end, in square brackets:
+One fact per line. The source goes at the end, in square brackets (§6 says
+how the line is laid out on the card):
 
 ```
 <no>. <item>: <required>. Penawaran: <ours, or "tidak ada">. [<source tags>]
@@ -140,7 +153,61 @@ Tindakan
 - **More than 25 lines:** the first 5 must be enough for a reader who stops
   there.
 
-## 6. A checklist is not a comment
+## 6. Layout — what the reader sees on the card
+
+A Basecamp comment is HTML. Lines joined with `<br>` inside one `<p>` render as
+a wall: no space between items, and a wrapped line starts at the left edge,
+under the number. Build the comment from these blocks:
+
+```html
+<p>(the tags, if any)</p>
+<p><br></p>
+<p><strong>Tender Hon Chuan KIIC – checklist spesifikasi vs penawaran – 28/11/2026</strong><br>
+Pertanyaan ke Hon Chuan paling lambat Jumat 04/12/2026, 17.00 WIB (no. 30–34).<br>
+Pembanding: <a href="https://www.icaproc.com/proposals/…">Q-20261004-DCRU-REV</a> (06/10/2026), 3.523,5 kWp / 2.970 kW.</p>
+<pre>BS  = Bid Sheet .xlsx, sheet "Bid sheet" (bagian-nomor)
+ITB = Instructions to Bidders .docx (nomor)
+M   = meeting Hon Chuan 22/09/2026</pre>
+<p><strong>A. Belum ada di penawaran</strong></p>
+<ul>
+  <li><strong>3.</strong> Garansi inverter: 10 tahun.<br>Penawaran: 5 tahun. <em>[BS 貳-二-1]</em></li>
+  <li><strong>17.</strong> Modul <em>[BS 貳-一-1 s.d. 5]</em>
+    <ul>
+      <li>Jinko/Trina N-type ≥720 W</li>
+      <li>degradasi ≤7% (10 tahun), ≤20% (25 tahun)</li>
+      <li>sertifikat IEC dan UL; garansi produk 12 tahun</li>
+    </ul>
+    Penawaran: …</li>
+</ul>
+```
+
+- **Each item is a list item** (`<ul><li>`), never a `<br>` line. The list
+  gives the space between items and the hanging indent on a wrapped line.
+- **Type the number yourself, in bold,** at the start of the item
+  (`<strong>14.</strong>`). Do not rely on `<ol>`: its numbering restarts in
+  every section, and a reply must be able to say "no. 14".
+- **"Penawaran:" starts a new line** inside the item (`<br>`), so the eye
+  finds both sides in the same place on every item.
+- **An item with three or more requirements** (no. 1, no. 17) → the item
+  names the topic, each requirement is a nested bullet.
+- **The source tag is in italics** (`<em>[BS 柒-14]</em>`) at the end of the
+  item, so it is there but does not compete with the requirement.
+- **The legend is a `<pre>` block,** with the `=` signs in one column.
+- **A section heading is its own paragraph** (`<p><strong>…</strong></p>`),
+  then its list. Nothing else is bold except the item numbers.
+- **A link has words, not a raw address:** the proposal number is the link.
+- **No `☐`.** It cannot be ticked (§7).
+- **One empty paragraph after the tag line** (owner, 28 Nov). No other empty
+  paragraphs: paragraphs and lists make the space.
+- **Read the comment back after you post.** If Basecamp changed a block (a
+  list flattened, the legend on one line), fix it with an edit and tell Eric
+  which tag did not survive.
+
+The Telegram draft shows Eric the WORDS. Say in one line under the draft how
+it will be laid out ("5 sections, a list per section, legend in a code
+block"), so "go" covers the layout too.
+
+## 7. A checklist is not a comment
 
 `□` in a comment cannot be ticked, assigned or discussed line by line. When
 people must tick items or discuss them one by one, say so in the draft and
@@ -154,7 +221,7 @@ propose one of these:
 The comment then holds the summary and the link. Eric chooses; you do not
 create steps or to-dos without his "go" (§1).
 
-## 7. A technical review for Eric, in Telegram
+## 8. A technical review for Eric, in Telegram
 
 Keep your shape: the result in line 1, sources, `A. Not in the proposal` /
 `B. In it, below the spec` / `C. Commercial terms` / `D. Questions`, then
@@ -164,7 +231,7 @@ Keep your shape: the result in line 1, sources, `A. Not in the proposal` /
 - the amount, or `belum ada harga`, on every A and C line (§4);
 - for each D question, your proposed answer when you have one (§3).
 
-## 8. Before you post
+## 9. Before you post
 
 1. Line 2 says the one thing, with its date.
 2. Every line: both sides, a source tag, a number with its unit. The legend is at the top.
@@ -173,4 +240,7 @@ Keep your shape: the result in line 1, sources, `A. Not in the proposal` /
 5. Tags = the names under Tindakan, no one else.
 6. No cost, no margin, no supplier. No status I did not set.
 7. This event has no comment yet; if it has, I edit that one.
-8. Eric said "go" to this exact text.
+8. Layout (§6): every item is a list item, "Penawaran:" on its own line, the
+   tag in italics, the legend in a code block, no `☐`.
+9. Eric said "go" to this exact text.
+10. After posting: I read it back, and the layout is what I meant.
