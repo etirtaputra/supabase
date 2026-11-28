@@ -3,6 +3,12 @@
 > Part of the ICAPROC agent packs — `docs/agents/INDEX.md` names the current
 > version of each. If this file is not the one the index names, it is stale.
 >
+> **v2, 2026-11-28** (same day, before anyone had read v1). Your 14:27
+> draft of the Hon Chuan checklist already carried a source on every line —
+> a legend of source codes at the top, tags in square brackets — and you
+> told Eric why the list stays by topic. That is better than v1's line
+> format, so §2 now writes down YOUR convention. Nothing else changed.
+>
 > **v1, 2026-11-28.** Until today no pack said anything about Basecamp for
 > you. The owner reviewed four of your comments (Intan Karya, Hon Chuan,
 > Kingsmen, the Hon Chuan checklist draft) and your Hon Chuan gap analysis:
@@ -30,24 +36,41 @@ line without asking you where it came from.
   selling price appears only when the question is about that price.
 - **The card's language.**
 
-## 2. The line
+## 2. The line, and its source
 
-One fact per line, in this order:
+One fact per line. The source goes at the end, in square brackets:
 
 ```
-<item>: <required> (<ref>) · <ours> (<ref>) · <gap, or your proposal>
+<no>. <item>: <required>. Penawaran: <ours, or "tidak ada">. [<source tags>]
 ```
 
-- **`<ref>` is where an engineer finds it:** the Bid Sheet row, the clause
-  number, the proposal section and line. Give the proposal's link and revision
-  once, at the top.
-- **A number, with its unit.** Never "high", "several", "big". Count them.
+```
+10. Layar monitoring 75": 2 unit. Penawaran: 1 unit. [BS 參-1]
+```
+
+- **A legend of source codes, once, at the top** — your convention of 28 Nov:
+
+  ```
+  Kode sumber:
+  BS  = Bid Sheet .xlsx, sheet "Bid sheet" (bagian-nomor)
+  ITB = Instructions to Bidders .docx (nomor)
+  M   = meeting Hon Chuan 22/09/2026 (komentar Abel di kartu)
+  ```
+
+  A code names the file, the sheet and how its numbers read. Write a section
+  number exactly as the document prints it (`BS 柒-14`), so a search finds it.
+- **By topic, not by document** (your answer to Eric, 28 Nov). Engineers work
+  by topic. One requirement found in three documents is ONE line with three
+  tags. Two documents that disagree are a question (§3) with both tags.
 - **Every line shows both sides.** "Penawaran: 1 unit" on some lines and
   nothing on others reads as "not checked". Nothing on our side → write
-  `Penawaran: tidak ada`.
+  `Penawaran: tidak ada`. The proposal's number, revision and link go once,
+  at the top.
+- **A number, with its unit.** Never "high", "several", "big". Count them.
 - **Cut the sentence that carries no fact:** "Apakah jumlah ini benar?",
   "Mohon konfirmasi" on every line, an opening that repeats the title.
 - **Number the lines 1…n across all sections,** so a reply can say "no. 14".
+  You already do.
 
 ## 3. A question carries your answer
 
@@ -88,6 +111,7 @@ Asked what drives cost up: rank by amount, not by feel.
 <Project> – <what this is> – <dd/mm/yyyy>
 <The one thing the reader must know or do, with its date.>
 Sumber: <document or message, from whom, date>. Pembanding: <proposal no., revision, link>.
+Kode sumber: <the legend, §2 — when the lines carry tags>
 
 <the lines, §2, numbered 1…n>
 
@@ -136,14 +160,14 @@ Keep your shape: the result in line 1, sources, `A. Not in the proposal` /
 `B. In it, below the spec` / `C. Commercial terms` / `D. Questions`, then
 `Not checked`. Add:
 
-- the `<ref>` on every line (§2);
+- the source tag on every line (§2);
 - the amount, or `belum ada harga`, on every A and C line (§4);
 - for each D question, your proposed answer when you have one (§3).
 
 ## 8. Before you post
 
 1. Line 2 says the one thing, with its date.
-2. Every line: both sides, a ref, a number with its unit.
+2. Every line: both sides, a source tag, a number with its unit. The legend is at the top.
 3. Every question: checked what I could; my answer is in it; MENAHAN or RAPI.
 4. Every action: a name and a date. Nothing I could do myself is on the list.
 5. Tags = the names under Tindakan, no one else.

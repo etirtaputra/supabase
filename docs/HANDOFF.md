@@ -497,7 +497,7 @@ check for duplicates? This is important."*
   besides Eric may ask MIRA to create a deal (rule 8 says "a person on
   Telegram"); and proposals 2–4. Not done: tables for MANDA and MAX.
   **28 Nov — MANDA project notes runbook v1**
-  (`MANDA-PROJECT-NOTES-RUNBOOK_v1_2026-11-28.md`, id `manda-project-notes`).
+  (`MANDA-PROJECT-NOTES-RUNBOOK_v2_2026-11-28.md` — v1 lasted an hour, see the end of this entry; id `manda-project-notes`).
   Her packs said nothing about Basecamp (boot prompt v5 predates the
   connection). The owner showed four of her comments (Intan Karya: two
   comments for one event and "Status: kartu ditutup" on an open card; Hon
@@ -520,7 +520,13 @@ check for duplicates? This is important."*
   may selling prices, and remarks about another company's payments, go on a
   card (the runbook keeps her practice and makes her ask in the draft); may
   anyone but Eric say "go" to a Basecamp write. Not confirmed: that MANDA has
-  read it; her first comment written to it. Facts of the day, read from the database: MIRA created EB.42658 /
+  read it; her first comment written to it. **v2 the same day, before she had read v1:** the owner sent
+  her 14:27 draft, where — asked by him — she had already put a source on
+  every line (a legend of codes at the top, tags like `[BS 柒-14]`) and argued
+  for a list by topic, not by document. §2 now writes down HER convention in
+  place of v1's `(ref)` format; nothing else changed. Drive: runbook v2
+  `1rn2FMJDHQpveQwE405uUCDNal9O9M2Xa`, INDEX
+  `19H5dHxsap1kU5-Of9NR0WvtbLkqwR5ZE`; v1 and the earlier INDEX trashed. Facts of the day, read from the database: MIRA created EB.42658 /
   EB.42659 on quotes KST226-6825 / -6826 (each PO adds CNY 8,300 freight to a
   CIF quote — the owner's question to KSTAR is open) and supplier POWEREASE
   GROUP INDO (code POWEREASE, 10:37 UTC) with quote SOPI00020 (Open, IDR).

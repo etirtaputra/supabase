@@ -93,8 +93,8 @@ export const AGENT_DOCS: readonly AgentDoc[] = [
   {
     id: 'manda-project-notes',
     title: 'Project notes: Basecamp comments and technical reviews (MANDA)',
-    file: 'MANDA-PROJECT-NOTES-RUNBOOK_v1_2026-11-28.md',
-    audience: 'MANDA, before any Basecamp write and before a technical review for the engineers: draft then post on Eric\'s go, one fact per line with its reference, a question carries her proposed answer, every action has a name and a date, a checklist is card steps or to-dos',
+    file: 'MANDA-PROJECT-NOTES-RUNBOOK_v2_2026-11-28.md',
+    audience: 'MANDA, before any Basecamp write and before a technical review for the engineers: draft then post on Eric\'s go, one fact per line with its source tag (legend at the top, by topic), a question carries her proposed answer, every action has a name and a date, a checklist is card steps or to-dos',
     first: false,
   },
   {
